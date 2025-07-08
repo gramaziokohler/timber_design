@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools>=66.0"]
+build-backend = "setuptools.build_meta"
+
+# ============================================================================
+# Project info
+# ============================================================================
+
+[project]
+name = "timber_design"
+description = "Automation toolkit for the design of timber structures based on COMPAS timber"
+keywords = []
+authors = [
+    { name = "Chen Kasirer", email = "kasirer@arch.ethz.ch" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ['dependencies', 'optional-dependencies', 'version']
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: Unix",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://gramaziokohler.github.io/timber_design"
+Documentation = "https://gramaziokohler.github.io/timber_design"
+Repository = "https://github.com/gramaziokohler/timber_design"
+Changelog = "https://github.com/gramaziokohler/timber_design/blob/main/CHANGELOG.md"
+Issues = "https://github.com/gramaziokohler/timber_design/issues"
+Forum = "https://forum.compas-framework.org/"
+
+# ============================================================================
+# Build configuration
+# ============================================================================
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "timber_design.__version__" }
+dependencies = { file = "requirements.txt" }
+optional-dependencies = { dev = { file = "requirements-dev.txt" } }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ============================================================================
+# Unittest configuration
+# ============================================================================
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests", "src/timber_design"]
+python_files = ["test_*.py", "*_test.py", "test.py"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--doctest-glob=*.rst",
+    "--tb=short",
+    "--import-mode=importlib",
+]
+doctest_optionflags = [
+    "NORMALIZE_WHITESPACE",
+    "IGNORE_EXCEPTION_DETAIL",
+    "ALLOW_UNICODE",
+    "ALLOW_BYTES",
+    "NUMBER",
+]
+
+# ============================================================================
+# Release management
+# ============================================================================
+
+[tool.bumpversion]
+current_version = "0.1.0"
+message = "Bump version to {new_version}"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "src/timber_design/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "Unreleased"
+replace = "[{new_version}] {now:%Y-%m-%d}"
+
+# ============================================================================
+# Formatting and linting
+# ============================================================================
+
+[tool.black]
+extend-exclude = '(/[a-zA-Z\./]*[\s]?)'  # exclude everything, black should be removed..
+
+[tool.ruff]
+line-length = 179
+indent-width = 4
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["I001"]
+"tests/*" = ["I001"]
+"tasks.py" = ["I001"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+known-first-party = ["timber_design"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 179
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"

@@ -22,12 +22,12 @@ from compas_timber.connections import InterfaceRole
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.design import CategoryRule
 from compas_timber.elements import Beam
 from compas_timber.elements import OpeningType
 from compas_timber.elements import Plate
 from compas_timber.elements.features import BrepSubtraction
 
+from .workflow import CategoryRule
 from .workflow import JointDefinition
 
 

@@ -9,10 +9,10 @@ from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.elements import Beam
-from compas_timber.design import JointRule
-from compas_timber.design import DirectRule
-from compas_timber.design import CategoryRule
-from compas_timber.design import TopologyRule
+from timber_design.workflow import JointRule
+from timber_design.workflow import DirectRule
+from timber_design.workflow import CategoryRule
+from timber_design.workflow import TopologyRule
 
 
 @pytest.fixture

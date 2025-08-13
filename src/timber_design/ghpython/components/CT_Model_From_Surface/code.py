@@ -10,8 +10,8 @@ from compas.tolerance import Tolerance
 from Rhino.Geometry import Brep as RhinoBrep
 from Rhino.Geometry import Vector3d as RhinoVector
 
-from compas_timber.design import DebugInfomation
-from compas_timber.design import SurfaceModel
+from timber_design.workflow import DebugInfomation
+from timber_design.wall_from_surface import SurfaceModel
 from compas_timber.ghpython import error
 
 

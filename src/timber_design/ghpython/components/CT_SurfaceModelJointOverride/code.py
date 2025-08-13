@@ -7,8 +7,8 @@ from System.Windows.Forms import ToolStripMenuItem
 from System.Windows.Forms import ToolStripSeparator
 
 from compas_timber.connections import Joint
-from compas_timber.design import CategoryRule
-from compas_timber.design import SurfaceModel
+from timber_design.workflow import CategoryRule
+from timber_design.wall_from_surface import SurfaceModel
 from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
 from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output

@@ -8,7 +8,7 @@ from compas_timber.connections import Joint
 from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import XLapJoint
-from compas_timber.design import TopologyRule
+from timber_design.workflow import TopologyRule
 from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
 from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output

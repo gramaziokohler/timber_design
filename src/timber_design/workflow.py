@@ -1,7 +1,6 @@
 from itertools import combinations
 
 from compas.tolerance import TOL
-
 from compas_timber.connections import ConnectionSolver
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint

@@ -20,7 +20,6 @@ from compas.geometry import matrix_from_frame_to_frame
 from compas.geometry import offset_line
 from compas.geometry import offset_polyline
 from compas.tolerance import Tolerance
-
 from compas_timber.connections import ConnectionSolver
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint

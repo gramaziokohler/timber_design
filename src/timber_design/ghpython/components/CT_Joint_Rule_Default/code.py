@@ -1,6 +1,5 @@
 # r: compas_timber>=0.15.3
 import Grasshopper
-
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint

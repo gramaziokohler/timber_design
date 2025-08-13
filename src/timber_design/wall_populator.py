@@ -16,7 +16,6 @@ from compas.geometry import intersection_segment_segment
 from compas.geometry import matrix_from_frame_to_frame
 from compas.geometry import offset_line
 from compas.tolerance import TOL
-
 from compas_timber.connections import ConnectionSolver
 from compas_timber.connections import InterfaceLocation
 from compas_timber.connections import InterfaceRole

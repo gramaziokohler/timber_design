@@ -4,7 +4,6 @@
 import inspect
 
 import Grasshopper  # type: ignore
-
 from compas_timber.connections import Joint
 from compas_timber.connections import PlateJoint
 from compas_timber.design import DirectRule

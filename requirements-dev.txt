@@ -7,3 +7,5 @@ ruff
 sphinx_compas2_theme
 twine
 wheel
+build
+pythonnet

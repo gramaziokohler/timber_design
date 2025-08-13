@@ -117,6 +117,7 @@ select = ["E", "F", "I"]
 "__init__.py" = ["I001"]
 "tests/*" = ["I001"]
 "tasks.py" = ["I001"]
+"src/timber_design/ghpython/components/*/code.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 force-single-line = true

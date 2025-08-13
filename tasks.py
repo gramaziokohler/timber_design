@@ -85,8 +85,8 @@ ns.configure(
     {
         "base_folder": os.path.dirname(__file__),
         "ghuser_cpython": {
-            "source_dir": "src/compas_timber/ghpython/components",
-            "target_dir": "src/compas_timber/ghpython/components/ghuser",
+            "source_dir": "src/timber_design/ghpython/components",
+            "target_dir": "src/timber_design/ghpython/components/ghuser",
             "prefix": "CT: ",
         },
     }

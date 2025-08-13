@@ -138,3 +138,5 @@ docs/api/generated/
 scripts/
 
 .ruff_cache
+
+src/timber_design/ghpython/components/ghuser/*.ghuser

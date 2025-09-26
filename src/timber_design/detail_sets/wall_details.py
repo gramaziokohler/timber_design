@@ -5,7 +5,7 @@ from compas.geometry import distance_point_point
 from compas.geometry import intersection_line_plane
 from compas_timber.connections import InterfaceLocation
 
-from .wall_populator import BeamDefinition
+from .populators.wall_populator import BeamDefinition
 
 
 def _get_furthest_line(lines, point):

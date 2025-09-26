@@ -14,7 +14,7 @@ from compas_timber.ghpython import error
 from compas_timber.ghpython import warning
 from compas_timber.model import TimberModel
 
-from timber_design.wall_populator import WallPopulator
+from timber_design.populators.wall_populator import WallPopulator
 from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRule
 

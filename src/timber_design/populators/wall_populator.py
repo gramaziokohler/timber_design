@@ -27,8 +27,8 @@ from compas_timber.elements import OpeningType
 from compas_timber.elements import Plate
 from compas_timber.elements.features import BrepSubtraction
 
-from .workflow import CategoryRule
-from .workflow import JointDefinition
+from ..workflow import CategoryRule
+from ..workflow import JointDefinition
 
 
 class WallSelector(object):

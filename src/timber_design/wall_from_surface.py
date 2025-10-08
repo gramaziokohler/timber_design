@@ -54,7 +54,7 @@ class SurfaceModel(object):
     ----------
     beams : list of :class:`compas_timber.elements.Beam`
         The beams of the assembly.
-    rules : list of :class:`compas_timber.design.CategoryRule`
+    rules : list of :class:`timber_design.workflow.CategoryRule`
         The rules for the assembly.
     centerlines : list of :class:`compas.geometry.Line`
         The centerlines of the beams.

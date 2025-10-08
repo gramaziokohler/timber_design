@@ -21,7 +21,6 @@ class DetailBase(object):
 
     def __init__(self, beam_width_overrides=None, joint_rule_overrides=None):
         self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
-        print("Beam width overrides:", self.beam_width_overrides)
         if not joint_rule_overrides:
             self.rules = self.RULES
         else:
@@ -91,8 +90,12 @@ class DetailBase(object):
         """Get the joint type for the given elements."""
         for rule in self.rules:
             if rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]:
-                rule.kwargs.update(kwargs)
-                return DirectRule(rule.joint_type, [element_a, element_b], **rule.kwargs)
+                kwargs.update(rule.kwargs)
+                return DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
+            if rule.category_a == element_b.attributes["category"] and rule.category_b == element_a.attributes["category"]:
+                kwargs.update(rule.kwargs)
+                return DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
+
         raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
     def _append_and_replace_joints(self, joints, slab_populator):

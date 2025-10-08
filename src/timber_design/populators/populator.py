@@ -11,9 +11,9 @@ from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
 from compas.geometry import angle_vectors_signed
 
-from compas_timber.elements.timber import TimberGroupElement
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
+from compas_timber.model import TimberModel
 
 
 class SlabSelector(object): #TODO change to detail selector or similar
@@ -48,7 +48,7 @@ class OpeningPopulator(object):
 
 
 
-class SlabPopulator(TimberGroupElement):
+class SlabPopulator(TimberModel):
     """Create a timber assembly from a surface.
 
     Parameters
@@ -93,64 +93,53 @@ class SlabPopulator(TimberGroupElement):
     """
 
     def __init__(self, slab, detail_set):
-        # super(SlabPopulator, self).__init__(slab.outline_a, slab.outline_b, slab.openings, slab.interfaces)
+        super(SlabPopulator, self).__init__()
         self._slab = slab
         self.detail_set = detail_set
         self.test = []
-        self.frame = self.get_frame(slab, self.detail_set)
-
-        self.outline_a = slab.local_outlines[0].transformed(self.transform_to_local)
-        self.outline_b = slab.local_outlines[1].transformed(self.transform_to_local)
-        self.test = []
-        for opening in slab.openings:
-            outline = opening.outline.copy()
-            outline.transform(opening.transformation)
-            outline.transform(slab.transformation.inverse())
-            outline.transform(self.transformation.inverse())
-            self.test.append(outline)
+        self.transformation_to_local = self.get_transformation_to_populator_space(slab, detail_set)
+        self.outline_a = slab.local_outlines[0].transformed(self.transformation_to_local)
+        self.outline_b = slab.local_outlines[1].transformed(self.transformation_to_local)
+        self.openings = []
+        self.interfaces = []
+        self.direct_rules = []
         self._frame_outline = None
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
-        self.elements = []
-        self.direct_rules = []
         detail_set.prepare_populator(self)
+        self.test = []
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.detail_set, self._slab)
+
+    @property
+    def slab(self):
+        """The slab associated with this populator."""
+        return self._slab
 
     @property
     def edge_count(self):
         """Returns the number of edges in the slab outline."""
         return len(self.outline_a) - 1
 
+    @property
+    def frame(self):
+        """The frame of the slab populator. This frame is in relation to the slab outlines in the slab local space."""
+        return Frame.from_transformation(self.transformation_to_local.inverse())
 
-    def get_frame(self, slab, detail_set):
+
+    def get_transformation_to_populator_space(self, slab, detail_set):
         """The slab_populator frame in global space."""
-        stud_dir = detail_set.stud_direction.transformed(slab.transformation.inverse())
+        stud_dir = detail_set.stud_direction.transformed(slab.transformation.inverse()) #bring stud direction into local slab space
         stud_dir[2]=0.0
-        frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0,0,1)), stud_dir)
-        transform_to_sp = Transformation.from_frame(frame)
-        pts = slab.local_outlines[0].points + slab.local_outlines[1].points
-        rebased_pts = [pt.transformed(transform_to_sp.inverse()) for pt in pts]
+        frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0,0,1)), stud_dir) #get frame with stud direction as y axis
+        transform_to_sp = Transformation.from_frame(frame).inverse()
+        rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points] #rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
-        frame.translate(frame.xaxis * min_pt[0] + frame.yaxis * min_pt[1] + Vector(0, 0, detail_set.sheeting_inside + self.frame_thickness / 2))
-        return frame
+        frame = Frame(min_pt, Vector(1,0,0), Vector(0,1,0)).transformed(transform_to_sp.inverse())
+        frame.point[2]=detail_set.sheeting_inside+self.frame_thickness/2
+        return Transformation.from_frame(frame).inverse()
 
-    @property
-    def transform_to_local(self):
-        """The transformation from slab.frame ."""
-        return Transformation.from_frame_to_frame(self.frame, Frame.worldXY())
-
-
-    @property
-    def transform_to_parent(self):
-        """Returns the frame of the slab."""
-        return self.transform_to_local.inverse()
-
-    @property
-    def transformation(self):
-        """Returns the transformation from world coordinates to slab local coordinates."""
-        return Transformation.from_frame(self.frame)
 
     @property
     def frame_outline(self):
@@ -160,14 +149,16 @@ class SlabPopulator(TimberGroupElement):
             for pt_a, pt_b in zip(self.outline_a.points, self.outline_b.points):
                 line = Line(pt_a, pt_b)
                 pts.append(Point(*intersection_line_plane(line, Plane.worldXY())))
-            print(pts)
             self._frame_outline = Polyline(pts)
         return self._frame_outline
 
     @property
     def edge_planes(self):
         """Returns the edge planes of the slab."""
-        return self._slab.edge_planes
+        planes = {}
+        for i, pl in enumerate(self._slab.local_edge_planes):
+            planes[i] = pl.transformed(self.transformation_to_local)
+        return planes
 
     @property
     def thickness(self):
@@ -178,14 +169,6 @@ class SlabPopulator(TimberGroupElement):
     def frame_thickness(self):
         """Returns the frame thickness, adjusted for sheeting."""
         return self._slab.thickness - self.detail_set.sheeting_inside - self.detail_set.sheeting_outside
-
-    @property
-    def beams(self):
-        return list(filter(lambda x: x.is_beam, self.elements))
-
-    @property
-    def plates(self):
-        return list(filter(lambda x: x.is_plate, self.elements))
 
     @property
     def edge_beams(self):
@@ -227,9 +210,9 @@ class SlabPopulator(TimberGroupElement):
         if not self._interior_corner_indices:
             """Get the indices of the interior corners of the slab outline."""
             points = self.outline_a.points[0:-1]
-            cw = is_polyline_clockwise(self.outline_a, self.normal)
+            cw = is_polyline_clockwise(self.outline_a, Vector(0,0,1))
             for i in range(len(points)):
-                angle = angle_vectors_signed(points[i - 1] - points[i], points[(i + 1) % len(points)] - points[i], Vector.worldZ, deg=True)
+                angle = angle_vectors_signed(points[i - 1] - points[i], points[(i + 1) % len(points)] - points[i], Vector(0,0,1), deg=True)
                 if not (cw ^ (angle < 0)):
                     self._interior_corner_indices.append(i)
         return self._interior_corner_indices
@@ -247,8 +230,16 @@ class SlabPopulator(TimberGroupElement):
         """Calculates the oriented bounding box (OBB) for the slab."""
         return Box.from_points(self.outline_a.points + self.outline_b.points)
 
+    # @property
+    # def elements(self):
+    #     return list(self.elements())
+
+    def process_direct_rules(self):
+        for rule in self.direct_rules:
+            rule.joint_type.create(self, *rule.elements, **rule.kwargs)
+
     def get_elements_by_category(self, category):
-        return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements))
+        return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements()))
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""

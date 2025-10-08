@@ -12,8 +12,8 @@ from compas.geometry import intersection_segment_segment
 
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.design import CategoryRule
-from compas_timber.design.details import DetailBase
+from timber_design.workflow import CategoryRule
+from timber_design.detail_sets import DetailBase
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.utils import do_segments_overlap
 from compas_timber.utils import get_polyline_segment_perpendicular_vector

@@ -11,9 +11,9 @@ from compas.geometry import intersection_segment_segment
 
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.design import CategoryRule
-from compas_timber.design import DirectRule
-from compas_timber.design.details import DetailBase
+from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
+from timber_design.detail_sets import DetailBase
 from compas_timber.elements import Beam, slab
 from compas_timber.utils import is_point_in_polyline
 from compas_timber.utils import split_beam_at_lengths

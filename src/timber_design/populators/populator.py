@@ -108,6 +108,7 @@ class SlabPopulator(TimberModel):
         self._edge_perpendicular_vectors = []
         detail_set.prepare_populator(self)
         self.test = []
+        self.test.extend(list(self.edge_planes.values()))
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.detail_set, self._slab)
@@ -140,6 +141,20 @@ class SlabPopulator(TimberModel):
         frame.point[2]=detail_set.sheeting_inside+self.frame_thickness/2
         return Transformation.from_frame(frame).inverse()
 
+    def merge_with_model(self, model, clear_slab=False):
+        """Merges the slab populator with a timber model."""
+
+        if clear_slab:
+            for element in self._slab.children:
+                model.remove_element(element)
+                for joint in model.joints:
+                    if element in joint.elements:
+                        model.remove_joint(joint)
+        for element in list(self.elements()):
+            element.transform(self.transformation_to_local.inverse())
+            model.add_element(element, parent=self._slab)
+        for jd in self.direct_rules:
+            jd.joint_type.create(model, *jd.elements, **jd.kwargs)
 
     @property
     def frame_outline(self):
@@ -251,10 +266,10 @@ class SlabPopulator(TimberModel):
     def create_elements(self):
         """Generates the elements for the slab."""
         self.detail_set.create_elements(self)
-        # for i in self.interfaces:
-        #     i.detail_set.create_elements(i, self)
-        # for o in self.openings:
-        #     o.detail_set.create_elements(o, self)
+        for i in self.interfaces:
+            i.detail_set.create_elements(i, self)
+        for o in self.openings:
+            o.detail_set.create_elements(o, self)
 
     def cull_and_split_studs(self):
         """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""

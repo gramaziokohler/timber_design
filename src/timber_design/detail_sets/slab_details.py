@@ -122,6 +122,7 @@ class SlabDetailBase(DetailBase):
     # methods for edge beams
     # ==========================================================================
 
+
     def _create_edge_beams(self, slab_populator, min_width=None, standardize_blank_dimension=False):
         """Get the edge beam definitions for the outer polyline of the slab."""
         if min_width is None:
@@ -183,7 +184,7 @@ class SlabDetailBase(DetailBase):
         vector = slab_populator.edge_perpendicular_vectors[beam.attributes["edge_index"]]
         if distance is None:
             distance = beam.width * 0.5
-        beam.frame.translate(-vector * distance)
+        beam.translate(-vector * distance)
 
     def _apply_linear_cut_to_edge_beam(self, beam, slab_populator):
         """Trim the edge beams to fit between the plate beams."""
@@ -328,6 +329,7 @@ class SlabDetailA(SlabDetailBase):
         CategoryRule(LButtJoint, "edge_stud", "edge_stud"),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam"),
         CategoryRule(LButtJoint, "bottom_plate_beam", "top_plate_beam"),
+        CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam"),
         CategoryRule(LButtJoint, "top_plate_beam", "top_plate_beam"),
         CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam"),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam"),

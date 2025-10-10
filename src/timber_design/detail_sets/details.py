@@ -92,6 +92,7 @@ class DetailBase(object):
             if rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]:
                 kwargs.update(rule.kwargs)
                 return DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
+        for rule in self.rules:
             if rule.category_a == element_b.attributes["category"] and rule.category_b == element_a.attributes["category"]:
                 kwargs.update(rule.kwargs)
                 return DirectRule(rule.joint_type, [element_b, element_a], **kwargs)

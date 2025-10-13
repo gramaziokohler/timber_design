@@ -138,12 +138,11 @@ class SlabPopulator(TimberModel):
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points] #rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1,0,0), Vector(0,1,0)).transformed(transform_to_sp.inverse())
-        frame.point[2]=detail_set.sheeting_inside+self.frame_thickness/2
+        frame.point[2]=self.detail_set.get_frame_offset(self)
         return Transformation.from_frame(frame).inverse()
 
     def merge_with_model(self, model, clear_slab=False):
         """Merges the slab populator with a timber model."""
-
         if clear_slab:
             for element in self._slab.children:
                 model.remove_element(element)
@@ -179,11 +178,6 @@ class SlabPopulator(TimberModel):
     def thickness(self):
         """Returns the thickness of the slab."""
         return self._slab.thickness
-
-    @property
-    def frame_thickness(self):
-        """Returns the frame thickness, adjusted for sheeting."""
-        return self._slab.thickness - self.detail_set.sheeting_inside - self.detail_set.sheeting_outside
 
     @property
     def edge_beams(self):
@@ -245,10 +239,6 @@ class SlabPopulator(TimberModel):
         """Calculates the oriented bounding box (OBB) for the slab."""
         return Box.from_points(self.outline_a.points + self.outline_b.points)
 
-    # @property
-    # def elements(self):
-    #     return list(self.elements())
-
     def process_direct_rules(self):
         for rule in self.direct_rules:
             rule.joint_type.create(self, *rule.elements, **rule.kwargs)
@@ -271,15 +261,6 @@ class SlabPopulator(TimberModel):
         for o in self.openings:
             o.detail_set.create_elements(o, self)
 
-    def cull_and_split_studs(self):
-        """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""
-        self.detail_set._extend_interior_corner_beams(self)
-        for interface in self.interfaces:
-            if interface.interface_role == "CROSS":
-                interface.detail_set.cull_and_split_studs(interface, self)
-        for opening in self.openings:
-            opening.detail_set.cull_and_split_studs(opening, self)
-
     def create_joints(self):
         """Generates the joints for the slab."""
         self.detail_set.create_joints(self)
@@ -287,6 +268,11 @@ class SlabPopulator(TimberModel):
             i.detail_set.create_joints(i, self)
         for o in self.openings:
             o.detail_set.create_joints(o, self)
+        self.process_direct_rules()
+
+
+    
+
 
     @classmethod
     def from_model(cls, model, configuration_sets):
@@ -305,3 +291,5 @@ class SlabPopulator(TimberModel):
                     slab_populators.append(cls(config_set, slab, interfaces))
                     break
         return slab_populators
+
+    

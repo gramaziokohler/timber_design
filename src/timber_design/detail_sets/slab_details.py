@@ -96,6 +96,15 @@ class SlabDetailBase(DetailBase):
     # methods for preparaing slab populator
     # ==========================================================================
 
+    def get_frame_offset(self, slab_populator):
+        """Get the total offset of the frame based on the sheeting thicknesses."""
+        return self.sheeting_inside+slab_populator.frame_thickness/2
+
+    @property
+    def frame_thickness(self, slab_populator):
+        """Returns the frame thickness, adjusted for sheeting."""
+        return slab_populator.thickness - self.sheeting_inside - self.sheeting_outside
+    
     def _set_frame_outlines(self, slab_populator):
         """Handles the sheeting offsets for the slab outlines."""
         """This method creates new outlines for the beam frame based on the sheeting thicknesses."""
@@ -118,6 +127,8 @@ class SlabDetailBase(DetailBase):
                 pts_outside.append(pt_a * offset_outside + pt_b * (1 - offset_outside))
 
             slab_populator.frame_outline_b = Polyline(pts_outside)
+
+            
     # ==========================================================================
     # methods for edge beams
     # ==========================================================================
@@ -196,6 +207,14 @@ class SlabDetailBase(DetailBase):
     # ==========================================================================
     # methods to trim and cull beams
     # ==========================================================================
+    def cull_and_split_studs(self):
+        """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""
+        self._extend_interior_corner_beams(self.slab_populator)
+        for interface in self.slab_populator.interfaces:
+            if interface.interface_role == "CROSS":
+                interface.detail_set.cull_and_split_studs(interface, self)
+        for opening in self.slab_populator.openings:
+            opening.detail_set.cull_and_split_studs(opening, self)
 
     def _extend_interior_corner_beams(self, slab_populator):            #this should go to interface detail set
         """Extend the beams at the interior corners to ensure that stud generation creates valid intersections."""

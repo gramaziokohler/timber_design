@@ -137,12 +137,11 @@ class SlabPopulator(TimberModel):
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points] #rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1,0,0), Vector(0,1,0)).transformed(transform_to_sp.inverse())
-        frame.point[2]=detail_set.sheeting_inside+self.frame_thickness/2
+        frame.point[2]=self.detail_set.get_frame_offset(self)
         return Transformation.from_frame(frame).inverse()
 
     def merge_with_model(self, model, clear_slab=False):
         """Merges the slab populator with a timber model."""
-
         if clear_slab:
             for element in self._slab.children:
                 model.remove_element(element)
@@ -178,11 +177,6 @@ class SlabPopulator(TimberModel):
     def thickness(self):
         """Returns the thickness of the slab."""
         return self._slab.thickness
-
-    @property
-    def frame_thickness(self):
-        """Returns the frame thickness, adjusted for sheeting."""
-        return self._slab.thickness - self.detail_set.sheeting_inside - self.detail_set.sheeting_outside
 
     @property
     def edge_beams(self):
@@ -244,13 +238,6 @@ class SlabPopulator(TimberModel):
         """Calculates the oriented bounding box (OBB) for the slab."""
         return Box.from_points(self.outline_a.points + self.outline_b.points)
 
-    # @property
-    # def elements(self):
-    #     return list(self.elements())
-
-    # def process_direct_rules(self):
-    #     for rule in self.direct_rules:
-    #         rule.joint_type.create(self, *rule.elements, **rule.kwargs)
 
     def get_elements_by_category(self, category):
         return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements()))
@@ -302,3 +289,4 @@ class SlabPopulator(TimberModel):
                     slab_populators.append(cls(config_set, slab, interfaces))
                     break
         return slab_populators
+

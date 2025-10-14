@@ -106,7 +106,6 @@ class SlabPopulator(TimberModel):
         self._frame_outline = None
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
-        detail_set.prepare_populator(self)
         self.test = []
         self.test.extend(list(self.edge_planes.values()))
 
@@ -249,44 +248,42 @@ class SlabPopulator(TimberModel):
     # def elements(self):
     #     return list(self.elements())
 
-    def process_direct_rules(self):
-        for rule in self.direct_rules:
-            rule.joint_type.create(self, *rule.elements, **rule.kwargs)
+    # def process_direct_rules(self):
+    #     for rule in self.direct_rules:
+    #         rule.joint_type.create(self, *rule.elements, **rule.kwargs)
 
     def get_elements_by_category(self, category):
         return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements()))
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
-        self.create_elements()
-        self.cull_and_split_studs()
-        self.create_joints()
+        self.detail_set.populate_details(self)
 
 
-    def create_elements(self):
-        """Generates the elements for the slab."""
-        self.detail_set.create_elements(self)
-        for i in self.interfaces:
-            i.detail_set.create_elements(i, self)
-        for o in self.openings:
-            o.detail_set.create_elements(o, self)
+    # def create_elements(self):
+    #     """Generates the elements for the slab."""
+    #     self.detail_set.create_elements(self)
+    #     for i in self.interfaces:
+    #         i.detail_set.create_elements(i, self)
+    #     for o in self.openings:
+    #         o.detail_set.create_elements(o, self)
 
-    def cull_and_split_studs(self):
-        """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""
-        self.detail_set._extend_interior_corner_beams(self)
-        for interface in self.interfaces:
-            if interface.interface_role == "CROSS":
-                interface.detail_set.cull_and_split_studs(interface, self)
-        for opening in self.openings:
-            opening.detail_set.cull_and_split_studs(opening, self)
+    # def cull_and_split_studs(self):
+    #     """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""
+    #     self.detail_set._extend_interior_corner_beams(self)
+    #     for interface in self.interfaces:
+    #         if interface.interface_role == "CROSS":
+    #             interface.detail_set.cull_and_split_studs(interface, self)
+    #     for opening in self.openings:
+    #         opening.detail_set.cull_and_split_studs(opening, self)
 
-    def create_joints(self):
-        """Generates the joints for the slab."""
-        self.detail_set.create_joints(self)
-        for i in self.interfaces:
-            i.detail_set.create_joints(i, self)
-        for o in self.openings:
-            o.detail_set.create_joints(o, self)
+    # def create_joints(self):
+    #     """Generates the joints for the slab."""
+    #     self.detail_set.create_joints(self)
+    #     for i in self.interfaces:
+    #         i.detail_set.create_joints(i, self)
+    #     for o in self.openings:
+    #         o.detail_set.create_joints(o, self)
 
     @classmethod
     def from_model(cls, model, configuration_sets):

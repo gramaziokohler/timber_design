@@ -99,16 +99,6 @@ class SlabDetailBase(DetailBase):
     # methods for preparaing slab populator
     # ==========================================================================
 
-
-    def get_frame_offset(self, slab_populator):
-        """Get the total offset of the frame based on the sheeting thicknesses."""
-        return self.sheeting_inside+slab_populator.frame_thickness/2
-
-    @property
-    def frame_thickness(self, slab_populator):
-        """Returns the frame thickness, adjusted for sheeting."""
-        return slab_populator.thickness - self.sheeting_inside - self.sheeting_outside
-
     def _set_frame_outlines(self, slab_populator):
         """Handles the sheeting offsets for the slab outlines."""
         """This method creates new outlines for the beam frame based on the sheeting thicknesses."""
@@ -204,6 +194,10 @@ class SlabDetailBase(DetailBase):
     def _apply_linear_cut_to_edge_beam(self, beam, slab_populator):
         """Trim the edge beams to fit between the plate beams."""
         plane = slab_populator.edge_planes[beam.attributes["edge_index"]]
+
+        # self.test.append(plane)
+        # self.test.append(beam.blank)
+
         if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
             long_cut = LongitudinalCut.from_plane_and_beam(plane, beam)
             beam.add_features(long_cut)
@@ -283,9 +277,9 @@ class SlabDetailBase(DetailBase):
         return studs
 
     def _create_plates(self, slab_populator):
-        self.test.extend([slab_populator.outline_a, slab_populator.frame_outline_a,slab_populator.outline_b, slab_populator.frame_outline_b])
         if self.sheeting_inside:
-            slab_populator.add_element(Plate.from_outlines(slab_populator.outline_a, slab_populator.frame_outline_a))
+            plate = Plate.from_outlines(slab_populator.outline_a, slab_populator.frame_outline_a)
+            slab_populator.add_element(plate)
         if self.sheeting_outside:
             slab_populator.add_element(Plate.from_outlines(slab_populator.outline_b, slab_populator.frame_outline_b))
 

@@ -86,8 +86,6 @@ class SlabPopulator(TimberModel):
         The outline A of the frame.
     frame_outline_b : :class:`compas.geometry.Polyline`
         The outline B of the frame.
-    frame_thickness : float
-        The thickness of the frame. This is the thickness of the slab minus the sheeting thicknesses.
 
 
     """
@@ -137,7 +135,7 @@ class SlabPopulator(TimberModel):
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points] #rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1,0,0), Vector(0,1,0)).transformed(transform_to_sp.inverse())
-        frame.point[2]=self.detail_set.get_frame_offset(self)
+        frame.point[2]=detail_set.sheeting_inside+self.frame_thickness/2 #offset to make frame center plane at world XY
         return Transformation.from_frame(frame).inverse()
 
     def merge_with_model(self, model, clear_slab=False):
@@ -149,7 +147,9 @@ class SlabPopulator(TimberModel):
                     if element in joint.elements:
                         model.remove_joint(joint)
         for element in list(self.elements()):
+            print("element before: ", element.frame)
             element.transform(self.transformation_to_local.inverse())
+            print("frame after:",element.frame)
             model.add_element(element, parent=self._slab)
         for jd in self.direct_rules:
             jd.joint_type.create(model, *jd.elements, **jd.kwargs)
@@ -169,7 +169,7 @@ class SlabPopulator(TimberModel):
     def edge_planes(self):
         """Returns the edge planes of the slab."""
         planes = {}
-        for i, pl in enumerate(self._slab.local_edge_planes):
+        for i, pl in self._slab.edge_planes.items():
             planes[i] = pl.transformed(self.transformation_to_local)
         return planes
 
@@ -177,6 +177,11 @@ class SlabPopulator(TimberModel):
     def thickness(self):
         """Returns the thickness of the slab."""
         return self._slab.thickness
+
+    @property
+    def frame_thickness(self):
+        """Returns the frame thickness, adjusted for sheeting."""
+        return self.thickness - self.detail_set.sheeting_inside - self.detail_set.sheeting_outside
 
     @property
     def edge_beams(self):
@@ -238,39 +243,15 @@ class SlabPopulator(TimberModel):
         """Calculates the oriented bounding box (OBB) for the slab."""
         return Box.from_points(self.outline_a.points + self.outline_b.points)
 
-
     def get_elements_by_category(self, category):
         return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements()))
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
         self.detail_set.populate_details(self)
-
-
-    # def create_elements(self):
-    #     """Generates the elements for the slab."""
-    #     self.detail_set.create_elements(self)
-    #     for i in self.interfaces:
-    #         i.detail_set.create_elements(i, self)
-    #     for o in self.openings:
-    #         o.detail_set.create_elements(o, self)
-
-    # def cull_and_split_studs(self):
-    #     """Culls the studs that are overlap with details and splits studs that intersect with openings and interfaces."""
-    #     self.detail_set._extend_interior_corner_beams(self)
-    #     for interface in self.interfaces:
-    #         if interface.interface_role == "CROSS":
-    #             interface.detail_set.cull_and_split_studs(interface, self)
-    #     for opening in self.openings:
-    #         opening.detail_set.cull_and_split_studs(opening, self)
-
-    # def create_joints(self):
-    #     """Generates the joints for the slab."""
-    #     self.detail_set.create_joints(self)
-    #     for i in self.interfaces:
-    #         i.detail_set.create_joints(i, self)
-    #     for o in self.openings:
-    #         o.detail_set.create_joints(o, self)
+        # for f in self._slab.features:
+        #     detail_set = f.get_detail_set()
+        #     detail_set.populate_details(self, f)
 
     @classmethod
     def from_model(cls, model, configuration_sets):

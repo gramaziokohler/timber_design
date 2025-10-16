@@ -98,14 +98,14 @@ class SlabPopulator(TimberModel):
         self.transformation_to_local = self.get_transformation_to_populator_space(slab, detail_set)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_to_local)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_to_local)
+        self.features = [f.transformed(self.transformation_to_local) for f in slab.features]
+
         self.openings = []
         self.interfaces = []
         self.direct_rules = []
         self._frame_outline = None
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
-        self.test = []
-        self.test.extend(list(self.edge_planes.values()))
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.detail_set, self._slab)
@@ -147,9 +147,7 @@ class SlabPopulator(TimberModel):
                     if element in joint.elements:
                         model.remove_joint(joint)
         for element in list(self.elements()):
-            print("element before: ", element.frame)
             element.transform(self.transformation_to_local.inverse())
-            print("frame after:",element.frame)
             model.add_element(element, parent=self._slab)
         for jd in self.direct_rules:
             jd.joint_type.create(model, *jd.elements, **jd.kwargs)
@@ -249,9 +247,13 @@ class SlabPopulator(TimberModel):
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
         self.detail_set.populate_details(self)
-        # for f in self._slab.features:
-        #     detail_set = f.get_detail_set()
-        #     detail_set.populate_details(self, f)
+        from timber_design.detail_sets.opening_details import WindowDetailA
+        for f in self.features:
+            self.test.extend(f.geometry)
+            if f.__class__.__name__ == "Opening":
+                detail_set = WindowDetailA()
+                detail_set.populate_details(self, f)
+
 
     @classmethod
     def from_model(cls, model, configuration_sets):

@@ -34,7 +34,7 @@ class OpeningPopulator(object):
         self.oriented_outline = self._get_oriented_outline()
 
     def _get_oriented_outline(self):
-        outline = self.opening.outline.copy()
+        outline = self.opening.outline_a.copy()
         outline.transform(self.slab.transformation.inverse())
         outline.transform(self.slab_populator.transformation.inverse())
         return outline
@@ -54,13 +54,10 @@ class OpeningDetailBase(DetailBase):
 
     def _create_frame_polyline(self, opening, slab_populator):
         """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
-        frame = Frame(opening.outline[0], cross_vectors(slab_populator.stud_direction, slab_populator.normal), slab_populator.stud_direction)
-        rebase = Transformation.from_frame_to_frame(frame, Frame.worldXY())
-        box = Box.from_points(opening.outline.transformed(rebase))
-        rebase.invert()
-        box.transform(rebase)
+        frame = Frame(opening.outline_a[0], Vector(1, 0, 0), Vector(0, 1, 0))
+        box = Box.from_points(opening.outline_a.points)
         opening.frame_polyline = Polyline([box.corner(0), box.corner(1), box.corner(2), box.corner(3), box.corner(0)])
-        opening.frame_polyline.translate(slab_populator.normal * slab_populator.detail_set.sheeting_inside)
+        opening.frame_polyline.translate(Vector(0, 0, slab_populator.detail_set.sheeting_inside))
         return opening.frame_polyline
 
     def _add_jack_studs(self, opening, slab_populator):
@@ -220,6 +217,14 @@ class WindowDetailBase(OpeningDetailBase):
         slab_populator.direct_rules.extend(joints)
         return joints
 
+    def populate_details(self, slab_populator, opening):
+        """Populate the details for the given slab populator and opening."""
+        pl = self._create_frame_polyline(opening, slab_populator)
+        print("frame polyline: ", pl)
+        # self.create_elements(opening, slab_populator)
+        # self.cull_and_split_studs(opening, slab_populator)
+        # self.create_joints(opening, slab_populator)
+
 
 class WindowDetailA(WindowDetailBase):
     """Detail set for window openings without lintel posts.
@@ -318,7 +323,7 @@ class DoorDetailBase(OpeningDetailBase):
 
     def _get_adjusted_door_outline(self, opening, slab_populator):
         """Adjust the door outline for the given opening."""
-        outline = Polyline([p for p in opening.outline])
+        outline = Polyline([p for p in opening.outline_a])
         slab_index = self._get_slab_segment_index(slab_populator._slab, outline)
         if slab_index is None:
             raise ValueError("Door outline does not intersect with the slab outline.")

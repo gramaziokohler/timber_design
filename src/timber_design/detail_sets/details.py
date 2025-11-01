@@ -1,5 +1,4 @@
 from compas.geometry import Vector
-
 from compas_timber.connections import JointTopology
 from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
@@ -78,7 +77,7 @@ class DetailBase(object):
             raise ValueError("Unknown beam category: {}".format(category))
         width = beam_dimensions[category][0]
         height = beam_dimensions[category][1]
-        beam = Beam.from_centerline(segment, width=width, height=height, z_vector=Vector(0,0,1))
+        beam = Beam.from_centerline(segment, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
             beam.attributes[key] = value
         beam.attributes["category"] = category
@@ -100,12 +99,12 @@ class DetailBase(object):
         raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
     def _append_and_replace_joints(self, joints, slab_populator):
-            to_remove = []
-            for joint in joints:
-                for sp_joint in slab_populator.joints:
-                    if set(joint.elements) == set(sp_joint.elements):
-                        to_remove.append(sp_joint)
-                        break
-            for joint in to_remove:
-                slab_populator.joints.remove(joint)
-            slab_populator.joints.extend(joints)
+        to_remove = []
+        for joint in joints:
+            for sp_joint in slab_populator.joints:
+                if set(joint.elements) == set(sp_joint.elements):
+                    to_remove.append(sp_joint)
+                    break
+        for joint in to_remove:
+            slab_populator.joints.remove(joint)
+        slab_populator.joints.extend(joints)

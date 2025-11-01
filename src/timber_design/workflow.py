@@ -4,9 +4,9 @@ from compas.tolerance import TOL
 from compas_timber.connections import ConnectionSolver
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
+from compas_timber.connections import MaxNCompositeAnalyzer
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
-from compas_timber.connections import MaxNCompositeAnalyzer
 from compas_timber.utils import distance_segment_segment
 from compas_timber.utils import intersection_line_line_param
 
@@ -556,6 +556,7 @@ class DebugInfomation(object):
             self.joint_errors.extend(error)
         else:
             self.joint_errors.append(error)
+
 
 def get_clusters_from_model(model, max_distance=None):
     """Analyzes the model to find clusters of beams and plates. This will create JointCandidates and PlateJointCandidates in the model.

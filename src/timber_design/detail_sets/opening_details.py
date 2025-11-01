@@ -3,25 +3,24 @@ from compas.geometry import Frame
 from compas.geometry import Line
 from compas.geometry import Plane
 from compas.geometry import Polyline
-from compas.geometry import Transformation
 from compas.geometry import Vector
-from compas.geometry import cross_vectors
 from compas.geometry import distance_point_line
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_segment_segment
-
+from compas.itertools import pairwise
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from timber_design.workflow import CategoryRule
-from timber_design.detail_sets import DetailBase
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.utils import do_segments_overlap
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import get_segment_overlap
+from compas_timber.utils import intersection_line_beams
 from compas_timber.utils import is_point_in_polyline
 from compas_timber.utils import move_polyline_segment_to_plane
 from compas_timber.utils import split_beam_at_lengths
-from compas_timber.utils import intersection_line_beams
+
+from timber_design.detail_sets import DetailBase
+from timber_design.workflow import CategoryRule
 
 
 class OpeningPopulator(object):
@@ -50,7 +49,6 @@ class OpeningDetailBase(DetailBase):
     """
 
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
-
 
     def _create_frame_polyline(self, opening, slab_populator):
         """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
@@ -131,44 +129,63 @@ class OpeningDetailBase(DetailBase):
             joints.append(self.get_joint_from_elements(jack_stud, bottom_int["beam"], self.rules))
         return joints
 
-    def cull_and_split_studs(self, opening, slab_populator):
+    def cull_and_split_studs(self, opening_populator, slab_populator):
         """Split the bottom plate beam for door openings."""
-        int_beams = [opening.sill, opening.header] if opening.sill else [opening.header]
+        int_beams = [opening_populator.sill, opening_populator.header] if opening_populator.sill else [opening_populator.header]
         new_studs = []
-        to_split, to_cull = self._parse_studs(opening, slab_populator)
+        to_split, to_cull = self._parse_studs(opening_populator, slab_populator)
         for stud in to_split + to_cull:
             slab_populator.elements.remove(stud)
         while to_split:
             stud = to_split.pop(0)
             dots = []
-            for int_beam in int_beams:
-                intersection = intersection_segment_segment(stud.centerline, int_beam.centerline)[0]
-                if not intersection:
-                    continue
-                dots.append(dot_vectors(stud.centerline.direction, Vector.from_start_end(stud.centerline.start, intersection)))
-            stud_segs = split_beam_at_lengths(stud, dots)
+            intersections = intersection_line_beams(stud.centerline, int_beams)[0]
+            intersections.sort(key=lambda x: x["dot"])
+
+            joints = []
+            for joint in slab_populator.joints:
+                if stud in joint.elements:
+                    dot = dot_vectors(Vector.from_start_end(stud.centerline.start, joint.location), stud.centerline.direction)
+                    joints.append((dot, joint))
+
+            for pair in pairwise(intersections):
+                midpoint = (pair[0]["point"] + pair[1]["point"]) / 2
+                if is_point_in_polyline(midpoint, opening_populator.frame_polyline, in_plane=False):
+                    continue  # skip if inside opening
+                beam = stud.copy()
+                beam.frame.translate(Vector.from_start_end(beam.frame.point, pair[0]["point"]))
+                beam.length = pair[1]["dot"] - pair[0]["dot"]
+                for joint in joints:
+                    if joint[0] > pair[0]["dot"] and joint[0] < pair[1]["dot"]:  # joint is within segment
+                        elements = joint.elements.copy()
+                        elements[elements.index(stud)] = beam
+                        joint.copy_to_new_elements(slab_populator, elements)
+                    slab_populator.joints.remove(joint)
+
+            dots.sort()
+
+            stud_segs = split_beam_at_lengths(stud, dots, joints, slab_populator)
             opening.joint_tuples.extend([(pair) for pair in zip(stud_segs, int_beams)])
             for seg in stud_segs:
                 if not is_point_in_polyline(seg.midpoint, opening.frame_polyline, in_plane=False):
                     new_studs.append(seg)
         slab_populator.elements.extend(new_studs)
 
-
-    def _parse_studs(self, opening, slab_populator):
+    def _parse_studs(self, opening_populator, slab_populator):
         """Cull and split the studs for the opening."""
-        cull_outer_edge = [king.midpoint[0] for king in opening.king_studs]
+        cull_outer_edge = [king.midpoint[0] for king in opening_populator.king_studs]
         cull_outer_edge.sort()
-        if opening.jack_studs:
-            cull_inner_edge = [jack.midpoint[0] for jack in opening.jack_studs]
+        if opening_populator.jack_studs:
+            cull_inner_edge = [jack.midpoint[0] for jack in opening_populator.jack_studs]
             cull_inner_edge.sort()
-            cull_inner_edge[0] += opening.jack_studs[0].width / 2
-            cull_inner_edge[1] -= opening.jack_studs[0].width / 2
+            cull_inner_edge[0] += opening_populator.jack_studs[0].width / 2
+            cull_inner_edge[1] -= opening_populator.jack_studs[0].width / 2
         else:
             cull_inner_edge = cull_outer_edge
-            cull_inner_edge[0] += opening.king_studs[0].width / 2
-            cull_inner_edge[1] -= opening.king_studs[0].width / 2
-        cull_outer_edge[0] -= opening.king_studs[0].width / 2
-        cull_outer_edge[1] += opening.king_studs[0].width / 2
+            cull_inner_edge[0] += opening_populator.king_studs[0].width / 2
+            cull_inner_edge[1] -= opening_populator.king_studs[0].width / 2
+        cull_outer_edge[0] -= opening_populator.king_studs[0].width / 2
+        cull_outer_edge[1] += opening_populator.king_studs[0].width / 2
         to_cull = []
         to_split = []
         for stud in slab_populator.get_elements_by_category("stud"):
@@ -178,7 +195,7 @@ class OpeningDetailBase(DetailBase):
             if beam_dot > cull_inner_edge[0] + stud.width and beam_dot < cull_inner_edge[1] - stud.width:  # inside splitting domain
                 to_split.append(stud)
                 continue
-            if do_segments_overlap(stud.centerline, opening.king_studs[0].centerline):
+            if do_segments_overlap(stud.centerline, opening_populator.king_studs[0].centerline):
                 to_cull.append(stud)
         return to_split, to_cull
 
@@ -320,7 +337,6 @@ class DoorDetailBase(OpeningDetailBase):
             feature = FreeContour.from_polyline_and_element(outline, plate)
             plate.add_feature(feature)
 
-
     def _get_adjusted_door_outline(self, opening, slab_populator):
         """Adjust the door outline for the given opening."""
         outline = Polyline([p for p in opening.outline_a])
@@ -338,7 +354,6 @@ class DoorDetailBase(OpeningDetailBase):
         move_polyline_segment_to_plane(outline, door_index, plane)
         return outline
 
-
     def _get_slab_segment_index(self, slab_populator, polyline):
         """Get the index of the segment in the slab outline where the door is located."""
         for pl in slab_populator.outlines:
@@ -348,13 +363,11 @@ class DoorDetailBase(OpeningDetailBase):
                         return i
         return None
 
-
     def _get_door_segment_index(self, polyline, segment):
         """Get the index of the door outline segment that lies on the slab edge."""
         lines = [line for line in polyline.lines]
         sorted_lines = sorted(lines, key=lambda x: distance_point_line(x.midpoint, segment))
         return lines.index(sorted_lines[0])
-
 
     def _split_edge_beam(self, opening, slab_populator):
         """Split the edge beam for door openings."""

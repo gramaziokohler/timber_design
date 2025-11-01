@@ -36,5 +36,5 @@ __all__ = [
     "DoorDetailAA",
     "DoorDetailAB",
     "DoorDetailBA",
-    "DoorDetailBB"
+    "DoorDetailBB",
 ]

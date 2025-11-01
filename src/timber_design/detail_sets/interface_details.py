@@ -8,15 +8,14 @@ from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
+from compas_timber.elements import Beam
+from compas_timber.utils import is_point_in_polyline
+
+from timber_design.detail_sets import DetailBase
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
-from timber_design.detail_sets import DetailBase
-from compas_timber.elements import Beam, slab
-from compas_timber.utils import is_point_in_polyline
-from compas_timber.utils import split_beam_at_lengths
 
 
 class InterfaceDetailBase(DetailBase):
@@ -55,7 +54,7 @@ class InterfaceDetailBase(DetailBase):
 
     def create_elements(self, interface, slab_populator):
         """Generate the beams for the interface."""
-        elements=[]
+        elements = []
         if interface.interface_role == "CROSS":
             elements.extend(self._create_elements_cross(interface, slab_populator))
         elif interface.interface_role == "MAIN":
@@ -111,6 +110,7 @@ class LDetailBase(InterfaceDetailBase):
 
 class TDetailBase(InterfaceDetailBase):
     """Base class for T-butt detail sets."""
+
     def _create_elements_main(self, interface, slab_populator):
         """Generate the beams for a main interface."""
         interface.beams.extend(slab_populator.edge_beams[interface.edge_index])
@@ -168,7 +168,7 @@ class LButtDetailB(LDetailBase):
         new_studs = []
         min_length = min_length or self.get_beam_dimensions(slab_populator)["detail"][0]
         int_beams = interface.beams
-        studs=slab_populator.get_elements_by_category("stud")
+        studs = slab_populator.get_elements_by_category("stud")
         while studs:
             stud = studs.pop(0)
             slab_populator.elements.remove(stud)
@@ -178,7 +178,7 @@ class LButtDetailB(LDetailBase):
                 if not intersection:
                     continue
                 dots.append(dot_vectors(stud.centerline.direction, Vector.from_start_end(stud.centerline.start, intersection)))
-            stud_segs = split_beam_at_lengths(stud, dots)
+            stud_segs = get_sub_beam(stud, dots)
             for seg in stud_segs:
                 if not is_point_in_polyline(seg.midpoint, interface.beam_polyline, in_plane=False) and seg.length >= min_length:
                     new_studs.append(seg)
@@ -194,7 +194,6 @@ class LButtDetailB(LDetailBase):
         self._create_joints_to_adjacent_edges(interface, slab_populator)
 
         return []
-
 
     def create_interface_interface_joints(self, interface_a, interface_b, slab_populator, interior_corner):
         """Generate the joints between beams of adjacent SlabLButtJoint interfaces."""
@@ -263,7 +262,6 @@ class LButtDetailB(LDetailBase):
             interface_b.beams[-1].frame.point = ic
 
 
-
 class TButtDetailB(TDetailBase):
     """Detail Set that creates the beams for a T-butt a 3-beam box in the Cross Slab."""
 
@@ -311,7 +309,7 @@ class TButtDetailB(TDetailBase):
                 if not intersection:
                     continue
                 dots.append(dot_vectors(stud.centerline.direction, Vector.from_start_end(stud.centerline.start, intersection)))
-            stud_segs = split_beam_at_lengths(stud, dots)
+            stud_segs = get_sub_beam(stud, dots)
             for seg in stud_segs:
                 if not is_point_in_polyline(seg.midpoint, interface.beam_polyline, in_plane=False) and seg.length >= min_length:
                     new_studs.append(seg)
@@ -353,10 +351,10 @@ class TButtDetailB(TDetailBase):
         """Generate the joints between T_TOPO interfaces."""
         # NOTE: untested
         joints = []
-        midpoint = Point(0,0,0)
+        midpoint = Point(0, 0, 0)
         for pt in interface_main.polyline.points[:-1]:
             midpoint += pt
-        midpoint= midpoint / len(interface_main.polyline.points[:-1])
+        midpoint = midpoint / len(interface_main.polyline.points[:-1])
         cross_beam = min(interface_cross.beams, key=lambda b: b.midpoint.distance_to_point(midpoint))
         for beam in interface_main.beams:
             joints.append(TButtJoint(beam, cross_beam))

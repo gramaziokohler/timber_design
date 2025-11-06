@@ -9,10 +9,11 @@ from compas.geometry import Vector
 from compas.geometry import angle_vectors_signed
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
-from compas.geometry import intersection_line_plane
+from compas.geometry import intersection_line_line
 from compas_timber.model import TimberModel
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
+from compas.itertools import pairwise
 
 
 class SlabSelector(object):  # TODO change to detail selector or similar
@@ -100,7 +101,7 @@ class SlabPopulator(TimberModel):
         self.openings = []
         self.interfaces = []
         self.direct_rules = []
-        self._frame_outline = None
+        self._edge_beams_inner_edges = {}
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
 
@@ -152,15 +153,26 @@ class SlabPopulator(TimberModel):
             model.add_joint(j)
 
     @property
-    def frame_outline(self):
+    def edge_beams_inner_edges(self):
         """Returns the frame outline of the slab."""
-        if self._frame_outline is None:
-            pts = []
-            for pt_a, pt_b in zip(self.outline_a.points, self.outline_b.points):
-                line = Line(pt_a, pt_b)
-                pts.append(Point(*intersection_line_plane(line, Plane.worldXY())))
-            self._frame_outline = Polyline(pts)
-        return self._frame_outline
+        if not self._edge_beams_inner_edges:
+            for index, beams in self.edge_beams.items():
+                beam = beams[0]
+                self._edge_beams_inner_edges[index] = beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2))
+            edges = list(self._edge_beams_inner_edges.values())
+            for pair in zip(edges, edges[1:] + edges[0:1]):
+                pair[0][1] = intersection_line_line(pair[0], pair[1])[0]
+                pair[1][0] = pair[0][1]
+
+        return self._edge_beams_inner_edges
+
+    @property
+    def edge_beams_inner_outline(self):
+        """Returns the frame outline of the slab."""
+        pts = [l[0] for l in self.edge_beams_inner_edges.values()]
+        pts.append(pts[0])
+        return Polyline(pts)
+
 
     @property
     def edge_planes(self):
@@ -271,3 +283,26 @@ class SlabPopulator(TimberModel):
                     slab_populators.append(cls(config_set, slab, interfaces))
                     break
         return slab_populators
+
+def intersection_beam_beam_2d(beam_a, beam_b):
+    """Calculates the 2D intersection point of two beams.
+
+    Parameters
+    ----------
+    beam_a : :class:`compas_timber.elements.Beam`
+        The first beam.
+    beam_b : :class:`compas_timber.elements.Beam`
+        The second beam.
+
+    Returns
+    -------
+    :class:`compas.geometry.Point` or None
+        The intersection point of the two beams in 2D, or None if they do not intersect.
+
+    """
+    line_a = Line(beam_a.start_point[:2], beam_a.end_point[:2])
+    line_b = Line(beam_b.start_point[:2], beam_b.end_point[:2])
+    intersection = intersection_line_line(line_a, line_b)
+    if intersection:
+        return Point(intersection[0][0], intersection[0][1], 0)
+    return None

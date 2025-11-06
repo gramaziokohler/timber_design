@@ -6,6 +6,7 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
+from compas.geometry import intersection_line_segment
 from compas.itertools import pairwise
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
@@ -73,18 +74,7 @@ class SlabDetailBase(DetailBase):
         return cls(stud_spacing, beam_width)
 
     def populate_details(self, slab_populator):
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
-        self._set_frame_outlines(slab_populator)
-        self._create_edge_beams(slab_populator, standardize_blank_dimension_to_nearest=20.0)
-        self._create_edge_joints(slab_populator)
-        self._create_and_join_studs(slab_populator)
-        self._create_plates(slab_populator)
+        raise NotImplementedError("Subclasses of SlabDetailBase must implement the populate_details method.")
 
     # ==========================================================================
     # methods for preparaing slab populator
@@ -117,16 +107,15 @@ class SlabDetailBase(DetailBase):
     # methods for edge beams
     # ==========================================================================
 
-    def _create_edge_beams(self, slab_populator, min_width=None, standardize_blank_dimension_to_nearest=None):
+    def _create_edge_beams(self, slab_populator, min_width=None, edge_beam_dim_increment=None):
         """Get the edge beam definitions for the outer polyline of the slab."""
         if min_width is None:
             min_width = self.beam_width
         elements = []
         segs, widths = [], []
-        print("_create_edge_beams: standardize_blank_dimension_to_nearest", standardize_blank_dimension_to_nearest)
 
         for i in range(slab_populator.edge_count):
-            seg, width = self._get_edge_beam_line_and_width(slab_populator, i, min_width=min_width, standardize_blank_dimension_to_nearest=standardize_blank_dimension_to_nearest)
+            seg, width = self._get_edge_beam_line_and_width(slab_populator, i, min_width=min_width, edge_beam_dim_increment=edge_beam_dim_increment)
             segs.append(seg)
             widths.append(width)
         extend_lines_pairwise(segs)
@@ -138,7 +127,7 @@ class SlabDetailBase(DetailBase):
             slab_populator.add_element(beam)
         return elements
 
-    def _get_edge_beam_line_and_width(self, slab_populator, segment_index, min_width=0.0, standardize_blank_dimension_to_nearest=None):
+    def _get_edge_beam_line_and_width(self, slab_populator, segment_index, min_width=0.0, edge_beam_dim_increment=None):
         perp_vector = slab_populator.edge_perpendicular_vectors[segment_index]
         seg_a = slab_populator.frame_outline_a.lines[segment_index]
         seg_b = slab_populator.frame_outline_b.lines[segment_index]
@@ -147,14 +136,12 @@ class SlabDetailBase(DetailBase):
             outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
         else:  # seg_a is closer to the middle
             outer_segment = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
-        print("standardize_blank_dimension_to_nearest", standardize_blank_dimension_to_nearest)
-        if not standardize_blank_dimension_to_nearest:
+        if not edge_beam_dim_increment:
             width = abs(dot) + min_width
             offset = width / 2
         else:
-            width = math.ceil((abs(dot) + min_width) / standardize_blank_dimension_to_nearest) * standardize_blank_dimension_to_nearest
+            width = math.ceil((abs(dot) + min_width) / edge_beam_dim_increment) * edge_beam_dim_increment
             offset = abs(dot) + min_width - width / 2
-            print("standardized width", width)
         return outer_segment.translated(-perp_vector * offset), width
 
     def _set_edge_beam_category(self, slab_populator, beam):
@@ -234,15 +221,105 @@ class SlabDetailBase(DetailBase):
             for pair in pairwise(intersections):
                 if pair[0]["point"].distance_to_point(pair[1]["point"]) < min_length:
                     continue
-                if not is_point_in_polyline((pair[0]["point"] + pair[1]["point"]) / 2, slab_populator.frame_outline, in_plane=False):
+                if not is_point_in_polyline((pair[0]["point"] + pair[1]["point"]) / 2, slab_populator.edge_beams_inner_outline, in_plane=False):
                     continue
                 beam = self.beam_from_category(Line(pair[0]["point"], pair[1]["point"]), "stud", slab_populator)
                 slab_populator.add_element(beam)
                 for intersection in pair:
                     rule = self.get_direct_rule_from_elements(beam, intersection["beam"])
-                    rule.joint_type.create(slab_populator, beam, intersection["beam"], point=intersection["point"])
+                    rule.joint_type.create(slab_populator, beam, intersection["beam"], point=intersection["point"], **rule.kwargs)
             x_position += self.stud_spacing
         return studs
+
+
+    def _create_and_join_studs(self, slab_populator, min_length=0.0):
+        """Generates the stud beams."""
+        min_length = self.beam_width_overrides.get("stud", None) or self.beam_width
+        x_position = self.stud_spacing
+        beam_dimensions = self.get_beam_dimensions(slab_populator)
+        studs = []
+        i=0
+        while x_position < slab_populator.obb.xmax - beam_dimensions["stud"][0]:
+            # get intersections with edge beams and openings and interfaces
+            edge_a = (Line(Point(x_position-beam_dimensions["stud"][0]/2, 0, 0), Point(x_position-beam_dimensions["stud"][0]/2, 1, 0)))
+            edge_b = (Line(Point(x_position+beam_dimensions["stud"][0]/2, 0, 0), Point(x_position+beam_dimensions["stud"][0]/2, 1, 0)))
+            intersections_a = {}
+            intersections_b = {}
+            for index, line in slab_populator.edge_beams_inner_edges.items():
+                pt = intersection_line_segment(edge_a, line)[0]
+                if pt:
+                    intersections_a[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_a.start, pt), line.direction)}
+                pt = intersection_line_segment(edge_b, line)[0]
+                if pt:
+                    intersections_b[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_b.start, pt), line.direction)}
+
+            simple_intersections, corner_intersections, notch_intersections, lap_intersections = self.classify_intersections(intersections_a, intersections_b, slab_populator)
+
+            intersections = simple_intersections + corner_intersections
+
+            intersections = sorted(intersections, key=lambda x: x.get("dot"))
+            for pair in pairwise(intersections):
+                # cull short studs
+                if pair[0]["point"].distance_to_point(pair[1]["point"]) < min_length:
+                    continue
+                # cull studs outside inner outline
+                if not is_point_in_polyline((pair[0]["point"] + pair[1]["point"]) / 2, slab_populator.edge_beams_inner_outline, in_plane=False):
+                    continue
+                stud = self.beam_from_category(Line(pair[0]["point"], pair[1]["point"]), "stud", slab_populator)
+                slab_populator.add_element(stud)
+                for intersection in pair:
+                    for beam in intersection["beams"]:
+                        rule = self.get_direct_rule_from_elements(stud, beam)
+                        rule.joint_type.create(slab_populator, stud, beam, point=intersection["point"], **rule.kwargs)
+            x_position += self.stud_spacing
+            i+=1
+        return studs
+
+
+    def classify_intersections(self, intersections_a, intersections_b, slab_populator):
+        simple_keys = list(set(intersections_a).intersection(set(intersections_b)))
+        simple_intersections = []
+        for i in simple_keys:
+            simple_intersections.append({"point": (intersections_a[i]["point"] + intersections_b[i]["point"]) / 2, "dot": (intersections_a[i]["dot"] + intersections_b[i]["dot"]) / 2, "beams": [slab_populator.edge_beams[i][0]]})
+        leftovers_a = list(set(intersections_a)-set(intersections_b))
+        leftovers_b = list(set(intersections_b)-set(intersections_a))
+        corner_intersections = []
+        notch_intersections = []
+        lap_intersections = []
+
+        while leftovers_a:
+            ia = leftovers_a.pop()
+            for i_adjacent in [(ia-1)%slab_populator.edge_count, (ia+1)%slab_populator.edge_count]:
+                if i_adjacent in leftovers_b:
+                    ib = leftovers_b.pop(leftovers_b.index(i_adjacent))
+                    intersection = {"point": (intersections_a[ia]["point"] + intersections_b[ib]["point"]) / 2, "dot": (intersections_a[ia]["dot"] + intersections_b[ib]["dot"]) / 2, "beams": [slab_populator.edge_beams[ia][0], slab_populator.edge_beams[ib][0]]}
+                    corner_intersections.append(intersection)
+                    break
+                elif i_adjacent in leftovers_a:
+                    ia_b = leftovers_a.pop(leftovers_a.index(i_adjacent))
+                    intersection = {"point": (intersections_a[ia]["point"] + intersections_a[ia_b]["point"]) / 2, "dot": (intersections_a[ia]["dot"] + intersections_a[ia_b]["dot"]) / 2, "beams": [slab_populator.edge_beams[ia][0], slab_populator.edge_beams[ia_b][0]]}
+                    corner_intersections.append(intersection)
+                    break
+            else:
+                lap_intersections.append({"point": intersections_a[ia]["point"], "dot": intersections_a[ia]["dot"], "beams": [slab_populator.edge_beams[ia][0]]})
+
+
+        while leftovers_b:
+            ib = leftovers_b.pop()
+            for i_adjacent in [(ib-1)%slab_populator.edge_count, (ib+1)%slab_populator.edge_count]:
+                if i_adjacent in leftovers_b:
+                    ib_b = leftovers_b.pop(leftovers_b.index(i_adjacent))
+                    intersection = {"point": (intersections_b[ib]["point"] + intersections_b[ib_b]["point"]) / 2, "dot": (intersections_b[ib]["dot"] + intersections_b[ib_b]["dot"]) / 2, "beams": [slab_populator.edge_beams[ib][0], slab_populator.edge_beams[ib_b][0]]}
+                    corner_intersections.append(intersection)
+                    break
+            else:
+                lap_intersections.append({"point": intersections_b[ib]["point"], "dot": intersections_b[ib]["dot"], "beams": [slab_populator.edge_beams[ib][0]]})
+
+
+        return simple_intersections, corner_intersections, notch_intersections, lap_intersections
+
+
+
 
     def _create_plates(self, slab_populator):
         if self.sheeting_inside:
@@ -257,17 +334,17 @@ class SlabDetailA(SlabDetailBase):
 
     BEAM_CATEGORY_NAMES = ["stud", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
     RULES = [
-        CategoryRule(TButtJoint, "stud", "top_plate_beam"),
-        CategoryRule(LButtJoint, "edge_stud", "edge_stud"),
-        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam"),
-        CategoryRule(LButtJoint, "bottom_plate_beam", "top_plate_beam"),
-        CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam"),
-        CategoryRule(LButtJoint, "top_plate_beam", "top_plate_beam"),
-        CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam"),
-        CategoryRule(TButtJoint, "stud", "bottom_plate_beam"),
-        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam"),
-        CategoryRule(TButtJoint, "stud", "edge_stud"),
-        CategoryRule(TButtJoint, "stud", "detail"),
+        CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "bottom_plate_beam", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "top_plate_beam", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(TButtJoint, "stud", "detail", mill_depth=10.0, max_distance=1.0),
     ]
 
     def populate_details(self, slab_populator):
@@ -279,7 +356,7 @@ class SlabDetailA(SlabDetailBase):
             The slab populator to populate.
         """
         self._set_frame_outlines(slab_populator)
-        self._create_edge_beams(slab_populator)
+        self._create_edge_beams(slab_populator, edge_beam_dim_increment=60.0)
         self._create_edge_joints(slab_populator)
         self._create_and_join_studs(slab_populator)
         self._create_plates(slab_populator)
@@ -290,8 +367,8 @@ class SlabDetailB(SlabDetailBase):
 
     BEAM_CATEGORY_NAMES = ["stud", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
     RULES = [
-        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam"),
-        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam"),
+        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0),
+        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0),
     ]
 
     def populate_details(self, slab_populator):
@@ -303,6 +380,7 @@ class SlabDetailB(SlabDetailBase):
             The slab populator to populate.
         """
         self._set_frame_outlines(slab_populator)
-        self._create_edge_beams(slab_populator)
+        self._create_edge_beams(slab_populator, edge_beam_dim_increment=60.0)
         self._create_edge_joints(slab_populator)
         self._create_plates(slab_populator)
+

@@ -132,16 +132,21 @@ class SlabDetailBase(DetailBase):
         seg_a = slab_populator.frame_outline_a.lines[segment_index]
         seg_b = slab_populator.frame_outline_b.lines[segment_index]
         dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
-        if dot <= 0:  # seg_b is closer to the middle
+        if TOL.is_zero(dot): #edges are perpendicular to slab
             outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
-        else:  # seg_a is closer to the middle
-            outer_segment = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
-        if not edge_beam_dim_increment:
-            width = abs(dot) + min_width
+            width =  min_width
             offset = width / 2
         else:
-            width = math.ceil((abs(dot) + min_width) / edge_beam_dim_increment) * edge_beam_dim_increment
-            offset = abs(dot) + min_width - width / 2
+            if dot < 0:  # seg_b is closer to the middle
+                outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
+            else:  # seg_a is closer to the middle
+                outer_segment = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
+            if not edge_beam_dim_increment:
+                width = abs(dot) + min_width
+                offset = width / 2
+            else:
+                width = math.ceil((abs(dot) + min_width) / edge_beam_dim_increment) * edge_beam_dim_increment
+                offset = abs(dot) + min_width - width / 2
         return outer_segment.translated(-perp_vector * offset), width
 
     def _set_edge_beam_category(self, slab_populator, beam):

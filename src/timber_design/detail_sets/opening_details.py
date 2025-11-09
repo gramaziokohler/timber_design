@@ -18,229 +18,200 @@ from compas_timber.utils import intersection_line_beams
 from compas_timber.utils import is_point_in_polyline
 from compas_timber.utils import move_polyline_segment_to_plane
 from compas_timber.utils import split_beam_at_lengths
+from timber_design.element_generator import beam_from_category
+from timber_design.element_generator import get_joint_from_elements
 
 from timber_design.detail_sets import DetailBase
 from timber_design.workflow import CategoryRule
 
 
-class OpeningPopulator(object):
-    """Class to populate openings in a slab."""
-
-    def __init__(self, opening, slab_populator, detail_set):
-        self.opening = opening
-        self.slab_populator = slab_populator
-        self.detail_set = detail_set
-        self.oriented_outline = self._get_oriented_outline()
-
-    def _get_oriented_outline(self):
-        outline = self.opening.outline_a.copy()
-        outline.transform(self.slab.transformation.inverse())
-        outline.transform(self.slab_populator.transformation.inverse())
-        return outline
 
 
-class OpeningDetailBase(DetailBase):
-    """Base class for opening detail sets.
 
-    Parameters
-    ----------
-    interface : :class:`compas_timber.connections.SlabToSlabInterface`
-        The interface for which the detail set is created.
-    """
+BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
 
-    BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
+def _create_frame_polyline(opening, slab_populator):
+    """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
+    frame = Frame(opening.outline_a[0], Vector(1, 0, 0), Vector(0, 1, 0))
+    box = Box.from_points(opening.outline_a.points)
+    opening.frame_polyline = Polyline([box.corner(0), box.corner(1), box.corner(2), box.corner(3), box.corner(0)])
+    opening.frame_polyline.translate(Vector(0, 0, slab_populator.detail_set.sheeting_inside))
+    return opening.frame_polyline
 
-    def _create_frame_polyline(self, opening, slab_populator):
-        """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
-        frame = Frame(opening.outline_a[0], Vector(1, 0, 0), Vector(0, 1, 0))
-        box = Box.from_points(opening.outline_a.points)
-        opening.frame_polyline = Polyline([box.corner(0), box.corner(1), box.corner(2), box.corner(3), box.corner(0)])
-        opening.frame_polyline.translate(Vector(0, 0, slab_populator.detail_set.sheeting_inside))
-        return opening.frame_polyline
+def _create_jack_studs(parameters, opening, slab_populator):
+    beam_dimensions = parameters.beam_dimensions(slab_populator)
+    opening.beams.append(beam_from_category(opening.king_studs[0].centerline, "jack_stud", slab_populator, normal_offset=False, opening_edge_index=2))
+    opening.beams.append(beam_from_category(opening.king_studs[1].centerline, "jack_stud", slab_populator, normal_offset=False, opening_edge_index=0))
+    opening.king_studs[0].frame.translate(
+        get_polyline_segment_perpendicular_vector(opening.frame_polyline, 2) * (beam_dimensions["jack_stud"][0] + beam_dimensions["king_stud"][0]) * 0.5
+    )
+    opening.king_studs[1].frame.translate(
+        get_polyline_segment_perpendicular_vector(opening.frame_polyline, 0) * (beam_dimensions["jack_stud"][0] + beam_dimensions["king_stud"][0]) * 0.5
+    )
 
-    def _add_jack_studs(self, opening, slab_populator):
-        beam_dimensions = self.get_beam_dimensions(slab_populator)
-        opening.beams.append(self.beam_from_category(opening.king_studs[0].centerline, "jack_stud", slab_populator, normal_offset=False, opening_edge_index=2))
-        opening.beams.append(self.beam_from_category(opening.king_studs[1].centerline, "jack_stud", slab_populator, normal_offset=False, opening_edge_index=0))
-        opening.king_studs[0].frame.translate(
-            get_polyline_segment_perpendicular_vector(opening.frame_polyline, 2) * (beam_dimensions["jack_stud"][0] + beam_dimensions["king_stud"][0]) * 0.5
-        )
-        opening.king_studs[1].frame.translate(
-            get_polyline_segment_perpendicular_vector(opening.frame_polyline, 0) * (beam_dimensions["jack_stud"][0] + beam_dimensions["king_stud"][0]) * 0.5
-        )
+def _join_king_studs(parameters, opening, slab_populator):
+    """Extend king studs and join them to neighboring slab populator beams."""
+    joints = []
+    beam_dimensions = parameters.beam_dimensions(slab_populator)
+    for king_stud in opening.king_studs:
+        intersections = []
+        # get beams to intersect with
+        beams = []
+        for val in slab_populator.edge_beams.values():
+            beams.extend(val)
+        for op in slab_populator.openings:
+            if op != opening:
+                beams.extend([op.sill, op.header])
+        # get intersections
+        intersections = intersection_line_beams(king_stud.centerline, beams, max_distance=beam_dimensions["king_stud"][0])
+        if not intersections:
+            continue
+        # get closest intersections above and below the king stud
+        intersections.sort(key=lambda x: x["dot"])
+        bottom_int = None
+        top_int = None
+        for intersection in intersections:
+            if intersection["dot"] < 0:
+                bottom_int = intersection
+            else:
+                top_int = intersection
+                break
+        # create joints
+        joints.append(get_joint_from_elements(king_stud, bottom_int["beam"], parameters.rules))
+        joints.append(get_joint_from_elements(king_stud, top_int["beam"], parameters.rules))
+    return joints
 
-    def _join_king_studs(self, opening, slab_populator):
-        """Extend king studs and join them to neighboring slab populator beams."""
+def _join_jack_studs(parameters, opening, slab_populator):
+    joints = []
+    beam_dimensions = parameters.get_beam_dimensions(slab_populator)
+    for jack_stud in opening.jack_studs:
+        intersections = []
+        # get beams to intersect with
+        beams = []
+        for val in slab_populator.edge_beams.values():
+            beams.extend(val)
+        for op in slab_populator.openings:
+            if op != opening:
+                beams.extend([op.header])
+        # get intersections
+        intersections = intersection_line_beams(jack_stud.centerline, beams, max_distance=beam_dimensions["jack_stud"][0])
+        if not intersections:
+            continue
+        # get closest intersection to the bottom of the jack stud
+        intersections.sort(key=lambda x: x["dot"])
+        bottom_int = None
+        for intersection in intersections:
+            if intersection["dot"] < 0:
+                bottom_int = intersection
+            else:
+                break
+        # create joint
+        joints.append(self.get_joint_from_elements(jack_stud, bottom_int["beam"], self.rules))
+    return joints
+
+def cull_and_split_studs(self, opening_populator, slab_populator):
+    """Split the bottom plate beam for door openings."""
+    int_beams = [opening_populator.sill, opening_populator.header] if opening_populator.sill else [opening_populator.header]
+    new_studs = []
+    to_split, to_cull = self._parse_studs(opening_populator, slab_populator)
+    for stud in to_split + to_cull:
+        slab_populator.elements.remove(stud)
+    while to_split:
+        stud = to_split.pop(0)
+        dots = []
+        intersections = intersection_line_beams(stud.centerline, int_beams)[0]
+        intersections.sort(key=lambda x: x["dot"])
+
         joints = []
-        beam_dimensions = self.get_beam_dimensions(slab_populator)
-        for king_stud in opening.king_studs:
-            intersections = []
-            # get beams to intersect with
-            beams = []
-            for val in slab_populator.edge_beams.values():
-                beams.extend(val)
-            for op in slab_populator.openings:
-                if op != opening:
-                    beams.extend([op.sill, op.header])
-            # get intersections
-            intersections = intersection_line_beams(king_stud.centerline, beams, max_distance=beam_dimensions["king_stud"][0])
-            if not intersections:
-                continue
-            # get closest intersections above and below the king stud
-            intersections.sort(key=lambda x: x["dot"])
-            bottom_int = None
-            top_int = None
-            for intersection in intersections:
-                if intersection["dot"] < 0:
-                    bottom_int = intersection
-                else:
-                    top_int = intersection
-                    break
-            # create joints
-            joints.append(self.get_joint_from_elements(king_stud, bottom_int["beam"], self.rules))
-            joints.append(self.get_joint_from_elements(king_stud, top_int["beam"], self.rules))
-        return joints
+        for joint in slab_populator.joints:
+            if stud in joint.elements:
+                dot = dot_vectors(Vector.from_start_end(stud.centerline.start, joint.location), stud.centerline.direction)
+                joints.append((dot, joint))
 
-    def _join_jack_studs(self, opening, slab_populator):
-        joints = []
-        beam_dimensions = self.get_beam_dimensions(slab_populator)
-        for jack_stud in opening.jack_studs:
-            intersections = []
-            # get beams to intersect with
-            beams = []
-            for val in slab_populator.edge_beams.values():
-                beams.extend(val)
-            for op in slab_populator.openings:
-                if op != opening:
-                    beams.extend([op.header])
-            # get intersections
-            intersections = intersection_line_beams(jack_stud.centerline, beams, max_distance=beam_dimensions["jack_stud"][0])
-            if not intersections:
-                continue
-            # get closest intersection to the bottom of the jack stud
-            intersections.sort(key=lambda x: x["dot"])
-            bottom_int = None
-            for intersection in intersections:
-                if intersection["dot"] < 0:
-                    bottom_int = intersection
-                else:
-                    break
-            # create joint
-            joints.append(self.get_joint_from_elements(jack_stud, bottom_int["beam"], self.rules))
-        return joints
+        for pair in pairwise(intersections):
+            midpoint = (pair[0]["point"] + pair[1]["point"]) / 2
+            if is_point_in_polyline(midpoint, opening_populator.frame_polyline, in_plane=False):
+                continue  # skip if inside opening
+            beam = stud.copy()
+            beam.frame.translate(Vector.from_start_end(beam.frame.point, pair[0]["point"]))
+            beam.length = pair[1]["dot"] - pair[0]["dot"]
+            for joint in joints:
+                if joint[0] > pair[0]["dot"] and joint[0] < pair[1]["dot"]:  # joint is within segment
+                    elements = joint.elements.copy()
+                    elements[elements.index(stud)] = beam
+                    joint.copy_to_new_elements(slab_populator, elements)
+                slab_populator.joints.remove(joint)
 
-    def cull_and_split_studs(self, opening_populator, slab_populator):
-        """Split the bottom plate beam for door openings."""
-        int_beams = [opening_populator.sill, opening_populator.header] if opening_populator.sill else [opening_populator.header]
-        new_studs = []
-        to_split, to_cull = self._parse_studs(opening_populator, slab_populator)
-        for stud in to_split + to_cull:
-            slab_populator.elements.remove(stud)
-        while to_split:
-            stud = to_split.pop(0)
-            dots = []
-            intersections = intersection_line_beams(stud.centerline, int_beams)[0]
-            intersections.sort(key=lambda x: x["dot"])
+        dots.sort()
 
-            joints = []
-            for joint in slab_populator.joints:
-                if stud in joint.elements:
-                    dot = dot_vectors(Vector.from_start_end(stud.centerline.start, joint.location), stud.centerline.direction)
-                    joints.append((dot, joint))
+        stud_segs = split_beam_at_lengths(stud, dots, joints, slab_populator)
+        opening.joint_tuples.extend([(pair) for pair in zip(stud_segs, int_beams)])
+        for seg in stud_segs:
+            if not is_point_in_polyline(seg.midpoint, opening.frame_polyline, in_plane=False):
+                new_studs.append(seg)
+    slab_populator.elements.extend(new_studs)
 
-            for pair in pairwise(intersections):
-                midpoint = (pair[0]["point"] + pair[1]["point"]) / 2
-                if is_point_in_polyline(midpoint, opening_populator.frame_polyline, in_plane=False):
-                    continue  # skip if inside opening
-                beam = stud.copy()
-                beam.frame.translate(Vector.from_start_end(beam.frame.point, pair[0]["point"]))
-                beam.length = pair[1]["dot"] - pair[0]["dot"]
-                for joint in joints:
-                    if joint[0] > pair[0]["dot"] and joint[0] < pair[1]["dot"]:  # joint is within segment
-                        elements = joint.elements.copy()
-                        elements[elements.index(stud)] = beam
-                        joint.copy_to_new_elements(slab_populator, elements)
-                    slab_populator.joints.remove(joint)
-
-            dots.sort()
-
-            stud_segs = split_beam_at_lengths(stud, dots, joints, slab_populator)
-            opening.joint_tuples.extend([(pair) for pair in zip(stud_segs, int_beams)])
-            for seg in stud_segs:
-                if not is_point_in_polyline(seg.midpoint, opening.frame_polyline, in_plane=False):
-                    new_studs.append(seg)
-        slab_populator.elements.extend(new_studs)
-
-    def _parse_studs(self, opening_populator, slab_populator):
-        """Cull and split the studs for the opening."""
-        cull_outer_edge = [king.midpoint[0] for king in opening_populator.king_studs]
-        cull_outer_edge.sort()
-        if opening_populator.jack_studs:
-            cull_inner_edge = [jack.midpoint[0] for jack in opening_populator.jack_studs]
-            cull_inner_edge.sort()
-            cull_inner_edge[0] += opening_populator.jack_studs[0].width / 2
-            cull_inner_edge[1] -= opening_populator.jack_studs[0].width / 2
-        else:
-            cull_inner_edge = cull_outer_edge
-            cull_inner_edge[0] += opening_populator.king_studs[0].width / 2
-            cull_inner_edge[1] -= opening_populator.king_studs[0].width / 2
-        cull_outer_edge[0] -= opening_populator.king_studs[0].width / 2
-        cull_outer_edge[1] += opening_populator.king_studs[0].width / 2
-        to_cull = []
-        to_split = []
-        for stud in slab_populator.get_elements_by_category("stud"):
-            beam_dot = dot_vectors(slab_populator._slab.frame.xaxis, Vector.from_start_end(slab_populator._slab.frame.point, stud.centerline.start))
-            if beam_dot < cull_outer_edge[0] - stud.width or beam_dot > cull_outer_edge[1] + stud.width:  # outside culling domain
-                continue
-            if beam_dot > cull_inner_edge[0] + stud.width and beam_dot < cull_inner_edge[1] - stud.width:  # inside splitting domain
-                to_split.append(stud)
-                continue
-            if do_segments_overlap(stud.centerline, opening_populator.king_studs[0].centerline):
-                to_cull.append(stud)
-        return to_split, to_cull
+def _parse_studs(self, opening_populator, slab_populator):
+    """Cull and split the studs for the opening."""
+    cull_outer_edge = [king.midpoint[0] for king in opening_populator.king_studs]
+    cull_outer_edge.sort()
+    if opening_populator.jack_studs:
+        cull_inner_edge = [jack.midpoint[0] for jack in opening_populator.jack_studs]
+        cull_inner_edge.sort()
+        cull_inner_edge[0] += opening_populator.jack_studs[0].width / 2
+        cull_inner_edge[1] -= opening_populator.jack_studs[0].width / 2
+    else:
+        cull_inner_edge = cull_outer_edge
+        cull_inner_edge[0] += opening_populator.king_studs[0].width / 2
+        cull_inner_edge[1] -= opening_populator.king_studs[0].width / 2
+    cull_outer_edge[0] -= opening_populator.king_studs[0].width / 2
+    cull_outer_edge[1] += opening_populator.king_studs[0].width / 2
+    to_cull = []
+    to_split = []
+    for stud in slab_populator.get_elements_by_category("stud"):
+        beam_dot = dot_vectors(slab_populator._slab.frame.xaxis, Vector.from_start_end(slab_populator._slab.frame.point, stud.centerline.start))
+        if beam_dot < cull_outer_edge[0] - stud.width or beam_dot > cull_outer_edge[1] + stud.width:  # outside culling domain
+            continue
+        if beam_dot > cull_inner_edge[0] + stud.width and beam_dot < cull_inner_edge[1] - stud.width:  # inside splitting domain
+            to_split.append(stud)
+            continue
+        if do_segments_overlap(stud.centerline, opening_populator.king_studs[0].centerline):
+            to_cull.append(stud)
+    return to_split, to_cull
 
 
-class WindowDetailBase(OpeningDetailBase):
-    """Base class for window opening detail sets.
+def _create_elements(self, opening, slab_populator):
+    """Generate the beams for a opening."""
+    frame_polyline = self._create_frame_polyline(opening, slab_populator)
+    segments = [line for line in frame_polyline.lines]
+    for i in range(4):
+        if dot_vectors(segments[i].direction, slab_populator.stud_direction) < 0:
+            segments[i] = Line(segments[i].end, segments[i].start)  # reverse the segment to match the stud direction
+    opening.beams.append(self.beam_from_category(segments[1], "header", slab_populator, opening_edge_index=1))
+    opening.beams.append(self.beam_from_category(segments[2], "king_stud", slab_populator, opening_edge_index=2))
+    opening.beams.append(self.beam_from_category(segments[0], "king_stud", slab_populator, opening_edge_index=0))
+    opening.beams.append(self.beam_from_category(segments[3], "sill", slab_populator, opening_edge_index=3))
+    for beam in opening.beams:
+        vector = get_polyline_segment_perpendicular_vector(frame_polyline, beam.attributes["opening_edge_index"])
+        beam.frame.translate(vector * beam.width * 0.5)
+    slab_populator.elements.extend(opening.beams)
+    return opening.beams
 
-    Parameters
-    ----------
-    interface : :class:`compas_timber.connections.SlabToSlabInterface`
-        The interface for which the detail set is created.
-    """
+def _create_joints(self, opening, slab_populator):
+    """Generate the joints for WindowDetailB."""
+    joints = []
+    joints.extend([self.get_direct_rule_from_elements(opening.header, king, self.rules) for king in opening.king_studs])
+    joints.extend(self._join_king_studs(opening, slab_populator))
+    slab_populator.direct_rules.extend(joints)
+    return joints
 
-    def create_elements(self, opening, slab_populator):
-        """Generate the beams for a main interface."""
-        frame_polyline = self._create_frame_polyline(opening, slab_populator)
-        segments = [line for line in frame_polyline.lines]
-        for i in range(4):
-            if dot_vectors(segments[i].direction, slab_populator.stud_direction) < 0:
-                segments[i] = Line(segments[i].end, segments[i].start)  # reverse the segment to match the stud direction
-        opening.beams.append(self.beam_from_category(segments[1], "header", slab_populator, opening_edge_index=1))
-        opening.beams.append(self.beam_from_category(segments[2], "king_stud", slab_populator, opening_edge_index=2))
-        opening.beams.append(self.beam_from_category(segments[0], "king_stud", slab_populator, opening_edge_index=0))
-        opening.beams.append(self.beam_from_category(segments[3], "sill", slab_populator, opening_edge_index=3))
-        for beam in opening.beams:
-            vector = get_polyline_segment_perpendicular_vector(frame_polyline, beam.attributes["opening_edge_index"])
-            beam.frame.translate(vector * beam.width * 0.5)
-        slab_populator.elements.extend(opening.beams)
-        return opening.beams
-
-    def create_joints(self, opening, slab_populator):
-        """Generate the joints for WindowDetailB."""
-        joints = []
-        joints.extend([self.get_direct_rule_from_elements(opening.header, king, self.rules) for king in opening.king_studs])
-        joints.extend(self._join_king_studs(opening, slab_populator))
-        slab_populator.direct_rules.extend(joints)
-        return joints
-
-    def populate_details(self, slab_populator, opening):
-        """Populate the details for the given slab populator and opening."""
-        pl = self._create_frame_polyline(opening, slab_populator)
-        print("frame polyline: ", pl)
-        # self.create_elements(opening, slab_populator)
-        # self.cull_and_split_studs(opening, slab_populator)
-        # self.create_joints(opening, slab_populator)
+def populate_details(self, slab_populator, opening):
+    """Populate the details for the given slab populator and opening."""
+    pl = self._create_frame_polyline(opening, slab_populator)
+    print("frame polyline: ", pl)
+    self.create_elements(opening, slab_populator)
+    # self.cull_and_split_studs(opening, slab_populator)
+    # self.create_joints(opening, slab_populator)
 
 
 class WindowDetailA(WindowDetailBase):
@@ -260,6 +231,7 @@ class WindowDetailA(WindowDetailBase):
         CategoryRule(TButtJoint, "king_stud", "header"),
         CategoryRule(TButtJoint, "king_stud", "sill"),
     ]
+    
 
     def create_joints(self, opening, slab_populator):
         """Generate the beams for a cross interface."""
@@ -285,22 +257,6 @@ class WindowDetailB(WindowDetailBase):
         CategoryRule(TButtJoint, "king_stud", "sill"),
     ]
 
-    def create_elements(self, opening, slab_populator):
-        """Generate the beams for a main interface."""
-        super(WindowDetailB, self).create_elements(opening, slab_populator)
-        self._add_jack_studs(opening, slab_populator)
-        slab_populator.elements.extend(opening.beams)
-        return opening.beams
-
-    def create_joints(self, opening, slab_populator):
-        """Generate the joints for WindowDetailB."""
-        direct_rules = WindowDetailBase.create_joints(opening, slab_populator)
-        direct_rules.extend([self.get_joint_from_elements(opening.sill, jack, self.rules) for jack in opening.jack_studs])
-        direct_rules.extend([self.get_joint_from_elements(jack, opening.header, self.rules) for jack in opening.jack_studs])
-        direct_rules.extend(self._join_jack_studs(opening, slab_populator))
-        direct_rules.extend(self._join_king_studs(opening, slab_populator))
-        slab_populator.direct_rules.extend(direct_rules)
-        return direct_rules
 
 
 class DoorDetailBase(OpeningDetailBase):

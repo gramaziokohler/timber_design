@@ -6,10 +6,13 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Vector
+from compas.geometry import angle_vectors
 from compas.geometry import angle_vectors_signed
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
 from compas.geometry import intersection_line_line
+from compas.tolerance import TOL
+
 from compas_timber.model import TimberModel
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
@@ -34,15 +37,6 @@ class SlabSelector(object):  # TODO change to detail selector or similar
 class AnySlabSelector(object):
     def select(self, _):
         return True
-
-
-class OpeningPopulator(object):
-    """Populates openings in a slab."""
-
-    def __init__(self, opening, detail_set, slab_populator):
-        self.opening = opening
-        self.detail_set = detail_set
-        self.slab_populator = slab_populator
 
 
 class SlabPopulator(TimberModel):
@@ -87,13 +81,12 @@ class SlabPopulator(TimberModel):
 
     """
 
-    def __init__(self, slab, detail_set):
+    def __init__(self, slab, stud_direction = None):
         super(SlabPopulator, self).__init__()
         self._slab = slab
-        self.detail_set = detail_set
         self.test = []
-        self.stud_direction = detail_set.stud_direction if detail_set.stud_direction else Vector(0, 1, 0)
-        self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, detail_set)
+        self.stud_direction = stud_direction if stud_direction else Vector(0, 0, 1)
+        self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, self.stud_direction)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
         self.features = [f.transformed(self.transformation_slab_to_populator) for f in slab.features]
@@ -123,11 +116,14 @@ class SlabPopulator(TimberModel):
         """The frame of the slab populator. This frame is in relation to the slab outlines in the slab local space."""
         return Frame.from_transformation(self.transformation_slab_to_populator.inverse())
 
-    def get_transformation_to_populator_space(self, slab, detail_set):
+    def get_transformation_to_populator_space(self, slab, stud_direction):
         """The slab_populator frame in global space."""
-        if detail_set.stud_direction:
-            stud_dir = detail_set.stud_direction.transformed(slab.transformation.inverse())  # bring stud direction into local slab space
-            stud_dir[2] = 0.0
+        if stud_direction:
+            stud_dir = stud_direction.transformed(slab.transformation.inverse())  # bring stud direction into local slab space
+            if angle_vectors(stud_dir, Vector(0, 0, 1)) < TOL.ABSOLUTE:
+                stud_dir = Vector(0, 1, 0)
+            else: 
+                stud_dir[2] = 0.0
         else:
             stud_dir = Vector(0, 1, 0)
         frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0, 0, 1)), stud_dir)  # get frame with stud direction as y axis
@@ -283,26 +279,3 @@ class SlabPopulator(TimberModel):
                     slab_populators.append(cls(config_set, slab, interfaces))
                     break
         return slab_populators
-
-def intersection_beam_beam_2d(beam_a, beam_b):
-    """Calculates the 2D intersection point of two beams.
-
-    Parameters
-    ----------
-    beam_a : :class:`compas_timber.elements.Beam`
-        The first beam.
-    beam_b : :class:`compas_timber.elements.Beam`
-        The second beam.
-
-    Returns
-    -------
-    :class:`compas.geometry.Point` or None
-        The intersection point of the two beams in 2D, or None if they do not intersect.
-
-    """
-    line_a = Line(beam_a.start_point[:2], beam_a.end_point[:2])
-    line_b = Line(beam_b.start_point[:2], beam_b.end_point[:2])
-    intersection = intersection_line_line(line_a, line_b)
-    if intersection:
-        return Point(intersection[0][0], intersection[0][1], 0)
-    return None

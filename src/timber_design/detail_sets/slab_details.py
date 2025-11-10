@@ -206,36 +206,6 @@ class SlabDetailBase(DetailBase):
     # methods for stud beams
     # ==========================================================================
 
-    def _create_and_join_studs(self, slab_populator, min_length=0.0):
-        """Generates the stud beams."""
-        min_length = self.beam_width_overrides.get("stud", None) or self.beam_width
-        x_position = self.stud_spacing
-        beam_dimensions = self.get_beam_dimensions(slab_populator)
-        studs = []
-        while x_position < slab_populator.obb.xmax - beam_dimensions["stud"][0]:
-            # get intersections with edge beams and openings and interfaces
-            intersections = intersection_line_beams(
-                Line(Point(x_position, 0, 0), Point(x_position, 1, 0)),
-                [b for b in slab_populator.elements() if b.attributes.get("edge_index", None) is not None],
-                max_distance=self.beam_width,
-            )
-            if not intersections:
-                break
-
-            intersections = sorted(intersections, key=lambda x: x.get("dot"))
-            for pair in pairwise(intersections):
-                if pair[0]["point"].distance_to_point(pair[1]["point"]) < min_length:
-                    continue
-                if not is_point_in_polyline((pair[0]["point"] + pair[1]["point"]) / 2, slab_populator.edge_beams_inner_outline, in_plane=False):
-                    continue
-                beam = self.beam_from_category(Line(pair[0]["point"], pair[1]["point"]), "stud", slab_populator)
-                slab_populator.add_element(beam)
-                for intersection in pair:
-                    rule = self.get_direct_rule_from_elements(beam, intersection["beam"])
-                    rule.joint_type.create(slab_populator, beam, intersection["beam"], point=intersection["point"], **rule.kwargs)
-            x_position += self.stud_spacing
-        return studs
-
 
     def _create_and_join_studs(self, slab_populator, min_length=0.0):
         """Generates the stud beams."""

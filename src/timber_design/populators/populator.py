@@ -1,11 +1,10 @@
 from compas.geometry import Box
 from compas.geometry import Frame
-from compas.geometry import Line
-from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Vector
+from compas.geometry import angle_vectors
 from compas.geometry import angle_vectors_signed
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
@@ -13,7 +12,8 @@ from compas.geometry import intersection_line_line
 from compas_timber.model import TimberModel
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
-from compas.itertools import pairwise
+from compas_timber.elements import SlabConnectionInterface
+from compas_timber.elements import Opening
 
 
 class SlabSelector(object):  # TODO change to detail selector or similar
@@ -39,13 +39,13 @@ class AnySlabSelector(object):
 class OpeningPopulator(object):
     """Populates openings in a slab."""
 
-    def __init__(self, opening, detail_set, slab_populator):
+    def __init__(self, opening, parameters, slab_populator):
         self.opening = opening
-        self.detail_set = detail_set
+        self.parameters = parameters
         self.slab_populator = slab_populator
 
 
-class SlabPopulator(TimberModel):
+class SlabPopulator(object):
     """Create a timber assembly from a surface.
 
     Parameters
@@ -87,26 +87,32 @@ class SlabPopulator(TimberModel):
 
     """
 
-    def __init__(self, slab, detail_set):
+    def __init__(self, slab, parameters, feature_definitions=None):
         super(SlabPopulator, self).__init__()
         self._slab = slab
-        self.detail_set = detail_set
+        self.parameters = parameters
         self.test = []
-        self.stud_direction = detail_set.stud_direction if detail_set.stud_direction else Vector(0, 1, 0)
-        self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, detail_set)
+        self.stud_direction = parameters.stud_direction if parameters.stud_direction else Vector(0, 0, 1)
+        self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, parameters)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
-        self.features = [f.transformed(self.transformation_slab_to_populator) for f in slab.features]
+        self.feature_definitions = [f.transformed(self.transformation_slab_to_populator) for f in feature_definitions] if feature_definitions else []
 
-        self.openings = []
-        self.interfaces = []
+        self._model=TimberModel()
         self.direct_rules = []
+
+        self.direct_rules = []
+        self.edge_beams = {}
+        self.edge_planes = {}
+        for i, pl in self._slab.edge_planes.items():
+                self.edge_planes[i] = pl.transformed(self.transformation_slab_to_populator)
         self._edge_beams_inner_edges = {}
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
+        self.test=[]
 
     def __repr__(self):
-        return "SlabPopulator({}, {})".format(self.detail_set, self._slab)
+        return "SlabPopulator({}, {})".format(self.parameters, self._slab)
 
     @property
     def slab(self):
@@ -123,20 +129,57 @@ class SlabPopulator(TimberModel):
         """The frame of the slab populator. This frame is in relation to the slab outlines in the slab local space."""
         return Frame.from_transformation(self.transformation_slab_to_populator.inverse())
 
-    def get_transformation_to_populator_space(self, slab, detail_set):
+    def get_transformation_to_populator_space(self, slab, parameters):
         """The slab_populator frame in global space."""
-        if detail_set.stud_direction:
-            stud_dir = detail_set.stud_direction.transformed(slab.transformation.inverse())  # bring stud direction into local slab space
-            stud_dir[2] = 0.0
-        else:
+        if not parameters.stud_direction:
             stud_dir = Vector(0, 1, 0)
+        else:
+            stud_dir = parameters.stud_direction.transformed(slab.transformation.inverse())  # bring stud direction into local slab space
+            if angle_vectors(stud_dir, Vector(0, 0, 1)) < 1e-3 or angle_vectors(stud_dir, Vector(0, 0, -1)) < 1e-3:
+                stud_dir = Vector(0, 1, 0)
+            else:
+                stud_dir[2] = 0.0
+
         frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0, 0, 1)), stud_dir)  # get frame with stud direction as y axis
         transform_to_sp = Transformation.from_frame(frame).inverse()
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points]  # rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_sp.inverse())
-        frame.point[2] = detail_set.sheeting_inside + self.frame_thickness / 2  # offset to make frame center plane at world XY
+        frame.point[2] = parameters.sheeting_inside + self.frame_thickness / 2  # offset to make frame center plane at world XY
         return Transformation.from_frame(frame).inverse()
+
+    @property
+    def elements(self):
+        return list(self._model.elements())
+
+    @property
+    def beams(self):
+        return list(self._model.beams)
+
+    @property
+    def plates(self):
+        return list(self._model.plates)
+
+    def add_element(self, element, edge_index=None):
+        self._model.add_element(element)
+        if edge_index is not None:
+            if edge_index not in self.edge_beams:
+                self.edge_beams[edge_index] = []
+            self.edge_beams[edge_index].append(element)
+
+    def remove_element(self, element):
+        self._model.remove_element(element)
+        for beams in self.edge_beams.values():
+            if element in beams:
+                beams.remove(element)
+
+    def process_joinery(self):
+        for j_def in self.direct_rules:
+            for e in j_def.elements:
+                if e not in self.elements:
+                    raise ValueError("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
+            j_def.joint_type.create(self._model, *j_def.elements, **j_def.kwargs)
+        self._model.process_joinery()
 
     def merge_with_model(self, model, clear_slab=False):
         """Merges the slab populator with a timber model."""
@@ -146,10 +189,10 @@ class SlabPopulator(TimberModel):
                 for joint in model.joints:
                     if element in joint.elements:
                         model.remove_joint(joint)
-        for element in list(self.elements()):
+        for element in self.elements:
             element.transform(self.transformation_slab_to_populator.inverse())
             model.add_element(element, parent=self._slab)
-        for j in self.joints:
+        for j in self._model.joints:
             model.add_joint(j)
 
     @property
@@ -157,30 +200,22 @@ class SlabPopulator(TimberModel):
         """Returns the frame outline of the slab."""
         if not self._edge_beams_inner_edges:
             for index, beams in self.edge_beams.items():
-                beam = beams[0]
-                self._edge_beams_inner_edges[index] = beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2))
-            edges = list(self._edge_beams_inner_edges.values())
+                beam = beams[-1]
+                self._edge_beams_inner_edges[index] = {"edge": beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2)), "beam": beam}
+            edges = [v["edge"] for v in self._edge_beams_inner_edges.values()]
             for pair in zip(edges, edges[1:] + edges[0:1]):
                 pair[0][1] = intersection_line_line(pair[0], pair[1])[0]
                 pair[1][0] = pair[0][1]
 
         return self._edge_beams_inner_edges
 
+
     @property
     def edge_beams_inner_outline(self):
         """Returns the frame outline of the slab."""
-        pts = [l[0] for l in self.edge_beams_inner_edges.values()]
+        pts = [l["edge"][0] for l in self.edge_beams_inner_edges.values()]
         pts.append(pts[0])
         return Polyline(pts)
-
-
-    @property
-    def edge_planes(self):
-        """Returns the edge planes of the slab."""
-        planes = {}
-        for i, pl in self._slab.edge_planes.items():
-            planes[i] = pl.transformed(self.transformation_slab_to_populator)
-        return planes
 
     @property
     def thickness(self):
@@ -190,18 +225,17 @@ class SlabPopulator(TimberModel):
     @property
     def frame_thickness(self):
         """Returns the frame thickness, adjusted for sheeting."""
-        return self.thickness - self.detail_set.sheeting_inside - self.detail_set.sheeting_outside
+        return self.thickness - self.parameters.sheeting_inside - self.parameters.sheeting_outside
 
     @property
-    def edge_beams(self):
-        """Returns the edge beams of the slab."""
-        beams = {}
-        for beam in self.beams:
-            if beam.attributes.get("edge_index", None) is not None:
-                if beams.get(beam.attributes["edge_index"]) is None:
-                    beams[beam.attributes["edge_index"]] = []
-                beams[beam.attributes["edge_index"]].append(beam)
-        return beams
+    def interfaces(self):
+        """Get all interfaces of the slab."""
+        return list(filter(lambda x: isinstance(x, SlabConnectionInterface), self._slab.features))
+
+    @property
+    def openings(self):
+        """Get all openings of the slab."""
+        return list(filter(lambda x: isinstance(x, Opening), self._slab.features))
 
     @property
     def edge_interfaces(self):
@@ -253,18 +287,22 @@ class SlabPopulator(TimberModel):
         return Box.from_points(self.outline_a.points + self.outline_b.points)
 
     def get_elements_by_category(self, category):
-        return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements()))
+        return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements))
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
-        self.detail_set.populate_details(self)
-        from timber_design.detail_sets.opening_details import WindowDetailA
+        slab_edge_feature = FeatureDefinition(self, self.parameters)
+        self.parameters.generate_edge_elements(self)
+        slab_edge_feature.element_edge_dict = self.edge_beams_inner_edges
+        slab_edge_feature.outline = self.edge_beams_inner_outline
+        slab_edge_feature.boundary_type = FeatureBoundaryType.INCLUSIVE
 
-        for f in self.features:
-            print(f)
-            if f.__class__.__name__ == "Opening":
-                detail_set = WindowDetailA()
-                detail_set.populate_details(self, f)
+        for f in self.feature_definitions:
+            f.generate_elements(self)
+        for f in self.feature_definitions:
+            f.join_elements(self, [slab_edge_feature] + self.feature_definitions)
+        self.parameters.generate_stud_elements(self, [slab_edge_feature] + self.feature_definitions)
+        self.parameters.generate_plate_elements(self, self.feature_definitions)
 
     @classmethod
     def from_model(cls, model, configuration_sets):
@@ -284,25 +322,62 @@ class SlabPopulator(TimberModel):
                     break
         return slab_populators
 
-def intersection_beam_beam_2d(beam_a, beam_b):
-    """Calculates the 2D intersection point of two beams.
+
+class FeatureBoundaryType(object):
+    """Defines the boundary type for a feature definition.
+    Attributes
+    ----------
+    EXCLUSIVE : str
+        The feature defines an exclusive boundary, i.e. an area where elements should not be placed.
+    INCLUSIVE : str
+        The feature defines an inclusive boundary, i.e. an area where elements are allowed.
+    """
+
+    EXCLUSIVE = "exclusive"
+    INCLUSIVE = "inclusive"
+
+class FeatureDefinition(object):
+    """Defines a feature in the slab populator.
 
     Parameters
     ----------
-    beam_a : :class:`compas_timber.elements.Beam`
-        The first beam.
-    beam_b : :class:`compas_timber.elements.Beam`
-        The second beam.
-
-    Returns
-    -------
-    :class:`compas.geometry.Point` or None
-        The intersection point of the two beams in 2D, or None if they do not intersect.
+    feature_type : str
+        The type of the feature.
+    parameters : dict
+        The parameters for the feature.
 
     """
-    line_a = Line(beam_a.start_point[:2], beam_a.end_point[:2])
-    line_b = Line(beam_b.start_point[:2], beam_b.end_point[:2])
-    intersection = intersection_line_line(line_a, line_b)
-    if intersection:
-        return Point(intersection[0][0], intersection[0][1], 0)
-    return None
+
+    def __init__(self, feature=None, parameters=None, elements=None, element_edge_dict=None, outline=None, boundary_type=FeatureBoundaryType.EXCLUSIVE):
+        self.feature = feature
+        self.parameters = parameters
+        self.elements = elements or []
+        self.element_edge_dict = element_edge_dict or {}
+        self.outline = outline
+        self.boundary_type = boundary_type
+
+    def generate_elements(self, slab_populator):
+        """Generates the elements for the feature."""
+        self.parameters.generate_elements(slab_populator, self)
+
+    def join_elements(self, slab_populator, intersecting_features=None):
+        """Joins the elements for the feature."""
+        self.parameters.join_elements(slab_populator, self, intersecting_features)
+
+    def transformed(self, transformation):
+        """Transforms the feature definition by a given transformation.
+
+        Parameters
+        ----------
+        transformation : :class:`compas.geometry.Transformation`
+            The transformation to apply.
+
+        Returns
+        -------
+        :class:`FeatureDefinition`
+            The transformed feature definition.
+
+        """
+        transformed_feature = self.feature.transformed(transformation)
+        return FeatureDefinition(transformed_feature, self.parameters)
+

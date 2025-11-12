@@ -2,6 +2,7 @@ from .populator import SlabPopulator
 from .populator import SlabSelector
 from .populator import AnySlabSelector
 from .populator import OpeningPopulator
+from .populator import FeatureDefinition
 from .wall_populator import WallPopulator
 
 __all__ = [
@@ -9,5 +10,6 @@ __all__ = [
     "SlabSelector",
     "AnySlabSelector",
     "OpeningPopulator",
+    "FeatureDefinition",
     "WallPopulator",
 ]

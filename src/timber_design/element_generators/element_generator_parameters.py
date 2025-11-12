@@ -1,11 +1,10 @@
 from compas.geometry import Vector
+from compas.geometry import intersection_line_line
+from compas.tolerance import TOL
 from compas_timber.connections import JointTopology
 from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
 
-from compas_timber.design import CategoryRule
-from compas_timber.connections import LButtJoint
-from compas_timber.connections import TButtJoint
 
 class ElementGeneratorParameters(object):
     """Base class for opening detail sets.
@@ -20,6 +19,7 @@ class ElementGeneratorParameters(object):
     """
 
     BEAM_CATEGORY_NAMES = []
+    RULES = []
 
     def __init__(
         self,
@@ -27,16 +27,19 @@ class ElementGeneratorParameters(object):
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
-        self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
-        self.joint_rule_overrides = joint_rule_overrides or []
         self.standard_beam_width = standard_beam_width
+        self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
+        if joint_rule_overrides:
+            self.rules = self.update_rules(joint_rule_overrides)
+        else:
+            self.rules = self.RULES
+        self.beam_dimensions = {}  # to be populated with update_beam_dimensions
 
-
-    def update_rules(self, standard_rules):
+    def update_rules(self, joint_rule_overrides):
         """Update the rules with any overrides provided."""
-        rules = [r for r in standard_rules]
+        rules = [r for r in self.RULES]
 
-        for override in self.joint_rule_overrides:
+        for override in joint_rule_overrides:
             for rule in rules:
                 # element order is important TODO: use rule.comply_topology when merged. TOPO_EDGE_EDGE should not occur, but adding for future-proofing.
                 if rule.joint_type.supported_topology == JointTopology.TOPO_T or rule.joint_type.supported_topology == JointTopology.TOPO_EDGE_FACE:
@@ -51,15 +54,13 @@ class ElementGeneratorParameters(object):
                 rules.append(override)
         return rules
 
-    def update_beam_dimensions(self, slab_populator, beam_category_names):
+    def update_beam_dimensions(self, slab_populator):
         """Get the beam dimensions for the detail set."""
-        beam_dims = {}
-        for category in beam_category_names:
+        for category in self.BEAM_CATEGORY_NAMES:
             if category in self.beam_width_overrides:
-                beam_dims[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
+                self.beam_dimensions[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
             else:
-                beam_dims[category] = (slab_populator.detail_set.beam_width, slab_populator.frame_thickness)
-        return beam_dims
+                self.beam_dimensions[category] = (self.standard_beam_width, slab_populator.frame_thickness)
 
 
     def beam_from_category(self, segment, category, **kwargs):
@@ -94,105 +95,21 @@ class ElementGeneratorParameters(object):
 
     def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
         """Get the joint type for the given elements."""
+
+
         for rule in self.rules:
-            if rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]:
-                kwargs.update(rule.kwargs)
+            if (rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]):
                 return DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
+
         for rule in self.rules:
-            if rule.category_a == element_b.attributes["category"] and rule.category_b == element_a.attributes["category"]:
+            if set([rule.category_a, rule.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]]):
+                if not (rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]):
+                    element_a, element_b = element_b, element_a
                 kwargs.update(rule.kwargs)
-                return DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
+                point = rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
+                return DirectRule(rule.joint_type, [element_a, element_b], location=point, **kwargs)
 
-        raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
-
-
-class SlabElementGeneratorParameters(ElementGeneratorParameters):
-    """Base class for opening detail sets.
-
-    Parameters
-    ----------
-    beam_width_overrides : dict, optional
-        A dictionary of beam width overrides for specific beam categories.
-        key = beam category name, value = beam width.
-    joint_rule_overrides : list[:class:`compas_timber.design.CategoryRule`], optional
-        A list of category rules to override the default ones.
-    """
-
-    BEAM_CATEGORY_NAMES = []
-
-    def __init__(
-        self,
-        stud_spacing,
-        standard_beam_width,
-        stud_direction=None,
-        sheeting_outside=0,
-        sheeting_inside=0,
-        beam_width_overrides=None,
-        joint_rule_overrides=None,
-    ):
-        super(SlabElementGeneratorParameters, self).__init__(
-            standard_beam_width,
-            beam_width_overrides,
-            joint_rule_overrides,
-        )
-        self.stud_spacing = stud_spacing
-        self.stud_direction = stud_direction
-        self.sheeting_outside = sheeting_outside
-        self.sheeting_inside = sheeting_inside
+        else:
+            raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
 
-
-class SlabElementGeneratorParametersA(SlabElementGeneratorParameters):
-    """A slab detail set that uses the default edge beams, studs, and plates."""
-
-    BEAM_CATEGORY_NAMES = ["stud", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    RULES = [
-        CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "bottom_plate_beam", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "top_plate_beam", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
-        CategoryRule(TButtJoint, "stud", "detail", mill_depth=10.0, max_distance=1.0),
-    ]
-
-    def populate_details(self, slab_populator):
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
-        self._set_frame_outlines(slab_populator)
-        self._create_edge_beams(slab_populator, edge_beam_dim_increment=60.0)
-        self._create_edge_joints(slab_populator)
-        self._create_and_join_studs(slab_populator)
-        self._create_plates(slab_populator)
-
-
-class SlabElementGeneratorParametersB(SlabElementGeneratorParameters):
-    """A slab detail set that uses the edge beams and plates but no studs."""
-
-    BEAM_CATEGORY_NAMES = ["stud", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    RULES = [
-        CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0),
-        CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0),
-    ]
-
-    def populate_details(self, slab_populator):
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
-        self._set_frame_outlines(slab_populator)
-        self._create_edge_beams(slab_populator, edge_beam_dim_increment=60.0)
-        self._create_edge_joints(slab_populator)
-        self._create_plates(slab_populator)

@@ -208,7 +208,6 @@ def _create_joints(self, opening, slab_populator):
 def populate_details(self, slab_populator, opening):
     """Populate the details for the given slab populator and opening."""
     pl = self._create_frame_polyline(opening, slab_populator)
-    print("frame polyline: ", pl)
     self.create_elements(opening, slab_populator)
     # self.cull_and_split_studs(opening, slab_populator)
     # self.create_joints(opening, slab_populator)
@@ -231,7 +230,7 @@ class WindowDetailA(WindowDetailBase):
         CategoryRule(TButtJoint, "king_stud", "header"),
         CategoryRule(TButtJoint, "king_stud", "sill"),
     ]
-    
+
 
     def create_joints(self, opening, slab_populator):
         """Generate the beams for a cross interface."""

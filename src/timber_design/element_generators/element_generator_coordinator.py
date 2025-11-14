@@ -257,7 +257,6 @@ class SlabPopulator(TimberModel):
         from timber_design.detail_sets.opening_details import WindowDetailA
 
         for f in self.features:
-            print(f)
             if f.__class__.__name__ == "Opening":
                 detail_set = WindowDetailA()
                 detail_set.populate_details(self, f)

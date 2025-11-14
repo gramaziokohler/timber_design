@@ -256,7 +256,7 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
         lines = [Line(feature_def.feature.outline_a.points[i], feature_def.feature.outline_b.points[i]) for i in range(len(feature_def.feature.outline_a.points))]
         outline_a_projected = Polyline([intersection_line_plane(line, plate.planes[0]) for line in lines])
         outline_b_projected = Polyline([intersection_line_plane(line, plate.planes[1]) for line in lines])
-        free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True)
+        free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
 # Door methods

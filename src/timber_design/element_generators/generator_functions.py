@@ -9,22 +9,19 @@ def get_beam_edges_feature_def_intersection(beam, feature_def):
     edge_b = beam.centerline.translated(beam.frame.yaxis*beam.width/2)
     intersections_a = {}
     intersections_b = {}
-    for index, element_dict in feature_def.element_edge_dict.items():
-        if not hasattr(element_dict["beam"], "centerline"):
-            continue
-        pt = intersection_line_segment(edge_a, element_dict["edge"])[0]
+    for index, edge in feature_def.edges.items():
+        pt = intersection_line_segment(edge_a, edge)[0]
         if pt:
-            intersections_a[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_a.start, pt), edge_a.direction), "beam": element_dict["beam"]}
-        pt = intersection_line_segment(edge_b, element_dict["edge"])[0]
+            intersections_a[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_a.start, pt), edge_a.direction), "beam": feature_def.edge_elements[index][0]}
+        pt = intersection_line_segment(edge_b, edge)[0]
         if pt:
-            intersections_b[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_b.start, pt), edge_b.direction), "beam": element_dict["beam"]}
+            intersections_b[index] = {"point": Point(*pt), "dot": dot_vectors(Vector.from_start_end(edge_b.start, pt), edge_b.direction), "beam": feature_def.edge_elements[index][0]}
 
     return _classify_intersections(intersections_a, intersections_b, feature_def)
 
 
-
 def _classify_intersections(intersections_a, intersections_b, feature_def):
-    edge_count = len(feature_def.element_edge_dict)
+    edge_count = len(feature_def.edges)
     simple_keys = list(set(intersections_a).intersection(set(intersections_b)))
     simple_intersections = []
     for i in simple_keys:
@@ -83,3 +80,15 @@ def _classify_intersections(intersections_a, intersections_b, feature_def):
 
     return simple_intersections, corner_intersections, notch_intersections, lap_intersections
 
+def intersection_line_feature_definition(line, feature_definition):
+    intersections = []
+    for index, edge in feature_definition.edges.items():
+        pt = intersection_line_segment(line, edge)[0]
+        if pt:
+            intersections.append({
+                "point": Point(*pt),
+                "dot": dot_vectors(Vector.from_start_end(line.start, pt), line.direction),
+                "beams": feature_definition.edge_elements[index],
+                "feature_def": feature_definition
+            })
+    return intersections

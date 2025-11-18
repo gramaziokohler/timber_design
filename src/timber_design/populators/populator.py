@@ -16,6 +16,7 @@ from compas_timber.elements import SlabConnectionInterface
 from compas_timber.elements import Opening
 
 
+
 class SlabSelector(object):  # TODO change to detail selector or similar
     """Selects slabs based on their attributes."""
 
@@ -91,13 +92,18 @@ class SlabPopulator(object):
         super(SlabPopulator, self).__init__()
         self._slab = slab
         self.parameters = parameters
+
         self.test = []
         self.stud_direction = parameters.stud_direction if parameters.stud_direction else Vector(0, 0, 1)
         self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, parameters)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
-        self.feature_definitions = [f.transformed(self.transformation_slab_to_populator) for f in feature_definitions] if feature_definitions else []
-
+        self.feature_definitions=[]
+        for f in feature_definitions:
+            fd = f.transformed(self.transformation_slab_to_populator)
+            fd.parameters.update_beam_dimensions(self)
+            self.feature_definitions.append(fd)
+        self._obb = None
         self._model=TimberModel()
         self.direct_rules = []
 
@@ -106,10 +112,13 @@ class SlabPopulator(object):
         self.edge_planes = {}
         for i, pl in self._slab.edge_planes.items():
                 self.edge_planes[i] = pl.transformed(self.transformation_slab_to_populator)
-        self._edge_beams_inner_edges = {}
+        self._inner_edge_beam_dict = {}
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
         self.test=[]
+        self.set_frame_outlines(parameters)
+        self.parameters.update_beam_dimensions(self)
+
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.parameters, self._slab)
@@ -173,6 +182,12 @@ class SlabPopulator(object):
             if element in beams:
                 beams.remove(element)
 
+    def add_elements(self, elements, edge_index=None):
+        if not isinstance(elements, list):
+            elements = [elements]
+        for element in elements:
+            self.add_element(element, edge_index)
+
     def process_joinery(self):
         for j_def in self.direct_rules:
             for e in j_def.elements:
@@ -196,26 +211,29 @@ class SlabPopulator(object):
             model.add_joint(j)
 
     @property
-    def edge_beams_inner_edges(self):
+    def inner_edge_beam_dict(self):
         """Returns the frame outline of the slab."""
-        if not self._edge_beams_inner_edges:
+        if not self._inner_edge_beam_dict:
             for index, beams in self.edge_beams.items():
                 beam = beams[-1]
-                self._edge_beams_inner_edges[index] = {"edge": beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2)), "beam": beam}
-            edges = [v["edge"] for v in self._edge_beams_inner_edges.values()]
+                self._inner_edge_beam_dict[index] = {"edge": beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2)), "beam": beam}
+            edges = [v["edge"] for v in self._inner_edge_beam_dict.values()]
             for pair in zip(edges, edges[1:] + edges[0:1]):
                 pair[0][1] = intersection_line_line(pair[0], pair[1])[0]
                 pair[1][0] = pair[0][1]
-
-        return self._edge_beams_inner_edges
-
+        return self._inner_edge_beam_dict
 
     @property
     def edge_beams_inner_outline(self):
         """Returns the frame outline of the slab."""
-        pts = [l["edge"][0] for l in self.edge_beams_inner_edges.values()]
+        pts = [l["edge"][0] for l in self.inner_edge_beam_dict.values()]
         pts.append(pts[0])
         return Polyline(pts)
+
+    @property
+    def edge_feature_definitions(self):
+        """Get the feature definitions for the edges of the slab."""
+        return FeatureDefinition(self, self.parameters, elements=list(self.inner_edge_beam_dict.values()), outline=self.edge_beams_inner_outline, boundary_type=FeatureBoundaryType.INCLUSIVE)
 
     @property
     def thickness(self):
@@ -284,25 +302,59 @@ class SlabPopulator(object):
     @property
     def obb(self):
         """Calculates the oriented bounding box (OBB) for the slab."""
-        return Box.from_points(self.outline_a.points + self.outline_b.points)
+        if not self._obb:
+            self._obb = Box.from_points(self.outline_a.points + self.outline_b.points)
+        return self._obb
+
+    @property
+    def length(self):
+        """Returns the length of the slab populator along the X axis."""
+        return self.obb.xsize   
+    
+    @property
+    def width(self):
+        """Returns the width of the slab populator along the Y axis."""
+        return self.obb.ysize
+
+    def set_frame_outlines(self,parameters):
+        """Handles the sheeting offsets for the slab outlines."""
+        """This method creates new outlines for the beam frame based on the sheeting thicknesses."""
+        if not parameters.plate_generator or not parameters.plate_generator.sheeting_inside:
+            self.frame_outline_a = self.outline_a
+        else:
+            offset_inside = parameters.plate_generator.sheeting_inside / self.thickness
+            pts_inside = []
+            for pt_a, pt_b in zip(self.outline_a.points, self.outline_b.points):
+                pt = pt_a * (1 - offset_inside) + pt_b * offset_inside
+                pts_inside.append(pt)
+            self.frame_outline_a = Polyline(pts_inside)
+
+        if not parameters.plate_generator or not parameters.plate_generator.sheeting_outside:
+            self.frame_outline_b = self.outline_b
+        else:
+            offset_outside = parameters.plate_generator.sheeting_outside / self.thickness
+            pts_outside = []
+            for pt_a, pt_b in zip(self.outline_a.points, self.outline_b.points):
+                pts_outside.append(pt_a * offset_outside + pt_b * (1 - offset_outside))
+
+            self.frame_outline_b = Polyline(pts_outside)
+
 
     def get_elements_by_category(self, category):
         return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements))
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
-        slab_edge_feature = FeatureDefinition(self, self.parameters)
-        self.parameters.generate_edge_elements(self)
-        slab_edge_feature.element_edge_dict = self.edge_beams_inner_edges
-        slab_edge_feature.outline = self.edge_beams_inner_outline
-        slab_edge_feature.boundary_type = FeatureBoundaryType.INCLUSIVE
+        print("GENERATING NEW SLAB")
+        self.parameters.generate_elements(self)
+        for f in self.feature_definitions:
+            if not f.elements:
+                f = f.generate_elements()
+                self.add_elements(list(f.elements.values()))
+        for f in self.feature_definitions:
+            rules = f.join_elements(self)
+            self.direct_rules.extend(rules)
 
-        for f in self.feature_definitions:
-            f.generate_elements(self)
-        for f in self.feature_definitions:
-            f.join_elements(self, [slab_edge_feature] + self.feature_definitions)
-        self.parameters.generate_stud_elements(self, [slab_edge_feature] + self.feature_definitions)
-        self.parameters.generate_plate_elements(self, self.feature_definitions)
 
     @classmethod
     def from_model(cls, model, configuration_sets):
@@ -348,21 +400,22 @@ class FeatureDefinition(object):
 
     """
 
-    def __init__(self, feature=None, parameters=None, elements=None, element_edge_dict=None, outline=None, boundary_type=FeatureBoundaryType.EXCLUSIVE):
+    def __init__(self, feature=None, parameters=None, elements=None, edges=None, edge_elements=None, outline=None, boundary_type=FeatureBoundaryType.EXCLUSIVE):
         self.feature = feature
         self.parameters = parameters
-        self.elements = elements or []
-        self.element_edge_dict = element_edge_dict or {}
+        self.elements = elements or {}
+        self.edges = edges or {}
+        self.edge_elements = edge_elements or {}
         self.outline = outline
         self.boundary_type = boundary_type
 
-    def generate_elements(self, slab_populator):
+    def generate_elements(self):
         """Generates the elements for the feature."""
-        self.parameters.generate_elements(slab_populator, self)
+        return self.parameters.generate_elements(self)
 
-    def join_elements(self, slab_populator, intersecting_features=None):
+    def join_elements(self, slab_populator):
         """Joins the elements for the feature."""
-        self.parameters.join_elements(slab_populator, self, intersecting_features)
+        return self.parameters.join_elements(slab_populator, self)
 
     def transformed(self, transformation):
         """Transforms the feature definition by a given transformation.
@@ -380,4 +433,3 @@ class FeatureDefinition(object):
         """
         transformed_feature = self.feature.transformed(transformation)
         return FeatureDefinition(transformed_feature, self.parameters)
-

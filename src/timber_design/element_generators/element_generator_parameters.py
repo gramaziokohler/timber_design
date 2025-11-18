@@ -23,11 +23,11 @@ class ElementGeneratorParameters(object):
 
     def __init__(
         self,
-        standard_beam_width,
+        standard_beam_width = None,
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
-        self.standard_beam_width = standard_beam_width
+        self.standard_beam_width = standard_beam_width or 0.0
         self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
         if joint_rule_overrides:
             self.rules = self.update_rules(joint_rule_overrides)
@@ -41,7 +41,10 @@ class ElementGeneratorParameters(object):
 
         for override in joint_rule_overrides:
             for rule in rules:
-                # element order is important TODO: use rule.comply_topology when merged. TOPO_EDGE_EDGE should not occur, but adding for future-proofing.
+                if not rule.category_a in self.BEAM_CATEGORY_NAMES or not rule.category_b in self.BEAM_CATEGORY_NAMES:
+                    #rule does not apply to this generator
+                    continue
+                # element order is important TODO: use rule.comply_topology when merged. TOPO_EDGE_FACE should not occur, but adding for future-proofing.
                 if rule.joint_type.supported_topology == JointTopology.TOPO_T or rule.joint_type.supported_topology == JointTopology.TOPO_EDGE_FACE:
                     if override.category_a == rule.category_a and override.category_b == rule.category_b:
                         rule = override
@@ -112,4 +115,14 @@ class ElementGeneratorParameters(object):
         else:
             raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
+    def cull_stud(self, stud, feature_def) -> bool:
+        """Cull and split the studs for door openings."""
+        return False
 
+    def cull_beam_segment(self, stud, feature_def) -> bool:
+        """Cull and split the studs for door openings."""
+        return False
+
+    def apply_to_plate(self, plate, feature_definition):
+        """Apply the feature definition to the plate."""
+        pass

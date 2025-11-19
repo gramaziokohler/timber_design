@@ -15,6 +15,7 @@ from .generator_functions import split_beam_with_element_groups
 # methods for stud beams
 # ==========================================================================
 
+
 def create_studs(parameters, slab_populator):
     """Generates the stud beams."""
     x_position = parameters.stud_spacing
@@ -24,14 +25,15 @@ def create_studs(parameters, slab_populator):
         x_position += parameters.stud_spacing
     return ElementGroup(slab_populator, parameters, elements=studs)
 
+
 def join_studs(parameters, slab_populator, element_group):
     """Joins the stud beams."""
-    intersecting_groups= slab_populator.element_groups
+    intersecting_groups = slab_populator.element_groups
     elements = []
     min_length = parameters.beam_dimensions["stud"][0]
     rules = []
     for index, raw_stud in element_group.elements.items():
-        beam_tuples , joints_to_cull = split_beam_with_element_groups(raw_stud, intersecting_groups)
+        beam_tuples, joints_to_cull = split_beam_with_element_groups(raw_stud, intersecting_groups)
         for j in joints_to_cull:
             if j in slab_populator.direct_rules:
                 slab_populator.direct_rules.remove(j)
@@ -49,7 +51,6 @@ def join_studs(parameters, slab_populator, element_group):
                         rules.append(parameters.get_direct_rule_from_elements(beam, intersecting_beam))
     element_group.elements = elements
     return [rule for rule in rules if rule is not None]
-
 
 
 class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
@@ -79,7 +80,6 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
         )
         self.stud_spacing = stud_spacing
 
-
     def generate_elements(self, slab_populator):
         """Populates the slab with elements and joints according to the detail set.
 
@@ -93,7 +93,7 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
     def cull_beam_segment(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""
         return False
-        
+
     def join_elements(self, slab_populator, element_group=None):
         """Join the elements for WindowDetailB."""
         return join_studs(self, slab_populator, element_group)

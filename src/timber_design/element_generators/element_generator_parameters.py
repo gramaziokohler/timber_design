@@ -25,7 +25,7 @@ class ElementGeneratorParameters(object):
 
     def __init__(
         self,
-        standard_beam_width = None,
+        standard_beam_width=None,
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
@@ -44,7 +44,7 @@ class ElementGeneratorParameters(object):
         for override in joint_rule_overrides:
             for rule in rules:
                 if not rule.category_a in self.BEAM_CATEGORY_NAMES or not rule.category_b in self.BEAM_CATEGORY_NAMES:
-                    #rule does not apply to this generator
+                    # rule does not apply to this generator
                     continue
                 # element order is important TODO: use rule.comply_topology when merged. TOPO_EDGE_FACE should not occur, but adding for future-proofing.
                 if rule.joint_type.supported_topology == JointTopology.TOPO_T or rule.joint_type.supported_topology == JointTopology.TOPO_EDGE_FACE:
@@ -66,7 +66,6 @@ class ElementGeneratorParameters(object):
                 self.beam_dimensions[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
             else:
                 self.beam_dimensions[category] = (self.standard_beam_width, slab_populator.frame_thickness)
-
 
     def beam_from_category(self, segment, category, **kwargs):
         """Creates a beam from a segment and a category, using the dimensions from the configuration set.
@@ -107,11 +106,11 @@ class ElementGeneratorParameters(object):
         direct_rule = None
         for rule in matching_rules:
             if rule.category_a == element_a.attributes["category"]:
-                #perfect match
+                # perfect match
                 direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
                 break
         else:
-            #match set but wrong order
+            # match set but wrong order
             direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
 
         kwargs.update(rule.kwargs)
@@ -124,7 +123,6 @@ class ElementGeneratorParameters(object):
             element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
             element.attributes["joint_defs"][element_dot] = direct_rule
         return direct_rule
-
 
     def cull_beam_segment(self, beam, element_group) -> bool:
         """Cull and split the studs for door openings."""

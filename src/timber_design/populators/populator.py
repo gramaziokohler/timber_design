@@ -18,7 +18,6 @@ from compas_timber.utils import is_point_in_polyline
 from compas_timber.design import CategoryRule
 
 
-
 class SlabSelector(object):  # TODO change to detail selector or similar
     """Selects slabs based on their attributes."""
 
@@ -46,6 +45,7 @@ class OpeningPopulator(object):
         self.opening = opening
         self.parameters = parameters
         self.slab_populator = slab_populator
+
 
 class FeatureDefinition(object):
     """Defines a feature in the slab populator.
@@ -115,25 +115,24 @@ class SlabPopulator(object):
         self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, parameters)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
-        self.element_groups=[]
+        self.element_groups = []
         self.feature_definitions = feature_definitions or []
         for fd in self.feature_definitions:
             fd.feature = fd.feature.transformed(self.transformation_slab_to_populator)
             fd.parameters.update_beam_dimensions(self)
 
         self._obb = None
-        self._model=TimberModel()
+        self._model = TimberModel()
         self.direct_rules = []
         self.edge_planes = {}
         for i, pl in self._slab.edge_planes.items():
-                self.edge_planes[i] = pl.transformed(self.transformation_slab_to_populator)
+            self.edge_planes[i] = pl.transformed(self.transformation_slab_to_populator)
         self._inner_edge_beam_dict = {}
         self._interior_corner_indices = []
         self._edge_perpendicular_vectors = []
-        self.test=[]
+        self.test = []
         self.set_frame_outlines(parameters)
         self.parameters.update_beam_dimensions(self)
-
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.parameters, self._slab)
@@ -300,14 +299,14 @@ class SlabPopulator(object):
     @property
     def length(self):
         """Returns the length of the slab populator along the X axis."""
-        return self.obb.xsize   
-    
+        return self.obb.xsize
+
     @property
     def width(self):
         """Returns the width of the slab populator along the Y axis."""
         return self.obb.ysize
 
-    def set_frame_outlines(self,parameters):
+    def set_frame_outlines(self, parameters):
         """Handles the sheeting offsets for the slab outlines."""
         """This method creates new outlines for the beam frame based on the sheeting thicknesses."""
         if not parameters.plate_generator or not parameters.plate_generator.sheeting_inside:
@@ -330,7 +329,6 @@ class SlabPopulator(object):
 
             self.frame_outline_b = Polyline(pts_outside)
 
-
     def get_elements_by_category(self, category):
         return list(filter(lambda x: x.attributes.get("category", None) == category, self.elements))
 
@@ -343,7 +341,6 @@ class SlabPopulator(object):
         for g in self.element_groups[::-1]:
             rules = g.parameters.join_elements(self, g)
             self.direct_rules.extend(rules)
-
 
     @classmethod
     def from_model(cls, model, configuration_sets):
@@ -377,6 +374,7 @@ class FeatureBoundaryType(object):
     EXCLUSIVE = "exclusive"
     INCLUSIVE = "inclusive"
 
+
 class ElementGroup(object):
     """Defines a feature in the slab populator.
 
@@ -408,7 +406,7 @@ class ElementGroup(object):
 
     def cull_element_at_point(self, point, element=None):
         """Determines whether to keep a segment based on the boundary type."""
-        
+
         if element:
             if self.parameters.cull_beam_segment(element, self):
                 return True
@@ -419,6 +417,6 @@ class ElementGroup(object):
     @property
     def __str__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
-    
+
     def __repr__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))

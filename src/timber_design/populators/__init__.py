@@ -11,5 +11,5 @@ __all__ = [
     "AnySlabSelector",
     "FeatureDefinition",
     "ElementGroup",
-    "FeatureBoundaryType",  
+    "FeatureBoundaryType",
 ]

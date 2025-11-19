@@ -1,7 +1,6 @@
 from timber_design.element_generators import ElementGeneratorParameters
 
 
-
 class SlabElementGeneratorParameters(ElementGeneratorParameters):
     """Base class for opening detail sets.
 
@@ -19,16 +18,16 @@ class SlabElementGeneratorParameters(ElementGeneratorParameters):
     def __init__(self, stud_direction=None, standard_beam_width=None, edge_generator=None, stud_generator=None, plate_generator=None):
         self.stud_direction = stud_direction
         self.standard_beam_width = standard_beam_width
-        self.edge_generator = edge_generator 
-        self.stud_generator = stud_generator 
-        self.plate_generator = plate_generator 
+        self.edge_generator = edge_generator
+        self.stud_generator = stud_generator
+        self.plate_generator = plate_generator
 
     @property
     def sheeting_inside(self):
         if self.plate_generator:
             return self.plate_generator.sheeting_inside
         return None
-    
+
     @property
     def sheeting_outside(self):
         if self.plate_generator:
@@ -37,39 +36,38 @@ class SlabElementGeneratorParameters(ElementGeneratorParameters):
 
     @classmethod
     def from_basic_parameters(
-            cls,        
-            standard_beam_width,
-            stud_spacing = None,
-            standard_beam_width_increment=None,
-            edge_beam_min_width=None,
-            stud_direction=None,
-            sheeting_outside=0,
-            sheeting_inside=0,
-            beam_width_overrides=None,
-            joint_rule_overrides=None):
-        
+        cls,
+        standard_beam_width,
+        stud_spacing=None,
+        standard_beam_width_increment=None,
+        edge_beam_min_width=None,
+        stud_direction=None,
+        sheeting_outside=0,
+        sheeting_inside=0,
+        beam_width_overrides=None,
+        joint_rule_overrides=None,
+    ):
         if edge_beam_min_width:
             from timber_design.element_generators import SlabEdgeElementGeneratorParametersA
+
             edge_generator = SlabEdgeElementGeneratorParametersA(
-                standard_beam_width_increment = standard_beam_width_increment,
-                edge_beam_min_width = edge_beam_min_width or standard_beam_width,
-                joint_rule_overrides = joint_rule_overrides)
-            
+                standard_beam_width_increment=standard_beam_width_increment,
+                edge_beam_min_width=edge_beam_min_width or standard_beam_width,
+                joint_rule_overrides=joint_rule_overrides,
+            )
+
         if stud_spacing:
             from timber_design.element_generators import SlabStudElementGeneratorParametersA
-            stud_generator = SlabStudElementGeneratorParametersA(
-                stud_spacing= stud_spacing,
-                standard_beam_width=standard_beam_width,
-                beam_width_overrides=beam_width_overrides,
-                joint_rule_overrides=joint_rule_overrides)
-            
-        if sheeting_inside or sheeting_outside:    
-            from timber_design.element_generators import SlabPlateElementGeneratorParametersA
-            plate_generator = SlabPlateElementGeneratorParametersA(
-                sheeting_outside=sheeting_outside,
-                sheeting_inside=sheeting_inside)
-        return cls(stud_direction, standard_beam_width, edge_generator, stud_generator, plate_generator)
 
+            stud_generator = SlabStudElementGeneratorParametersA(
+                stud_spacing=stud_spacing, standard_beam_width=standard_beam_width, beam_width_overrides=beam_width_overrides, joint_rule_overrides=joint_rule_overrides
+            )
+
+        if sheeting_inside or sheeting_outside:
+            from timber_design.element_generators import SlabPlateElementGeneratorParametersA
+
+            plate_generator = SlabPlateElementGeneratorParametersA(sheeting_outside=sheeting_outside, sheeting_inside=sheeting_inside)
+        return cls(stud_direction, standard_beam_width, edge_generator, stud_generator, plate_generator)
 
     def generate_elements(self, slab_populator):
         """Populates the slab with elements and joints according to the detail set.
@@ -82,7 +80,6 @@ class SlabElementGeneratorParameters(ElementGeneratorParameters):
         for generator in [self.edge_generator, self.stud_generator, self.plate_generator]:
             fd = generator.generate_elements(slab_populator)
             slab_populator.element_groups.append(fd)
-
 
     def update_rules(self, joint_rule_overrides):
         """Update the rules with any overrides provided."""

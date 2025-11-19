@@ -29,13 +29,11 @@ def get_beam_edges_element_group_intersection(beam, element_group, limit_to_segm
         pt = intersection_line_segment(edge_a, edge)[0] if not limit_to_segments else intersection_segment_segment(edge_a, edge)[0]
         if pt:
             dot = dot_vectors(Vector.from_start_end(edge_a.start, pt), edge_a.direction)
-            beam = element_group.edge_elements.get(index)[0] if element_group.edge_elements.get(index) else None
-            intersections_a[index] = {"point": Point(*pt), "dot": dot, "beam": beam, "element_group": element_group}
+            intersections_a[index] = {"point": Point(*pt), "dot": dot, "element_group": element_group}
         pt = intersection_line_segment(edge_b, edge)[0] if not limit_to_segments else intersection_segment_segment(edge_b, edge)[0]
         if pt:
             dot = dot_vectors(Vector.from_start_end(edge_b.start, pt), edge_b.direction)
-            beam = element_group.edge_elements.get(index)[0] if element_group.edge_elements.get(index) else None
-            intersections_b[index] = {"point": Point(*pt), "dot": dot, "beam": beam, "element_group": element_group}
+            intersections_b[index] = {"point": Point(*pt), "dot": dot, "element_group": element_group}
     
     s,c,n,l = _classify_intersections(intersections_a, intersections_b, element_group)
     if ignore_notches:

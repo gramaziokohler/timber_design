@@ -7,9 +7,9 @@ from compas_timber.connections import TButtJoint
 
 from compas_timber.design import CategoryRule
 from timber_design.element_generators import ElementGeneratorParameters
-from timber_design.populators import FeatureDefinition
+from timber_design.populators import ElementGroup
 from timber_design.workflow import DirectRule
-from .generator_functions import get_beam_edges_feature_def_intersection
+from .generator_functions import split_beam_with_element_groups
 
 # ==========================================================================
 # methods for stud beams
@@ -22,47 +22,31 @@ def create_studs(parameters, slab_populator):
     while x_position < slab_populator.obb.xmax - parameters.beam_dimensions["stud"][0]:
         studs[x_position] = parameters.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, slab_populator.width, 0)), "stud")
         x_position += parameters.stud_spacing
-    return FeatureDefinition(slab_populator, parameters, elements=studs)
+    return ElementGroup(slab_populator, parameters, elements=studs)
 
-def join_studs(parameters, slab_populator, studs):
+def join_studs(parameters, slab_populator, element_group):
     """Joins the stud beams."""
-    intersecting_features= slab_populator.feature_definitions
+    intersecting_groups= slab_populator.element_groups
+    elements = []
     min_length = parameters.beam_dimensions["stud"][0]
     rules = []
-    for raw_stud in studs:
-        intersections = []
-        for ft in intersecting_features:
-            simple_intersections, corner_intersections, notch_intersections, lap_intersections = get_beam_edges_feature_def_intersection(raw_stud, ft)
-            if simple_intersections or corner_intersections:
-                intersections.extend(simple_intersections + corner_intersections)
-        print("intersection x values for raw_stud at", raw_stud.frame.point.x, ":", [i["point"].x for i in intersections])
-        intersections = sorted(intersections, key=lambda x: x.get("dot"))
-        slab_populator.remove_element(raw_stud)
-
-        for pair in pairwise(intersections):
-            # cull short studs
-            if pair[0]["point"].distance_to_point(pair[1]["point"]) < min_length:
+    for index, raw_stud in element_group.elements.items():
+        beam_tuples , joints_to_cull = split_beam_with_element_groups(raw_stud, intersecting_groups)
+        for j in joints_to_cull:
+            if j in slab_populator.direct_rules:
+                slab_populator.direct_rules.remove(j)
+        for bt in beam_tuples:
+            beam, (start_int, end_int) = bt
+            if not beam or beam.length < min_length:
                 continue
-            # cull studs outside inner outline
-            stud = parameters.beam_from_category(Line(pair[0]["point"], pair[1]["point"]), "stud")
-            skip = False
-            for ft in intersecting_features:
-                if ft.parameters.cull_stud(stud, ft):
-                    skip = True
-                    break
-            if skip:
-                continue
-            slab_populator.add_element(stud)
-            for intersection in pair:
-                for beam in intersection["beams"]:  # multiple beams possible if corner intersection
-                    params = intersection["feature_def"].parameters
-                    try:
-                        dr = params.get_direct_rule_from_elements(stud, beam, location=intersection["point"])
-                    except:
-                        dr = DirectRule(TButtJoint, [stud, beam], location=intersection["point"])
-                    rules.append(dr)
-
-    return rules
+            elements.append(beam)
+            for intersection in [start_int, end_int]:
+                for index in intersection.get("edge_indices", []):
+                    beams = intersection["element_group"].edge_elements.get(index, [])
+                    for intersecting_beam in beams:
+                        rules.append(parameters.get_direct_rule_from_elements(beam, intersecting_beam))
+    element_group.elements = elements
+    return [rule for rule in rules if rule is not None]
 
 
 
@@ -74,6 +58,8 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(TButtJoint, "stud", "header", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
     ]
 
     def __init__(
@@ -101,14 +87,14 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
         """
         return create_studs(self, slab_populator)
 
-    def cull_stud(self, stud, feature_def) -> bool:
+    def cull_stud(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""
         return False
 
-    def cull_beam_segment(self, stud, feature_def) -> bool:
+    def cull_beam_segment(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""
         return False
         
-    def join_elements(self, slab_populator, feature_definition=None):
+    def join_elements(self, slab_populator, element_group=None):
         """Join the elements for WindowDetailB."""
-        return join_studs(self, slab_populator, list(feature_definition.elements.values()))
+        return join_studs(self, slab_populator, element_group)

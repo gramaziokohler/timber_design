@@ -1,24 +1,24 @@
 from timber_design.element_generators import SlabElementGeneratorParameters
 from timber_design.element_generators.element_generator_parameters import ElementGeneratorParameters
-from timber_design.populators import FeatureDefinition
+from timber_design.populators import ElementGroup
 from compas_timber.elements import Plate
 
 
 def create_plates(parameters, slab_populator):
-    elements = {}
+    elements = []
     if parameters.sheeting_inside:
         plate = Plate.from_outlines(slab_populator.outline_a, slab_populator.frame_outline_a)            
-        elements["inside_plate"] = plate
+        elements.append(plate)
     if parameters.sheeting_outside:
         plate = Plate.from_outlines(slab_populator.outline_b, slab_populator.frame_outline_b)
-        elements["outside_plate"] = plate
-    return FeatureDefinition(slab_populator, parameters, elements=elements)
+        elements.append(plate)
+    return ElementGroup(slab_populator, parameters, elements=elements)
 
     
-def apply_plate_cuts(feature_def, intersecting_features):
-    for plate in feature_def.elements.values():
-        for feature_definition in intersecting_features:
-                feature_definition.parameters.apply_to_plate(plate, feature_definition)
+def apply_plate_cuts(element_group, intersecting_groups):
+    for plate in element_group.elements:
+        for element_group in intersecting_groups:
+                element_group.parameters.apply_to_plate(plate, element_group)
 
 
 class SlabPlateElementGeneratorParametersA(ElementGeneratorParameters):
@@ -48,9 +48,9 @@ class SlabPlateElementGeneratorParametersA(ElementGeneratorParameters):
 
 
         
-    def join_elements(self, slab_populator, feature_definition=None):
+    def join_elements(self, slab_populator, element_group=None):
         """Join the elements for WindowDetailB."""
-        intersecting_features = slab_populator.feature_definitions
-        apply_plate_cuts(feature_definition, intersecting_features)
+        intersecting_groups = slab_populator.element_groups
+        apply_plate_cuts(element_group, intersecting_groups)
         return []
     

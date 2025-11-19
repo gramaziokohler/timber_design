@@ -14,6 +14,8 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
 from compas_timber.elements import SlabConnectionInterface
 from compas_timber.elements import Opening
+from compas_timber.utils import is_point_in_polyline
+from compas_timber.design import CategoryRule
 
 
 
@@ -44,6 +46,22 @@ class OpeningPopulator(object):
         self.opening = opening
         self.parameters = parameters
         self.slab_populator = slab_populator
+
+class FeatureDefinition(object):
+    """Defines a feature in the slab populator.
+
+    Parameters
+    ----------
+    feature : :class:`compas_timber.elements.SlabFeature`
+        The geometry of the feature.
+    parameters : timber_design.element_generators.ElementGeneratorParameters
+        The parameters for the feature.
+
+    """
+
+    def __init__(self, feature, parameters):
+        self.feature = feature
+        self.parameters = parameters
 
 
 class SlabPopulator(object):
@@ -92,23 +110,20 @@ class SlabPopulator(object):
         super(SlabPopulator, self).__init__()
         self._slab = slab
         self.parameters = parameters
-
         self.test = []
         self.stud_direction = parameters.stud_direction if parameters.stud_direction else Vector(0, 0, 1)
         self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, parameters)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
-        self.feature_definitions=[]
-        for f in feature_definitions:
-            fd = f.transformed(self.transformation_slab_to_populator)
+        self.element_groups=[]
+        self.feature_definitions = feature_definitions or []
+        for fd in self.feature_definitions:
+            fd.feature = fd.feature.transformed(self.transformation_slab_to_populator)
             fd.parameters.update_beam_dimensions(self)
-            self.feature_definitions.append(fd)
+
         self._obb = None
         self._model=TimberModel()
         self.direct_rules = []
-
-        self.direct_rules = []
-        self.edge_beams = {}
         self.edge_planes = {}
         for i, pl in self._slab.edge_planes.items():
                 self.edge_planes[i] = pl.transformed(self.transformation_slab_to_populator)
@@ -171,16 +186,9 @@ class SlabPopulator(object):
 
     def add_element(self, element, edge_index=None):
         self._model.add_element(element)
-        if edge_index is not None:
-            if edge_index not in self.edge_beams:
-                self.edge_beams[edge_index] = []
-            self.edge_beams[edge_index].append(element)
 
     def remove_element(self, element):
         self._model.remove_element(element)
-        for beams in self.edge_beams.values():
-            if element in beams:
-                beams.remove(element)
 
     def add_elements(self, elements, edge_index=None):
         if not isinstance(elements, list):
@@ -189,11 +197,21 @@ class SlabPopulator(object):
             self.add_element(element, edge_index)
 
     def process_joinery(self):
+        for element_group in self.element_groups:
+            self.add_elements(element_group.elements)
+
         for j_def in self.direct_rules:
+            if isinstance(j_def, CategoryRule):
+                print(j_def)
+                continue
+            if not j_def:
+                continue
             for e in j_def.elements:
                 if e not in self.elements:
-                    raise ValueError("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
-            j_def.joint_type.create(self._model, *j_def.elements, **j_def.kwargs)
+                    print("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
+                    break
+            else:
+                j_def.joint_type.create(self._model, *j_def.elements, **j_def.kwargs)
         self._model.process_joinery()
 
     def merge_with_model(self, model, clear_slab=False):
@@ -209,31 +227,6 @@ class SlabPopulator(object):
             model.add_element(element, parent=self._slab)
         for j in self._model.joints:
             model.add_joint(j)
-
-    @property
-    def inner_edge_beam_dict(self):
-        """Returns the frame outline of the slab."""
-        if not self._inner_edge_beam_dict:
-            for index, beams in self.edge_beams.items():
-                beam = beams[-1]
-                self._inner_edge_beam_dict[index] = {"edge": beam.centerline.translated(self.edge_perpendicular_vectors[index] * (-beam.width / 2)), "beam": beam}
-            edges = [v["edge"] for v in self._inner_edge_beam_dict.values()]
-            for pair in zip(edges, edges[1:] + edges[0:1]):
-                pair[0][1] = intersection_line_line(pair[0], pair[1])[0]
-                pair[1][0] = pair[0][1]
-        return self._inner_edge_beam_dict
-
-    @property
-    def edge_beams_inner_outline(self):
-        """Returns the frame outline of the slab."""
-        pts = [l["edge"][0] for l in self.inner_edge_beam_dict.values()]
-        pts.append(pts[0])
-        return Polyline(pts)
-
-    @property
-    def edge_feature_definitions(self):
-        """Get the feature definitions for the edges of the slab."""
-        return FeatureDefinition(self, self.parameters, elements=list(self.inner_edge_beam_dict.values()), outline=self.edge_beams_inner_outline, boundary_type=FeatureBoundaryType.INCLUSIVE)
 
     @property
     def thickness(self):
@@ -345,14 +338,12 @@ class SlabPopulator(object):
 
     def process_populator(self):
         """Processes the slab populator and creates the elements and joints."""
-        print("GENERATING NEW SLAB")
         self.parameters.generate_elements(self)
         for f in self.feature_definitions:
-            if not f.elements:
-                f = f.generate_elements()
-                self.add_elements(list(f.elements.values()))
-        for f in self.feature_definitions:
-            rules = f.join_elements(self)
+            group = f.parameters.generate_elements(f.feature)
+            self.element_groups.append(group)
+        for g in self.element_groups[::-1]:
+            rules = g.parameters.join_elements(self, g)
             self.direct_rules.extend(rules)
 
 
@@ -388,7 +379,7 @@ class FeatureBoundaryType(object):
     EXCLUSIVE = "exclusive"
     INCLUSIVE = "inclusive"
 
-class FeatureDefinition(object):
+class ElementGroup(object):
     """Defines a feature in the slab populator.
 
     Parameters
@@ -403,7 +394,7 @@ class FeatureDefinition(object):
     def __init__(self, feature=None, parameters=None, elements=None, edges=None, edge_elements=None, outline=None, boundary_type=FeatureBoundaryType.EXCLUSIVE):
         self.feature = feature
         self.parameters = parameters
-        self.elements = elements or {}
+        self.elements = elements or []
         self.edges = edges or {}
         self.edge_elements = edge_elements or {}
         self.outline = outline
@@ -417,19 +408,8 @@ class FeatureDefinition(object):
         """Joins the elements for the feature."""
         return self.parameters.join_elements(slab_populator, self)
 
-    def transformed(self, transformation):
-        """Transforms the feature definition by a given transformation.
-
-        Parameters
-        ----------
-        transformation : :class:`compas.geometry.Transformation`
-            The transformation to apply.
-
-        Returns
-        -------
-        :class:`FeatureDefinition`
-            The transformed feature definition.
-
-        """
-        transformed_feature = self.feature.transformed(transformation)
-        return FeatureDefinition(transformed_feature, self.parameters)
+    def cull_element_at_point(self, point):
+        """Determines whether to keep a segment based on the boundary type."""
+        if not self.outline:
+            return False
+        return (self.boundary_type == FeatureBoundaryType.INCLUSIVE) ^ is_point_in_polyline(point, self.outline, in_plane=False)

@@ -81,8 +81,7 @@ class SlabElementGeneratorParameters(ElementGeneratorParameters):
         """
         for generator in [self.edge_generator, self.stud_generator, self.plate_generator]:
             fd = generator.generate_elements(slab_populator)
-            slab_populator.feature_definitions.append(fd)
-            slab_populator.add_elements(list(fd.elements.values()))
+            slab_populator.element_groups.append(fd)
 
 
     def update_rules(self, joint_rule_overrides):

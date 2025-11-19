@@ -140,7 +140,7 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
     
     if len(intersections) == 2: # no intersections found
         for element_group in element_groups:
-            if element_group.cull_element_at_point(beam.centerline.midpoint):
+            if element_group.cull_element_at_point(beam.centerline.midpoint, beam):
                 return [(None, (None, None))], list(beam.attributes.get("joint_defs", {}).values())
         return [(beam, (None, None))], []
     intersections.sort(key=lambda x: x["dot"])
@@ -156,8 +156,11 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
         # cull studs outside inner outline
         skip_pair = False
         test_point = (pair[0]["point"] + pair[1]["point"]) / 2
+        beam_seg = beam.copy()
+        beam_seg.transform(Translation.from_vector(beam.frame.xaxis * pair[0]["dot"]))
+        beam_seg.length = pair[1]["dot"]-pair[0]["dot"]
         for element_group in [pair[0]["element_group"], pair[1]["element_group"]]:
-            if element_group and element_group.cull_element_at_point(test_point):
+            if element_group and element_group.cull_element_at_point(test_point, beam_seg):
                 skip_pair = True
                 break
         if skip_pair:
@@ -207,22 +210,19 @@ def extend_beam_to_closest_element_groups(beam, element_groups, only_start=False
         return beam, None, None
     # get closest intersections above and below the beam
     intersections.sort(key=lambda x: x["dot"])
+
     bottom_int = None
     top_int = None
-    previous_int = intersections.pop(0)
-    # if previous_int["dot"] > 0 and not only_end:
-    #     raise ValueError("No intersection found below king stud: {}".format(beam))
     while intersections:
-        current_int = intersections.pop(0)
-        if not bottom_int and current_int["dot"] > 0:
+        previous_int = intersections.pop(0)
+        if not bottom_int and intersections[0]["dot"] > 0:
             bottom_int = previous_int
-        if current_int["dot"] > beam.length:
-            top_int = current_int
+        if intersections[0]["dot"] > beam.length:
+            top_int = intersections[0]
             break
     
     if only_end and only_start:
             raise ValueError("Beam is overconstrained, only one of `only_below` and `only_above` can be True: {}".format(beam))
-    
     if only_end:
         bottom_int = None
     else:
@@ -233,5 +233,4 @@ def extend_beam_to_closest_element_groups(beam, element_groups, only_start=False
         top_int = None
     else:
         beam.length = top_int["dot"] - bottom_int["dot"]
-
     return beam, bottom_int, top_int

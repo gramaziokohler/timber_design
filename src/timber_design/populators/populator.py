@@ -202,14 +202,12 @@ class SlabPopulator(object):
 
         for j_def in self.direct_rules:
             if isinstance(j_def, CategoryRule):
-                print(j_def)
                 continue
             if not j_def:
                 continue
             for e in j_def.elements:
                 if e not in self.elements:
-                    print("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
-                    break
+                    raise ValueError("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
             else:
                 j_def.joint_type.create(self._model, *j_def.elements, **j_def.kwargs)
         self._model.process_joinery()
@@ -408,8 +406,19 @@ class ElementGroup(object):
         """Joins the elements for the feature."""
         return self.parameters.join_elements(slab_populator, self)
 
-    def cull_element_at_point(self, point):
+    def cull_element_at_point(self, point, element=None):
         """Determines whether to keep a segment based on the boundary type."""
+        
+        if element:
+            if self.parameters.cull_beam_segment(element, self):
+                return True
         if not self.outline:
             return False
         return (self.boundary_type == FeatureBoundaryType.INCLUSIVE) ^ is_point_in_polyline(point, self.outline, in_plane=False)
+
+    @property
+    def __str__(self):
+        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
+    
+    def __repr__(self):
+        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))

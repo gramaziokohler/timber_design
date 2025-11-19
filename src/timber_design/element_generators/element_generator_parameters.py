@@ -3,6 +3,7 @@ from compas.geometry import intersection_line_line
 from compas.geometry import dot_vectors
 from compas.tolerance import TOL
 from compas_timber.connections import JointTopology
+from compas_timber.connections import ConnectionSolver
 from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
 
@@ -99,31 +100,35 @@ class ElementGeneratorParameters(object):
 
     def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
         """Get the joint type for the given elements."""
-        for rule in self.rules:
-            if set([rule.category_a, rule.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]]):
-                if not (rule.category_a == element_a.attributes["category"] and rule.category_b == element_b.attributes["category"]):
-                    element_a, element_b = element_b, element_a
-                kwargs.update(rule.kwargs)
-                direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
-
-                point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
-                if not point:
-                    return None
-                for element in [element_a, element_b]:
-                    if element.attributes.get("joint_defs", None) is None:
-                        element.attributes["joint_defs"] = {}
-                    element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
-                    element.attributes["joint_defs"][element_dot] = direct_rule
-                return direct_rule
-        else:
+        matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
+        if not matching_rules:
             raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
-    def cull_stud(self, stud, element_group) -> bool:
-        """Cull and split the studs for door openings."""
-        return False
+        direct_rule = None
+        for rule in matching_rules:
+            if rule.category_a == element_a.attributes["category"]:
+                #perfect match
+                direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
+                break
+        else:
+            #match set but wrong order
+            direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
 
-    def cull_beam_segment(self, stud, element_group) -> bool:
+        kwargs.update(rule.kwargs)
+        point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
+        if not point:
+            return None
+        for element in [element_a, element_b]:
+            if element.attributes.get("joint_defs", None) is None:
+                element.attributes["joint_defs"] = {}
+            element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
+            element.attributes["joint_defs"][element_dot] = direct_rule
+        return direct_rule
+
+
+    def cull_beam_segment(self, beam, element_group) -> bool:
         """Cull and split the studs for door openings."""
+
         return False
 
     def apply_to_plate(self, plate, element_group):

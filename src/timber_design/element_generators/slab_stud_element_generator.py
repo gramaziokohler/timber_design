@@ -41,6 +41,8 @@ def join_studs(parameters, slab_populator, element_group):
                 continue
             elements.append(beam)
             for intersection in [start_int, end_int]:
+                if not intersection:
+                    continue
                 for index in intersection.get("edge_indices", []):
                     beams = intersection["element_group"].edge_elements.get(index, [])
                     for intersecting_beam in beams:
@@ -54,6 +56,7 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
     """A slab detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["stud"]
+    NAME = "StudElementGenerator"
     RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -86,10 +89,6 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
             The slab populator to populate.
         """
         return create_studs(self, slab_populator)
-
-    def cull_stud(self, stud, element_group) -> bool:
-        """Cull and split the studs for door openings."""
-        return False
 
     def cull_beam_segment(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""

@@ -25,6 +25,7 @@ class SlabPlateElementGeneratorParametersA(ElementGeneratorParameters):
     """A slab detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["inside_plate", "outside_plate"]
+    NAME = "SlabPlateElementGenerator"
     RULES = []
 
     def __init__(self, sheeting_inside=None, sheeting_outside=None, beam_width_overrides=None, joint_rule_overrides=None):

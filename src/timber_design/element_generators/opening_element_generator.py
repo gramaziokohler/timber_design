@@ -49,7 +49,7 @@ def create_elements(parameters, feature):
     edge_elements[0] = [parameters.beam_from_category(segments[0], "king_stud", name="left_king_stud")]
     edge_elements[1] = [parameters.beam_from_category(segments[1], "header")]
     edge_elements[2] = [parameters.beam_from_category(segments[2], "king_stud", name="right_king_stud")]
-    edge_elements[3] = [parameters.beam_from_category(segments[3], "sill")] if not parameters.door else []
+    edge_elements[3] = [parameters.beam_from_category(segments[3], "sill")] if parameters.opening_type=="window" else []
     if parameters.lintel_posts:
         edge_elements[0].append(parameters.beam_from_category(segments[0], "jack_stud", name="left_jack_stud"))
         edge_elements[2].append(parameters.beam_from_category(segments[2], "jack_stud", name="right_jack_stud"))        
@@ -107,6 +107,32 @@ def _get_edge_dict(edge_elements, frame_polyline):
         edges[i] = segment
     return edges
 
+# def extend_frame_polyline_to_slab_edge(frame_polyline, slab_populator):
+#     """Extend the frame polyline segments to the slab populator edge beams."""
+#     vals = []
+#     for i, edge in enumerate(slab_populator.outline_a.lines):
+#         pt = intersection_line_segment_xy(frame_polyline.lines[0], edge)[0]
+#         if pt:
+#             dot = dot_vectors(Vector.from_start_end(frame_polyline.lines[0].start, pt), frame_polyline.lines[0].direction)
+#             vals.append((dot, i))
+#     vals.sort(key=lambda x: x[0])
+#     edge_a_index=None
+#     for val1, val2 in zip(vals, vals[1:]):
+#         if val2[0]>0:
+#             edge_a_index = val1[1]
+#             break
+#     edge_a_index = edge_a_index if edge_a_index is not None else vals[0][1]
+#     y_min = None
+#     for edge in [slab_populator.outline_a.lines[edge_a_index], slab_populator.outline_b.lines[edge_a_index]]:
+#         for seg in frame_polyline.lines[0,2]:
+#             pt = intersection_line_segment_xy(seg, edge)[0]
+#             if pt:
+#                 if y_min is None or pt[1]<y_min:
+#                     y_min = pt[1]- 0.001
+#     frame_polyline[0].y = y_min
+#     frame_polyline[3].y = y_min
+#     frame_polyline[4].y = y_min
+#     return frame_polyline
 
 
 
@@ -194,11 +220,6 @@ def _cull_stud(stud: Beam, element_group: ElementGroup) -> bool:
                     bounds = (jack_x-(jack.width / 2), king_x+(king.width / 2))
                 if stud_x + stud.width/2 > bounds[0] and stud_x - stud.width/2 < bounds[1]:
                     return True
-    return _cull_beam_segment(stud, element_group)
-
-def _cull_beam_segment(beam, element_group) -> bool:
-    if is_point_in_polyline(beam.centerline.midpoint, element_group.outline, in_plane=False):
-        return True
     return False
 
 def cut_out_of_plate(plate, element_group):
@@ -225,10 +246,9 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
     """A slab detail set that uses the edge beams and plates but no studs."""
 
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
-
+    NAME="OpeningElementGenerator"
     RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
-        CategoryRule(TButtJoint, "jack_stud", "header"),
         CategoryRule(TButtJoint, "sill", "jack_stud"),
         CategoryRule(TButtJoint, "jack_stud", "header"),
         CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam"),
@@ -242,21 +262,20 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
         CategoryRule(TButtJoint, "stud", "sill"),
     ]
 
-    def __init__(self, standard_beam_width, lintel_posts = False, beam_width_overrides=None, joint_rule_overrides=None, door=False, split_bottom_plate_beam = False):
+    def __init__(self, standard_beam_width, lintel_posts = False, beam_width_overrides=None, joint_rule_overrides=None, opening_type=None, split_bottom_plate_beam = False):
         super().__init__(standard_beam_width, beam_width_overrides, joint_rule_overrides)
         self.lintel_posts = lintel_posts
         self.split_bottom_plate_beam = split_bottom_plate_beam
-        self.door = door
-        if self.door:
-            if self.split_bottom_plate_beam:
-                self.rules=[r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
-                self.rules.append(
-                    CategoryRule(
-                        LButtJoint,
-                        "jack_stud",
-                        "bottom_plate_beam",
-                    )
+        self.opening_type = opening_type
+        if self.opening_type == "door" and self.split_bottom_plate_beam:
+            self.rules=[r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
+            self.rules.append(
+                CategoryRule(
+                    LButtJoint,
+                    "jack_stud",
+                    "bottom_plate_beam",
                 )
+            )
 
     def generate_elements(self, feature):
         """Populates the slab with elements and joints according to the detail set.
@@ -271,19 +290,19 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
 
     def join_elements(self, slab_populator, element_group):
         """Join the elements for WindowDetailB."""
+        
         intersecting_groups = [g for g in slab_populator.element_groups if g != element_group]
         rules = []
         rules.extend(get_external_joints(self, element_group, intersecting_groups))
         rules.extend(get_internal_joints(self, element_group))
         return [rule for rule in rules if rule is not None]
 
-    def cull_stud(self, stud, element_group) -> bool:
-        """determines whether a stud should be culled."""
-        return _cull_stud(stud, element_group)
 
-    def cull_beam_segment(self, stud, element_group) -> bool:
+    def cull_beam_segment(self, beam, element_group) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
-        return _cull_beam_segment(stud, element_group)
+        if beam.attributes.get("category", None) == "stud":
+            return _cull_stud(beam, element_group)
+        return False
 
     def apply_to_plate(self, plate, element_group):
         """Apply the opening contour to the given plate.

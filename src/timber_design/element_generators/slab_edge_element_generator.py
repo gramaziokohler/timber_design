@@ -118,8 +118,8 @@ def create_external_joints(parameters, slab_populator, element_group, intersecti
                 for intersection in ints:
                     if not intersection:
                         continue
-                    for index in intersection.get("edge_indices", []):
-                        beams = intersection["element_group"].edge_elements.get(index, [])
+                    for int_index in intersection.get("edge_indices", []):
+                        beams = intersection["element_group"].edge_elements.get(int_index, [])
                         params = intersection["element_group"].parameters
                         for intersecting_beam in beams:
                             rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
@@ -143,8 +143,8 @@ def _create_edge_beam_joint_rule(parameters, slab_populator, element_group, edge
     """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
     if len(element_group.edge_elements[edge_a_index])>1:
         slab_populator.test.append([beam.blank for beam in element_group.edge_elements[edge_a_index]])
-    beam_a = element_group.edge_elements[edge_a_index][-1]
-    beam_b = element_group.edge_elements[edge_b_index][0]
+    beam_a = element_group.edge_elements[edge_a_index][0]
+    beam_b = element_group.edge_elements[edge_b_index][-1]
     beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
     beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
     edge_plane_a = slab_populator.edge_planes[edge_a_index]
@@ -166,17 +166,14 @@ def _create_edge_beam_joint_rule(parameters, slab_populator, element_group, edge
     return direct_rule
 
 
-def cull_stud(stud, element_group) -> bool:
-    """Split the bottom plate beam for door openings."""
-    if not is_point_in_polyline(stud.centerline.midpoint, element_group.outline, in_plane=False):
-        return True
-    return False
+
 
 
 class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
     """A slab detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
+    NAME="SlabEdgeElementGenerator"
     RULES = [
         CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -213,13 +210,11 @@ class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
         """
         return create_edge_beams(self, slab_populator)
 
-    def cull_stud(self, stud, element_group) -> bool:
-        """Cull and split the studs for door openings."""
-        return cull_stud(stud, element_group)
 
     def cull_beam_segment(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""
-        return cull_stud(stud, element_group)
+        return False
+    
         
     def join_elements(self, slab_populator, element_group):
         """Join the elements for WindowDetailB."""

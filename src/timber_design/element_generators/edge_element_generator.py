@@ -48,7 +48,7 @@ def create_edge_beams(parameters, slab_populator):
         edges.append(seg.translated(slab_populator.edge_perpendicular_vectors[i] * (-edge_beam.width / 2)))
     extend_line_segments(edges, close_loop=True)
     outline = join_polyline_segments(edges, close_loop=True)
-    return ElementGroup(
+    eg = ElementGroup(
         slab_populator,
         parameters,
         elements=elements,
@@ -57,6 +57,8 @@ def create_edge_beams(parameters, slab_populator):
         outline=outline,
         boundary_type=FeatureBoundaryType.INCLUSIVE,
     )
+    print("EG 2", eg)
+    return eg
 
 
 def _get_edge_beam_line_and_width(slab_populator, segment_index, min_width=0.0, edge_beam_dim_increment=None):
@@ -211,7 +213,10 @@ class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
         slab_populator : :class:`compas_timber.populators.SlabPopulator`
             The slab populator to populate.
         """
-        return create_edge_beams(self, slab_populator)
+        print("Generating edge beams")
+        edge_group = create_edge_beams(self, slab_populator)
+        print("EG 1")
+        return edge_group
 
     def cull_beam_segment(self, stud, element_group) -> bool:
         """Cull and split the studs for door openings."""

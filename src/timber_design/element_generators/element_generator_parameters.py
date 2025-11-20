@@ -61,7 +61,10 @@ class ElementGeneratorParameters(object):
 
     def update_beam_dimensions(self, slab_populator):
         """Get the beam dimensions for the detail set."""
+        print("BCN", self.BEAM_CATEGORY_NAMES)
+        print("BWOV", self.beam_width_overrides)
         for category in self.BEAM_CATEGORY_NAMES:
+            print("category", category)
             if category in self.beam_width_overrides:
                 self.beam_dimensions[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
             else:

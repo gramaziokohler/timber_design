@@ -111,7 +111,7 @@ class SlabPopulator(object):
         self._slab = slab
         self.parameters = parameters
         self.test = []
-        self.stud_direction = parameters.stud_direction if parameters.stud_direction else Vector(0, 0, 1)
+        self.stud_direction = getattr(parameters, "stud_direction", Vector(0, 0, 1))
         self.transformation_slab_to_populator = self.get_transformation_to_populator_space(slab, parameters)
         self.outline_a = slab.local_outlines[0].transformed(self.transformation_slab_to_populator)
         self.outline_b = slab.local_outlines[1].transformed(self.transformation_slab_to_populator)
@@ -154,7 +154,8 @@ class SlabPopulator(object):
 
     def get_transformation_to_populator_space(self, slab, parameters):
         """The slab_populator frame in global space."""
-        if not parameters.stud_direction:
+
+        if not getattr(parameters, "stud_direction", None):
             stud_dir = Vector(0, 1, 0)
         else:
             stud_dir = parameters.stud_direction.transformed(slab.transformation.inverse())  # bring stud direction into local slab space
@@ -414,9 +415,9 @@ class ElementGroup(object):
             return False
         return (self.boundary_type == FeatureBoundaryType.INCLUSIVE) ^ is_point_in_polyline(point, self.outline, in_plane=False)
 
-    @property
     def __str__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
 
+    @property
     def __repr__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))

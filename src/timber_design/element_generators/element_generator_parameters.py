@@ -1,9 +1,7 @@
 from compas.geometry import Vector
-from compas.geometry import intersection_line_line
 from compas.geometry import dot_vectors
-from compas.tolerance import TOL
+from compas.geometry import intersection_line_line
 from compas_timber.connections import JointTopology
-from compas_timber.connections import ConnectionSolver
 from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
 
@@ -38,12 +36,13 @@ class ElementGeneratorParameters(object):
         self.beam_dimensions = {}  # to be populated with update_beam_dimensions
 
     def update_rules(self, joint_rule_overrides):
+        #type: (list[CategoryRule]) -> list[CategoryRule]
         """Update the rules with any overrides provided."""
         rules = [r for r in self.RULES]
 
         for override in joint_rule_overrides:
             for rule in rules:
-                if not rule.category_a in self.BEAM_CATEGORY_NAMES or not rule.category_b in self.BEAM_CATEGORY_NAMES:
+                if rule.category_a not in self.BEAM_CATEGORY_NAMES or rule.category_b not in self.BEAM_CATEGORY_NAMES:
                     # rule does not apply to this generator
                     continue
                 # element order is important TODO: use rule.comply_topology when merged. TOPO_EDGE_FACE should not occur, but adding for future-proofing.
@@ -60,17 +59,16 @@ class ElementGeneratorParameters(object):
         return rules
 
     def update_beam_dimensions(self, slab_populator):
+        #type: (SlabPopulator) -> None
         """Get the beam dimensions for the detail set."""
-        print("BCN", self.BEAM_CATEGORY_NAMES)
-        print("BWOV", self.beam_width_overrides)
         for category in self.BEAM_CATEGORY_NAMES:
-            print("category", category)
             if category in self.beam_width_overrides:
                 self.beam_dimensions[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
             else:
                 self.beam_dimensions[category] = (self.standard_beam_width, slab_populator.frame_thickness)
 
     def beam_from_category(self, segment, category, **kwargs):
+        #type: (compas.geometry.Line, str, dict) -> Beam
         """Creates a beam from a segment and a category, using the dimensions from the configuration set.
         Parameters
         ----------
@@ -101,6 +99,7 @@ class ElementGeneratorParameters(object):
         return beam
 
     def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
+        #type: (Beam, Beam, dict) -> DirectRule
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
@@ -128,10 +127,11 @@ class ElementGeneratorParameters(object):
         return direct_rule
 
     def cull_beam_segment(self, beam, element_group) -> bool:
-        """Cull and split the studs for door openings."""
-
+        #type: (Beam, ElementGroup) -> bool
+        """Determines whether the beam segment should be culled by the element group."""
         return False
 
     def apply_to_plate(self, plate, element_group):
-        """Apply the feature definition to the plate."""
+        #type: (Plate, ElementGroup) -> None
+        """Apply the element group's feature definition to the plate based on the element group parameters."""
         pass

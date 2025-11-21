@@ -1,17 +1,14 @@
-from compas.itertools import pairwise
 from compas.geometry import Point
+from compas.geometry import Translation
 from compas.geometry import Vector
+from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-from compas.geometry import dot_vectors
-from compas.geometry import Translation
-from compas.geometry import Line
-from compas_timber.elements import Beam
-
-from compas_timber.utils import is_point_in_polyline
+from compas.itertools import pairwise
 
 
 def get_beam_element_group_intersection(beam, element_group):
+    #type: (Beam, ElementGroup) -> dict[int, dict]
     intersections = {}
     for index, edge in element_group.edges.items():
         pt = intersection_line_segment(beam.centerline, edge)[0]
@@ -26,6 +23,7 @@ def get_beam_element_group_intersection(beam, element_group):
 
 
 def get_beam_edges_element_group_intersection(beam, element_group, limit_to_segments=True, ignore_notches=False, ignore_laps=False):
+    #type: (Beam, ElementGroup, bool, bool, bool) -> list[dict]
     edge_a = beam.centerline.translated(beam.frame.yaxis * -beam.width / 2)
     edge_b = beam.centerline.translated(beam.frame.yaxis * beam.width / 2)
     intersections_a = {}
@@ -49,6 +47,7 @@ def get_beam_edges_element_group_intersection(beam, element_group, limit_to_segm
 
 
 def _classify_intersections(intersections_a, intersections_b, element_group):
+    #type: (dict[int, dict], dict[int, dict], ElementGroup) -> tuple[list[dict], list[dict], list[dict], list[dict]]
     edge_count = len(element_group.edges)
     simple_keys = list(set(intersections_a).intersection(set(intersections_b)))
     simple_intersections = []
@@ -120,6 +119,7 @@ def _classify_intersections(intersections_a, intersections_b, element_group):
 
 
 def intersection_line_feature_definition(line, element_group):
+    #type: (compas.geometry.Line, ElementGroup) -> list[dict]
     intersections = []
     for index, edge in element_group.edges.items():
         pt = intersection_line_segment(line, edge)[0]
@@ -131,6 +131,7 @@ def intersection_line_feature_definition(line, element_group):
 
 
 def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, ignore_laps=False):
+    #type: (Beam, list[ElementGroup], bool, bool) -> tuple[list[tuple[Beam | None, tuple[dict | None, dict | None]]], list[DirectRule]]
     """Removes a section of a beam that intersects with a given outline.
 
     Parameters
@@ -201,6 +202,7 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
 
 
 def extend_beam_to_closest_element_groups(beam, element_groups, only_start=False, only_end=False):
+    #type: (Beam, list[ElementGroup], bool, bool) -> tuple[Beam | None, dict | None, dict | None]
     """Extends a beam to fit within a given outline.
 
     Parameters

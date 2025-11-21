@@ -16,9 +16,8 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
     BEAM_CATEGORY_NAMES = []
 
     def __init__(self, edge_generator=None, recess_generator=None, plate_generator=None, standard_beam_width=None, beam_width_overrides=None, joint_rule_overrides=None):
+        #type: (ElementGeneratorParameters, ElementGeneratorParameters, ElementGeneratorParameters, float | None, dict | None, list[CategoryRule] | None) -> None
         super(SlabRecessElementGeneratorParameters, self).__init__(standard_beam_width, beam_width_overrides, joint_rule_overrides)
-        print(f"post super() BWOV: {self.beam_width_overrides}")
-
         self.edge_generator = edge_generator
         self.recess_generator = recess_generator
         self.plate_generator = plate_generator
@@ -48,7 +47,7 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
-        
+
         from timber_design.element_generators import SlabEdgeElementGeneratorParametersA
         edge_generator = SlabEdgeElementGeneratorParametersA(
             standard_beam_width_increment=standard_beam_width_increment,
@@ -59,7 +58,7 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
 
         from timber_design.element_generators.recess_element_generator import RecessElementGeneratorParameters
         recess_generator = RecessElementGeneratorParameters(recess_beam_width, recess_beam_height, sheeting_inside,)
-        
+
         if sheeting_inside or sheeting_outside:
             from timber_design.element_generators import SlabPlateElementGeneratorParametersA
             plate_generator = SlabPlateElementGeneratorParametersA(sheeting_outside=sheeting_outside, sheeting_inside=sheeting_inside)
@@ -75,12 +74,10 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
             The slab populator to populate.
         """
         edge_group = self.edge_generator.generate_elements(slab_populator)
-        print("EG", edge_group)
-        print(edge_group.edge_elements)
         slab_populator.element_groups.append(edge_group)
         slab_populator.element_groups.append(self.recess_generator.generate_elements(slab_populator, edge_group))
         slab_populator.element_groups.append(self.plate_generator.generate_elements(slab_populator))
- 
+
 
     def update_rules(self, joint_rule_overrides):
         """Update the rules with any overrides provided."""

@@ -1,14 +1,10 @@
 from compas.geometry import Line
-from compas.itertools import pairwise
-from compas.tolerance import TOL
-from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-
-
 from compas_timber.design import CategoryRule
+
 from timber_design.element_generators import ElementGeneratorParameters
 from timber_design.populators import ElementGroup
-from timber_design.workflow import DirectRule
+
 from .generator_functions import split_beam_with_element_groups
 
 # ==========================================================================
@@ -32,7 +28,7 @@ def join_studs(parameters, slab_populator, element_group):
     elements = []
     min_length = parameters.beam_dimensions["stud"][0]
     rules = []
-    for index, raw_stud in element_group.elements.items():
+    for raw_stud in element_group.elements:
         beam_tuples, joints_to_cull = split_beam_with_element_groups(raw_stud, intersecting_groups)
         for j in joints_to_cull:
             if j in slab_populator.direct_rules:

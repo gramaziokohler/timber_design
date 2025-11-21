@@ -8,14 +8,13 @@ from compas.geometry import angle_vectors
 from compas.geometry import angle_vectors_signed
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
-from compas.geometry import intersection_line_line
+from compas_timber.design import CategoryRule
+from compas_timber.elements import Opening
+from compas_timber.elements import SlabConnectionInterface
 from compas_timber.model import TimberModel
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
-from compas_timber.utils import is_polyline_clockwise
-from compas_timber.elements import SlabConnectionInterface
-from compas_timber.elements import Opening
 from compas_timber.utils import is_point_in_polyline
-from compas_timber.design import CategoryRule
+from compas_timber.utils import is_polyline_clockwise
 
 
 class SlabSelector(object):  # TODO change to detail selector or similar
@@ -415,9 +414,9 @@ class ElementGroup(object):
             return False
         return (self.boundary_type == FeatureBoundaryType.INCLUSIVE) ^ is_point_in_polyline(point, self.outline, in_plane=False)
 
+
     def __str__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
 
-    @property
     def __repr__(self):
         return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))

@@ -5,9 +5,16 @@ from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
+from compas.geometry import angle_vectors
+from compas.geometry import intersection_line_line
+from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
+from compas_timber.connections import LMiterJoint
+from compas_timber.connections import beam_ref_side_incidence
+from compas_timber.fabrication import JackRafterCutProxy
 from compas_timber.design import CategoryRule
+from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
@@ -37,6 +44,7 @@ def create_edge_beams(parameters, slab_populator):
     elements = []
     for i, (seg, width) in enumerate(zip(segs, widths)):
         edge_beam = Beam.from_centerline(seg, width=width, height=slab_populator.frame_thickness, z_vector=Vector(0, 0, 1))
+        print("Creating edge beam with width {} and height {}".format(width, slab_populator.frame_thickness))
         _set_edge_beam_category(slab_populator, edge_beam, i)
         _apply_linear_cut_to_edge_beam(edge_beam, slab_populator, i)
         edge_elements[i] = [edge_beam]
@@ -144,6 +152,12 @@ def create_internal_joints(parameters, slab_populator, element_group):
         edge_b_index = (edge_a_index - 1) % slab_populator.edge_count
         interior_corner = edge_a_index in slab_populator.interior_corner_indices
         rule = _create_edge_beam_joint_rule(parameters, element_group, slab_populator.edge_planes, edge_a_index, edge_b_index, interior_corner)
+        point =  intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]
+        for element in rule.elements:
+            if element.attributes.get("joint_defs", None) is None:
+                element.attributes["joint_defs"] = {}
+            element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
+            element.attributes["joint_defs"][element_dot] = rule
         rules.append(rule)
     return [rule for rule in rules if rule is not None]
 
@@ -157,19 +171,63 @@ def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_
     beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
     edge_plane_a = edge_planes[edge_a_index]
     edge_plane_b = edge_planes[edge_b_index]
+    miter = False
+    if angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi/3:
+        miter = True
 
-    if interior_corner:
-        if beam_a_slope < beam_b_slope:  # b = main, a = cross
-            plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
-            return parameters.get_direct_rule_from_elements(beam_b, beam_a, butt_plane=plane.transformed(beam_b.transformation_to_local()))
-        else:  # a = main, b = cross
-            plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
-            return parameters.get_direct_rule_from_elements(beam_a, beam_b, butt_plane=plane.transformed(beam_a.transformation_to_local()))
+    if miter:
+        if interior_corner:
+            ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
+            ref_side_main = beam_ref_side_incidence(beam_a, beam_b)
+            front_a = Plane.from_frame(beam_a.ref_sides[max(ref_side_main, key=ref_side_main.get)])
+
+            ref_side_cross = beam_ref_side_incidence(beam_b, beam_a)
+            front_b = Plane.from_frame(beam_b.ref_sides[max(ref_side_cross, key=ref_side_cross.get)])
+
+            ccx = intersection_plane_plane(front_a, front_b)
+
+            if not ppx or not ccx:
+                raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
+            miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
+            jc_a = JackRafterCutProxy.from_plane_and_beam(front_b, beam_a)
+            jc_b = JackRafterCutProxy.from_plane_and_beam(front_a, beam_b)
+            beam_a.add_features(jc_a)
+            beam_b.add_features(jc_b)
+
+
+            if beam_a_slope < beam_b_slope:  # b = main, a = cross
+                plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
+                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_plane=miter_plane)
+            else:  # a = main, b = cross
+                plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane)
+
+        else:
+            jc_a = JackRafterCutProxy.from_plane_and_beam(edge_plane_b, beam_a)
+            jc_b = JackRafterCutProxy.from_plane_and_beam(edge_plane_a, beam_b)
+            beam_a.add_features(jc_a)
+            beam_b.add_features(jc_b)
+            if beam_a_slope < beam_b_slope:  # b = main, a = cross
+                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_type="ref_surfaces")
+            else:  # a = main, b = cross
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_type="ref_surfaces")
+
+
     else:
-        if beam_a_slope < beam_b_slope:  # b = main, a = cross
-            return parameters.get_direct_rule_from_elements(beam_b, beam_a, back_plane=edge_plane_b.transformed(beam_b.transformation_to_local()))
-        else:  # a = main, b = cross
-            return parameters.get_direct_rule_from_elements(beam_a, beam_b, back_plane=edge_plane_a.transformed(beam_a.transformation_to_local()))
+        if interior_corner:
+            if beam_a_slope < beam_b_slope:  # b = main, a = cross
+                plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
+                return DirectRule(LButtJoint, [beam_b, beam_a], butt_plane=plane)
+            else:  # a = main, b = cross
+                plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
+                return DirectRule(LButtJoint, [beam_a, beam_b], butt_plane=plane)
+        else:
+            if beam_a_slope < beam_b_slope:  # b = main, a = cross
+                return DirectRule(LButtJoint, [beam_b, beam_a], back_plane=edge_plane_b)
+            else:  # a = main, b = cross
+                return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=edge_plane_a)
+
+
 
 
 

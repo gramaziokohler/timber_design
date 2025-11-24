@@ -341,7 +341,7 @@ class SlabPopulator(object):
         for f in self.feature_definitions:
             group = f.parameters.generate_elements(f.feature)
             self.element_groups.append(group)
-        for g in self.element_groups[::-1]:
+        for g in self.element_groups:
             rules = g.parameters.join_elements(self, g)
             self.direct_rules.extend(rules)
 

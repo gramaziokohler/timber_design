@@ -99,7 +99,7 @@ class ElementGeneratorParameters(object):
         return beam
 
     def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
-        #type: (Beam, Beam, dict) -> DirectRule
+        #type: (Beam, Beam, dict) -> DirectRule | None
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
@@ -113,6 +113,7 @@ class ElementGeneratorParameters(object):
                 break
         else:
             # match set but wrong order
+            print("Warning: element order does not match for joint definition between {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
             direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
 
         kwargs.update(rule.kwargs)

@@ -148,8 +148,8 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
 
     """
     intersections = [
-        {"point": beam.frame.point, "dot": 0.0, "beams": [], "edge_indices": [], "element_group": None},
-        {"point": beam.frame.point + beam.frame.xaxis * beam.length, "dot": beam.length, "beams": [], "edge_indices": [], "element_group": None},
+        {"point": beam.frame.point, "dot": 0.0, "edge_indices": [], "element_group": None},
+        {"point": beam.frame.point + beam.frame.xaxis * beam.length, "dot": beam.length, "edge_indices": [], "element_group": None},
     ]
     for group in element_groups:
         intersections.extend(get_beam_edges_element_group_intersection(beam, group, ignore_notches=ignore_notches, ignore_laps=ignore_laps))

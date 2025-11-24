@@ -292,14 +292,24 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
         self.split_bottom_plate_beam = split_bottom_plate_beam
         self.opening_type = opening_type
         if self.opening_type == "door" and self.split_bottom_plate_beam:
-            self.rules = [r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
-            self.rules.append(
-                CategoryRule(
-                    LButtJoint,
-                    "jack_stud",
-                    "bottom_plate_beam",
+            if self.lintel_posts:
+                self.rules = [r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
+                self.rules.append(
+                    CategoryRule(
+                        LButtJoint,
+                        "jack_stud",
+                        "bottom_plate_beam",
+                    )
                 )
-            )
+            else:
+                self.rules = [r for r in self.rules if not (r.category_a == "king_stud" and r.category_b == "bottom_plate_beam")]
+                self.rules.append(
+                    CategoryRule(
+                        LButtJoint,
+                        "king_stud",
+                        "bottom_plate_beam",
+                    )
+                )
 
     def generate_elements(self, feature):
         #type: (Opening) -> ElementGroup

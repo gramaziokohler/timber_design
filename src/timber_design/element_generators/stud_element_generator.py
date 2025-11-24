@@ -15,9 +15,9 @@ from .generator_functions import split_beam_with_element_groups
 def create_studs(parameters, slab_populator):
     """Generates the stud beams."""
     x_position = parameters.stud_spacing
-    studs = {}
+    studs = []
     while x_position < slab_populator.obb.xmax - parameters.beam_dimensions["stud"][0]:
-        studs[x_position] = parameters.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, slab_populator.width, 0)), "stud")
+        studs.append(parameters.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, slab_populator.width, 0)), "stud"))
         x_position += parameters.stud_spacing
     return ElementGroup(slab_populator, parameters, elements=studs)
 

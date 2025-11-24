@@ -193,6 +193,7 @@ class SlabPopulator(object):
         if not isinstance(elements, list):
             elements = [elements]
         for element in elements:
+            element.attributes.pop("joint_defs",None)
             self.add_element(element, edge_index)
 
     def process_joinery(self):
@@ -215,15 +216,17 @@ class SlabPopulator(object):
         """Merges the slab populator with a timber model."""
         if clear_slab:
             for element in self._slab.children:
-                model.remove_element(element)
                 for joint in model.joints:
                     if element in joint.elements:
                         model.remove_joint(joint)
+                model.remove_element(element)
         for element in self.elements:
             element.transform(self.transformation_slab_to_populator.inverse())
             model.add_element(element, parent=self._slab)
         for j in self._model.joints:
             model.add_joint(j)
+
+
 
     @property
     def thickness(self):

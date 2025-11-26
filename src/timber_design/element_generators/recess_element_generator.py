@@ -2,7 +2,7 @@
 from compas.geometry import Translation
 from compas.geometry import Polyline
 from compas.geometry import Vector
-from compas_timber.connections import LButtJoint
+from compas_timber.connections import LMiterJoint
 from compas_timber.design import CategoryRule
 from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
@@ -84,7 +84,7 @@ def cut_out_of_plate(plate, element_group):
     :class:`compas_timber.errors.FeatureApplicationError`
         If the opening cannot be applied to the slab.
     """
-    outline = element_group.outline.transformed(Translation.from_vector(Vector(0,0,plate.outline_b[0].z))) # TODO: this only works for outline_b, should also work for outline_a. fix FreeContour.
+    outline = element_group.outline.transformed(Translation.from_vector(Vector(0,0,plate.outline_a[0].z))) # TODO: this only works for outline_b, should also work for outline_a. fix FreeContour.
     free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
     plate.add_feature(free_contour)
 
@@ -95,7 +95,7 @@ class RecessElementGeneratorParameters(ElementGeneratorParameters):
     BEAM_CATEGORY_NAMES = ["recess"]
     NAME = "RecessElementGenerator"
     RULES = [
-        CategoryRule(LButtJoint, "recess", "recess", mill_depth=10.0, max_distance=1.0),
+        CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
     ]
 
     def __init__(

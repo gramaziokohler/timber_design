@@ -109,12 +109,15 @@ class ElementGeneratorParameters(object):
         for rule in matching_rules:
             if rule.category_a == element_a.attributes["category"]:
                 # perfect match
-                direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **kwargs)
+                rule_kwargs = rule.kwargs.copy()
+                rule_kwargs.update(kwargs)
+                direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **rule_kwargs)
                 break
         else:
             # match set but wrong order
-            print("Warning: element order does not match for joint definition between {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
-            direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **kwargs)
+            rule_kwargs = rule.kwargs.copy()
+            rule_kwargs.update(kwargs)
+            direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
         kwargs.update(rule.kwargs)
         point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])

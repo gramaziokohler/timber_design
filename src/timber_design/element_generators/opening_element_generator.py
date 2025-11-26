@@ -231,7 +231,7 @@ def cull_stud(stud: Beam, element_group: ElementGroup) -> bool:
     return False
 
 
-def cut_out_of_plate(self, plate, element_group):
+def cut_out_of_plate(parameters, plate, element_group):
     #type: (Plate, ElementGroup) -> None
     """Apply the opening contour to the given plate.
 
@@ -248,7 +248,7 @@ def cut_out_of_plate(self, plate, element_group):
     opening_a = Polyline([p for p in element_group.feature.outline_a])
     opening_b = Polyline([p for p in element_group.feature.outline_b])
 
-    if self.opening_type == "door":
+    if parameters.opening_type == "door":
         lines = [(i,l) for i, l in enumerate(opening_a.lines)]
         bottom_edge_index = min(lines, key=lambda x: x[1].midpoint.y)[0]
         opening_a[bottom_edge_index].y -= 0.1

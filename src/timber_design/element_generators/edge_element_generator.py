@@ -12,6 +12,7 @@ from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
+from compas_timber.fabrication import JackRafterCut
 from compas_timber.fabrication import JackRafterCutProxy
 from compas_timber.design import CategoryRule
 from compas_timber.design import DirectRule
@@ -44,7 +45,6 @@ def create_edge_beams(parameters, slab_populator):
     elements = []
     for i, (seg, width) in enumerate(zip(segs, widths)):
         edge_beam = Beam.from_centerline(seg, width=width, height=slab_populator.frame_thickness, z_vector=Vector(0, 0, 1))
-        print("Creating edge beam with width {} and height {}".format(width, slab_populator.frame_thickness))
         _set_edge_beam_category(slab_populator, edge_beam, i)
         _apply_linear_cut_to_edge_beam(edge_beam, slab_populator, i)
         edge_elements[i] = [edge_beam]
@@ -179,38 +179,28 @@ def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_
         if interior_corner:
             ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
             ref_side_main = beam_ref_side_incidence(beam_a, beam_b)
-            front_a = Plane.from_frame(beam_a.ref_sides[max(ref_side_main, key=ref_side_main.get)])
+            front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main, key=ref_side_main.get)])
 
             ref_side_cross = beam_ref_side_incidence(beam_b, beam_a)
-            front_b = Plane.from_frame(beam_b.ref_sides[max(ref_side_cross, key=ref_side_cross.get)])
+            front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross, key=ref_side_cross.get)])
 
             ccx = intersection_plane_plane(front_a, front_b)
 
             if not ppx or not ccx:
                 raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
             miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
-            jc_a = JackRafterCutProxy.from_plane_and_beam(front_b, beam_a)
-            jc_b = JackRafterCutProxy.from_plane_and_beam(front_a, beam_b)
-            beam_a.add_features(jc_a)
-            beam_b.add_features(jc_b)
-
-
             if beam_a_slope < beam_b_slope:  # b = main, a = cross
                 plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
-                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_plane=miter_plane)
+                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_plane=miter_plane, clean=True)
             else:  # a = main, b = cross
                 plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
-                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane)
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane, clean=True)
 
         else:
-            jc_a = JackRafterCutProxy.from_plane_and_beam(edge_plane_b, beam_a)
-            jc_b = JackRafterCutProxy.from_plane_and_beam(edge_plane_a, beam_b)
-            beam_a.add_features(jc_a)
-            beam_b.add_features(jc_b)
             if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_type="ref_surfaces")
+                return DirectRule(LMiterJoint, [beam_b, beam_a], miter_type="ref_surfaces", trim_plane_a=edge_plane_a, trim_plane_b=edge_plane_b)
             else:  # a = main, b = cross
-                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_type="ref_surfaces")
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_type="ref_surfaces", trim_plane_a=edge_plane_b, trim_plane_b=edge_plane_a)
 
 
     else:

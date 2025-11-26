@@ -165,6 +165,7 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
     old_rules = beam.attributes.get("joint_defs", {})
     beam.attributes.pop("joint_defs", None)
     rules_to_remove = []
+    # print(f"Splitting beam of length {beam.length}")
     for pair in pairwise(intersections):
         if any([i.get("type") == "notch" or i.get("type") == "lap" for i in pair]):
             # skip notches and laps, can't handle. TODO: pass these out for special handling?
@@ -196,8 +197,10 @@ def split_beam_with_element_groups(beam, element_groups, ignore_notches=False, i
                 if beam_seg.attributes.get("joint_defs") is None:
                     beam_seg.attributes["joint_defs"] = {}
                 beam_seg.attributes["joint_defs"][dot] = rule
-
+        for feature in beam.features:
+            feature.beam=beam_seg
         beam_int_tuples.append((beam_seg, pair))
+    # print([f"beam length is {b[0].length}" for b in beam_int_tuples])
     return beam_int_tuples, rules_to_remove
 
 

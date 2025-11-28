@@ -34,9 +34,9 @@ def create_elements(parameters, feature):
     """Generate the beams for a opening."""
     frame_polyline = _create_frame_polyline(feature)
     if parameters.opening_type == "door":
-        frame_polyline.points[0].y -= 0.001  # offset to avoid z-fighting
-        frame_polyline.points[3].y -= 0.001
-        frame_polyline.points[4].y -= 0.001
+        frame_polyline.points[0].y -= 100 # offset to avoid z-fighting
+        frame_polyline.points[3].y -= 100
+        frame_polyline.points[4].y -= 100
     segments = [line for line in frame_polyline.lines]
     segments[2].flip()  # align to slab populator stud direction
 
@@ -107,35 +107,6 @@ def _get_edge_dict(edge_elements, frame_polyline):
     for i, segment in enumerate(segs):
         edges[i] = segment
     return edges
-
-
-
-# def extend_frame_polyline_to_slab_edge(frame_polyline, slab_populator):
-#     """Extend the frame polyline segments to the slab populator edge beams."""
-#     vals = []
-#     for i, edge in enumerate(slab_populator.outline_a.lines):
-#         pt = intersection_line_segment_xy(frame_polyline.lines[0], edge)[0]
-#         if pt:
-#             dot = dot_vectors(Vector.from_start_end(frame_polyline.lines[0].start, pt), frame_polyline.lines[0].direction)
-#             vals.append((dot, i))
-#     vals.sort(key=lambda x: x[0])
-#     edge_a_index=None
-#     for val1, val2 in zip(vals, vals[1:]):
-#         if val2[0]>0:
-#             edge_a_index = val1[1]
-#             break
-#     edge_a_index = edge_a_index if edge_a_index is not None else vals[0][1]
-#     y_min = None
-#     for edge in [slab_populator.outline_a.lines[edge_a_index], slab_populator.outline_b.lines[edge_a_index]]:
-#         for seg in frame_polyline.lines[0,2]:
-#             pt = intersection_line_segment_xy(seg, edge)[0]
-#             if pt:
-#                 if y_min is None or pt[1]<y_min:
-#                     y_min = pt[1]- 0.001
-#     frame_polyline[0].y = y_min
-#     frame_polyline[3].y = y_min
-#     frame_polyline[4].y = y_min
-#     return frame_polyline
 
 
 # ==========================================================================

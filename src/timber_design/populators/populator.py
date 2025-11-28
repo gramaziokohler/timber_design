@@ -168,7 +168,8 @@ class SlabPopulator(object):
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points]  # rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_sp.inverse())
-        frame.point[2] = parameters.sheeting_inside + self.frame_thickness / 2  # offset to make frame center plane at world XY
+        si =  parameters.sheeting_inside or 0.0
+        frame.point[2] = si + self.frame_thickness / 2  # offset to make frame center plane at world XY
         return Transformation.from_frame(frame).inverse()
 
     @property
@@ -236,7 +237,9 @@ class SlabPopulator(object):
     @property
     def frame_thickness(self):
         """Returns the frame thickness, adjusted for sheeting."""
-        return self.thickness - self.parameters.sheeting_inside - self.parameters.sheeting_outside
+        si = self.parameters.sheeting_inside or 0
+        so = self.parameters.sheeting_outside or 0
+        return self.thickness - si - so
 
     @property
     def interfaces(self):

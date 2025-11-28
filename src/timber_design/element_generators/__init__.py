@@ -6,6 +6,7 @@ from .edge_element_generator import SlabEdgeElementGeneratorParametersA
 from .opening_element_generator import OpeningElementGeneratorParameters
 from .generator_functions import get_beam_edges_element_group_intersection
 from .generator_functions import get_beam_element_group_intersection
+from .slab_recess_element_generator import SlabRecessElementGeneratorParameters
 
 
 all = [
@@ -17,4 +18,5 @@ all = [
     "get_beam_element_group_intersection",
     "SlabStudElementGeneratorParametersA",
     "SlabPlateElementGeneratorParametersA",
+    "SlabRecessElementGeneratorParameters"
 ]

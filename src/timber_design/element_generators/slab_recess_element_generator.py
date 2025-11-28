@@ -49,6 +49,9 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
     ):
 
         from timber_design.element_generators import SlabEdgeElementGeneratorParametersA
+        from timber_design.element_generators.recess_element_generator import RecessElementGeneratorParameters
+        from timber_design.element_generators import SlabPlateElementGeneratorParametersA
+
         edge_generator = SlabEdgeElementGeneratorParametersA(
             standard_beam_width_increment=standard_beam_width_increment,
             edge_beam_min_width=edge_beam_min_width or standard_beam_width,
@@ -56,11 +59,9 @@ class SlabRecessElementGeneratorParameters(ElementGeneratorParameters):
             joint_rule_overrides=joint_rule_overrides,
             )
 
-        from timber_design.element_generators.recess_element_generator import RecessElementGeneratorParameters
         recess_generator = RecessElementGeneratorParameters(recess_beam_width, recess_beam_height, sheeting_inside,)
 
         if sheeting_inside or sheeting_outside:
-            from timber_design.element_generators import SlabPlateElementGeneratorParametersA
             plate_generator = SlabPlateElementGeneratorParametersA(sheeting_outside=sheeting_outside, sheeting_inside=sheeting_inside)
 
         return cls(edge_generator, recess_generator, plate_generator, standard_beam_width, beam_width_overrides, joint_rule_overrides)

@@ -120,8 +120,6 @@ def create_external_joints(parameters, slab_populator, element_group, intersecti
         edge_elements[index] = []
         for raw_edge_beam in edge_beams:
             beam_int_tuples, joints_to_cull = split_beam_with_element_groups(raw_edge_beam, intersecting_element_groups)
-            if raw_edge_beam.attributes["category"] != "stud":
-                print("tuples", beam_int_tuples)
             for j in joints_to_cull:
                 if j in slab_populator.direct_rules:
                     slab_populator.direct_rules.remove(j)

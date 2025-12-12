@@ -133,6 +133,8 @@ data/
 
 .vscode
 
+.vs
+
 docs/api/generated/
 
 scripts/

@@ -1,7 +1,7 @@
-from timber_design.element_generators import ElementGeneratorParameters
+from timber_design.element_generators import ElementGenerator
 
 
-class SlabElementGeneratorParameters(ElementGeneratorParameters):
+class SlabElementGenerator(ElementGenerator):
     """Base class for opening detail sets.
 
     Parameters
@@ -15,8 +15,10 @@ class SlabElementGeneratorParameters(ElementGeneratorParameters):
 
     BEAM_CATEGORY_NAMES = []
 
-    def __init__(self, stud_direction=None, standard_beam_width=None, edge_generator=None, stud_generator=None, plate_generator=None, beam_width_overrides=None, joint_rule_overrides=None):
-        super(SlabElementGeneratorParameters, self).__init__(standard_beam_width, beam_width_overrides, joint_rule_overrides)
+    def __init__(
+        self, stud_direction=None, standard_beam_width=None, edge_generator=None, stud_generator=None, plate_generator=None, beam_width_overrides=None, joint_rule_overrides=None
+    ):
+        super(SlabElementGenerator, self).__init__(standard_beam_width, beam_width_overrides, joint_rule_overrides)
         self.stud_direction = stud_direction
         self.standard_beam_width = standard_beam_width
         self.edge_generator = edge_generator

@@ -19,7 +19,7 @@ from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.element_generators import ElementGeneratorParameters
+from timber_design.element_generators import ElementGenerator
 from timber_design.element_generators.generator_functions import split_beam_with_element_groups
 from timber_design.populators import ElementGroup
 from timber_design.populators import FeatureBoundaryType
@@ -29,41 +29,43 @@ from timber_design.populators import FeatureBoundaryType
 # ==========================================================================
 
 
-def create_edge_beams(parameters, slab_populator):
-    #type: (ElementGeneratorParameters, SlabPopulator) -> ElementGroup
+# TODO: this might as well be a method of SlabEdgeElementGenerator
+def create_edge_beams(slab_element_generator, slab_populator) -> ElementGroup:
     """Get the edge beam definitions for the outer polyline of the slab."""
     segs, widths = [], []
     for i in range(slab_populator.edge_count):
-        seg, width = _get_edge_beam_line_and_width(slab_populator, i, min_width=parameters.edge_beam_min_width, edge_beam_dim_increment=parameters.standard_beam_width_increment)
+        seg, width = _get_edge_beam_line_and_width(
+            slab_populator, i, min_width=slab_element_generator.edge_beam_min_width, edge_beam_dim_increment=slab_element_generator.standard_beam_width_increment
+        )
         segs.append(seg)
         widths.append(width)
     extend_line_segments(segs, close_loop=True)
-    edges = []
+    edges: list[Line] = []  # boundaries of this group
     edge_elements = {}
-    elements = []
+    beams = []
     for i, (seg, width) in enumerate(zip(segs, widths)):
         edge_beam = Beam.from_centerline(seg, width=width, height=slab_populator.frame_thickness, z_vector=Vector(0, 0, 1))
         _set_edge_beam_category(slab_populator, edge_beam, i)
         _apply_linear_cut_to_edge_beam(edge_beam, slab_populator, i)
         edge_elements[i] = [edge_beam]
-        elements.append(edge_beam)
+        beams.append(edge_beam)
         edges.append(seg.translated(slab_populator.edge_perpendicular_vectors[i] * (-edge_beam.width / 2)))
     extend_line_segments(edges, close_loop=True)
     outline = join_polyline_segments(edges, close_loop=True)
     eg = ElementGroup(
         slab_populator,
-        parameters,
-        elements=elements,
+        slab_element_generator,
+        elements=beams,
         edges={index: edge for index, edge in enumerate(edges)},
         edge_elements=edge_elements,
-        outline=outline,
+        outline=outline,  # TODO: do we need both outline and edges?
         boundary_type=FeatureBoundaryType.INCLUSIVE,
     )
     return eg
 
 
 def _get_edge_beam_line_and_width(slab_populator, segment_index, min_width=0.0, edge_beam_dim_increment=None):
-    #type: (SlabPopulator, int, float, float | None) -> tuple[Line, float]
+    # type: (SlabPopulator, int, float, float | None) -> tuple[Line, float]
     perp_vector = slab_populator.edge_perpendicular_vectors[segment_index]
     seg_a = slab_populator.frame_outline_a.lines[segment_index]
     seg_b = slab_populator.frame_outline_b.lines[segment_index]
@@ -87,7 +89,7 @@ def _get_edge_beam_line_and_width(slab_populator, segment_index, min_width=0.0, 
 
 
 def _set_edge_beam_category(slab_populator, beam, index):
-    #type: (SlabPopulator, Beam, int) -> None
+    # type: (SlabPopulator, Beam, int) -> None
     if abs(beam.centerline.direction[0]) < abs(beam.centerline.direction[1]):
         beam.attributes["category"] = "edge_stud"
     else:
@@ -98,7 +100,7 @@ def _set_edge_beam_category(slab_populator, beam, index):
 
 
 def _apply_linear_cut_to_edge_beam(beam, slab_populator, index):
-    #type: (Beam, SlabPopulator, int) -> None
+    # type: (Beam, SlabPopulator, int) -> None
     """Trim the edge beams to fit between the plate beams."""
     plane = slab_populator.edge_planes[index]
     if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
@@ -112,7 +114,7 @@ def _apply_linear_cut_to_edge_beam(beam, slab_populator, index):
 
 
 def create_external_joints(parameters, slab_populator, element_group, intersecting_element_groups):
-    #type: (ElementGeneratorParameters, SlabPopulator, ElementGroup, list[ElementGroup]) -> list[DirectRule]
+    # type: (ElementGeneratorParameters, SlabPopulator, ElementGroup, list[ElementGroup]) -> list[DirectRule]
     """Joins the stud beams."""
     rules = []
     edge_elements = {}
@@ -142,7 +144,7 @@ def create_external_joints(parameters, slab_populator, element_group, intersecti
 
 
 def create_internal_joints(parameters, slab_populator, element_group):
-    #type: (ElementGeneratorParameters, SlabPopulator, ElementGroup) -> list[DirectRule]
+    # type: (ElementGeneratorParameters, SlabPopulator, ElementGroup) -> list[DirectRule]
     """Generate the joint definitions for the slab edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
     rules = []
     for corner_index in range(slab_populator.edge_count):
@@ -150,7 +152,7 @@ def create_internal_joints(parameters, slab_populator, element_group):
         edge_b_index = (edge_a_index - 1) % slab_populator.edge_count
         interior_corner = edge_a_index in slab_populator.interior_corner_indices
         rule = _create_edge_beam_joint_rule(parameters, element_group, slab_populator.edge_planes, edge_a_index, edge_b_index, interior_corner)
-        point =  intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]
+        point = intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]
         for element in rule.elements:
             if element.attributes.get("joint_defs", None) is None:
                 element.attributes["joint_defs"] = {}
@@ -161,7 +163,7 @@ def create_internal_joints(parameters, slab_populator, element_group):
 
 
 def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_index, edge_b_index, interior_corner):
-    #type: (ElementGeneratorParameters, ElementGroup, dict[int, Plane], int, int, bool) -> DirectRule
+    # type: (ElementGeneratorParameters, ElementGroup, dict[int, Plane], int, int, bool) -> DirectRule
     """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
     beam_a = element_group.edge_elements[edge_a_index][0]
     beam_b = element_group.edge_elements[edge_b_index][-1]
@@ -170,7 +172,7 @@ def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_
     edge_plane_a = edge_planes[edge_a_index]
     edge_plane_b = edge_planes[edge_b_index]
     miter = False
-    if angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi/3:
+    if angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3:
         miter = True
 
     if miter:
@@ -200,7 +202,6 @@ def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_
             else:  # a = main, b = cross
                 return DirectRule(LMiterJoint, [beam_a, beam_b], miter_type="ref_surfaces", trim_plane_a=edge_plane_b, trim_plane_b=edge_plane_a)
 
-
     else:
         if interior_corner:
             if beam_a_slope < beam_b_slope:  # b = main, a = cross
@@ -216,10 +217,7 @@ def _create_edge_beam_joint_rule(parameters, element_group, edge_planes, edge_a_
                 return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=edge_plane_a)
 
 
-
-
-
-class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
+class SlabEdgeElementGeneratorA(ElementGenerator):
     """A slab detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
@@ -241,8 +239,8 @@ class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
-        #type: (float | None, float | None, float | None, dict | None, list[CategoryRule] | None) -> None
-        super(SlabEdgeElementGeneratorParametersA, self).__init__(
+        # type: (float | None, float | None, float | None, dict | None, list[CategoryRule] | None) -> None
+        super(SlabEdgeElementGeneratorA, self).__init__(
             standard_beam_width,
             beam_width_overrides,
             joint_rule_overrides,
@@ -251,7 +249,7 @@ class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
         self.edge_beam_min_width = edge_beam_min_width or standard_beam_width
 
     def generate_elements(self, slab_populator):
-        #type: (SlabPopulator) -> ElementGroup
+        # type: (SlabPopulator) -> ElementGroup
         """Populates the slab with elements and joints according to the detail set.
 
         Parameters
@@ -259,16 +257,17 @@ class SlabEdgeElementGeneratorParametersA(ElementGeneratorParameters):
         slab_populator : :class:`compas_timber.populators.SlabPopulator`
             The slab populator to populate.
         """
+        # NOTE: this one taking the instance of SlabEdgeElementGeneratorA is even more reason to make `create_edge_beams` a method
         edge_group = create_edge_beams(self, slab_populator)
         return edge_group
 
     def cull_beam_segment(self, stud, element_group) -> bool:
-        #type: (Beam, ElementGroup) -> bool
+        # type: (Beam, ElementGroup) -> bool
         """Cull and split the studs for door openings."""
         return False
 
     def join_elements(self, slab_populator, element_group):
-        #type: (SlabPopulator, ElementGroup) -> list[DirectRule]
+        # type: (SlabPopulator, ElementGroup) -> list[DirectRule]
         """Join the elements for WindowDetailB."""
         rules = []
         intersecting_groups = [f for f in slab_populator.element_groups if f.feature is not slab_populator]

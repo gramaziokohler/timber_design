@@ -22,7 +22,7 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 from compas_timber.fabrication import LongitudinalCutProxy
 
-from timber_design.element_generators import ElementGeneratorParameters
+from timber_design.element_generators import ElementGenerator
 from timber_design.populators import ElementGroup
 from timber_design.populators import FeatureBoundaryType
 from timber_design.workflow import CategoryRule
@@ -37,13 +37,13 @@ BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
 
 
 def create_elements(parameters, feature):
-    #type: (ElementGeneratorParameters, Opening) -> ElementGroup
+    # type: (ElementGeneratorParameters, Opening) -> ElementGroup
     """Generate the beams for a opening."""
     frame_polyline_a, frame_polyline_b = _create_frame_polylines(parameters, feature)
     frame_polyline = _create_frame_polyline(frame_polyline_a, frame_polyline_b)
 
     if parameters.opening_type == "door":
-        frame_polyline.points[0].y -= 100 # offset to avoid z-fighting
+        frame_polyline.points[0].y -= 100  # offset to avoid z-fighting
         frame_polyline.points[3].y -= 100
         frame_polyline.points[4].y -= 100
     segments = [line for line in frame_polyline.lines]
@@ -59,22 +59,20 @@ def create_elements(parameters, feature):
         edge_elements[0].append(parameters.beam_from_category(segments[0], "jack_stud", name="left_jack_stud"))
         edge_elements[2].append(parameters.beam_from_category(segments[2], "jack_stud", name="right_jack_stud"))
 
-
-
     elements = []
     for beams in edge_elements.values():
         elements.extend(beams)
 
     _offset_frame_beams(edge_elements, frame_polyline)
 
-    if not TOL.is_zero(frame_polyline_a[0][1]-frame_polyline_b[0][1]): # angled opening at sill
-        sill=edge_elements[3][0]
+    if not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled opening at sill
+        sill = edge_elements[3][0]
         plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
         long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, sill, is_joinery=False)
         sill.add_features(long_cut)
 
-    if not TOL.is_zero(frame_polyline_a[1][1]-frame_polyline_b[1][1]): # angled opening at sill
-        header=edge_elements[1][0]
+    if not TOL.is_zero(frame_polyline_a[1][1] - frame_polyline_b[1][1]):  # angled opening at sill
+        header = edge_elements[1][0]
         plane = Plane.from_points([frame_polyline_a[1], frame_polyline_a[2], frame_polyline_b[1]])
         long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, header, is_joinery=False)
         header.add_features(long_cut)
@@ -91,34 +89,35 @@ def create_elements(parameters, feature):
         boundary_type=FeatureBoundaryType.EXCLUSIVE,
     )
 
+
 def _create_frame_polylines(parameters, opening):
-    thickness = parameters.beam_dimensions.get("king_stud")[1]/2
+    thickness = parameters.beam_dimensions.get("king_stud")[1] / 2
     lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
-    opening_a = Polyline([intersection_line_plane(line, Plane((0,0,-thickness), (0,0,1))) for line in lines])
-    opening_b = Polyline([intersection_line_plane(line, Plane((0,0,thickness), (0,0,1))) for line in lines])
+    opening_a = Polyline([intersection_line_plane(line, Plane((0, 0, -thickness), (0, 0, 1))) for line in lines])
+    opening_b = Polyline([intersection_line_plane(line, Plane((0, 0, thickness), (0, 0, 1))) for line in lines])
     box_a = Box.from_points(opening_a.points)
     box_b = Box.from_points(opening_b.points)
     frame_polyline_a = Polyline([box_a.corner(0), box_a.corner(1), box_a.corner(2), box_a.corner(3), box_a.corner(0)])
     frame_polyline_b = Polyline([box_b.corner(0), box_b.corner(1), box_b.corner(2), box_b.corner(3), box_b.corner(0)])
     return frame_polyline_a, frame_polyline_b
-    
-
 
 
 def _create_frame_polyline(frame_polyline_a, frame_polyline_b):
     # type: (Opening) -> Polyline
     """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
-    return Polyline([
-        Point(frame_polyline_a.points[0][0], max(frame_polyline_a.points[0][1], frame_polyline_b.points[0][1]), 0),
-        Point(frame_polyline_a.points[1][0], min(frame_polyline_a.points[1][1], frame_polyline_b.points[1][1]), 0),
-        Point(frame_polyline_a.points[2][0], min(frame_polyline_a.points[2][1], frame_polyline_b.points[2][1]), 0),
-        Point(frame_polyline_a.points[3][0], max(frame_polyline_a.points[3][1], frame_polyline_b.points[3][1]), 0),
-        Point(frame_polyline_a.points[4][0], max(frame_polyline_a.points[4][1], frame_polyline_b.points[4][1]), 0),
-        ])
+    return Polyline(
+        [
+            Point(frame_polyline_a.points[0][0], max(frame_polyline_a.points[0][1], frame_polyline_b.points[0][1]), 0),
+            Point(frame_polyline_a.points[1][0], min(frame_polyline_a.points[1][1], frame_polyline_b.points[1][1]), 0),
+            Point(frame_polyline_a.points[2][0], min(frame_polyline_a.points[2][1], frame_polyline_b.points[2][1]), 0),
+            Point(frame_polyline_a.points[3][0], max(frame_polyline_a.points[3][1], frame_polyline_b.points[3][1]), 0),
+            Point(frame_polyline_a.points[4][0], max(frame_polyline_a.points[4][1], frame_polyline_b.points[4][1]), 0),
+        ]
+    )
 
 
 def _offset_frame_beams(edge_elements, frame_polyline):
-    #type: (OrderedDict[int, list[Beam]], Polyline) -> None
+    # type: (OrderedDict[int, list[Beam]], Polyline) -> None
     """Apply an offset to the beams so that their edges align with the frame polyline."""
     for edge_index, beams in edge_elements.items():
         vector = get_polyline_segment_perpendicular_vector(frame_polyline, edge_index)
@@ -129,7 +128,7 @@ def _offset_frame_beams(edge_elements, frame_polyline):
 
 
 def _get_edge_dict(edge_elements, frame_polyline):
-    #type: (OrderedDict[int, list[Beam]], Polyline) -> dict[int, Line]
+    # type: (OrderedDict[int, list[Beam]], Polyline) -> dict[int, Line]
     """Get the edge lines for the element group based on the frame polyline and edge beams"""
     segs = []
     for index, segment in enumerate(frame_polyline.lines):
@@ -152,7 +151,7 @@ def _get_edge_dict(edge_elements, frame_polyline):
 
 
 def get_internal_joints(parameters, element_group):
-    #type: (ElementGeneratorParameters, ElementGroup) -> list[DirectRule]
+    # type: (ElementGeneratorParameters, ElementGroup) -> list[DirectRule]
     """Join the sill and header to king and jack studs."""
     sill = list(filter(lambda x: x.attributes["category"] == "sill", element_group.elements))
     if sill:
@@ -178,7 +177,7 @@ def get_internal_joints(parameters, element_group):
 
 
 def get_external_joints(parameters: ElementGeneratorParameters, element_group: ElementGroup, intersecting_groups: list[ElementGroup]):
-    #type: (ElementGeneratorParameters, ElementGroup, list[ElementGroup]) -> list[DirectRule]
+    # type: (ElementGeneratorParameters, ElementGroup, list[ElementGroup]) -> list[DirectRule]
     """Join the king and jack studs to neighboring slab populator beams."""
     rules = []
     for king_stud in filter(lambda x: x.attributes["category"] == "king_stud", element_group.elements):
@@ -212,7 +211,7 @@ def get_external_joints(parameters: ElementGeneratorParameters, element_group: E
 
 
 def cull_stud(stud: Beam, element_group: ElementGroup) -> bool:
-    #type: (Beam, ElementGroup) -> bool
+    # type: (Beam, ElementGroup) -> bool
     """Split the bottom plate beam for door openings."""
     element_group.elements.sort(key=lambda x: x.frame.point[0])  # sort left to right
     king_studs = filter(lambda x: x.attributes["category"] == "king_stud", element_group.elements)
@@ -240,7 +239,7 @@ def cull_stud(stud: Beam, element_group: ElementGroup) -> bool:
 
 
 def cut_out_of_plate(parameters, plate, element_group):
-    #type: (Plate, ElementGroup) -> None
+    # type: (Plate, ElementGroup) -> None
     """Apply the opening contour to the given plate.
 
     Parameters
@@ -257,14 +256,14 @@ def cut_out_of_plate(parameters, plate, element_group):
     opening_b = Polyline([p for p in element_group.feature.outline_b])
 
     if parameters.opening_type == "door":
-        lines = [(i,l) for i, l in enumerate(opening_a.lines)]
+        lines = [(i, l) for i, l in enumerate(opening_a.lines)]
         bottom_edge_index = min(lines, key=lambda x: x[1].midpoint.y)[0]
         opening_a[bottom_edge_index].y -= 0.1
-        opening_a[(bottom_edge_index +1)%len(opening_a)].y -= 0.1
-        opening_a[-1]=opening_a[0]
+        opening_a[(bottom_edge_index + 1) % len(opening_a)].y -= 0.1
+        opening_a[-1] = opening_a[0]
         opening_b[bottom_edge_index].y -= 0.1
-        opening_b[(bottom_edge_index +1)%len(opening_b)].y -= 0.1
-        opening_b[-1]=opening_b[0]
+        opening_b[(bottom_edge_index + 1) % len(opening_b)].y -= 0.1
+        opening_b[-1] = opening_b[0]
 
     lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening_a.points, opening_b.points)]
     outline_a_projected = Polyline([intersection_line_plane(line, plate.planes[0]) for line in lines])
@@ -273,7 +272,7 @@ def cut_out_of_plate(parameters, plate, element_group):
     plate.add_feature(free_contour)
 
 
-class OpeningElementGeneratorParameters(ElementGeneratorParameters):
+class OpeningElementGenerator(ElementGenerator):
     """A slab detail set that uses the edge beams and plates but no studs."""
 
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
@@ -294,7 +293,7 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
     ]
 
     def __init__(self, standard_beam_width, lintel_posts=False, beam_width_overrides=None, joint_rule_overrides=None, opening_type=None, split_bottom_plate_beam=False):
-        #type: (float, bool, dict | None, dict | None, OpeningType | None, bool) -> None
+        # type: (float, bool, dict | None, dict | None, OpeningType | None, bool) -> None
         super().__init__(standard_beam_width, beam_width_overrides, joint_rule_overrides)
         self.lintel_posts = lintel_posts
         self.split_bottom_plate_beam = split_bottom_plate_beam
@@ -322,7 +321,7 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
                 )
 
     def generate_elements(self, feature):
-        #type: (Opening) -> ElementGroup
+        # type: (Opening) -> ElementGroup
         """Populates the slab with elements and joints according to the detail set.
 
         Parameters
@@ -333,7 +332,7 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
         return create_elements(self, feature)
 
     def join_elements(self, slab_populator, element_group):
-        #type: (SlabPopulator, ElementGroup) -> list[DirectRule]
+        # type: (SlabPopulator, ElementGroup) -> list[DirectRule]
         """Join the elements for WindowDetailB."""
 
         intersecting_groups = [g for g in slab_populator.element_groups if g != element_group]
@@ -343,14 +342,14 @@ class OpeningElementGeneratorParameters(ElementGeneratorParameters):
         return [rule for rule in rules if rule is not None]
 
     def cull_beam_segment(self, beam, element_group) -> bool:
-        #type: (Beam, ElementGroup) -> bool
+        # type: (Beam, ElementGroup) -> bool
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
         if beam.attributes.get("category", None) == "stud":
             return cull_stud(beam, element_group)
         return False
 
     def apply_to_plate(self, plate, element_group):
-        #type: (Plate, ElementGroup) -> None
+        # type: (Plate, ElementGroup) -> None
         """Apply the opening contour to the given plate.
 
         Parameters

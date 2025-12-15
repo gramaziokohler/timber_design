@@ -1,3 +1,6 @@
+from abc import ABC
+
+from compas.geometry import Line
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
@@ -6,8 +9,9 @@ from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
 
 
-class ElementGeneratorParameters(object):
-    """Base class for opening detail sets.
+class ElementGenerator(ABC):
+    """Abstract class for an element generator. An element generator creates elements to populate a slab.
+    It also creates the necessary joint definitions between the generated elements and other elements in the same slab.
 
     Parameters
     ----------
@@ -36,11 +40,13 @@ class ElementGeneratorParameters(object):
         self.beam_dimensions = {}  # to be populated with update_beam_dimensions
 
     def update_rules(self, joint_rule_overrides):
-        #type: (list[CategoryRule]) -> list[CategoryRule]
+        # type: (list[CategoryRule]) -> list[CategoryRule]
         """Update the rules with any overrides provided."""
         rules = [r for r in self.RULES]
 
         for override in joint_rule_overrides:
+            # NOTE: this is a bit of a breach of encapsulation, but necessary to allow for rule overrides
+            # TODO: if we're only working with category rules here then make it explicit, if not, find a way to use the public interface of JointRule
             for rule in rules:
                 if rule.category_a not in self.BEAM_CATEGORY_NAMES or rule.category_b not in self.BEAM_CATEGORY_NAMES:
                     # rule does not apply to this generator
@@ -58,22 +64,22 @@ class ElementGeneratorParameters(object):
                 rules.append(override)
         return rules
 
-    def update_beam_dimensions(self, slab_populator):
-        #type: (SlabPopulator) -> None
-        """Get the beam dimensions for the detail set."""
+    def update_beam_dimensions(self, frame_thickness: float) -> None:
+        # TODO: consider renaming to `resolve_beam_dimensions`
+        """updates the beam dimensions map based on the standard beam width, frame thickness, and any overrides provided."""
         for category in self.BEAM_CATEGORY_NAMES:
             if category in self.beam_width_overrides:
-                self.beam_dimensions[category] = (self.beam_width_overrides[category], slab_populator.frame_thickness)
+                self.beam_dimensions[category] = (self.beam_width_overrides[category], frame_thickness)
             else:
-                self.beam_dimensions[category] = (self.standard_beam_width, slab_populator.frame_thickness)
+                self.beam_dimensions[category] = (self.standard_beam_width, frame_thickness)
 
-    def beam_from_category(self, segment, category, **kwargs):
-        #type: (compas.geometry.Line, str, dict) -> Beam
-        """Creates a beam from a segment and a category, using the dimensions from the configuration set.
+    def beam_from_category(self, centerline: Line, category: str, **kwargs) -> Beam:
+        """Creates a beam from a centerline and a category, using the dimensions from the element generator.
+
         Parameters
         ----------
-        segment : :class:`compas.geometry.Line`
-            The segment to create the beam from.
+        centerline : :class:`compas.geometry.Line`
+            The centerline to create the beam from.
         category : str
             The category of the beam, which determines its dimensions.
         slab_populator : :class:`compas_timber.populators.SlabPopulator`
@@ -90,16 +96,16 @@ class ElementGeneratorParameters(object):
             raise ValueError("Unknown beam category: {}".format(category))
         width = self.beam_dimensions[category][0]
         height = self.beam_dimensions[category][1]
-        beam = Beam.from_centerline(segment, width=width, height=height, z_vector=Vector(0, 0, 1))
+        beam = Beam.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
             beam.attributes[key] = value
         beam.attributes["category"] = category
         if beam is None:
-            raise ValueError("Failed to create beam from segment: {}".format(segment))
+            raise ValueError("Failed to create beam from centerline: {}".format(centerline))
         return beam
 
     def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
-        #type: (Beam, Beam, dict) -> DirectRule | None
+        # type: (Beam, Beam, dict) -> DirectRule | None
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
@@ -131,11 +137,11 @@ class ElementGeneratorParameters(object):
         return direct_rule
 
     def cull_beam_segment(self, beam, element_group) -> bool:
-        #type: (Beam, ElementGroup) -> bool
+        # type: (Beam, ElementGroup) -> bool
         """Determines whether the beam segment should be culled by the element group."""
         return False
 
     def apply_to_plate(self, plate, element_group):
-        #type: (Plate, ElementGroup) -> None
+        # type: (Plate, ElementGroup) -> None
         """Apply the element group's feature definition to the plate based on the element group parameters."""
         pass

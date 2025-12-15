@@ -1,9 +1,11 @@
+from typing import Optional
 from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Vector
+from compas.geometry import Line
 from compas.geometry import angle_vectors
 from compas.geometry import angle_vectors_signed
 from compas.geometry import bounding_box_xy
@@ -11,10 +13,14 @@ from compas.geometry import cross_vectors
 from compas_timber.design import CategoryRule
 from compas_timber.elements import Opening
 from compas_timber.elements import SlabConnectionInterface
+from compas_timber.elements import TimberElement
+from compas_timber.elements import SlabFeature
 from compas_timber.model import TimberModel
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_point_in_polyline
 from compas_timber.utils import is_polyline_clockwise
+
+from timber_design.element_generators import ElementGenerator
 
 
 class SlabSelector(object):  # TODO change to detail selector or similar
@@ -131,7 +137,7 @@ class SlabPopulator(object):
         self._edge_perpendicular_vectors = []
         self.test = []
         self.set_frame_outlines(parameters)
-        self.parameters.update_beam_dimensions(self)
+        self.parameters.update_beam_dimensions(self.frame_thickness)
 
     def __repr__(self):
         return "SlabPopulator({}, {})".format(self.parameters, self._slab)
@@ -168,7 +174,7 @@ class SlabPopulator(object):
         rebased_pts = [pt.transformed(transform_to_sp) for pt in slab.local_outlines[0].points + slab.local_outlines[1].points]  # rebase slab points into stud direction frame
         min_pt = bounding_box_xy(rebased_pts)[0]
         frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_sp.inverse())
-        si =  parameters.sheeting_inside or 0.0
+        si = parameters.sheeting_inside or 0.0
         frame.point[2] = si + self.frame_thickness / 2  # offset to make frame center plane at world XY
         return Transformation.from_frame(frame).inverse()
 
@@ -194,7 +200,7 @@ class SlabPopulator(object):
         if not isinstance(elements, list):
             elements = [elements]
         for element in elements:
-            element.attributes.pop("joint_defs",None)
+            element.attributes.pop("joint_defs", None)
             self.add_element(element, edge_index)
 
     def process_joinery(self):
@@ -226,8 +232,6 @@ class SlabPopulator(object):
             model.add_element(element, parent=self._slab)
         for j in self._model.joints:
             model.add_joint(j)
-
-
 
     @property
     def thickness(self):
@@ -348,24 +352,6 @@ class SlabPopulator(object):
             rules = g.parameters.join_elements(self, g)
             self.direct_rules.extend(rules)
 
-    @classmethod
-    def from_model(cls, model, configuration_sets):
-        # type: (TimberModel, List[WallPopulatorConfigurationSet]) -> List[WallPopulator]
-        """matches configuration sets to walls and returns a list of SlabPopulator instances, each per wall"""
-        # TODO: make sure number of walls and configuration sets match
-        slabs = list(model.slabs)  # TODO: these are anoying, consider making these lists again
-        if len(slabs) != len(configuration_sets):
-            raise ValueError("Number of walls and configuration sets do not match")
-
-        slab_populators = []
-        for slab in slabs:
-            for config_set in configuration_sets:
-                if config_set.slab_selector.select(slab):
-                    interfaces = [interaction.get_interface_for_slab(slab) for interaction in model.get_interactions_for_element(slab)]
-                    slab_populators.append(cls(config_set, slab, interfaces))
-                    break
-        return slab_populators
-
 
 class FeatureBoundaryType(object):
     """Defines the boundary type for a feature definition.
@@ -393,36 +379,42 @@ class ElementGroup(object):
 
     """
 
-    def __init__(self, feature=None, parameters=None, elements=None, edges=None, edge_elements=None, outline=None, boundary_type=FeatureBoundaryType.EXCLUSIVE):
+    # TODO: add FeatureBoundaryType.NONE
+    def __init__(
+        self,
+        feature: SlabFeature,
+        element_generator: ElementGenerator,
+        elements: list[TimberElement],
+        edges: Optional[list[Line]] = None,
+        edge_elements: Optional[dict] = None,
+        outline: Optional[Polyline] = None,
+        boundary_type=FeatureBoundaryType.EXCLUSIVE,
+    ):
         self.feature = feature
-        self.parameters = parameters
+        self.element_generator = element_generator
         self.elements = elements or []
         self.edges = edges or {}
         self.edge_elements = edge_elements or {}
         self.outline = outline
         self.boundary_type = boundary_type
 
-    def generate_elements(self):
-        """Generates the elements for the feature."""
-        return self.parameters.generate_elements(self)
-
-    def join_elements(self, slab_populator):
-        """Joins the elements for the feature."""
-        return self.parameters.join_elements(slab_populator, self)
-
     def cull_element_at_point(self, point, element=None):
-        """Determines whether to keep a segment based on the boundary type."""
+        """
+        TODO:
+
+        Determines whether to keep a segment based on the boundary type.
+
+        """
 
         if element:
-            if self.parameters.cull_beam_segment(element, self):
+            if self.element_generator.cull_beam_segment(element, self):
                 return True
         if not self.outline:
             return False
         return (self.boundary_type == FeatureBoundaryType.INCLUSIVE) ^ is_point_in_polyline(point, self.outline, in_plane=False)
 
-
     def __str__(self):
-        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
+        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.element_generator.NAME, len(self.elements))
 
     def __repr__(self):
-        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.parameters.NAME, len(self.elements))
+        return "ElementGroup({}, {}, {} elements)".format(self.feature.__class__.__name__, self.element_generator.NAME, len(self.elements))

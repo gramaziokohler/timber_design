@@ -2,7 +2,7 @@ from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 from compas_timber.design import CategoryRule
 
-from timber_design.element_generators import ElementGeneratorParameters
+from timber_design.element_generators import ElementGenerator
 from timber_design.populators import ElementGroup
 
 from .generator_functions import split_beam_with_element_groups
@@ -49,7 +49,7 @@ def join_studs(parameters, slab_populator, element_group):
     return [rule for rule in rules if rule is not None]
 
 
-class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
+class SlabStudElementGeneratorA(ElementGenerator):
     """A slab detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["stud"]
@@ -69,7 +69,7 @@ class SlabStudElementGeneratorParametersA(ElementGeneratorParameters):
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
-        super(SlabStudElementGeneratorParametersA, self).__init__(
+        super(SlabStudElementGeneratorA, self).__init__(
             standard_beam_width,
             beam_width_overrides,
             joint_rule_overrides,

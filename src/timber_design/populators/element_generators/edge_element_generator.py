@@ -14,7 +14,7 @@ from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
 from compas_timber.elements import Beam
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
@@ -26,15 +26,15 @@ from timber_design.workflow import DirectRule
 from timber_design.populators import ElementGenerator
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import SlabPopulator
+from timber_design.populators import PanelPopulator
 from timber_design.populators import split_beam_with_element_generators
 
 
-class SlabEdgeElementGeneratorA(ElementGenerator):
-    """A slab detail set that uses the default edge beams, studs, and plates."""
+class PanelEdgeElementGeneratorA(ElementGenerator):
+    """A panel detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    NAME = "SlabEdgeElementGenerator"
+    NAME = "PanelEdgeElementGenerator"
     RULES = [
         CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -46,15 +46,15 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
 
     def __init__(
         self,
-        slab: Slab,
+        panel: Panel,
         standard_beam_width:float,
         standard_beam_width_increment:float|None=None,
         edge_beam_min_width:float|None=None,
         beam_width_overrides:dict|None=None,
         joint_rule_overrides:list[CategoryRule]|None=None,
     )->None:
-        super(SlabEdgeElementGeneratorA, self).__init__(
-            slab,
+        super(PanelEdgeElementGeneratorA, self).__init__(
+            panel,
             standard_beam_width,
             beam_width_overrides,
             joint_rule_overrides,
@@ -64,17 +64,17 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
         self._interior_corner_indices = []
 
     @property
-    def slab(self) -> Slab:
-        """The slab associated with this element generator."""
+    def panel(self) -> Panel:
+        """The panel associated with this element generator."""
         return self.feature  # type: ignore
     
     @property
     def interior_corner_indices(self):
-        """Get the indices of the interior corners of the slab outline."""
+        """Get the indices of the interior corners of the panel outline."""
         if not self._interior_corner_indices:
-            """Get the indices of the interior corners of the slab outline."""
-            points = self.slab.outline_a.points[0:-1]
-            cw = is_polyline_clockwise(self.slab.outline_a, Vector(0, 0, 1))
+            """Get the indices of the interior corners of the panel outline."""
+            points = self.panel.outline_a.points[0:-1]
+            cw = is_polyline_clockwise(self.panel.outline_a, Vector(0, 0, 1))
             for i in range(len(points)):
                 angle = angle_vectors_signed(points[i - 1] - points[i], points[(i + 1) % len(points)] - points[i], Vector(0, 0, 1), deg=True)
                 if not (cw ^ (angle < 0)):
@@ -83,10 +83,10 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
 
     @property
     def interior_segment_indices(self):
-        """Get the indices of the interior segments of the slab outline."""
+        """Get the indices of the interior segments of the panel outline."""
         if not self._interior_corner_indices:
-            for i in range(len(self.slab.outline_a)-1):
-                if i in self.interior_corner_indices and (i + 1) % len(self.slab.outline_a)-1 in self.interior_corner_indices:
+            for i in range(len(self.panel.outline_a)-1):
+                if i in self.interior_corner_indices and (i + 1) % len(self.panel.outline_a)-1 in self.interior_corner_indices:
                     yield i
 
     # ==========================================================================
@@ -94,7 +94,7 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
     # ==========================================================================
 
     def generate_elements(self) -> None:
-        """generates the edge beams for the slab."""
+        """generates the edge beams for the panel."""
         self._create_edge_beams()
 
     def cull_beam_segment(self, beam: Beam) -> bool:
@@ -115,9 +115,9 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
     # ==========================================================================
 
     def _create_edge_beams(self) -> None:
-        """Get the edge beams for the outer polyline of the slab."""
+        """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
-        for i in range(len(self.slab.outline_a)-1):
+        for i in range(len(self.panel.outline_a)-1):
             seg, width = self._get_edge_beam_line_and_width(i, min_width=self.edge_beam_min_width, edge_beam_dim_increment=self.standard_beam_width_increment)
             segs.append(seg)
             widths.append(width)
@@ -125,12 +125,12 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
         edges: list[Line] = []  # boundaries of this generator
         edge_elements = {}
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam.from_centerline(seg, width=width, height=self.slab.thickness, z_vector=Vector(0, 0, 1))
+            edge_beam = Beam.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1))
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
             self.edge_elements[i] = [edge_beam]
             self.elements.append(edge_beam)
-            vector = get_polyline_segment_perpendicular_vector(self.slab.outline_a, i)
+            vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
         extend_line_segments(edges, close_loop=True)
         self.outline = join_polyline_segments(edges, close_loop=True)  # TODO: do we need both outline and edges?
@@ -138,11 +138,11 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
         self.boundary_type = FeatureBoundaryType.INCLUSIVE
 
     def _get_edge_beam_line_and_width(self, segment_index, min_width=0.0, edge_beam_dim_increment=None) -> tuple[Line, float]:
-        perp_vector = get_polyline_segment_perpendicular_vector(self.slab.outline_a, segment_index)
-        seg_a = self.slab.outline_a.lines[segment_index]
-        seg_b = self.slab.outline_b.lines[segment_index]
+        perp_vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, segment_index)
+        seg_a = self.panel.outline_a.lines[segment_index]
+        seg_b = self.panel.outline_b.lines[segment_index]
         dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
-        if TOL.is_zero(dot):  # edges are perpendicular to slab
+        if TOL.is_zero(dot):  # edges are perpendicular to panel
             outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
             width = min_width
             offset = width / 2
@@ -163,14 +163,14 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
         if abs(beam.centerline.direction[0]) < abs(beam.centerline.direction[1]):
             beam.attributes["category"] = "edge_stud"
         else:
-            if dot_vectors(get_polyline_segment_perpendicular_vector(self.slab.outline_a, index), Vector(0, 1, 0)) < 0:
+            if dot_vectors(get_polyline_segment_perpendicular_vector(self.panel.outline_a, index), Vector(0, 1, 0)) < 0:
                 beam.attributes["category"] = "bottom_plate_beam"
             else:
                 beam.attributes["category"] = "top_plate_beam"
 
     def _apply_linear_cut_to_edge_beam(self, beam: Beam, edge_index:int) -> None:
         """Trim the edge beams to fit between the plate beams."""
-        plane = self.slab.edge_planes[edge_index]
+        plane = self.panel.edge_planes[edge_index]
         if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, beam, is_joinery=False)
             beam.add_features(long_cut)
@@ -207,13 +207,13 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
         return [rule for rule in rules if rule is not None]
 
     def _create_internal_joints(self) -> list[DirectRule]:
-        """Generate the joint definitions for the slab edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
+        """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
         rules = []
-        for corner_index in range(len(self.slab.outline_a)-1):
+        for corner_index in range(len(self.panel.outline_a)-1):
             edge_a_index = corner_index
-            edge_b_index = (edge_a_index - 1) % len(self.slab.outline_a)-1
+            edge_b_index = (edge_a_index - 1) % len(self.panel.outline_a)-1
             interior_corner = edge_a_index in self.interior_corner_indices
-            rule = self._create_edge_beam_joint_rule(self.slab.edge_planes, edge_a_index, edge_b_index, interior_corner)
+            rule = self._create_edge_beam_joint_rule(self.panel.edge_planes, edge_a_index, edge_b_index, interior_corner)
             point = intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]
             for element in rule.elements:
                 if element.attributes.get("joint_defs", None) is None:

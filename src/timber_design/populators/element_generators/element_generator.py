@@ -8,9 +8,9 @@ from compas.geometry import intersection_line_line
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 from compas_timber.elements import TimberElement
-from compas_timber.elements import SlabFeature
+from compas_timber.elements import PanelFeature
 
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -33,8 +33,8 @@ class FeatureBoundaryType(object):
 
 
 class ElementGenerator(ABC):
-    """Abstract class for an element generator. An element generator creates elements to populate a slab.
-    It also creates the necessary joint definitions between the generated elements and other elements in the same slab.
+    """Abstract class for an element generator. An element generator creates elements to populate a panel.
+    It also creates the necessary joint definitions between the generated elements and other elements in the same panel.
 
     Parameters
     ----------
@@ -57,7 +57,7 @@ class ElementGenerator(ABC):
     ):
         self.feature = feature
         self.standard_beam_width = standard_beam_width or 0.0
-        self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
+        self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a PanelPopulator instance
         if joint_rule_overrides:
             self.rules = self.update_rules(joint_rule_overrides)
         else:
@@ -174,9 +174,9 @@ class ElementGenerator(ABC):
         pass
 
     def generate_elements(self):
-        """Generates elements for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
+        """Generates elements for the panel based on the panel populator and optional feature definition."""  # QUESTION: different arguments for PanelElementGenerator vs FeatureElementGenerator?
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
     def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
-        """Generates DirectRule joint definitions for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
+        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""  # QUESTION: different arguments for PanelElementGenerator vs FeatureElementGenerator?
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

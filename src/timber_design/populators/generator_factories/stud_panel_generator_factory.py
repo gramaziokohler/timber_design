@@ -11,32 +11,32 @@ from compas.geometry import angle_vectors
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
 
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 from compas_timber.elements import Opening
 
 from timber_design.populators import ElementGenerator
 from timber_design.populators import OpeningElementGenerator
-from timber_design.populators import SlabEdgeElementGeneratorA
-from timber_design.populators import SlabStudElementGeneratorA
-from timber_design.populators import SlabPlateElementGeneratorA
+from timber_design.populators import PanelEdgeElementGeneratorA
+from timber_design.populators import PanelStudElementGeneratorA
+from timber_design.populators import PanelPlateElementGeneratorA
 
 
 from timber_design.workflow import CategoryRule
-from .slab_generator_factory import SlabGeneratorFactory
-from .slab_generator_factory import GeneratorFactoryParams
-from .slab_generator_factory import get_transformation_to_populator_space
-from .slab_generator_factory import get_frame_slab
+from .panel_generator_factory import PanelGeneratorFactory
+from .panel_generator_factory import GeneratorFactoryParams
+from .panel_generator_factory import get_transformation_to_populator_space
+from .panel_generator_factory import get_frame_panel
 
 
 
-class StudSlabGeneratorFactoryParams(GeneratorFactoryParams):
-    """Parameters for creating a slab element generator.
+class StudPanelGeneratorFactoryParams(GeneratorFactoryParams):
+    """Parameters for creating a panel element generator.
     Parameters
     ----------
     stud_direction : :class:`compas.geometry.Vector`, optional
-        The direction of the studs in the slab.
+        The direction of the studs in the panel.
     standard_beam_width : float, optional
-        The standard beam width for the slab elements.
+        The standard beam width for the panel elements.
     edge_generator : :class:`timber_design.element_generators.ElementGenerator`, optional
         The edge element generator.
     stud_generator : :class:`timber_design.element_generators.ElementGenerator`, optional
@@ -76,14 +76,14 @@ class StudSlabGeneratorFactoryParams(GeneratorFactoryParams):
         self.joint_rule_overrides = joint_rule_overrides
 
 
-class StudSlabGeneratorFactory(SlabGeneratorFactory):
-    """Factory for creating stud slab element generators."""
+class StudPanelGeneratorFactory(PanelGeneratorFactory):
+    """Factory for creating stud panel element generators."""
     @classmethod
-    def create_generators(cls, populator_slab:Slab, params: StudSlabGeneratorFactoryParams, feature_generators:list[ElementGenerator]|None=None) ->  list[ElementGenerator]:
-        """Create a stud slab element generator.
+    def create_generators(cls, populator_panel:Panel, params: StudPanelGeneratorFactoryParams, feature_generators:list[ElementGenerator]|None=None) ->  list[ElementGenerator]:
+        """Create a stud panel element generator.
         Parameters
         ----------
-        params : :class:`SlabGeneratorParams`
+        params : :class:`PanelGeneratorParams`
             Parameters for the generator.
         Returns
         -------
@@ -91,11 +91,11 @@ class StudSlabGeneratorFactory(SlabGeneratorFactory):
             The created element generators.
         """
 
-        frame_slab= get_frame_slab(populator_slab, params)
+        frame_panel= get_frame_panel(populator_panel, params)
 
         generators = []
-        generators.append(SlabEdgeElementGeneratorA(
-            frame_slab,
+        generators.append(PanelEdgeElementGeneratorA(
+            frame_panel,
             standard_beam_width=params.standard_beam_width,
             standard_beam_width_increment=params.standard_beam_width_increment,
             edge_beam_min_width=params.edge_beam_min_width,
@@ -104,14 +104,14 @@ class StudSlabGeneratorFactory(SlabGeneratorFactory):
             ))
 
         if params.stud_spacing:
-            generators.append(SlabStudElementGeneratorA(
-                frame_slab, stud_spacing=params.stud_spacing, standard_beam_width=params.standard_beam_width, beam_width_overrides=params.beam_width_overrides, joint_rule_overrides=params.joint_rule_overrides
+            generators.append(PanelStudElementGeneratorA(
+                frame_panel, stud_spacing=params.stud_spacing, standard_beam_width=params.standard_beam_width, beam_width_overrides=params.beam_width_overrides, joint_rule_overrides=params.joint_rule_overrides
                 ))
 
         if params.sheeting_inside or params.sheeting_outside:
-            generators.append(SlabPlateElementGeneratorA(populator_slab, frame_slab, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
+            generators.append(PanelPlateElementGeneratorA(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
 
-        for feature in populator_slab.features:
+        for feature in populator_panel.features:
             if isinstance(feature, Opening):
                 generators.append(OpeningElementGenerator(feature, params.standard_beam_width, params.lintel_posts, params.beam_width_overrides, params.joint_rule_overrides, params.split_bottom_plate_beam))
 
@@ -119,7 +119,7 @@ class StudSlabGeneratorFactory(SlabGeneratorFactory):
             generators.extend(feature_generators)
 
         for generator in generators:
-            generator.update_beam_dimensions(frame_slab.thickness)
+            generator.update_beam_dimensions(frame_panel.thickness)
 
 
         return generators

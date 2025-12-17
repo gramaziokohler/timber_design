@@ -9,11 +9,11 @@ from compas.geometry import Brep
 from compas.scene import Scene
 
 from timber_design.workflow import ContainerDefinition
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
-class SlabComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class PanelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(
         self,
         surface: System.Collections.Generic.List[Rhino.Geometry.Brep],
@@ -43,7 +43,7 @@ class SlabComponent(Grasshopper.Kernel.GH_ScriptInstance):
             config_set = [config_set[0] for _ in range(N)]
 
         for srf, t, c_s in zip(surface, thickness, config_set):
-            wall = Slab.from_brep(Brep.from_native(srf), t)
+            wall = Panel.from_brep(Brep.from_native(srf), t)
             if flip:
                 wall.rotate()
 

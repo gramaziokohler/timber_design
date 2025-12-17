@@ -1,13 +1,13 @@
 from compas.geometry import Point, Polyline, Vector
 
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 
-from timber_design.populators import SlabPopulator
+from timber_design.populators import PanelPopulator
 
 
 outline = Polyline([Point(0, 0, 0), Point(5000, 0, 0), Point(5000, 3000, 0), Point(0, 3000, 0), Point(0, 0, 0)])
 
-slab = Slab(outline, 200)
+panel = Panel(outline, 200)
 
-print(slab)
+print(panel)
 

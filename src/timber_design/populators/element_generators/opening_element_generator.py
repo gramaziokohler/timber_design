@@ -26,7 +26,7 @@ from compas_timber.fabrication import LongitudinalCutProxy
 
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import SlabPopulator
+from timber_design.populators import PanelPopulator
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -40,7 +40,7 @@ BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
 
 
 class OpeningElementGenerator(ElementGenerator):
-    """A slab detail set that uses the edge beams and plates but no studs."""
+    """A panel detail set that uses the edge beams and plates but no studs."""
 
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
     NAME = "OpeningElementGenerator"
@@ -95,7 +95,7 @@ class OpeningElementGenerator(ElementGenerator):
                 )
     
     def generate_elements(self, feature: Opening):
-        """Populates the slab with elements and joints according to the detail set.
+        """Populates the panel with elements and joints according to the detail set.
 
         Parameters
         ----------
@@ -140,7 +140,7 @@ class OpeningElementGenerator(ElementGenerator):
             frame_polyline.points[3].y -= 100
             frame_polyline.points[4].y -= 100
         segments = [line for line in frame_polyline.lines]
-        segments[2].flip()  # align to slab populator stud direction
+        segments[2].flip()  # align to panel populator stud direction
 
         # create beams
         edge_elements = OrderedDict()
@@ -188,7 +188,7 @@ class OpeningElementGenerator(ElementGenerator):
 
     @staticmethod
     def _create_frame_polyline(frame_polyline_a: Polyline, frame_polyline_b: Polyline) -> Polyline:
-        """Bounding rectangle aligned orthogonal to the slab_populator.stud_direction."""
+        """Bounding rectangle aligned orthogonal to the panel_populator.stud_direction."""
         return Polyline(
             [
                 Point(frame_polyline_a.points[0][0], max(frame_polyline_a.points[0][1], frame_polyline_b.points[0][1]), 0),
@@ -255,7 +255,7 @@ class OpeningElementGenerator(ElementGenerator):
         return [rule for rule in rules if rule is not None]
 
     def _get_external_joints(self, intersecting_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the king and jack studs to neighboring slab populator beams."""
+        """Join the king and jack studs to neighboring panel populator beams."""
         rules = []
         for king_stud in filter(lambda x: x.attributes["category"] == "king_stud", self.elements):
             if king_stud is None:

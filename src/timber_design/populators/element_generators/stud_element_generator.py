@@ -1,7 +1,7 @@
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
-from compas_timber.elements import Slab
+from compas_timber.elements import Panel
 
 from timber_design.populators import ElementGenerator
 from timber_design.workflow import CategoryRule
@@ -11,8 +11,8 @@ from .generator_functions import split_beam_with_element_generators
 
 
 
-class SlabStudElementGeneratorA(ElementGenerator):
-    """A slab detail set that uses the default edge beams, studs, and plates."""
+class PanelStudElementGeneratorA(ElementGenerator):
+    """A panel detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["stud"]
     NAME = "StudElementGenerator"
@@ -26,14 +26,14 @@ class SlabStudElementGeneratorA(ElementGenerator):
 
     def __init__(
         self,
-        slab: Slab,
+        panel: Panel,
         stud_spacing:float,
         standard_beam_width:float,
         beam_width_overrides:dict|None=None,
         joint_rule_overrides:list[CategoryRule]|None=None,
     ):
-        super(SlabStudElementGeneratorA, self).__init__(
-            slab,
+        super(PanelStudElementGeneratorA, self).__init__(
+            panel,
             standard_beam_width,
             beam_width_overrides,
             joint_rule_overrides,
@@ -41,12 +41,12 @@ class SlabStudElementGeneratorA(ElementGenerator):
         self.stud_spacing = stud_spacing
 
     @property
-    def slab(self) -> Slab:
-        """The slab feature."""
+    def panel(self) -> Panel:
+        """The panel feature."""
         return self.feature
 
     def generate_elements(self):
-        """Populates the slab with stud beams."""
+        """Populates the panel with stud beams."""
         self._create_studs()
 
     def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
@@ -58,8 +58,8 @@ class SlabStudElementGeneratorA(ElementGenerator):
         """Generates the stud beams."""
         x_position = self.stud_spacing
         studs = []
-        while x_position < self.slab.length - self.beam_dimensions["stud"][0]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, self.slab.width, 0)), "stud"))
+        while x_position < self.panel.length - self.beam_dimensions["stud"][0]:
+            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, self.panel.width, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs
 

@@ -74,8 +74,8 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             Model.add_element(element)
 
         for index, c_def in enumerate(Containers):
-            slab = c_def.slab
-            Model.add_group_element(slab, name=slab.name + str(index))
+            panel = c_def.panel
+            Model.add_group_element(panel, name=panel.name + str(index))
 
         Model.connect_adjacent_walls()
 
@@ -87,9 +87,9 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
         handled_pairs = []
         wall_joint_definitions = []
-        for populator, slab in zip(populators, list(Model.slabs)):  # Model.slabs calls Model.elements, which is changed in the loop, therefore we need to use list()
+        for populator, panel in zip(populators, list(Model.panels)):  # Model.panels calls Model.elements, which is changed in the loop, therefore we need to use list()
             elements = populator.create_elements()
-            Model.add_elements(elements, parent=slab.name)
+            Model.add_elements(elements, parent=panel.name)
             joint_definitions = populator.create_joint_definitions(elements, MaxDistance)
             wall_joint_definitions.extend(joint_definitions)
             for j_def in joint_definitions:

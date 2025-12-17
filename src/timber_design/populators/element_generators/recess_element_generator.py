@@ -14,6 +14,7 @@ from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import SlabPopulator
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
 
 # ==========================================================================
 # methods for edge beams
@@ -58,20 +59,14 @@ class RecessElementGenerator(ElementGenerator):
         return self.feature
 
     def generate_elements(self):
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
+        """Populates the slab with plate and beam elements for the recess detail."""
         return self._create_recess_elements()
 
     def cull_beam_segment(self, stud) -> bool:
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, slab_populator):
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = self._create_internal_joints()
         return [rule for rule in rules if rule is not None]

@@ -112,8 +112,6 @@ class ElementGenerator(ABC):
             The centerline to create the beam from.
         category : str
             The category of the beam, which determines its dimensions.
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The populator instance that provides the beam dimensions.
         kwargs : dict, optional
             Additional attributes to set on the beam.
 
@@ -179,6 +177,6 @@ class ElementGenerator(ABC):
         """Generates elements for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
-    def join_elements(self, slab_populator):
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Generates DirectRule joint definitions for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

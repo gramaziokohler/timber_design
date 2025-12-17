@@ -5,6 +5,7 @@ from compas_timber.elements import Slab
 
 from timber_design.populators import ElementGenerator
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
 
 from .generator_functions import split_beam_with_element_generators
 
@@ -44,44 +45,35 @@ class SlabStudElementGeneratorA(ElementGenerator):
         """The slab feature."""
         return self.feature
 
-    def generate_elements(self, slab: Slab):
-        """Populates the slab with elements and joints according to the detail set.
+    def generate_elements(self):
+        """Populates the slab with stud beams."""
+        self._create_studs()
 
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
-        self._create_studs(slab)
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+        """Join the stud beams to neighboring ElementGenerator elements."""
+        intersecting_generators = [g for g in element_generators if g is not self] 
+        return self._join_studs(populator_direct_rules, intersecting_generators)
 
-    def cull_beam_segment(self, beam: Beam) -> bool:
-        """Cull and split the studs for door openings."""
-        return False
-
-    def join_elements(self, slab_populator):
-        """Join the elements for WindowDetailB."""
-        self._join_studs(slab_populator)
-
-    def _create_studs(self, slab: Slab):
+    def _create_studs(self):
         """Generates the stud beams."""
         x_position = self.stud_spacing
         studs = []
-        while x_position < slab.length - self.beam_dimensions["stud"][0]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, slab.width, 0)), "stud"))
+        while x_position < self.slab.length - self.beam_dimensions["stud"][0]:
+            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, self.slab.width, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs
 
-    def _join_studs(self, slab_populator):
+    def _join_studs(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Joins the stud beams."""
-        intersecting_generators = slab_populator.element_generators
+        intersecting_generators = element_generators
         elements = []
         min_length = self.beam_dimensions["stud"][0]
         rules = []
         for raw_stud in self.elements:
             beam_tuples, joints_to_cull = split_beam_with_element_generators(raw_stud, intersecting_generators)
             for j in joints_to_cull:
-                if j in slab_populator.direct_rules:
-                    slab_populator.direct_rules.remove(j)
+                if j in populator_direct_rules:
+                    populator_direct_rules.remove(j)
             for bt in beam_tuples:
                 beam, (start_int, end_int) = bt
                 if not beam or beam.length < min_length:

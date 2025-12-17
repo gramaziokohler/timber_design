@@ -94,26 +94,19 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
     # ==========================================================================
 
     def generate_elements(self) -> None:
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
-        # NOTE: this one taking the instance of SlabEdgeElementGeneratorA is even more reason to make `create_edge_beams` a method
+        """generates the edge beams for the slab."""
         self._create_edge_beams()
 
     def cull_beam_segment(self, beam: Beam) -> bool:
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, slab_populator: SlabPopulator) -> list[DirectRule]:
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = []
-        intersecting_generators = [f for f in slab_populator.element_generators if f.feature is not slab_populator]
+        intersecting_generators = [eg for eg in element_generators if eg is not self]
         if intersecting_generators:
-            rules.extend(self._create_external_joints(slab_populator, intersecting_generators))
+            rules.extend(self._create_external_joints(populator_direct_rules, intersecting_generators))
         rules.extend(self._create_internal_joints())
         return [rule for rule in rules if rule is not None]
 
@@ -186,7 +179,7 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
     # methods for creating beam joints
     # ==========================================================================
 
-    def _create_external_joints(self, slab_populator: SlabPopulator, intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def _create_external_joints(self, populator_direct_rules: list[DirectRule], intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
         rules = []
         edge_elements = {}
         for index, edge_beams in self.edge_elements.items():
@@ -194,8 +187,8 @@ class SlabEdgeElementGeneratorA(ElementGenerator):
             for raw_edge_beam in edge_beams:
                 beam_int_tuples, joints_to_cull = split_beam_with_element_generators(raw_edge_beam, intersecting_element_generators)
                 for j in joints_to_cull:
-                    if j in slab_populator.direct_rules:
-                        slab_populator.direct_rules.remove(j)
+                    if j in populator_direct_rules:
+                        populator_direct_rules.remove(j)
                 self.elements.remove(raw_edge_beam)
                 for beam, ints in beam_int_tuples:
                     if beam:

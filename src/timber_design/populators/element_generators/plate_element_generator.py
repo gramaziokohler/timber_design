@@ -31,22 +31,15 @@ class SlabPlateElementGeneratorA(ElementGenerator):
         return self.feature
 
     def generate_elements(self) -> None:
-        """Populates the slab with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        slab_populator : :class:`compas_timber.populators.SlabPopulator`
-            The slab populator to populate.
-        """
+        """Populates the slab with plate elements."""
         self._create_plates()
 
-    def join_elements(self, slab_populator: SlabPopulator) -> list[DirectRule]:
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Join the elements for WindowDetailB."""
-        intersecting_generators = [g for g in slab_populator.element_generators if g is not self]
-        slab_populator.test.extend([e.modelgeometry for e in self.elements])
+        intersecting_generators = [g for g in element_generators if g is not self] 
         for plate in self.elements:
             for intersecting_generator in intersecting_generators:
-                intersecting_generator.apply_to_plate(plate, intersecting_generator)
+                intersecting_generator.apply_to_plate(plate)
         return []
 
     def _create_plates(self) -> None:

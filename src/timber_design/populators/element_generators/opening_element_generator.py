@@ -104,12 +104,12 @@ class OpeningElementGenerator(ElementGenerator):
         """
         return self._create_elements(feature)
 
-    def join_elements(self, slab_populator: SlabPopulator) -> list[DirectRule]:
+    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
         """Join the elements for WindowDetailB."""
-        intersecting_groups = [g for g in slab_populator.element_generators if g != self]
+        intersecting_groups = [g for g in element_generators if g != self] 
         rules = []
-        rules.extend(self.get_external_joints(intersecting_groups))
-        rules.extend(self.get_internal_joints())
+        rules.extend(self._get_external_joints(intersecting_groups))
+        rules.extend(self._get_internal_joints())
         return [rule for rule in rules if rule is not None]
 
     def cull_beam_segment(self, beam: Beam) -> bool:
@@ -175,7 +175,7 @@ class OpeningElementGenerator(ElementGenerator):
         self.outline = join_polyline_segments(list(self.edges.values()), close_loop=True)
         self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
-    def _create_frame_polylines(self, opening: Opening) -> list[Polyline]:
+    def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
         thickness = self.beam_dimensions.get("king_stud")[1] / 2  # TODO: use frame_thickness
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
         opening_a = Polyline([intersection_line_plane(line, Plane((0, 0, -thickness), (0, 0, 1))) for line in lines])
@@ -230,7 +230,7 @@ class OpeningElementGenerator(ElementGenerator):
     # Opening element joining functions
     # ==========================================================================
 
-    def get_internal_joints(self) -> list[DirectRule]:
+    def _get_internal_joints(self) -> list[DirectRule]:
         """Join the sill and header to king and jack studs."""
         sill = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
         if sill:
@@ -254,7 +254,7 @@ class OpeningElementGenerator(ElementGenerator):
                     rules.append(self.get_direct_rule_from_elements(sill, king, max_distance=king.width / 2))
         return [rule for rule in rules if rule is not None]
 
-    def get_external_joints(self, intersecting_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def _get_external_joints(self, intersecting_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the king and jack studs to neighboring slab populator beams."""
         rules = []
         for king_stud in filter(lambda x: x.attributes["category"] == "king_stud", self.elements):

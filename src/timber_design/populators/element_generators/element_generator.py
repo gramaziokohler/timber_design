@@ -4,9 +4,32 @@ from compas.geometry import Line
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
+
 from compas_timber.connections import JointTopology
-from compas_timber.design import DirectRule
 from compas_timber.elements import Beam
+from compas_timber.elements import Plate
+from compas_timber.elements import Slab
+from compas_timber.elements import TimberElement
+from compas_timber.elements import SlabFeature
+
+from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
+
+
+
+class FeatureBoundaryType(object):
+    """Defines the boundary type for a feature definition.
+    Attributes
+    ----------
+    EXCLUSIVE : str
+        The feature defines an exclusive boundary, i.e. an area where elements should not be placed.
+    INCLUSIVE : str
+        The feature defines an inclusive boundary, i.e. an area where elements are allowed.
+    """
+
+    EXCLUSIVE = "exclusive"
+    INCLUSIVE = "inclusive"
+    NONE = "none"
 
 
 class ElementGenerator(ABC):
@@ -27,10 +50,12 @@ class ElementGenerator(ABC):
 
     def __init__(
         self,
+        feature,
         standard_beam_width=None,
         beam_width_overrides=None,
         joint_rule_overrides=None,
     ):
+        self.feature = feature
         self.standard_beam_width = standard_beam_width or 0.0
         self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a SlabPopulator instance
         if joint_rule_overrides:
@@ -39,8 +64,13 @@ class ElementGenerator(ABC):
             self.rules = self.RULES
         self.beam_dimensions = {}  # to be populated with update_beam_dimensions
 
-    def update_rules(self, joint_rule_overrides):
-        # type: (list[CategoryRule]) -> list[CategoryRule]
+        self.elements = []
+        self.edges = {}
+        self.edge_elements = {}
+        self.outline = None
+        self.boundary_type = FeatureBoundaryType.NONE
+
+    def update_rules(self, joint_rule_overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Update the rules with any overrides provided."""
         rules = [r for r in self.RULES]
 
@@ -64,7 +94,7 @@ class ElementGenerator(ABC):
                 rules.append(override)
         return rules
 
-    def update_beam_dimensions(self, frame_thickness: float) -> None:
+    def resolve_beam_dimensions(self, frame_thickness: float) -> None:
         # TODO: consider renaming to `resolve_beam_dimensions`
         """updates the beam dimensions map based on the standard beam width, frame thickness, and any overrides provided."""
         for category in self.BEAM_CATEGORY_NAMES:
@@ -104,8 +134,7 @@ class ElementGenerator(ABC):
             raise ValueError("Failed to create beam from centerline: {}".format(centerline))
         return beam
 
-    def get_direct_rule_from_elements(self, element_a, element_b, **kwargs):
-        # type: (Beam, Beam, dict) -> DirectRule | None
+    def get_direct_rule_from_elements(self, element_a: TimberElement, element_b: TimberElement, **kwargs)-> DirectRule | None:
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
@@ -125,23 +154,31 @@ class ElementGenerator(ABC):
             rule_kwargs.update(kwargs)
             direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
+        # set the 'dot' attribute for future parsing of joints when splitting beams.
         kwargs.update(rule.kwargs)
-        point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
-        if not point:
-            return None
-        for element in [element_a, element_b]:
-            if element.attributes.get("joint_defs", None) is None:
-                element.attributes["joint_defs"] = {}
-            element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
-            element.attributes["joint_defs"][element_dot] = direct_rule
+        if all([isinstance(el, Beam) for el in [element_a, element_b]]):
+            point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
+            if not point:
+                return None
+            for element in [element_a, element_b]:
+                if element.attributes.get("joint_defs", None) is None:
+                    element.attributes["joint_defs"] = {}
+                element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
+                element.attributes["joint_defs"][element_dot] = direct_rule
         return direct_rule
 
-    def cull_beam_segment(self, beam, element_group) -> bool:
-        # type: (Beam, ElementGroup) -> bool
-        """Determines whether the beam segment should be culled by the element group."""
+    def cull_beam_segment(self, beam: Beam) -> bool:
+        """Determines whether the beam segment should be culled by the element generator."""
         return False
 
-    def apply_to_plate(self, plate, element_group):
-        # type: (Plate, ElementGroup) -> None
-        """Apply the element group's feature definition to the plate based on the element group parameters."""
+    def apply_to_plate(self, plate: Plate)->None:
+        """Apply the element group's feature definition to the plate based on the element generator."""
         pass
+
+    def generate_elements(self):
+        """Generates elements for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
+        raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
+
+    def join_elements(self, slab_populator):
+        """Generates DirectRule joint definitions for the slab based on the slab populator and optional feature definition."""  # QUESTION: different arguments for SlabElementGenerator vs FeatureElementGenerator?
+        raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

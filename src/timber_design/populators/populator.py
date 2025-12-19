@@ -1,32 +1,20 @@
-from typing import Optional
+from typing import Union
 
-from compas.geometry import Box
-from compas.geometry import Frame
-from compas.geometry import Point
-from compas.geometry import Polyline
-from compas.geometry import Transformation
-from compas.geometry import Vector
-from compas.geometry import Line
-from compas.geometry import angle_vectors
-from compas.geometry import angle_vectors_signed
-from compas.geometry import bounding_box_xy
-from compas.geometry import cross_vectors
-from compas_model.elements import Element
 
-from compas_timber.elements import Opening
-from compas_timber.elements import PanelConnectionInterface
-from compas_timber.elements import TimberElement
-from compas_timber.elements import PanelFeature
+try:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from compas_timber.elements import Panel
+        from timber_design.populators import ElementGenerator
+        from timber_design.populators import GeneratorFactoryParams
+        from timber_design.populators import PanelGeneratorFactory
+        from timber_design.workflow import DirectRule
+except ImportError:
+    pass
+
 from compas_timber.model import TimberModel
-from compas_timber.utils import get_polyline_segment_perpendicular_vector
-from compas_timber.utils import is_point_in_polyline
-from compas_timber.utils import is_polyline_clockwise
-from compas_timber.elements import Panel
 
-from timber_design.populators import ElementGenerator
-from timber_design.populators import GeneratorFactoryParams
-from timber_design.populators import PanelGeneratorFactory
-from timber_design.workflow import DirectRule
 
 
 
@@ -48,7 +36,7 @@ class FeatureDefinition(object):
 
 
 class PanelPopulator(object):
-    """Create a timber assembly from a panel.    
+    """Create a timber assembly from a panel.
 
     Parameters
     ----------
@@ -76,7 +64,7 @@ class PanelPopulator(object):
 
     """
 
-    def __init__(self, panel: Panel, params: GeneratorFactoryParams, factory: PanelGeneratorFactory, feature_generators:list[ElementGenerator] | None=None)->None:
+    def __init__(self, panel: Panel, params: GeneratorFactoryParams, factory: PanelGeneratorFactory, feature_generators: Union[list[ElementGenerator], None] = None) -> None:
         super(PanelPopulator, self).__init__()
         self.original_panel: Panel = panel
         self._local_panel, self.transformation_panel_to_populator, feature_generators = factory.create_local_data(panel, params, feature_generators)
@@ -134,6 +122,3 @@ class PanelPopulator(object):
             model.add_element(element, parent=self.original_panel)
         for j in self._model.joints:
             model.add_joint(j)
-
-
-

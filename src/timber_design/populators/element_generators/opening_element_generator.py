@@ -1,32 +1,28 @@
 from collections import OrderedDict
-import math
+from typing import Union
 
-from compas.geometry import Plane
-from compas.geometry import Point
 from compas.geometry import Box
 from compas.geometry import Line
+from compas.geometry import Plane
+from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Translation
-from compas.geometry import Vector
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
-
-
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import Beam, OpeningType
-from compas_timber.elements import Plate
+from compas_timber.elements import Beam
 from compas_timber.elements import Opening
+from compas_timber.elements import Plate
+from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.utils import do_segments_overlap
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
-from compas_timber.fabrication import LongitudinalCutProxy
 
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PanelPopulator
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -64,8 +60,8 @@ class OpeningElementGenerator(ElementGenerator):
         opening: Opening,
         standard_beam_width: float,
         lintel_posts: bool = False,
-        beam_width_overrides: dict|None = None,
-        joint_rule_overrides: list[CategoryRule]|None = None,
+        beam_width_overrides: Union[dict, None] = None,
+        joint_rule_overrides: Union[list[CategoryRule], None] = None,
         split_bottom_plate_beam: bool = False,
     ):
         super().__init__(opening, standard_beam_width, beam_width_overrides, joint_rule_overrides)
@@ -93,7 +89,7 @@ class OpeningElementGenerator(ElementGenerator):
                         "bottom_plate_beam",
                     )
                 )
-    
+
     def generate_elements(self, feature: Opening):
         """Populates the panel with elements and joints according to the detail set.
 
@@ -104,9 +100,9 @@ class OpeningElementGenerator(ElementGenerator):
         """
         return self._create_elements(feature)
 
-    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
-        intersecting_groups = [g for g in element_generators if g != self] 
+        intersecting_groups = [g for g in element_generators if g != self]
         rules = []
         rules.extend(self._get_external_joints(intersecting_groups))
         rules.extend(self._get_internal_joints())

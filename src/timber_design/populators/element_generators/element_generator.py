@@ -1,20 +1,17 @@
 from abc import ABC
+from typing import Union
 
 from compas.geometry import Line
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
-
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
-from compas_timber.elements import Panel
 from compas_timber.elements import TimberElement
-from compas_timber.elements import PanelFeature
 
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
-
 
 
 class FeatureBoundaryType(object):
@@ -132,7 +129,7 @@ class ElementGenerator(ABC):
             raise ValueError("Failed to create beam from centerline: {}".format(centerline))
         return beam
 
-    def get_direct_rule_from_elements(self, element_a: TimberElement, element_b: TimberElement, **kwargs)-> DirectRule | None:
+    def get_direct_rule_from_elements(self, element_a: TimberElement, element_b: TimberElement, **kwargs) -> Union[DirectRule, None]:
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
@@ -169,14 +166,14 @@ class ElementGenerator(ABC):
         """Determines whether the beam segment should be culled by the element generator."""
         return False
 
-    def apply_to_plate(self, plate: Plate)->None:
+    def apply_to_plate(self, plate: Plate) -> None:
         """Apply the element group's feature definition to the plate based on the element generator."""
         pass
 
     def generate_elements(self):
-        """Generates elements for the panel based on the panel populator and optional feature definition."""  # QUESTION: different arguments for PanelElementGenerator vs FeatureElementGenerator?
+        """Generates elements for the panel based on the panel populator and optional feature definition."""  
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
-    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
-        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""  # QUESTION: different arguments for PanelElementGenerator vs FeatureElementGenerator?
+    def join_elements(self, populator_direct_rules, element_generators) -> list[DirectRule]:
+        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""  
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

@@ -1,27 +1,30 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
 
-from compas.data import Data
+from abc import ABC
+from abc import abstractmethod
+from typing import Union, TYPE_CHECKING, List
+
 from compas.geometry import Frame
 from compas.geometry import Point
+from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Vector
-from compas.geometry import Polyline
 from compas.geometry import angle_vectors
 from compas.geometry import bounding_box_xy
 from compas.geometry import cross_vectors
-
 from compas_timber.elements import Panel
 
-from timber_design.populators import ElementGenerator
-from timber_design.workflow import CategoryRule
+# type-only import to avoid circular imports
+if TYPE_CHECKING:
+    from timber_design.populators import ElementGenerator, GeneratorFactoryParams
 
 
 class PanelGeneratorFactory(ABC):
     """Abstract factory class for creating element generators."""
+
     @classmethod
     @abstractmethod
-    def create_generators(cls, panel:Panel, params: GeneratorFactoryParams, feature_generators:list[ElementGenerator]|None=None) ->  list[ElementGenerator]:
+    def create_generators(cls, panel: Panel, params: 'GeneratorFactoryParams', feature_generators: Union[List['ElementGenerator'], None] = None) -> List['ElementGenerator']:
         """Create an element generator.
         Parameters
         ----------
@@ -34,9 +37,10 @@ class PanelGeneratorFactory(ABC):
         """
         pass
 
-
     @classmethod
-    def create_local_data(cls, panel:Panel, params: GeneratorFactoryParams, feature_generators:list[ElementGenerator]|None = None) -> tuple[Panel, Transformation, list[ElementGenerator]]:
+    def create_local_data(
+        cls, panel: Panel, params: 'GeneratorFactoryParams', feature_generators: Union[List['ElementGenerator'], None] = None
+    ) -> tuple[Panel, Transformation, List['ElementGenerator']]:
         """Create a local panel for the generator.
         Parameters
         ----------
@@ -53,8 +57,7 @@ class PanelGeneratorFactory(ABC):
         outline_b = panel.local_outlines[1].transformed(transformation_panel_to_populator)
         local_panel = Panel.from_outlines(outline_a, outline_b)
 
-        generator_features= [f.feature for f in feature_generators] if feature_generators else [] 
-        unmatched_features=[]
+        generator_features = [f.feature for f in feature_generators] if feature_generators else []
         for feature in panel.features:
             if feature not in generator_features:
                 local_panel.add_feature(feature.transformed(transformation_panel_to_populator))
@@ -65,10 +68,11 @@ class PanelGeneratorFactory(ABC):
 
 class GeneratorFactoryParams(ABC):
     """Base class for generator factory parameters."""
+
     pass
 
 
-def get_transformation_to_populator_space(panel:Panel, params:GeneratorFactoryParams)->Transformation:
+def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactoryParams) -> Transformation:
     """The panel_populator frame in global space."""
     stud_dir = getattr(params, "stud_direction", Vector(0, 1, 0))
 
@@ -76,7 +80,7 @@ def get_transformation_to_populator_space(panel:Panel, params:GeneratorFactoryPa
     if angle_vectors(stud_dir, Vector(0, 0, 1)) < 1e-3 or angle_vectors(stud_dir, Vector(0, 0, -1)) < 1e-3:
         stud_dir = Vector(0, 1, 0)
     else:
-        stud_dir[2] = 0.0 # project stud direction onto XY plane
+        stud_dir[2] = 0.0  # project stud direction onto XY plane
 
     frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0, 0, 1)), stud_dir)  # get frame with stud direction as y axis
     transform_to_sp = Transformation.from_frame(frame).inverse()
@@ -86,9 +90,10 @@ def get_transformation_to_populator_space(panel:Panel, params:GeneratorFactoryPa
 
     si = getattr(params, "sheeting_inside", 0)
     so = getattr(params, "sheeting_outside", 0)
-    frame_thickness = panel.thickness - si - so 
+    frame_thickness = panel.thickness - si - so
     frame.point[2] = si + frame_thickness / 2  # offset to make frame center plane at world XY
     return Transformation.from_frame(frame).inverse()
+
 
 def get_frame_panel(panel, params):
     """Handles the sheeting offsets for the panel outlines."""

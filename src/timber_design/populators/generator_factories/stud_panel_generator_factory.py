@@ -1,36 +1,25 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
 
-from compas.data import Data
-from compas.geometry import Frame
-from compas.geometry import Point
-from compas.geometry import Transformation
+from typing import Union, TYPE_CHECKING, List
+
 from compas.geometry import Vector
-from compas.geometry import Polyline
-from compas.geometry import angle_vectors
-from compas.geometry import bounding_box_xy
-from compas.geometry import cross_vectors
-
-from compas_timber.elements import Panel
 from compas_timber.elements import Opening
+from compas_timber.elements import Panel
 
-from timber_design.populators import ElementGenerator
-from timber_design.populators import OpeningElementGenerator
-from timber_design.populators import PanelEdgeElementGeneratorA
-from timber_design.populators import PanelStudElementGeneratorA
-from timber_design.populators import PanelPlateElementGeneratorA
-
-
+# avoid package-level imports that can create circular imports; import generators locally in functions
 from timber_design.workflow import CategoryRule
-from .panel_generator_factory import PanelGeneratorFactory
+
 from .panel_generator_factory import GeneratorFactoryParams
-from .panel_generator_factory import get_transformation_to_populator_space
+from .panel_generator_factory import PanelGeneratorFactory
 from .panel_generator_factory import get_frame_panel
 
+if TYPE_CHECKING:
+    from timber_design.populators import ElementGenerator
 
 
 class StudPanelGeneratorFactoryParams(GeneratorFactoryParams):
     """Parameters for creating a panel element generator.
+
     Parameters
     ----------
     stud_direction : :class:`compas.geometry.Vector`, optional
@@ -49,19 +38,20 @@ class StudPanelGeneratorFactoryParams(GeneratorFactoryParams):
     joint_rule_overrides : list[:class:`compas_timber.design.CategoryRule`], optional
         A list of category rules to override the default ones.
     """
+
     def __init__(
         self,
         standard_beam_width: float,
-        stud_spacing:float|None=None,
-        standard_beam_width_increment:float|None=None,
-        edge_beam_min_width:float|None=None,
-        stud_direction:Vector|None=None,
-        sheeting_outside:float=0,
-        sheeting_inside:float=0,
+        stud_spacing: Union[float, None] = None,
+        standard_beam_width_increment: Union[float, None] = None,
+        edge_beam_min_width: Union[float, None] = None,
+        stud_direction: Union[Vector, None] = None,
+        sheeting_outside: float = 0,
+        sheeting_inside: float = 0,
         lintel_posts: bool = False,
         split_bottom_plate_beam: bool = False,
-        beam_width_overrides:dict|None=None,
-        joint_rule_overrides:list[CategoryRule]|None=None,
+        beam_width_overrides: Union[dict, None] = None,
+        joint_rule_overrides: Union[List[CategoryRule], None] = None,
     ):
         self.standard_beam_width = standard_beam_width
         self.stud_spacing = stud_spacing
@@ -78,49 +68,73 @@ class StudPanelGeneratorFactoryParams(GeneratorFactoryParams):
 
 class StudPanelGeneratorFactory(PanelGeneratorFactory):
     """Factory for creating stud panel element generators."""
+
     @classmethod
-    def create_generators(cls, populator_panel:Panel, params: StudPanelGeneratorFactoryParams, feature_generators:list[ElementGenerator]|None=None) ->  list[ElementGenerator]:
+    def create_generators(
+        cls, populator_panel: Panel, params: StudPanelGeneratorFactoryParams, feature_generators: Union[List['ElementGenerator'], None] = None
+    ) -> List['ElementGenerator']:
         """Create a stud panel element generator.
+
         Parameters
         ----------
         params : :class:`PanelGeneratorParams`
             Parameters for the generator.
+
         Returns
         -------
         list[:class:`timber_design.element_generators.ElementGenerator`]
             The created element generators.
         """
 
-        frame_panel= get_frame_panel(populator_panel, params)
+        # local imports to avoid circular imports at module import time
+                
 
-        generators = []
-        generators.append(PanelEdgeElementGeneratorA(
-            frame_panel,
-            standard_beam_width=params.standard_beam_width,
-            standard_beam_width_increment=params.standard_beam_width_increment,
-            edge_beam_min_width=params.edge_beam_min_width,
-            beam_width_overrides=params.beam_width_overrides,
-            joint_rule_overrides=params.joint_rule_overrides,
-            ))
+        frame_panel = get_frame_panel(populator_panel, params)
+        generators: List['ElementGenerator'] = []
+
+        from timber_design.populators import PanelEdgeElementGeneratorA
+        generators.append(
+            PanelEdgeElementGeneratorA(
+                frame_panel,
+                standard_beam_width=params.standard_beam_width,
+                standard_beam_width_increment=params.standard_beam_width_increment,
+                edge_beam_min_width=params.edge_beam_min_width,
+                beam_width_overrides=params.beam_width_overrides,
+                joint_rule_overrides=params.joint_rule_overrides,
+            )
+        )
 
         if params.stud_spacing:
-            generators.append(PanelStudElementGeneratorA(
-                frame_panel, stud_spacing=params.stud_spacing, standard_beam_width=params.standard_beam_width, beam_width_overrides=params.beam_width_overrides, joint_rule_overrides=params.joint_rule_overrides
-                ))
+            from timber_design.populators import PanelStudElementGeneratorA
+            generators.append(
+                PanelStudElementGeneratorA(
+                    frame_panel,
+                    stud_spacing=params.stud_spacing,
+                    standard_beam_width=params.standard_beam_width,
+                    beam_width_overrides=params.beam_width_overrides,
+                    joint_rule_overrides=params.joint_rule_overrides,
+                )
+            )
 
         if params.sheeting_inside or params.sheeting_outside:
+            from timber_design.populators import PanelPlateElementGeneratorA
             generators.append(PanelPlateElementGeneratorA(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
 
+        if any([isinstance(feature, Opening) for feature in populator_panel.features]):
+            from timber_design.populators import OpeningElementGenerator
         for feature in populator_panel.features:
             if isinstance(feature, Opening):
-                generators.append(OpeningElementGenerator(feature, params.standard_beam_width, params.lintel_posts, params.beam_width_overrides, params.joint_rule_overrides, params.split_bottom_plate_beam))
+                generators.append(
+                    OpeningElementGenerator(
+                        feature, params.standard_beam_width, params.lintel_posts, params.beam_width_overrides, params.joint_rule_overrides, params.split_bottom_plate_beam
+                    )
+                )
 
         if feature_generators:
+            #pass externally definged feature generators to be included in the panel
             generators.extend(feature_generators)
 
         for generator in generators:
-            generator.update_beam_dimensions(frame_panel.thickness)
-
+            generator.resolve_beam_dimensions(frame_panel.thickness)
 
         return generators
-

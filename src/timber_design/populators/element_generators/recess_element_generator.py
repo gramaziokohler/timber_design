@@ -1,18 +1,17 @@
+from typing import Union
+
 from compas.geometry import Translation
-from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas_timber.connections import LMiterJoint
-from compas_timber.elements import Plate
 from compas_timber.elements import Panel
+from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
-from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PanelPopulator
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -34,12 +33,12 @@ class RecessElementGenerator(ElementGenerator):
         self,
         frame_panel: Panel,
         edge_generator: ElementGenerator,
-        recess_beam_width:float,
-        recess_beam_height:float,
-        sheeting_inside:float,
-        standard_beam_width:float|None=None,
-        beam_width_overrides:dict|None=None,
-        joint_rule_overrides:list[CategoryRule]|None=None,
+        recess_beam_width: float,
+        recess_beam_height: float,
+        sheeting_inside: float,
+        standard_beam_width: Union[float, None] = None,
+        beam_width_overrides: Union[dict, None] = None,
+        joint_rule_overrides: Union[list[CategoryRule], None] = None,
     ):
         super(RecessElementGenerator, self).__init__(
             frame_panel,
@@ -66,7 +65,7 @@ class RecessElementGenerator(ElementGenerator):
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = self._create_internal_joints()
         return [rule for rule in rules if rule is not None]

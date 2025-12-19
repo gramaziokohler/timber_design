@@ -1,12 +1,13 @@
 import math
+from typing import Union
 
 from compas.geometry import Line
 from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Vector
-from compas.geometry import dot_vectors
 from compas.geometry import angle_vectors
 from compas.geometry import angle_vectors_signed
+from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
 from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
@@ -17,17 +18,15 @@ from compas_timber.elements import Beam
 from compas_timber.elements import Panel
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
-from compas_timber.utils import join_polyline_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
+from compas_timber.utils import join_polyline_segments
 
-from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
-from timber_design.populators import ElementGenerator
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PanelPopulator
 from timber_design.populators import split_beam_with_element_generators
+from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
 
 
 class PanelEdgeElementGeneratorA(ElementGenerator):
@@ -47,12 +46,12 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        standard_beam_width:float,
-        standard_beam_width_increment:float|None=None,
-        edge_beam_min_width:float|None=None,
-        beam_width_overrides:dict|None=None,
-        joint_rule_overrides:list[CategoryRule]|None=None,
-    )->None:
+        standard_beam_width: float,
+        standard_beam_width_increment: Union[float, None] = None,
+        edge_beam_min_width: Union[float, None] = None,
+        beam_width_overrides: Union[dict, None] = None,
+        joint_rule_overrides: Union[list[CategoryRule], None] = None,
+    ) -> None:
         super(PanelEdgeElementGeneratorA, self).__init__(
             panel,
             standard_beam_width,
@@ -67,7 +66,7 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
     def panel(self) -> Panel:
         """The panel associated with this element generator."""
         return self.feature  # type: ignore
-    
+
     @property
     def interior_corner_indices(self):
         """Get the indices of the interior corners of the panel outline."""
@@ -85,8 +84,8 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
     def interior_segment_indices(self):
         """Get the indices of the interior segments of the panel outline."""
         if not self._interior_corner_indices:
-            for i in range(len(self.panel.outline_a)-1):
-                if i in self.interior_corner_indices and (i + 1) % len(self.panel.outline_a)-1 in self.interior_corner_indices:
+            for i in range(len(self.panel.outline_a) - 1):
+                if i in self.interior_corner_indices and (i + 1) % len(self.panel.outline_a) - 1 in self.interior_corner_indices:
                     yield i
 
     # ==========================================================================
@@ -101,7 +100,7 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = []
         intersecting_generators = [eg for eg in element_generators if eg is not self]
@@ -117,13 +116,12 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
     def _create_edge_beams(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
-        for i in range(len(self.panel.outline_a)-1):
+        for i in range(len(self.panel.outline_a) - 1):
             seg, width = self._get_edge_beam_line_and_width(i, min_width=self.edge_beam_min_width, edge_beam_dim_increment=self.standard_beam_width_increment)
             segs.append(seg)
             widths.append(width)
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this generator
-        edge_elements = {}
         for i, (seg, width) in enumerate(zip(segs, widths)):
             edge_beam = Beam.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1))
             self._set_edge_beam_category(edge_beam, i)
@@ -159,7 +157,7 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
                 offset = abs(dot) + min_width - width / 2
         return outer_segment.translated(-perp_vector * offset), width
 
-    def _set_edge_beam_category(self, beam: Beam, index:int) -> None:
+    def _set_edge_beam_category(self, beam: Beam, index: int) -> None:
         if abs(beam.centerline.direction[0]) < abs(beam.centerline.direction[1]):
             beam.attributes["category"] = "edge_stud"
         else:
@@ -168,7 +166,7 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
             else:
                 beam.attributes["category"] = "top_plate_beam"
 
-    def _apply_linear_cut_to_edge_beam(self, beam: Beam, edge_index:int) -> None:
+    def _apply_linear_cut_to_edge_beam(self, beam: Beam, edge_index: int) -> None:
         """Trim the edge beams to fit between the plate beams."""
         plane = self.panel.edge_planes[edge_index]
         if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
@@ -209,9 +207,9 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
     def _create_internal_joints(self) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
         rules = []
-        for corner_index in range(len(self.panel.outline_a)-1):
+        for corner_index in range(len(self.panel.outline_a) - 1):
             edge_a_index = corner_index
-            edge_b_index = (edge_a_index - 1) % len(self.panel.outline_a)-1
+            edge_b_index = (edge_a_index - 1) % len(self.panel.outline_a) - 1
             interior_corner = edge_a_index in self.interior_corner_indices
             rule = self._create_edge_beam_joint_rule(self.panel.edge_planes, edge_a_index, edge_b_index, interior_corner)
             point = intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]

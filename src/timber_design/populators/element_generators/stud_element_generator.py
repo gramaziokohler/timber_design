@@ -1,6 +1,9 @@
+from typing import Dict
+from typing import List
+from typing import Union
+
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import Beam
 from compas_timber.elements import Panel
 
 from timber_design.populators import ElementGenerator
@@ -8,7 +11,6 @@ from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 from .generator_functions import split_beam_with_element_generators
-
 
 
 class PanelStudElementGeneratorA(ElementGenerator):
@@ -27,10 +29,10 @@ class PanelStudElementGeneratorA(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        stud_spacing:float,
-        standard_beam_width:float,
-        beam_width_overrides:dict|None=None,
-        joint_rule_overrides:list[CategoryRule]|None=None,
+        stud_spacing: float,
+        standard_beam_width: float,
+        beam_width_overrides: Union[Dict, None] = None,
+        joint_rule_overrides: Union[List[CategoryRule], None] = None,
     ):
         super(PanelStudElementGeneratorA, self).__init__(
             panel,
@@ -49,9 +51,9 @@ class PanelStudElementGeneratorA(ElementGenerator):
         """Populates the panel with stud beams."""
         self._create_studs()
 
-    def join_elements(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+    def join_elements(self, populator_direct_rules: Union[List[DirectRule], None], element_generators: List[ElementGenerator]) -> Union[List[DirectRule], None]:
         """Join the stud beams to neighboring ElementGenerator elements."""
-        intersecting_generators = [g for g in element_generators if g is not self] 
+        intersecting_generators = [g for g in element_generators if g is not self]
         return self._join_studs(populator_direct_rules, intersecting_generators)
 
     def _create_studs(self):
@@ -63,7 +65,7 @@ class PanelStudElementGeneratorA(ElementGenerator):
             x_position += self.stud_spacing
         self.elements = studs
 
-    def _join_studs(self, populator_direct_rules:list[DirectRule], element_generators:list[ElementGenerator])->list[DirectRule]:
+    def _join_studs(self, populator_direct_rules: Union[List[DirectRule], None], element_generators: List[ElementGenerator]) -> List[DirectRule]:
         """Joins the stud beams."""
         intersecting_generators = element_generators
         elements = []

@@ -1,16 +1,17 @@
+from typing import Union
+
+from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Translation
 from compas.geometry import Vector
-from compas.geometry import Line
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
 from compas.itertools import pairwise
-
 from compas_timber.elements import Beam
 
-from timber_design.workflow import DirectRule
 from timber_design.populators import ElementGenerator
+from timber_design.workflow import DirectRule
 
 
 def get_beam_element_generator_intersection(beam: Beam, element_generator: ElementGenerator) -> dict[int, dict]:
@@ -138,7 +139,7 @@ def intersection_line_feature_definition(line: Line, element_generator: ElementG
 
 def split_beam_with_element_generators(
     beam: Beam, element_generators: list[ElementGenerator], ignore_notches: bool = False, ignore_laps: bool = False
-) -> tuple[list[tuple[Beam | None, tuple[dict | None, dict | None]]], list[DirectRule]]:
+) -> tuple[list[tuple[Union[Beam, None], tuple[Union[dict, None], Union[dict, None]]]], list[DirectRule]]:
     """Removes a section of a beam that intersects with a given outline.
 
     Parameters
@@ -211,7 +212,7 @@ def split_beam_with_element_generators(
 
 def extend_beam_to_closest_element_generators(
     beam: Beam, element_generators: list[ElementGenerator], only_start: bool = False, only_end: bool = False
-) -> tuple[Beam | None, dict | None, dict | None]:
+) -> tuple[Union[Beam, None], Union[dict, None], Union[dict, None]]:
     """Extends a beam to fit within a given outline.
 
     Parameters

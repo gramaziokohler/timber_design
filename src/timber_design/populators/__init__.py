@@ -28,6 +28,7 @@ __all__ = [
     "PanelStudElementGeneratorA",
     "PanelPlateElementGeneratorA",
     "OpeningElementGenerator",
+    "RecessElementGenerator",
     "get_beam_edges_element_generator_intersection",
     "get_beam_element_generator_intersection",
     "split_beam_with_element_generators",

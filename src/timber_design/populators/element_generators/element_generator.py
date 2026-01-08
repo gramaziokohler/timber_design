@@ -1,4 +1,5 @@
 from abc import ABC
+from abc import abstractmethod
 from typing import Union
 
 from compas.geometry import Line
@@ -30,7 +31,8 @@ class FeatureBoundaryType(object):
 
 
 class ElementGenerator(ABC):
-    """Abstract class for an element generator. An element generator creates elements to populate a panel.
+    """Abstract class for an element generator.
+    An ElementGenerator creates a specific set of elements to populate a panel, for example studs, edge beams, plates, or elements necessary for a SlabFeature.
     It also creates the necessary joint definitions between the generated elements and other elements in the same panel.
 
     Parameters
@@ -170,10 +172,12 @@ class ElementGenerator(ABC):
         """Apply the element group's feature definition to the plate based on the element generator."""
         pass
 
+    @abstractmethod
     def generate_elements(self):
-        """Generates elements for the panel based on the panel populator and optional feature definition."""  
+        """Generates elements for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
+    @abstractmethod
     def join_elements(self, populator_direct_rules, element_generators) -> list[DirectRule]:
-        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""  
+        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

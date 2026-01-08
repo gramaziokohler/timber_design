@@ -15,11 +15,6 @@ from timber_design.populators import FeatureBoundaryType
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
-# ==========================================================================
-# methods for edge beams
-# ==========================================================================
-
-
 class RecessElementGenerator(ElementGenerator):
     """A panel detail set that uses the default edge beams, studs, and plates."""
 

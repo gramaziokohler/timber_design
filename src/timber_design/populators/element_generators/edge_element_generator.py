@@ -29,7 +29,7 @@ from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
-class PanelEdgeElementGeneratorA(ElementGenerator):
+class EdgeElementGenerator(ElementGenerator):
     """A panel detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
@@ -52,7 +52,7 @@ class PanelEdgeElementGeneratorA(ElementGenerator):
         beam_width_overrides: Union[dict, None] = None,
         joint_rule_overrides: Union[list[CategoryRule], None] = None,
     ) -> None:
-        super(PanelEdgeElementGeneratorA, self).__init__(
+        super(EdgeElementGenerator, self).__init__(
             panel,
             standard_beam_width,
             beam_width_overrides,

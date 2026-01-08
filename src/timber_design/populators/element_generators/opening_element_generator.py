@@ -28,13 +28,6 @@ from timber_design.workflow import DirectRule
 
 from .generator_functions import extend_beam_to_closest_element_generators
 
-BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
-
-# ==========================================================================
-# Opening element creation functions
-# ==========================================================================
-
-
 class OpeningElementGenerator(ElementGenerator):
     """A panel detail set that uses the edge beams and plates but no studs."""
 

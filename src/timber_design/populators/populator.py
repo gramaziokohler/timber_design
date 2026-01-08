@@ -1,11 +1,11 @@
 from typing import Union
 
-
 try:
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
         from compas_timber.elements import Panel
+
         from timber_design.populators import ElementGenerator
         from timber_design.populators import GeneratorFactoryParams
         from timber_design.populators import PanelGeneratorFactory
@@ -14,8 +14,6 @@ except ImportError:
     pass
 
 from compas_timber.model import TimberModel
-
-
 
 
 class FeatureDefinition(object):
@@ -64,7 +62,8 @@ class PanelPopulator(object):
 
     """
 
-    def __init__(self, panel: Panel, params: GeneratorFactoryParams, factory: PanelGeneratorFactory, feature_generators: Union[list[ElementGenerator], None] = None) -> None:
+    def __init__(self, panel, params, factory, feature_generators = None):
+        #type: (Panel, GeneratorFactoryParams, PanelGeneratorFactory, Union[list[ElementGenerator], None]) -> None
         super(PanelPopulator, self).__init__()
         self.original_panel: Panel = panel
         self._local_panel, self.transformation_panel_to_populator, feature_generators = factory.create_local_data(panel, params, feature_generators)

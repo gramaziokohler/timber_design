@@ -13,7 +13,7 @@ from timber_design.workflow import DirectRule
 from .generator_functions import split_beam_with_element_generators
 
 
-class PanelStudElementGeneratorA(ElementGenerator):
+class StudElementGenerator(ElementGenerator):
     """A panel detail set that uses the default edge beams, studs, and plates."""
 
     BEAM_CATEGORY_NAMES = ["stud"]
@@ -34,7 +34,7 @@ class PanelStudElementGeneratorA(ElementGenerator):
         beam_width_overrides: Union[Dict, None] = None,
         joint_rule_overrides: Union[List[CategoryRule], None] = None,
     ):
-        super(PanelStudElementGeneratorA, self).__init__(
+        super(StudElementGenerator, self).__init__(
             panel,
             standard_beam_width,
             beam_width_overrides,

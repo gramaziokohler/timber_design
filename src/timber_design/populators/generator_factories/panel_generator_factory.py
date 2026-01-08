@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
-from typing import Union, TYPE_CHECKING, List
+from typing import TYPE_CHECKING
+from typing import List
+from typing import Union
 
 from compas.geometry import Frame
 from compas.geometry import Point
@@ -16,15 +18,20 @@ from compas_timber.elements import Panel
 
 # type-only import to avoid circular imports
 if TYPE_CHECKING:
-    from timber_design.populators import ElementGenerator, GeneratorFactoryParams
+    from timber_design.populators import ElementGenerator
+    from timber_design.populators import GeneratorFactoryParams
 
 
 class PanelGeneratorFactory(ABC):
-    """Abstract factory class for creating element generators."""
+    """Abstract factory class for creating element generators.
+    The factory takes a panel, a generator parameters object, and an optional list of feature element generators as input and produces one or more element generators to populate the panel.
+    different types of panel element generator factories can be implemented by subclassing this class and implementing the `create_generator` method.
+    these subclasses would be used to create specific sets of element generators that populate a specific wall type.
+    """
 
     @classmethod
     @abstractmethod
-    def create_generators(cls, panel: Panel, params: 'GeneratorFactoryParams', feature_generators: Union[List['ElementGenerator'], None] = None) -> List['ElementGenerator']:
+    def create_generators(cls, panel: Panel, params: GeneratorFactoryParams, feature_generators: Union[List[ElementGenerator], None] = None) -> List[ElementGenerator]:
         """Create an element generator.
         Parameters
         ----------
@@ -39,17 +46,21 @@ class PanelGeneratorFactory(ABC):
 
     @classmethod
     def create_local_data(
-        cls, panel: Panel, params: 'GeneratorFactoryParams', feature_generators: Union[List['ElementGenerator'], None] = None
-    ) -> tuple[Panel, Transformation, List['ElementGenerator']]:
+        cls, panel: Panel, params: GeneratorFactoryParams, feature_generators: Union[List[ElementGenerator], None] = None
+    ) -> tuple[Panel, Transformation, List[ElementGenerator]]:
         """Create a local panel for the generator.
         Parameters
         ----------
-        params
-            Keyword arguments for the generator.
+        panel : :class:`compas_timber.elements.Panel`
+            The panel to be populated.
+        params : :class:`timber_design.populators.GeneratorFactoryParams`
+                Keyword arguments for the generator.
+        feature_generators : list[:class:`timber_design.populators.ElementGenerator`], optional
+            A list of feature generators to consider when populating the panel.
         Returns
         -------
-        :class:`compas_timber.elements.Panel`
-            The created local panel.
+        tuple[:class:`compas_timber.elements.Panel`, :class:`compas.geometry.Transformation`, list[:class:`timber_design.populators.ElementGenerator`]]
+            The local panel, the transformation to the populator space, and the updated feature generators.
         """
         transformation_panel_to_populator = get_transformation_to_populator_space(panel, params)
 
@@ -60,7 +71,9 @@ class PanelGeneratorFactory(ABC):
         generator_features = [f.feature for f in feature_generators] if feature_generators else []
         for feature in panel.features:
             if feature not in generator_features:
+                #local panel keeps features, only if they don't have a dedicated generator
                 local_panel.add_feature(feature.transformed(transformation_panel_to_populator))
+
         for generator in feature_generators or []:
             generator.feature = generator.feature.transformed(transformation_panel_to_populator)
         return local_panel, transformation_panel_to_populator, feature_generators or []
@@ -73,7 +86,7 @@ class GeneratorFactoryParams(ABC):
 
 
 def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactoryParams) -> Transformation:
-    """The panel_populator frame in global space."""
+    """The Transformation from panel space to slab populator space."""
     stud_dir = getattr(params, "stud_direction", Vector(0, 1, 0))
 
     stud_dir.transform(panel.transformation.inverse())  # bring stud direction into local panel space
@@ -95,9 +108,9 @@ def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactory
     return Transformation.from_frame(frame).inverse()
 
 
-def get_frame_panel(panel, params):
+def get_frame_panel(panel:Panel, params:GeneratorFactoryParams)->Panel:
     """Handles the sheeting offsets for the panel outlines."""
-    """This method creates new outlines for the beam frame based on the sheeting thicknesses."""
+    """This method creates a panel that represents the original panel frame without sheeting."""
 
     if not params.sheeting_inside:
         frame_outline_a = panel.outline_a

@@ -14,18 +14,35 @@ from timber_design.populators import ElementGenerator
 from timber_design.workflow import DirectRule
 
 
-def get_beam_element_generator_intersection(beam: Beam, element_generator: ElementGenerator) -> dict[int, dict]:
-    intersections = {}
-    for index, edge in element_generator.edges.items():
-        pt = intersection_line_segment(beam.centerline, edge)[0]
-        if pt:
-            intersections[index] = {
-                "point": Point(*pt),
-                "dot": dot_vectors(Vector.from_start_end(beam.frame.point, pt), beam.frame.xaxis),
-                "beam": element_generator.edge_elements[index][0],
-                "element_generator": element_generator,
-            }
-    return intersections
+class BeamGeneratorIntersectionType(object):
+    """Types of beam-element generator intersections.
+    SINGLE: both beam edges intersect the same edge of the element generator.
+    CORNER: each beam edge intersects an adjacent edge of the element generator.
+    NOTCH: one beam edge intersects adjacent edges of the element generator, but on the same
+    LAP: beam edges intersect non-adjacent edges of the element generator.
+    """
+
+    SINGLE = "single"
+    CORNER = "corner"
+    NOTCH = "notch"
+    LAP = "lap"
+
+class BeamGeneratorIntersection(object):
+    def __init__(
+        self,
+        intersection_type: str,
+        point: Point,
+        dot: float,
+        edge_indices: list[int],
+        beam: Beam,
+        element_generator: ElementGenerator,
+    ):
+        self.intersection_type = intersection_type 
+        self.point = point
+        self.dot = dot
+        self.edge_indices = edge_indices
+        self.beam = beam
+        self.element_generator = element_generator
 
 
 def get_beam_edges_element_generator_intersection(

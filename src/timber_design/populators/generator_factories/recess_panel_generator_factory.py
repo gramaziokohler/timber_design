@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Union, TYPE_CHECKING, List
+from typing import TYPE_CHECKING
+from typing import List
+from typing import Union
 
 from compas_timber.elements import Panel
 
@@ -65,8 +67,8 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
 
     @classmethod
     def create_generators(
-        cls, populator_panel: Panel, params: RecessPanelGeneratorFactoryParams, feature_generators: Union[List['ElementGenerator'], None] = None
-    ) -> List['ElementGenerator']:
+        cls, populator_panel: Panel, params: RecessPanelGeneratorFactoryParams, feature_generators: Union[List["ElementGenerator"], None] = None
+    ) -> List["ElementGenerator"]:
         """Create a stud panel element generator.
 
         Parameters
@@ -81,14 +83,14 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
         """
 
         # local imports to avoid circular imports at module import time
-        from timber_design.populators.element_generators.edge_element_generator import PanelEdgeElementGeneratorA
+        from timber_design.populators.element_generators.edge_element_generator import EdgeElementGenerator
         from timber_design.populators.element_generators.recess_element_generator import RecessElementGenerator
 
         frame_panel = get_frame_panel(populator_panel, params)
 
-        generators: List['ElementGenerator'] = []
+        generators: List["ElementGenerator"] = []
         generators.append(
-            PanelEdgeElementGeneratorA(
+            EdgeElementGenerator(
                 frame_panel,
                 standard_beam_width=params.standard_beam_width,
                 standard_beam_width_increment=params.standard_beam_width_increment,
@@ -111,8 +113,9 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
         )
 
         if params.sheeting_inside or params.sheeting_outside:
-            from timber_design.populators.element_generators.plate_element_generator import PanelPlateElementGeneratorA
-            generators.append(PanelPlateElementGeneratorA(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
+            from timber_design.populators.element_generators.plate_element_generator import PlateElementGenerator
+
+            generators.append(PlateElementGenerator(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
 
         if feature_generators:
             generators.extend(feature_generators)

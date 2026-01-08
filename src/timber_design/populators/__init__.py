@@ -3,9 +3,9 @@ from .populator import FeatureDefinition
 
 from .element_generators.element_generator import ElementGenerator
 from .element_generators.element_generator import FeatureBoundaryType
-from .element_generators.stud_element_generator import PanelStudElementGeneratorA
-from .element_generators.plate_element_generator import PanelPlateElementGeneratorA
-from .element_generators.edge_element_generator import PanelEdgeElementGeneratorA
+from .element_generators.stud_element_generator import StudElementGenerator
+from .element_generators.plate_element_generator import PlateElementGenerator
+from .element_generators.edge_element_generator import EdgeElementGenerator
 from .element_generators.opening_element_generator import OpeningElementGenerator
 from .element_generators.recess_element_generator import RecessElementGenerator
 from .element_generators.generator_functions import get_beam_edges_element_generator_intersection
@@ -24,9 +24,9 @@ __all__ = [
     "FeatureDefinition",
     "ElementGenerator",
     "FeatureBoundaryType",
-    "PanelEdgeElementGeneratorA",
-    "PanelStudElementGeneratorA",
-    "PanelPlateElementGeneratorA",
+    "EdgeElementGenerator",
+    "StudElementGenerator",
+    "PlateElementGenerator",
     "OpeningElementGenerator",
     "RecessElementGenerator",
     "get_beam_edges_element_generator_intersection",

@@ -89,7 +89,7 @@ class PanelPopulator(object):
         for g in self.element_generators:
             g.generate_elements()
         for g in self.element_generators:
-            rules: list[DirectRule] = g.join_elements(self)
+            rules: list[DirectRule] = g.join_elements(self.direct_rules, self.element_generators)
             self.direct_rules.extend(rules)
 
     def process_joinery(self):

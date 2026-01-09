@@ -61,7 +61,7 @@ class ElementGenerator(ABC):
             self.rules = self.update_rules(joint_rule_overrides)
         else:
             self.rules = self.RULES
-        self.beam_dimensions = {}  # to be populated with update_beam_dimensions
+        self.beam_dimensions:dict[str,tuple[float,float]] = {}  # to be populated with update_beam_dimensions
 
         self.elements = []
         self.edges = {}
@@ -166,6 +166,10 @@ class ElementGenerator(ABC):
 
     def cull_beam_segment(self, beam: Beam) -> bool:
         """Determines whether the beam segment should be culled by the element generator."""
+        return False
+
+    def cull_element_at_point(self, point) -> bool:
+        """Determines whether an element at the given point should be culled by the element generator."""
         return False
 
     def apply_to_plate(self, plate: Plate) -> None:

@@ -88,7 +88,8 @@ class GeneratorFactoryParams(ABC):
 def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactoryParams) -> Transformation:
     """The Transformation from panel space to slab populator space."""
     stud_dir = getattr(params, "stud_direction", Vector(0, 1, 0))
-
+    if not panel.transformation:
+        raise ValueError("Panel transformation is not defined. The panel must belong to a model")
     stud_dir.transform(panel.transformation.inverse())  # bring stud direction into local panel space
     if angle_vectors(stud_dir, Vector(0, 0, 1)) < 1e-3 or angle_vectors(stud_dir, Vector(0, 0, -1)) < 1e-3:
         stud_dir = Vector(0, 1, 0)
@@ -111,21 +112,22 @@ def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactory
 def get_frame_panel(panel:Panel, params:GeneratorFactoryParams)->Panel:
     """Handles the sheeting offsets for the panel outlines."""
     """This method creates a panel that represents the original panel frame without sheeting."""
-
-    if not params.sheeting_inside:
+    si = getattr(params, "sheeting_inside", 0)
+    if not si:
         frame_outline_a = panel.outline_a
     else:
-        offset_inside = params.sheeting_inside / panel.thickness
+        offset_inside = si / panel.thickness
         pts_inside = []
         for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points):
             pt = pt_a * (1 - offset_inside) + pt_b * offset_inside
             pts_inside.append(pt)
         frame_outline_a = Polyline(pts_inside)
 
-    if not params.sheeting_outside:
+    so = getattr(params, "sheeting_outside", 0)
+    if not so:
         frame_outline_b = panel.outline_b
     else:
-        offset_outside = params.sheeting_outside / panel.thickness
+        offset_outside = so / panel.thickness
         pts_outside = []
         for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points):
             pts_outside.append(pt_a * offset_outside + pt_b * (1 - offset_outside))

@@ -91,8 +91,8 @@ class RecessElementGenerator(ElementGenerator):
         elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_inside, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
-        self.outline = self.edge_generator.outline.copy()
-        self.edges = ({index: edge for index, edge in enumerate(self.outline.lines)},)
+        self.outline = self.edge_generator.outline.copy() if self.edge_generator.outline else None
+        self.edges = ({index: edge for index, edge in enumerate(self.outline.lines)},) if self.outline else ({},)
         self.edge_elements = ({index: [edge] for index, edge in enumerate(new_centerlines)},)
         self.boundary_type = (FeatureBoundaryType.INCLUSIVE,)
 
@@ -123,6 +123,8 @@ class RecessElementGenerator(ElementGenerator):
         :class:`compas_timber.errors.FeatureApplicationError`
             If the opening cannot be applied to the panel.
         """
+        if not self.outline:
+            raise ValueError("No outline defined for recess element generator.")
         outline = self.outline.transformed(Translation.from_vector(Vector(0, 0, plate.outline_a[0].z)))
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)

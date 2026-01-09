@@ -8,9 +8,8 @@ from .element_generators.plate_element_generator import PlateElementGenerator
 from .element_generators.edge_element_generator import EdgeElementGenerator
 from .element_generators.opening_element_generator import OpeningElementGenerator
 from .element_generators.recess_element_generator import RecessElementGenerator
-from .element_generators.generator_functions import get_beam_edges_element_generator_intersection
-from .element_generators.generator_functions import get_beam_element_generator_intersection
-from .element_generators.generator_functions import split_beam_with_element_generators
+from .generator_intersection import extend_beam_to_closest_element_generators
+from .generator_intersection import split_beam_with_element_generators
 
 from .generator_factories.panel_generator_factory import PanelGeneratorFactory
 from .generator_factories.panel_generator_factory import GeneratorFactoryParams
@@ -29,8 +28,7 @@ __all__ = [
     "PlateElementGenerator",
     "OpeningElementGenerator",
     "RecessElementGenerator",
-    "get_beam_edges_element_generator_intersection",
-    "get_beam_element_generator_intersection",
+    "extend_beam_to_closest_element_generators",
     "split_beam_with_element_generators",
     "PanelGeneratorFactory",
     "GeneratorFactoryParams",

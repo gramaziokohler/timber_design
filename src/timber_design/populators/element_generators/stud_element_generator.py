@@ -10,7 +10,7 @@ from timber_design.populators import ElementGenerator
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
-from .generator_functions import split_beam_with_element_generators
+from timber_design.populators import split_beam_with_element_generators
 
 
 class StudElementGenerator(ElementGenerator):
@@ -51,7 +51,7 @@ class StudElementGenerator(ElementGenerator):
         """Populates the panel with stud beams."""
         self._create_studs()
 
-    def join_elements(self, populator_direct_rules: Union[List[DirectRule], None], element_generators: List[ElementGenerator]) -> Union[List[DirectRule], None]:
+    def join_elements(self, populator_direct_rules: List[DirectRule], element_generators: List[ElementGenerator]) -> Union[List[DirectRule], None]:
         """Join the stud beams to neighboring ElementGenerator elements."""
         intersecting_generators = [g for g in element_generators if g is not self]
         return self._join_studs(populator_direct_rules, intersecting_generators)
@@ -65,7 +65,7 @@ class StudElementGenerator(ElementGenerator):
             x_position += self.stud_spacing
         self.elements = studs
 
-    def _join_studs(self, populator_direct_rules: Union[List[DirectRule], None], element_generators: List[ElementGenerator]) -> List[DirectRule]:
+    def _join_studs(self, populator_direct_rules: List[DirectRule], element_generators: List[ElementGenerator]) -> List[DirectRule]:
         """Joins the stud beams."""
         intersecting_generators = element_generators
         elements = []
@@ -76,16 +76,15 @@ class StudElementGenerator(ElementGenerator):
             for j in joints_to_cull:
                 if j in populator_direct_rules:
                     populator_direct_rules.remove(j)
-            for bt in beam_tuples:
-                beam, (start_int, end_int) = bt
+            for beam, (start_int, end_int) in beam_tuples:
                 if not beam or beam.length < min_length:
                     continue
                 elements.append(beam)
                 for intersection in [start_int, end_int]:
                     if not intersection:
                         continue
-                    for index in intersection.get("edge_indices", []):
-                        beams = intersection["element_generator"].edge_elements.get(index, [])
+                    for index in intersection.edge_indices:
+                        beams = intersection.generator.edge_elements.get(index, []) if intersection.generator else []
                         for intersecting_beam in beams:
                             rules.append(self.get_direct_rule_from_elements(beam, intersecting_beam))
         self.elements = elements

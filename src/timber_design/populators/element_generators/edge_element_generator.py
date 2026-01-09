@@ -192,14 +192,14 @@ class EdgeElementGenerator(ElementGenerator):
                     if beam:
                         self.elements.append(beam)
                         edge_elements[index].append(beam)
-                    for intersection in ints:
-                        if not intersection:
-                            continue
-                        for int_index in intersection.get("edge_indices", []):
-                            beams = intersection["element_generator"].edge_elements.get(int_index, [])
-                            params = intersection["element_generator"]
-                            for intersecting_beam in beams:
-                                rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
+                        for intersection in ints:
+                            if not intersection:
+                                continue
+                            for int_index in intersection.edge_indices:
+                                beams = intersection.generator.edge_elements.get(int_index, []) if intersection.generator else []
+                                params = intersection.generator or self
+                                for intersecting_beam in beams:
+                                    rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
 
         self.edge_elements = edge_elements
         return [rule for rule in rules if rule is not None]
@@ -236,11 +236,11 @@ class EdgeElementGenerator(ElementGenerator):
         if miter:
             if interior_corner:
                 ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
-                ref_side_main = beam_ref_side_incidence(beam_a, beam_b)
-                front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main, key=ref_side_main.get)])
+                ref_side_main:dict[int,float] = beam_ref_side_incidence(beam_a, beam_b)
+                front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main.items(), key=lambda x: x[1])])
 
-                ref_side_cross = beam_ref_side_incidence(beam_b, beam_a)
-                front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross, key=ref_side_cross.get)])
+                ref_side_cross:dict[int,float] = beam_ref_side_incidence(beam_b, beam_a)
+                front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])])
 
                 ccx = intersection_plane_plane(front_a, front_b)
 

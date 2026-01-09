@@ -1,3 +1,4 @@
+from _typeshed import NoneType
 from collections import OrderedDict
 from typing import Union
 
@@ -26,7 +27,7 @@ from timber_design.populators import FeatureBoundaryType
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
-from .generator_functions import extend_beam_to_closest_element_generators
+from timber_design.populators import extend_beam_to_closest_element_generators
 
 class OpeningElementGenerator(ElementGenerator):
     """A panel detail set that uses the edge beams and plates but no studs."""
@@ -165,7 +166,11 @@ class OpeningElementGenerator(ElementGenerator):
         self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
-        thickness = self.beam_dimensions.get("king_stud")[1] / 2  # TODO: use frame_thickness
+        king_dims=self.beam_dimensions.get("king_stud")
+        if king_dims:
+            thickness = king_dims[1] / 2  # TODO: use frame_thickness
+        else:
+            raise ValueError("Beam dimensions for 'king_stud' not found.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
         opening_a = Polyline([intersection_line_plane(line, Plane((0, 0, -thickness), (0, 0, 1))) for line in lines])
         opening_b = Polyline([intersection_line_plane(line, Plane((0, 0, thickness), (0, 0, 1))) for line in lines])
@@ -221,9 +226,9 @@ class OpeningElementGenerator(ElementGenerator):
 
     def _get_internal_joints(self) -> list[DirectRule]:
         """Join the sill and header to king and jack studs."""
-        sill = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
-        if sill:
-            sill = sill[0]
+        sills:list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
+
+        
         header = list(filter(lambda x: x.attributes["category"] == "header", self.elements))[0]
         king_studs = filter(lambda x: x.attributes["category"] == "king_stud", self.elements)
         jack_studs = filter(lambda x: x.attributes["category"] == "jack_stud", self.elements)
@@ -235,7 +240,8 @@ class OpeningElementGenerator(ElementGenerator):
             if jack:
                 rules.append(self.get_direct_rule_from_elements(jack, header, max_distance=jack.width / 2))
         # join sill
-        if sill:
+        if sills:
+            sill:Beam = sills[0]
             for jack, king in zip(jack_studs, king_studs):
                 if jack:
                     rules.append(self.get_direct_rule_from_elements(sill, jack, max_distance=jack.width / 2))
@@ -252,11 +258,14 @@ class OpeningElementGenerator(ElementGenerator):
             # extend king stud to closest intersecting features
             king_stud, bottom_int, top_int = extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
             # create joints
+            if not king_stud:
+                raise ValueError("Failed to extend king stud to intersecting elements.")
             for intersection in [bottom_int, top_int]:
-                for index in intersection["edge_indices"]:
-                    beams = intersection["element_generator"].edge_elements.get(index, [])
-                    for beam in beams:
-                        rules.append(self.get_direct_rule_from_elements(king_stud, beam))
+                if intersection is not None:
+                    for index in intersection.edge_indices:
+                        beams = intersection.generator.edge_elements.get(index, []) if intersection.generator else []
+                        for beam in beams:
+                            rules.append(self.get_direct_rule_from_elements(king_stud, beam))
 
         for jack_stud in filter(lambda x: x.attributes["category"] == "jack_stud", self.elements):
             if jack_stud is None:
@@ -264,8 +273,12 @@ class OpeningElementGenerator(ElementGenerator):
             # extend jack stud to closest intersecting features
             jack_stud, bottom_int, _ = extend_beam_to_closest_element_generators(jack_stud, intersecting_generators, only_start=True)
             # create joints
-            for index in bottom_int["edge_indices"]:
-                beams = bottom_int["element_generator"].edge_elements.get(index, [])
+            if not jack_stud:
+                raise ValueError("Failed to extend jack stud to intersecting elements.")
+            if not bottom_int:
+                continue
+            for index in bottom_int.edge_indices:
+                beams = bottom_int.generator.edge_elements.get(index, []) if bottom_int.generator else []
                 for beam in beams:
                     rules.append(self.get_direct_rule_from_elements(jack_stud, beam))
         return [rule for rule in rules if rule is not None]

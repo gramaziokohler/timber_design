@@ -1,8 +1,12 @@
-from re import L
+from __future__ import annotations
 from typing import Union
 from typing import Optional
+from typing import TYPE_CHECKING
+from itertools import product
+if TYPE_CHECKING:
+    from timber_design.populators import ElementGenerator
+    from timber_design.workflow import DirectRule
 
-from attr import s
 from compas.geometry import Line, distance_point_point
 from compas.geometry import Point
 from compas.geometry import Translation
@@ -12,11 +16,9 @@ from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
 from compas.geometry import closest_point_on_line
 from compas.itertools import pairwise
-from compas_model.elements import beam
 from compas_timber.elements import Beam
 
-from timber_design.populators import ElementGenerator
-from timber_design.workflow import DirectRule
+
 
 class LineGeneratorIntersection(object):
     def __init__(
@@ -67,42 +69,53 @@ class BeamGeneratorIntersection(object):
     @classmethod
     def from_beam_and_generator(cls, beam: Beam, element_generator: ElementGenerator, limit_to_segments: bool = True, skip_notches:bool=False, skip_laps:bool=False):
         intersections_a, intersections_b = cls._get_edge_intersections(beam, element_generator, limit_to_segments)
-        edge_count = len(element_generator.edges)
 
         intersections, leftovers_a, leftovers_b = cls._parse_simple_intersections(intersections_a, intersections_b, beam, element_generator)
+        if leftovers_a and leftovers_b:
+            corner_intersections, leftovers_a, leftovers_b = cls._parse_corner_intersections(leftovers_a, leftovers_b, beam, element_generator)
+            intersections.extend(corner_intersections)
+            print("leftovers after corner: a:{}".format([l.edge_index for l in leftovers_a]))
+            print("leftovers after corner: b:{}".format([l.edge_index for l in leftovers_b]))
 
-        corner_intersections, leftovers_a, leftovers_b = cls._parse_corner_intersections(leftovers_a, leftovers_b, beam, element_generator)
-        intersections.extend(corner_intersections)
-        if not skip_notches:
-            notch_intersections, leftovers_a, leftovers_b = cls._parse_notch_intersections(leftovers_a, leftovers_b, beam, element_generator)
-            intersections.extend(notch_intersections)
-            if not skip_laps:
-                lap_intersections = cls._parse_lap_intersections(leftovers_a, leftovers_b, beam, element_generator)
-                intersections.extend(lap_intersections)
+        if leftovers_a or leftovers_b:    
+            if not skip_notches:
+                notch_intersections, leftovers_a, leftovers_b = cls._parse_notch_intersections(leftovers_a, leftovers_b, beam, element_generator)
+                intersections.extend(notch_intersections)
+                print("leftovers after notch: a:{}".format([l.edge_index for l in leftovers_a]))
+                print("leftovers after notch: b:{}".format([l.edge_index for l in leftovers_b]))
+                if not skip_laps:
+                    lap_intersections = cls._parse_lap_intersections(leftovers_a, leftovers_b, beam, element_generator)
+                    intersections.extend(lap_intersections)
+        for inter in intersections:
+            print("intersection type: ", inter.type, "at indices: ", inter.edge_indices)
         return intersections
 
     @staticmethod
     def _parse_simple_intersections(intersections_a:list[LineGeneratorIntersection], intersections_b: list[LineGeneratorIntersection], beam:Beam, element_generator:ElementGenerator):
         """gets BeamGeneratorIntersection objects from lists of LineGeneratorIntersection objects.
             Simple intersections are those where both beam edges intersect the same edge of the element generator."""
-        keys_a = {i.edge_index for i in intersections_a}
-        keys_b = {i.edge_index for i in intersections_b}
-        simple_keys = list(keys_a.intersection(keys_b))
+        leftovers_a = [i for i in intersections_a]
+        leftovers_b = [i for i in intersections_b]        
+
         simple_intersections: list[BeamGeneratorIntersection] = []
-        for i in simple_keys:
-            simple_intersections.append(
-                BeamGeneratorIntersection(
-                    type=BeamGeneratorIntersectionType.SINGLE,
-                    point=(intersections_a[i].point + intersections_b[i].point) / 2,
-                    dot=(intersections_a[i].dot + intersections_b[i].dot) / 2,
-                    edge_indices=[i],
-                    beam=beam,
-                    generator=element_generator,
+        for i_a, i_b in product(intersections_a, intersections_b):
+            if i_a.edge_index == i_b.edge_index:
+                simple_intersections.append(
+                    BeamGeneratorIntersection(
+                        type=BeamGeneratorIntersectionType.SINGLE,
+                        point=(i_a.point + i_b.point) / 2,
+                        dot=(i_a.dot + i_b.dot) / 2,
+                        edge_indices=[i_a.edge_index],
+                        beam=beam,
+                        generator=element_generator,
+                    )
                 )
-            )
-        leftovers_a = list(set(intersections_a) - set(intersections_b))
-        leftovers_b = list(set(intersections_b) - set(intersections_a))
+                leftovers_a.remove(i_a)
+                leftovers_b.remove(i_b)
+                
         return simple_intersections, leftovers_a, leftovers_b
+
+
 
     @staticmethod
     def _parse_corner_intersections(intersections_a:list[LineGeneratorIntersection], intersections_b:list[LineGeneratorIntersection], beam:Beam, generator:ElementGenerator):
@@ -112,23 +125,22 @@ class BeamGeneratorIntersection(object):
         leftovers_a = [i for i in intersections_a]
         leftovers_b = [i for i in intersections_b]
         corner_intersections = []
-        for int_a in intersections_a:
-            adjacent_indices = [(int_a.edge_index - 1) % len(generator.edges), (int_a.edge_index + 1) % len(generator.edges)]
-            for int_b in intersections_b:
-                if int_b.edge_index in adjacent_indices:
-                    corner_intersections.append(
-                        BeamGeneratorIntersection(
-                            type=BeamGeneratorIntersectionType.CORNER,
-                            point=(int_a.point + int_b.point) / 2,
-                            dot=(int_a.dot + int_b.dot) / 2,
-                            edge_indices=[int_a.edge_index, int_b.edge_index],
-                            beam=beam,
-                            generator=generator,
+        for i_a, i_b in product(intersections_a, intersections_b):
+            edge_difference=abs(i_a.edge_index-i_b.edge_index)
+            if edge_difference==1 or edge_difference == len(generator.edges)-1:
+                corner_intersections.append(
+                    BeamGeneratorIntersection(
+                        type=BeamGeneratorIntersectionType.CORNER,
+                        point=(i_a.point + i_b.point) / 2,
+                        dot=(i_a.dot + i_b.dot) / 2,
+                        edge_indices=[i_a.edge_index, i_b.edge_index],
+                        beam=beam,
+                        generator=generator,
                         )
                     )
-                    leftovers_a.remove(int_a)
-                    leftovers_b.remove(int_b)
-                    break
+                leftovers_a.remove(i_a)
+                leftovers_b.remove(i_b)
+                    
         return corner_intersections, leftovers_a, leftovers_b
 
     @staticmethod
@@ -136,13 +148,25 @@ class BeamGeneratorIntersection(object):
         """gets notch BeamGeneratorIntersection objects from lists of LineGeneratorIntersection objects.
         notch intersections are those where one beam edge intersects two adjacent edges of the element generator.
         """
-        notch_intersections = []
-        ints_found = []
-        for intersections in [intersections_a, intersections_b]:
-            for first_int in intersections:
-                adjacent_indices = [(first_int.edge_index - 1) % len(generator.edges), (first_int.edge_index + 1) % len(generator.edges)]
-                for second_int in intersections:
-                    if second_int.edge_index in adjacent_indices:
+        if not intersections_a and not intersections_b:
+            return [],[],[]        
+        print("intersections start NOTCH: a:{}".format([l.edge_index for l in intersections_a]))
+        print("intersections start NOTCH: b:{}".format([l.edge_index for l in intersections_b]))
+
+        def _get_notch_intersections_for_side(intersection_set, beam, generator):
+            leftovers = [i for i in intersection_set]
+            notch_intersections = []
+            #in case first and last edge make a notch
+            if is_point_between_beam_edges(intersection_set[0].line.start, beam): # first int edge starts inside beam, move to end
+                    print("moving int to end in NOTCH")
+                    intersection_set.append(intersection_set.pop(0))
+            i=0
+            while i < len(intersection_set)-1:
+                first_int, second_int = intersection_set[i:i+2]
+                print("pre-adjacent indices: ",first_int.edge_index, second_int.edge_index)
+
+                if second_int.edge_index - first_int.edge_index == 1 or (first_int.edge_index==len(generator.edges)-1 and second_int.edge_index ==0):
+                    if is_point_between_beam_edges(first_int.line.end, beam):
                         notch_intersections.append(
                             BeamGeneratorIntersection(
                                 type=BeamGeneratorIntersectionType.NOTCH,
@@ -153,11 +177,16 @@ class BeamGeneratorIntersection(object):
                                 generator=generator,
                             )
                         )
-                        ints_found.extend([first_int, second_int])
-                        break
-        leftovers_a = [i for i in intersections_a if i not in ints_found]
-        leftovers_b = [i for i in intersections_b if i not in ints_found]
-        return notch_intersections, leftovers_a, leftovers_b
+                        i+=1 #if match found, skip 1 additional int 
+                        leftovers.remove(first_int)
+                        leftovers.remove(second_int)
+                i+=1 # next int
+            return notch_intersections, leftovers
+        
+        side_a_notches, leftovers_a = _get_notch_intersections_for_side(intersections_a, beam, generator)
+        side_b_notches, leftovers_b = _get_notch_intersections_for_side(intersections_b, beam, generator)
+
+        return side_a_notches + side_b_notches, leftovers_a, leftovers_b
 
 
     @staticmethod
@@ -165,23 +194,22 @@ class BeamGeneratorIntersection(object):
         """gets lap BeamGeneratorIntersection objects from lists of LineGeneratorIntersection objects.
         lap intersections are those where beam edges intersect non-adjacent edges of the element generator and at least one generator edge is between the beam edges/inside the beam.
         """
+        if not intersections_a and not intersections_b:
+            return []
         lap_intersections = []
-        intersection_indices:list[int] = [i.edge_index for i in intersections_a] + [i.edge_index for i in intersections_b]
-        intersection_indices.sort()
-        intersection_indices.append(intersection_indices[0] + len(generator.edges))
-        lap_ranges = pairwise(intersection_indices)
-        
-        for range in lap_ranges:
-            edge = generator.edges[range[0] % len(generator.edges)]
-            centerline_point = closest_point_on_line(edge.end, beam.centerline)
-            distance = distance_point_point(Point(edge.end[0], edge.end[1], 0.0), Point(centerline_point[0], centerline_point[1],0.0))
-            if distance < beam.width/2:
+        intersections:list[LineGeneratorIntersection] = [i for i in intersections_a] + [i for i in intersections_b]
+        intersections.sort(key=lambda x: x.edge_index)
+        if is_point_between_beam_edges(intersections[0].line.start, beam):
+            intersections.append(intersections.pop(0)) #lap ends at first intersection, move to end of list
+
+        for pair in pairwise(intersections):
+            if is_point_between_beam_edges(pair[0].line.end, beam):
                 lap_intersections.append(
                     BeamGeneratorIntersection(
                         type=BeamGeneratorIntersectionType.LAP,
-                        point=beam.centerline.midpoint,
-                        dot=beam.length / 2,
-                        edge_indices=[i % len(generator.edges) for i in range],
+                        point=(pair[0].point + pair[1].point)/2,
+                        dot=(pair[0].dot + pair[1].dot)/2,
+                        edge_indices=[i.edge_index for i in pair],
                         beam=beam,
                         generator=generator,
                     )
@@ -199,12 +227,12 @@ class BeamGeneratorIntersection(object):
             pt = intersection_line_segment(edge_a, edge)[0] if not limit_to_segments else intersection_segment_segment(edge_a, edge)[0]
             if pt:
                 dot = dot_vectors(Vector.from_start_end(edge_a.start, pt), edge_a.direction)
-                intersections_a.append(LineGeneratorIntersection(point= Point(*pt), dot= dot, edge_index=index,line=edge_a, generator= generator))
+                intersections_a.append(LineGeneratorIntersection(point= Point(*pt), dot= dot, edge_index=index,line=edge, generator= generator))
 
             pt = intersection_line_segment(edge_b, edge)[0] if not limit_to_segments else intersection_segment_segment(edge_b, edge)[0]
             if pt:
                 dot = dot_vectors(Vector.from_start_end(edge_b.start, pt), edge_b.direction)
-                intersections_b.append(LineGeneratorIntersection(point= Point(*pt), dot= dot, edge_index=index,line=edge_b, generator= generator))
+                intersections_b.append(LineGeneratorIntersection(point= Point(*pt), dot= dot, edge_index=index,line=edge, generator= generator))
         return intersections_a, intersections_b
 
 
@@ -328,3 +356,13 @@ def extend_beam_to_closest_element_generators(
         elif top_int:
             beam.length = top_int.dot - bottom_int.dot
     return beam, bottom_int, top_int
+
+def is_point_between_beam_edges(point:Point, beam:Beam)-> bool:
+    """checks if a point is inside the 2D projection of a beam (ignores beam thickness in Z direction)"""
+    edge_a = beam.centerline.translated(beam.frame.yaxis * -beam.width / 2)
+    edge_b = beam.centerline.translated(beam.frame.yaxis * beam.width / 2)
+    vector_a_b= Vector.from_start_end(edge_a.start, edge_b.start)
+    dot_a_p= dot_vectors(Vector.from_start_end(point,edge_a.start), vector_a_b)
+    dot_b_p= dot_vectors(Vector.from_start_end(point,edge_b.start), vector_a_b)
+    print(f"dopts{dot_a_p,dot_b_p}")
+    return (dot_a_p > 0) ^ (dot_b_p > 0)

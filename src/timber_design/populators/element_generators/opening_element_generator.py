@@ -1,4 +1,3 @@
-from _typeshed import NoneType
 from collections import OrderedDict
 from typing import Union
 

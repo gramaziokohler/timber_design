@@ -1,5 +1,8 @@
 from .populator import PanelPopulator
 from .populator import FeatureDefinition
+from .generator_intersection import BeamGeneratorIntersection
+from .generator_intersection import extend_beam_to_closest_element_generators
+from .generator_intersection import split_beam_with_element_generators
 
 from .element_generators.element_generator import ElementGenerator
 from .element_generators.element_generator import FeatureBoundaryType
@@ -8,8 +11,6 @@ from .element_generators.plate_element_generator import PlateElementGenerator
 from .element_generators.edge_element_generator import EdgeElementGenerator
 from .element_generators.opening_element_generator import OpeningElementGenerator
 from .element_generators.recess_element_generator import RecessElementGenerator
-from .generator_intersection import extend_beam_to_closest_element_generators
-from .generator_intersection import split_beam_with_element_generators
 
 from .generator_factories.panel_generator_factory import PanelGeneratorFactory
 from .generator_factories.panel_generator_factory import GeneratorFactoryParams
@@ -28,6 +29,7 @@ __all__ = [
     "PlateElementGenerator",
     "OpeningElementGenerator",
     "RecessElementGenerator",
+    "BeamGeneratorIntersection",
     "extend_beam_to_closest_element_generators",
     "split_beam_with_element_generators",
     "PanelGeneratorFactory",

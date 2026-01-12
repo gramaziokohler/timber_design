@@ -28,6 +28,7 @@ from timber_design.workflow import DirectRule
 
 from timber_design.populators import extend_beam_to_closest_element_generators
 
+
 class OpeningElementGenerator(ElementGenerator):
     """A panel detail set that uses the edge beams and plates but no studs."""
 
@@ -165,7 +166,7 @@ class OpeningElementGenerator(ElementGenerator):
         self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
-        king_dims=self.beam_dimensions.get("king_stud")
+        king_dims = self.beam_dimensions.get("king_stud")
         if king_dims:
             thickness = king_dims[1] / 2  # TODO: use frame_thickness
         else:
@@ -225,9 +226,8 @@ class OpeningElementGenerator(ElementGenerator):
 
     def _get_internal_joints(self) -> list[DirectRule]:
         """Join the sill and header to king and jack studs."""
-        sills:list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
+        sills: list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
 
-        
         header = list(filter(lambda x: x.attributes["category"] == "header", self.elements))[0]
         king_studs = filter(lambda x: x.attributes["category"] == "king_stud", self.elements)
         jack_studs = filter(lambda x: x.attributes["category"] == "jack_stud", self.elements)
@@ -240,7 +240,7 @@ class OpeningElementGenerator(ElementGenerator):
                 rules.append(self.get_direct_rule_from_elements(jack, header, max_distance=jack.width / 2))
         # join sill
         if sills:
-            sill:Beam = sills[0]
+            sill: Beam = sills[0]
             for jack, king in zip(jack_studs, king_studs):
                 if jack:
                     rules.append(self.get_direct_rule_from_elements(sill, jack, max_distance=jack.width / 2))

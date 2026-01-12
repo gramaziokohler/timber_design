@@ -62,8 +62,8 @@ class PanelPopulator(object):
 
     """
 
-    def __init__(self, panel, params, factory, feature_generators = None):
-        #type: (Panel, GeneratorFactoryParams, PanelGeneratorFactory, Union[list[ElementGenerator], None]) -> None
+    def __init__(self, panel, params, factory, feature_generators=None):
+        # type: (Panel, GeneratorFactoryParams, PanelGeneratorFactory, Union[list[ElementGenerator], None]) -> None
         super(PanelPopulator, self).__init__()
         self.original_panel: Panel = panel
         self._local_panel, self.transformation_panel_to_populator, feature_generators = factory.create_local_data(panel, params, feature_generators)

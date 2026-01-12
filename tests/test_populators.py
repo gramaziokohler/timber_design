@@ -55,9 +55,7 @@ def test_stud_factory_create_generators_and_generate():
 
 def test_recess_factory_create_generators_and_generate():
     panel = SimplePanel()
-    params = RecessPanelGeneratorFactoryParams(
-        standard_beam_width=0.05, recess_beam_width=0.03, recess_beam_height=0.02, edge_beam_min_width=0.03
-    )
+    params = RecessPanelGeneratorFactoryParams(standard_beam_width=0.05, recess_beam_width=0.03, recess_beam_height=0.02, edge_beam_min_width=0.03)
     generators = RecessPanelGeneratorFactory.create_generators(panel, params, feature_generators=None)
     assert isinstance(generators, list)
     assert len(generators) > 0
@@ -100,4 +98,3 @@ def test_stud_generator_creates_studs():
     assert hasattr(gen, "elements")
     # studs generator may create several studs depending on spacing
     assert isinstance(gen.elements, list)
-

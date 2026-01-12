@@ -71,7 +71,7 @@ class PanelGeneratorFactory(ABC):
         generator_features = [f.feature for f in feature_generators] if feature_generators else []
         for feature in panel.features:
             if feature not in generator_features:
-                #local panel keeps features, only if they don't have a dedicated generator
+                # local panel keeps features, only if they don't have a dedicated generator
                 local_panel.add_feature(feature.transformed(transformation_panel_to_populator))
 
         for generator in feature_generators or []:
@@ -109,7 +109,7 @@ def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactory
     return Transformation.from_frame(frame).inverse()
 
 
-def get_frame_panel(panel:Panel, params:GeneratorFactoryParams)->Panel:
+def get_frame_panel(panel: Panel, params: GeneratorFactoryParams) -> Panel:
     """Handles the sheeting offsets for the panel outlines."""
     """This method creates a panel that represents the original panel frame without sheeting."""
     si = getattr(params, "sheeting_inside", 0)

@@ -236,10 +236,10 @@ class EdgeElementGenerator(ElementGenerator):
         if miter:
             if interior_corner:
                 ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
-                ref_side_main:dict[int,float] = beam_ref_side_incidence(beam_a, beam_b)
+                ref_side_main: dict[int, float] = beam_ref_side_incidence(beam_a, beam_b)
                 front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main.items(), key=lambda x: x[1])])
 
-                ref_side_cross:dict[int,float] = beam_ref_side_incidence(beam_b, beam_a)
+                ref_side_cross: dict[int, float] = beam_ref_side_incidence(beam_b, beam_a)
                 front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])])
 
                 ccx = intersection_plane_plane(front_a, front_b)

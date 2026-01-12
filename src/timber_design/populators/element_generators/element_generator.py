@@ -61,7 +61,7 @@ class ElementGenerator(ABC):
             self.rules = self.update_rules(joint_rule_overrides)
         else:
             self.rules = self.RULES
-        self.beam_dimensions:dict[str,tuple[float,float]] = {}  # to be populated with update_beam_dimensions
+        self.beam_dimensions: dict[str, tuple[float, float]] = {}  # to be populated with update_beam_dimensions
 
         self.elements = []
         self.edges = {}

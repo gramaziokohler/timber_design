@@ -3,6 +3,7 @@ from .populator import FeatureDefinition
 from .generator_intersection import BeamGeneratorIntersection
 from .generator_intersection import extend_beam_to_closest_element_generators
 from .generator_intersection import split_beam_with_element_generators
+from .generator_intersection import is_point_between_beam_edges
 
 from .element_generators.element_generator import ElementGenerator
 from .element_generators.element_generator import FeatureBoundaryType
@@ -20,6 +21,7 @@ from .generator_factories.recess_panel_generator_factory import RecessPanelGener
 from .generator_factories.stud_panel_generator_factory import StudPanelGeneratorFactoryParams
 from .generator_factories.stud_panel_generator_factory import StudPanelGeneratorFactory
 
+
 __all__ = [
     "PanelPopulator",
     "FeatureDefinition",
@@ -33,6 +35,7 @@ __all__ = [
     "BeamGeneratorIntersection",
     "extend_beam_to_closest_element_generators",
     "split_beam_with_element_generators",
+    "is_point_between_beam_edges",
     "PanelGeneratorFactory",
     "GeneratorFactoryParams",
     "RecessPanelGeneratorFactoryParams",

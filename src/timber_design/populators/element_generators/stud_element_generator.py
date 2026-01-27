@@ -1,5 +1,6 @@
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 from compas.geometry import Line
@@ -7,10 +8,31 @@ from compas_timber.connections import TButtJoint
 from compas_timber.elements import Panel
 
 from timber_design.populators import ElementGenerator
+from timber_design.populators import ElementGeneratorParams
+from timber_design.populators import split_beam_with_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
-from timber_design.populators import split_beam_with_element_generators
+
+class StudElementGeneratorParams(ElementGeneratorParams):
+    def __init__(
+        self,
+        stud_spacing: float,
+        standard_beam_width: float,
+        beam_width_overrides: Optional[Dict] = None,
+        joint_rule_overrides: Optional[List[CategoryRule]] = None,
+    ):
+        super(StudElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        self.stud_spacing = stud_spacing
+        self.standard_beam_width = standard_beam_width
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["stud_spacing"] = self.stud_spacing
+        data["standard_beam_width"] = self.standard_beam_width
+        return data
+
 
 
 class StudElementGenerator(ElementGenerator):

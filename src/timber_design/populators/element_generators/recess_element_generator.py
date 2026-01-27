@@ -1,3 +1,4 @@
+from typing import Optional
 from typing import Union
 
 from compas.geometry import Translation
@@ -11,9 +12,35 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
+from timber_design.populators import ElementGeneratorParams
 from timber_design.populators import FeatureBoundaryType
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+
+
+class RecessElementGeneratorParams(ElementGeneratorParams):
+    def __init__(
+        self,
+        recess_beam_width: float,
+        recess_beam_height: Optional[float] = None,
+        sheeting_recess: Optional[float] = None,
+        beam_width_overrides: Optional[dict] = None,
+        joint_rule_overrides: Optional[list[CategoryRule]] = None,
+    ):
+        super(RecessElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+
+        self.recess_beam_width = recess_beam_width
+        self.recess_beam_height = recess_beam_height
+        self.sheeting_recess = sheeting_recess
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["recess_beam_width"] = self.recess_beam_width
+        data["recess_beam_height"] = self.recess_beam_height
+        data["sheeting_recess"] = self.sheeting_recess
+        return data
+        
 
 
 class RecessElementGenerator(ElementGenerator):
@@ -31,7 +58,7 @@ class RecessElementGenerator(ElementGenerator):
         edge_generator: ElementGenerator,
         recess_beam_width: float,
         recess_beam_height: float,
-        sheeting_inside: float,
+        sheeting_recess: float,
         standard_beam_width: Union[float, None] = None,
         beam_width_overrides: Union[dict, None] = None,
         joint_rule_overrides: Union[list[CategoryRule], None] = None,
@@ -45,7 +72,7 @@ class RecessElementGenerator(ElementGenerator):
         self.edge_generator = edge_generator
         self.recess_beam_width = recess_beam_width
         self.recess_beam_height = recess_beam_height
-        self.sheeting_inside = sheeting_inside
+        self.sheeting_recess = sheeting_recess
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     @property
@@ -89,7 +116,7 @@ class RecessElementGenerator(ElementGenerator):
         for i, edge in enumerate(new_centerlines):
             elements.append(self.beam_from_category(edge, "recess"))
             edge_elements[i] = [elements[-1]]
-        elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_inside, vector=Vector(0, 0, -1)))
+        elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
         self.outline = self.edge_generator.outline.copy() if self.edge_generator.outline else None

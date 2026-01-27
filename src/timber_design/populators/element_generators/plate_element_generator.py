@@ -1,11 +1,34 @@
+from typing import Optional
 from typing import Union
 
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 
 from timber_design.populators import ElementGenerator
+from timber_design.populators import ElementGeneratorParams
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+
+
+class PlateElementGeneratorParams(ElementGeneratorParams):
+    def __init__(
+        self,
+        sheeting_inside: Optional[float] = None,
+        sheeting_outside: Optional[float] = None,
+        beam_width_overrides: Optional[dict] = None,
+        joint_rule_overrides: Optional[list[CategoryRule]] = None,
+    ):
+        super(PlateElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        self.sheeting_inside = sheeting_inside
+        self.sheeting_outside = sheeting_outside
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["sheeting_inside"] = self.sheeting_inside
+        data["sheeting_outside"] = self.sheeting_outside
+        return data
+       
 
 
 class PlateElementGenerator(ElementGenerator):

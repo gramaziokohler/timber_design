@@ -24,9 +24,33 @@ from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
+from timber_design.populators import ElementGeneratorParams
 from timber_design.populators import split_beam_with_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+
+
+class EdgeElementGeneratorParams(ElementGeneratorParams):
+    def __init__(
+        self,
+        standard_beam_width: float,
+        standard_beam_width_increment: Union[float, None] = None,
+        edge_beam_min_width: Union[float, None] = None,
+        beam_width_overrides: Union[dict, None] = None,
+        joint_rule_overrides: Union[list[CategoryRule], None] = None,
+    ):
+        super(EdgeElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
+        self.standard_beam_width = standard_beam_width
+        self.standard_beam_width_increment = standard_beam_width_increment
+        self.edge_beam_min_width = edge_beam_min_width
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["standard_beam_width"] = self.standard_beam_width,
+        data["standard_beam_width_increment"] = self.standard_beam_width_increment,
+        data["edge_beam_min_width"] = self.edge_beam_min_width,
+        
 
 
 class EdgeElementGenerator(ElementGenerator):

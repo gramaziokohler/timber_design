@@ -5,8 +5,8 @@ from typing import List
 from typing import Union
 
 from compas.geometry import Vector
-from compas_timber.elements import Opening
 from compas_timber.elements import Panel
+from compas_timber.panel_features import Opening
 
 # avoid package-level imports that can create circular imports; import generators locally in functions
 from timber_design.workflow import CategoryRule

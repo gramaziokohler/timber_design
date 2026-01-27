@@ -1,6 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
 from typing import Union
+from typing import Optional
 
 from compas.geometry import Line
 from compas.geometry import Vector
@@ -29,6 +30,21 @@ class FeatureBoundaryType(object):
     INCLUSIVE = "inclusive"
     NONE = "none"
 
+class ElementGeneratorParams(object):
+    def __init__(
+        self,
+        beam_width_overrides: Optional[dict] = None,
+        joint_rule_overrides: Optional[list[CategoryRule]] = None,
+    ):
+        self.beam_width_overrides = beam_width_overrides
+        self.joint_rule_overrides = joint_rule_overrides
+
+    @property
+    def __data__(self):
+        return {
+            "beam_width_overrides": self.beam_width_overrides,
+            "joint_rule_overrides": self.joint_rule_overrides,
+        }
 
 class ElementGenerator(ABC):
     """Abstract class for an element generator.

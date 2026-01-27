@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Optional
 from typing import Union
 
 from compas.geometry import Box
@@ -12,10 +13,10 @@ from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
-from compas_timber.elements import Opening
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.fabrication.free_contour import FreeContour
+from compas_timber.panel_features import Opening
 from compas_timber.utils import do_segments_overlap
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
@@ -23,10 +24,34 @@ from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
 from timber_design.populators import FeatureBoundaryType
+from timber_design.populators import ElementGeneratorParams
+from timber_design.populators import extend_beam_to_closest_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
-from timber_design.populators import extend_beam_to_closest_element_generators
+
+class OpeningElementGeneratorParams(ElementGeneratorParams):
+    def __init__(
+        self,
+        standard_beam_width: float,
+        lintel_posts: Optional[bool] = False,
+        split_bottom_plate_beam: Optional[bool] = False,
+        beam_width_overrides: Optional[dict] = None,
+        joint_rule_overrides: Optional[list[CategoryRule]] = None,
+    ):
+        super(OpeningElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        self.standard_beam_width = standard_beam_width
+        self.lintel_posts = lintel_posts
+        self.beam_width_overrides = beam_width_overrides
+
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["standard_beam_width"]= self.standard_beam_width
+        data["lintel_posts"] = self.lintel_posts
+        data["beam_width_overrides"] = self.beam_width_overrides
+        return data
 
 
 class OpeningElementGenerator(ElementGenerator):

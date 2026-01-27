@@ -6,6 +6,7 @@ from .generator_intersection import split_beam_with_element_generators
 
 from .element_generators.element_generator import ElementGenerator
 from .element_generators.element_generator import FeatureBoundaryType
+from .element_generators.element_generator import ElementGeneratorParams
 from .element_generators.stud_element_generator import StudElementGenerator
 from .element_generators.plate_element_generator import PlateElementGenerator
 from .element_generators.edge_element_generator import EdgeElementGenerator

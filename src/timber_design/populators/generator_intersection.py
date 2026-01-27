@@ -1,21 +1,21 @@
 from __future__ import annotations
-from typing import Union
-from typing import Optional
-from typing import TYPE_CHECKING
+
 from itertools import product
+from typing import TYPE_CHECKING
+from typing import Optional
+from typing import Union
 
 if TYPE_CHECKING:
     from timber_design.populators import ElementGenerator
     from timber_design.workflow import DirectRule
 
-from compas.geometry import Line, distance_point_point
+from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Translation
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-from compas.geometry import closest_point_on_line
 from compas.itertools import pairwise
 from compas_timber.elements import Beam
 

@@ -1,4 +1,3 @@
-import pytest
 
 from compas.geometry import Point, Polyline, Vector, Plane, Transformation
 

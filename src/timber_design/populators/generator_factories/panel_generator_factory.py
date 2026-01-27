@@ -62,21 +62,11 @@ class PanelGeneratorFactory(ABC):
         tuple[:class:`compas_timber.elements.Panel`, :class:`compas.geometry.Transformation`, list[:class:`timber_design.populators.ElementGenerator`]]
             The local panel, the transformation to the populator space, and the updated feature generators.
         """
-        transformation_panel_to_populator = get_transformation_to_populator_space(panel, params)
+        transformation_to_populator = _get_transformation_to_populator_space(panel, params)
+        local_panel = panel.copy()
+        local_panel.transformation = transformation_to_populator
 
-        outline_a = panel.local_outlines[0].transformed(transformation_panel_to_populator)
-        outline_b = panel.local_outlines[1].transformed(transformation_panel_to_populator)
-        local_panel = Panel.from_outlines(outline_a, outline_b)
-
-        generator_features = [f.feature for f in feature_generators] if feature_generators else []
-        for feature in panel.features:
-            if feature not in generator_features:
-                # local panel keeps features, only if they don't have a dedicated generator
-                local_panel.add_feature(feature.transformed(transformation_panel_to_populator))
-
-        for generator in feature_generators or []:
-            generator.feature = generator.feature.transformed(transformation_panel_to_populator)
-        return local_panel, transformation_panel_to_populator, feature_generators or []
+        return local_panel, transformation_to_populator, feature_generators or []
 
 
 class GeneratorFactoryParams(ABC):
@@ -85,12 +75,12 @@ class GeneratorFactoryParams(ABC):
     pass
 
 
-def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactoryParams) -> Transformation:
+def _get_transformation_to_populator_space(panel: Panel, params: GeneratorFactoryParams) -> Transformation:
     """The Transformation from panel space to slab populator space."""
     stud_dir = getattr(params, "stud_direction", Vector(0, 1, 0))
     if not panel.transformation:
         raise ValueError("Panel transformation is not defined. The panel must belong to a model")
-    stud_dir.transform(panel.transformation.inverse())  # bring stud direction into local panel space
+    stud_dir = stud_dir.transformed(panel.transformation_to_local)  # bring stud direction into local panel space
     if angle_vectors(stud_dir, Vector(0, 0, 1)) < 1e-3 or angle_vectors(stud_dir, Vector(0, 0, -1)) < 1e-3:
         stud_dir = Vector(0, 1, 0)
     else:
@@ -98,8 +88,7 @@ def get_transformation_to_populator_space(panel: Panel, params: GeneratorFactory
 
     frame = Frame(Point(0, 0, 0), cross_vectors(stud_dir, Vector(0, 0, 1)), stud_dir)  # get frame with stud direction as y axis
     transform_to_sp = Transformation.from_frame(frame).inverse()
-    rebased_pts = [pt.transformed(transform_to_sp) for pt in panel.local_outlines[0].points + panel.local_outlines[1].points]  # rebase panel points into stud direction frame
-    min_pt = bounding_box_xy(rebased_pts)[0]
+    min_pt = panel.plate_geometry.compute_aabb().points[0]
     frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_sp.inverse())
 
     si = getattr(params, "sheeting_inside", 0)

@@ -8,13 +8,13 @@ from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
 
-from compas_timber.design import DebugInfomation
-from compas_timber.design import JointRuleSolver
+from timber_design.workflow import DebugInfomation
+from timber_design.workflow import JointRuleSolver
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
-from compas_timber.ghpython import error
-from compas_timber.ghpython import warning
+from timber_design.ghpython import error
+from timber_design.ghpython import warning
 from compas_timber.model import TimberModel
 
 # workaround for https://github.com/gramaziokohler/compas_timber/issues/280

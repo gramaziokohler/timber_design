@@ -3,7 +3,7 @@
 import Grasshopper
 
 from timber_design.wall_from_surface import SurfaceModel
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 beam_category_names = SurfaceModel.beam_category_names()
 

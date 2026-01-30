@@ -8,7 +8,7 @@ import System
 import Rhino
 import rhinoscriptsyntax as rs
 from compas_rhino.conversions import frame_to_rhino
-from compas_timber.ghpython import item_input_valid_cpython
+from timber_design.ghpython import item_input_valid_cpython
 
 from Rhino import Render
 from Rhino.Geometry import Interval

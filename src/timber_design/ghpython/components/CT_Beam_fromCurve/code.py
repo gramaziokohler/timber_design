@@ -12,7 +12,7 @@ from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Beam as CTBeam
 from compas_timber.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 
 
 class Beam_fromCurve(Grasshopper.Kernel.GH_ScriptInstance):

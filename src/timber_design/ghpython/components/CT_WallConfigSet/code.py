@@ -7,7 +7,7 @@ from compas_timber.connections import JointTopology
 from timber_design.wall_populator import LConnectionDetailA
 from timber_design.wall_populator import TConnectionDetailA
 from timber_design.wall_populator import WallPopulatorConfigurationSet
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class WallPopulatorConfigSetComponent(Grasshopper.Kernel.GH_ScriptInstance):

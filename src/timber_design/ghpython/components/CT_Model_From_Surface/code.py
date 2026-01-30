@@ -12,7 +12,7 @@ from Rhino.Geometry import Vector3d as RhinoVector
 
 from timber_design.workflow import DebugInfomation
 from timber_design.wall_from_surface import SurfaceModel
-from compas_timber.ghpython import error
+from timber_design.ghpython import error
 
 
 class SurfaceModelComponent(Grasshopper.Kernel.GH_ScriptInstance):

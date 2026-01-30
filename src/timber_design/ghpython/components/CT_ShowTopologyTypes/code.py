@@ -8,7 +8,7 @@ from compas_rhino.conversions import point_to_rhino
 from compas_timber.connections import MaxNCompositeAnalyzer
 
 from compas_timber.connections import JointTopology
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class ShowTopologyTypes(Grasshopper.Kernel.GH_ScriptInstance):

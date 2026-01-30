@@ -1,11 +1,11 @@
-# r: compas_timber>=0.15.3
+# r: compas_timber>=1.0.1
 import Grasshopper
+
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
-
-from timber_design.workflow import TopologyRule
+from compas_timber.design import TopologyRule
 
 
 class DefaultJointRule(Grasshopper.Kernel.GH_ScriptInstance):

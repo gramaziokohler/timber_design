@@ -1,7 +1,7 @@
 {
     "name": "BeamsFromMeshEdges",
     "nickname": "BeamsFromMesh",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "01 Elements",
     "description": "Creates Beams and from mesh edges and maps them to the mesh vertexes.",
     "exposure": 2,

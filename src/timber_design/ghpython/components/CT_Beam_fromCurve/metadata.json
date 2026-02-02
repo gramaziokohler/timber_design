@@ -1,7 +1,7 @@
 {
     "name": "Beam",
     "nickname": "Beam",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "01 Elements",
     "description": "Creates a Beam from a LineCurve.",
     "exposure": 2,

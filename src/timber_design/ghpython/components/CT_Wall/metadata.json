@@ -1,7 +1,7 @@
 {
     "name": "Wall",
     "nickname": "Wall",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "03 Containers",
     "description": "Creates a Wall from a Surface.",
     "exposure": 2,

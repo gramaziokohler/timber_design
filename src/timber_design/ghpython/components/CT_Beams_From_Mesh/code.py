@@ -1,4 +1,5 @@
-# r: compas_timber>=1.0.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 """Creates a data-tree structure of Beams from edges of a Mesh."""
 
 # flake8: noqa

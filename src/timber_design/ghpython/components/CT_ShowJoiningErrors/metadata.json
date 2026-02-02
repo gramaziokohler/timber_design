@@ -1,7 +1,7 @@
 {
     "name": "ShowJoiningErrors",
     "nickname": "JoiningErrors",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "08 Show",
     "description": "Shows information useful for debugging errors that occurred while attempting to join beams.",
     "exposure": 8,
@@ -9,7 +9,6 @@
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
-
             {
                 "name": "debug_info",
                 "description": "DebugInformation object containing joining errors.",

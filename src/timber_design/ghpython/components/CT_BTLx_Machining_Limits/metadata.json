@@ -1,7 +1,7 @@
 {
     "name": "BTLxMachiningLimits",
     "nickname": "BTLxMachiningLimits",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "06 Features",
     "description": "Machining limits dictinary for BTLx from Parameters",
     "exposure": 4,
@@ -45,7 +45,6 @@
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             }
-
         ],
         "outputParameters": [
             {

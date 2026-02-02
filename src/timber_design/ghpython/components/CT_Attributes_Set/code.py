@@ -1,4 +1,5 @@
-# r: compas_timber>=1.0.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 """Set attributes to the referenced object by encoding them in the objects's name."""
 
 # flake8: noqa

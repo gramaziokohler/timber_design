@@ -1,7 +1,7 @@
 {
     "name": "SetAttributesCustom",
     "nickname": "SetAttributesCustom",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "02 Attributes",
     "description": "Set custom attributes to the referenced object by encoding them in the objects's name.",
     "exposure": 4,
@@ -27,10 +27,7 @@
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             }
-
         ],
-        "outputParameters": [
-
-        ]
+        "outputParameters": []
     }
 }

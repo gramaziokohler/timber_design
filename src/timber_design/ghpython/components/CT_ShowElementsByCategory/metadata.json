@@ -1,7 +1,7 @@
 {
     "name": "ShowElementsByCategory",
     "nickname": "ShowElementsByCategory",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "08 Show",
     "description": "allows user to visualize elements by categories in timber model.",
     "exposure": 4,
@@ -9,12 +9,12 @@
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
-                {
-                    "name": "model",
-                    "description": "TimberModel object",
-                    "typeHintID": "none",
-                    "scriptParamAccess": 0
-                }
+            {
+                "name": "model",
+                "description": "TimberModel object",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            }
         ],
         "outputParameters": [
             {

@@ -1,7 +1,7 @@
 {
     "name": "Attribute",
     "nickname": "Attribute",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "02 Attributes",
     "description": "Constructs an attribute with a given Name and Value.",
     "exposure": 2,
@@ -21,7 +21,6 @@
                 "typeHintID": "str",
                 "scriptParamAccess": 0
             }
-
         ],
         "outputParameters": [
             {

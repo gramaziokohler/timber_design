@@ -1,7 +1,7 @@
 {
     "name": "FindBeamByRhinoGuid",
     "nickname": "FindBeamByRhinoGuid",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "08 Show",
     "description": "Finds a Beam that was created with the given referenced curve or line.",
     "exposure": 2,
@@ -9,7 +9,6 @@
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
-
             {
                 "name": "beams",
                 "description": "A list of Beams.",

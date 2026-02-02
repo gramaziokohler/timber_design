@@ -1,7 +1,7 @@
 {
     "name": "Fastener Beam Interface",
     "nickname": "Interface",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "01 Elements",
     "description": "defines the interface between a fastener and a beam.",
     "exposure": 8,

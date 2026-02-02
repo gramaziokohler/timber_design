@@ -1,7 +1,7 @@
 {
     "name": "DecomposeBeam",
     "nickname": "DecomposeBeam",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "08 Show",
     "description": "Extracts main geometric characteristics of a Beam.",
     "exposure": 2,
@@ -47,7 +47,6 @@
                 "name": "Height",
                 "description": "The height of the Beam's cross-section."
             }
-
         ]
     }
 }

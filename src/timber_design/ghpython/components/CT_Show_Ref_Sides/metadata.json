@@ -1,7 +1,7 @@
 {
     "name": "Show element Reference Side",
     "nickname": "ShowElementSides",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "08 Show",
     "description": "Shows the element side based on ref_side_index. Text labels are located at the reference side origins and oriented to the reference side frame.",
     "exposure": 2,

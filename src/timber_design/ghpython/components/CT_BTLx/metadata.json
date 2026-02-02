@@ -1,7 +1,7 @@
 {
     "name": "WriteBTLx",
     "nickname": "WriteBTLx",
-    "category": "COMPAS Timber",
+    "category": "Timber Design",
     "subcategory": "10 Fabrication",
     "description": "Writes a BTLx file for machining of model parts.",
     "exposure": 2,
@@ -27,7 +27,6 @@
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             }
-
         ],
         "outputParameters": [
             {

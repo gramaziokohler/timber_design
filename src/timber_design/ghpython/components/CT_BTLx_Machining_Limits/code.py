@@ -1,4 +1,5 @@
-# r: compas_timber>=1.0.2
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 
 """Creates a BTLx MachiningLimits object from boolean inputs for each face limit."""

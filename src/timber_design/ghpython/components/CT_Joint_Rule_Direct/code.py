@@ -1,4 +1,5 @@
-# r: compas_timber>=1.0.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 """Generates a direct joint between two elements. This overrides other joint rules."""
 
 import inspect

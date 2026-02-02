@@ -1,12 +1,12 @@
-# r: compas_timber>=0.15.3
+# r: compas_timber>=1.0.3
 # flake8: noqa
 import Grasshopper
 import System
 
 from compas_timber.connections import JointTopology
-from timber_design.wall_populator import LConnectionDetailA
-from timber_design.wall_populator import TConnectionDetailA
-from timber_design.wall_populator import WallPopulatorConfigurationSet
+from compas_timber.design import LConnectionDetailA
+from compas_timber.design import TConnectionDetailA
+from compas_timber.design import WallPopulatorConfigurationSet
 from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 

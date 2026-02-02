@@ -1,6 +1,7 @@
-# r: compas_timber>=0.15.3
+# r: compas_timber>=1.0.3
 import Grasshopper
 import System
+
 from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
 from compas_timber.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
 

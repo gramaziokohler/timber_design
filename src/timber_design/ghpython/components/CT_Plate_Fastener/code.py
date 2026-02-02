@@ -1,8 +1,9 @@
-# r: compas_timber>=0.15.3
+# r: compas_timber>=1.0.3
 import Grasshopper
 import Rhino
 import System
 from compas.scene import SceneObject
+
 from compas_timber.elements import PlateFastener
 
 

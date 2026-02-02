@@ -1,4 +1,4 @@
-# r: compas_timber>=0.15.3
+# r: compas_timber>=1.0.3
 """Creates a Beam from a LineCurve."""
 
 # flake8: noqa
@@ -8,7 +8,7 @@ import System
 from compas.geometry import Brep
 from compas.scene import Scene
 
-from timber_design.workflow import ContainerDefinition
+from compas_timber.design import ContainerDefinition
 from compas_timber.elements import Slab
 from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
 

@@ -6,8 +6,8 @@ import Grasshopper
 import Rhino
 import System
 
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
-from compas_timber.ghpython.rhino_object_name_attributes import get_obj_attributes
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.rhino_object_name_attributes import get_obj_attributes
 
 
 class Attributes_Get(Grasshopper.Kernel.GH_ScriptInstance):

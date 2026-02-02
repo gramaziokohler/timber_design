@@ -8,9 +8,9 @@ import System
 from compas.geometry import Brep
 from compas.scene import Scene
 
-from compas_timber.design import ContainerDefinition
+from timber_design.workflow import ContainerDefinition
 from compas_timber.elements import Wall
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 
 
 class WallComponent(Grasshopper.Kernel.GH_ScriptInstance):

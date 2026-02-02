@@ -6,8 +6,8 @@ import Grasshopper
 import Rhino
 import System
 
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
-from compas_timber.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
 
 
 class Attributes_Set(Grasshopper.Kernel.GH_ScriptInstance):

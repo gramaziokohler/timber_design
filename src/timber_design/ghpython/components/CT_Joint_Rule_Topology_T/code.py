@@ -8,10 +8,10 @@ import Grasshopper
 from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import TButtJoint
-from compas_timber.design import TopologyRule
-from compas_timber.ghpython.ghcomponent_helpers import get_createable_joints
-from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
-from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.workflow import TopologyRule
+from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
+from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
+from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
 class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):

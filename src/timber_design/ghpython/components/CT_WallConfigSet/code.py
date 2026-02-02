@@ -4,10 +4,10 @@ import Grasshopper
 import System
 
 from compas_timber.connections import JointTopology
-from compas_timber.design import LConnectionDetailA
-from compas_timber.design import TConnectionDetailA
-from compas_timber.design import WallPopulatorConfigurationSet
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.workflow import LConnectionDetailA
+from timber_design.workflow import TConnectionDetailA
+from timber_design.workflow import WallPopulatorConfigurationSet
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class WallPopulatorConfigSetComponent(Grasshopper.Kernel.GH_ScriptInstance):

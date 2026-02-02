@@ -11,9 +11,9 @@ from compas.scene import Scene
 
 from compas_timber.fabrication import BTLxProcessing
 from compas_timber.fabrication import MachiningLimits
-from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
-from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
-from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.ghpython.ghcomponent_helpers import get_leaf_subclasses
+from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
+from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
 class BTLxFromParams(Grasshopper.Kernel.GH_ScriptInstance):

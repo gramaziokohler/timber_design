@@ -12,7 +12,7 @@ from compas_rhino.conversions import line_to_rhino
 from compas_rhino.conversions import point_to_rhino
 from compas_rhino.conversions import box_to_rhino
 
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 
 
 class BeamDecompose(Grasshopper.Kernel.GH_ScriptInstance):

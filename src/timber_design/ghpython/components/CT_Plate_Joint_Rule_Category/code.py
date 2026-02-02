@@ -9,13 +9,13 @@ import Grasshopper
 from System.Windows.Forms import ToolStripSeparator
 
 from compas_timber.connections import PlateJoint
-from compas_timber.design import CategoryRule
-from compas_timber.ghpython import get_leaf_subclasses
-from compas_timber.ghpython import item_input_valid_cpython
-from compas_timber.ghpython import manage_cpython_dynamic_params
-from compas_timber.ghpython import rename_cpython_gh_output
-from compas_timber.ghpython import warning
-from compas_timber.ghpython import message
+from timber_design.workflow import CategoryRule
+from timber_design.ghpython import get_leaf_subclasses
+from timber_design.ghpython import item_input_valid_cpython
+from timber_design.ghpython import manage_cpython_dynamic_params
+from timber_design.ghpython import rename_cpython_gh_output
+from timber_design.ghpython import warning
+from timber_design.ghpython import message
 
 
 class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):

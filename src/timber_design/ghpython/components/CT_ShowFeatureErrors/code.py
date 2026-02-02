@@ -3,7 +3,7 @@
 import Grasshopper
 
 from compas.scene import SceneObject
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class ShowFeatureErrors(Grasshopper.Kernel.GH_ScriptInstance):

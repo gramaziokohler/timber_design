@@ -5,7 +5,7 @@ from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
-from compas_timber.design import TopologyRule
+from timber_design.workflow import TopologyRule
 
 
 class DefaultJointRule(Grasshopper.Kernel.GH_ScriptInstance):

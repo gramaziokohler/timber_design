@@ -10,8 +10,8 @@ from compas.scene import Scene
 from compas_rhino.conversions import polyline_to_compas
 
 from compas_timber.elements import Plate as CTPlate
-from compas_timber.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):

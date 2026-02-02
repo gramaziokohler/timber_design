@@ -79,14 +79,14 @@ class JointRule(object):
         ----------
         elements : list(:class:`~compas_timber.elements.TimberElement`)
             A list of elements to be joined.
-        rules : list(:class:`~compas_timber.design.JointRule`)
+        rules : list(:class:`~timber_design.workflow.JointRule`)
             A list of joint rules to be applied.
         max_distance : float, optional
             The maximum distance to consider two elements as intersecting.
 
         Returns
         -------
-        list(:class:`~compas_timber.design.JointDefinition`)
+        list(:class:`~timber_design.workflow.JointDefinition`)
             A list of joint definitions that can be applied to the given elements.
 
         """

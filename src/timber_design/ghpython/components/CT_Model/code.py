@@ -11,7 +11,7 @@ from compas.tolerance import Tolerance
 
 from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRuleSolver
-from timber_design.workflow import WallPopulator
+# from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError

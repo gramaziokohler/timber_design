@@ -12,7 +12,6 @@ from compas_rhino.conversions import line_to_compas
 from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Beam as CTBeam
-from timber_design.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
 from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 
 
@@ -81,11 +80,7 @@ class Beam_fromCurve(Grasshopper.Kernel.GH_ScriptInstance):
                 beam = CTBeam.from_centerline(centerline=line, width=w, height=h, z_vector=z)
                 beam.attributes["rhino_guid"] = str(guid) if guid else None
                 beam.attributes["category"] = c
-                if updateRefObj and guid:
-                    update_rhobj_attributes_name(guid, "width", str(w))
-                    update_rhobj_attributes_name(guid, "height", str(h))
-                    update_rhobj_attributes_name(guid, "zvector", str(list(beam.frame.zaxis)))
-                    update_rhobj_attributes_name(guid, "category", c)
+
 
                 beams.append(beam)
                 scene.add(beam.blank)

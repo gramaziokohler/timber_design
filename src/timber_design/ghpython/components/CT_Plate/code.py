@@ -12,7 +12,6 @@ from compas_rhino.conversions import polyline_to_compas
 from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Plate as CTPlate
-from timber_design.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
@@ -36,11 +35,6 @@ class Plate(Grasshopper.Kernel.GH_ScriptInstance):
         plate = CTPlate.from_outline_thickness(line, thickness, vector=v, openings=o)
         plate.attributes["rhino_guid"] = str(guid) if guid else None
         plate.attributes["category"] = category
-
-        if updateRefObj and guid:
-            update_rhobj_attributes_name(guid, "outline", str(outline))
-            update_rhobj_attributes_name(guid, "thickness", str(thickness))
-            update_rhobj_attributes_name(guid, "category", category)
 
         scene.add(plate.shape)
         geo = scene.draw()

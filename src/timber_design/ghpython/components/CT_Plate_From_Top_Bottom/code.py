@@ -11,7 +11,6 @@ from compas.scene import Scene
 from compas_rhino.conversions import polyline_to_compas
 
 from compas_timber.elements import Plate as CTPlate
-from timber_design.ghpython.rhino_object_name_attributes import update_rhobj_attributes_name
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
@@ -43,11 +42,6 @@ class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
         plate.attributes["rhino_guid_a"] = str(t_guid) if t_guid else None
         plate.attributes["rhino_guid_b"] = str(b_guid) if b_guid else None
         plate.attributes["category"] = category
-
-        if updateRefObj and t_guid:
-            update_rhobj_attributes_name(t_guid, "outline_a", str(top_line))
-            update_rhobj_attributes_name(b_guid, "outline_b", str(bottom_line))
-            update_rhobj_attributes_name(t_guid, "category", category)
 
         scene.add(plate.shape)
 

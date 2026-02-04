@@ -2,7 +2,7 @@
     "name": "Plate From Outline and Thickness",
     "nickname": "PlateFromThickness",
     "category": "Timber Design",
-    "subcategory": "01 Elements",
+    "subcategory": "01 Timber elements",
     "description": "Creates a Plate from a Polyline and Thickness.",
     "exposure": 4,
     "ghpython": {

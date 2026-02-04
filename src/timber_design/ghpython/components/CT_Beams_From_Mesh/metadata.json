@@ -2,7 +2,7 @@
     "name": "BeamsFromMeshEdges",
     "nickname": "BeamsFromMesh",
     "category": "Timber Design",
-    "subcategory": "01 Elements",
+    "subcategory": "01 Timber elements",
     "description": "Creates Beams and from mesh edges and maps them to the mesh vertexes.",
     "exposure": 2,
     "ghpython": {

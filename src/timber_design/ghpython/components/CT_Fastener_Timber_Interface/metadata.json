@@ -2,9 +2,9 @@
     "name": "Fastener Beam Interface",
     "nickname": "Interface",
     "category": "Timber Design",
-    "subcategory": "01 Elements",
+    "subcategory": "02 Elements",
     "description": "Under maintenance!",
-    "exposure": 8,
+    "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,

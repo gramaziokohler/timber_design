@@ -2,7 +2,7 @@
     "name": "NestBeams",
     "nickname": "NestBeams",
     "category": "Timber Design",
-    "subcategory": "10 Planning",
+    "subcategory": "10 Fabrication",
     "description": "Executes 1-D nesting of beams into stocks based on a given stock catalog. Outputs a NestingResult that can be optionally passed to the BTLxWriter.",
     "exposure": 2,
     "ghpython": {

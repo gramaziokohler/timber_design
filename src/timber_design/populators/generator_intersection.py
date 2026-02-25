@@ -70,15 +70,11 @@ class BeamGeneratorIntersection(object):
     @classmethod
     def from_beam_and_generator(cls, beam: Beam, element_generator: ElementGenerator, limit_to_segments: bool = True, skip_notches: bool = False, skip_laps: bool = False):
         intersections_a, intersections_b = cls._get_edge_intersections(beam, element_generator, limit_to_segments)
-        print(f"intersections_a: {[a.edge_index for a in intersections_a]}, intersections_b{[b.edge_index for b in intersections_b]}")
 
         intersections, leftovers_a, leftovers_b = cls._parse_simple_intersections(intersections_a, intersections_b, beam, element_generator)
-        print(f" intersections = {[i.edge_indices for i in intersections]}")
-        print(f"leftovers_a: {leftovers_a}, leftovers_b{leftovers_b}")
         if leftovers_a and leftovers_b:
             corner_intersections, leftovers_a, leftovers_b = cls._parse_corner_intersections(leftovers_a, leftovers_b, beam, element_generator)
             intersections.extend(corner_intersections)
-        print(f"leftovers_a: {leftovers_a}, leftovers_b{leftovers_b}")
         if leftovers_a or leftovers_b:
             if not skip_notches:
                 notch_intersections, leftovers_a, leftovers_b = cls._parse_notch_intersections(leftovers_a, leftovers_b, beam, element_generator)
@@ -87,7 +83,6 @@ class BeamGeneratorIntersection(object):
                 if not skip_laps:
                     lap_intersections = cls._parse_lap_intersections(leftovers_a, leftovers_b, beam, element_generator)
                     intersections.extend(lap_intersections)
-        print(f" indices = {[i.edge_indices for i in intersections]}")
         return intersections
 
     @staticmethod
@@ -178,18 +173,17 @@ class BeamGeneratorIntersection(object):
                 i += 1  # next int
             return notch_intersections, leftovers
 
-        side_a_notches, leftovers_a = _get_notch_intersections_for_side(intersections_a, beam, generator) if intersections_a else ([],[])
-        print(f"side_a_notches: {[i.edge_indices for i in side_a_notches]}")
-        print(f"side_a_leftovers: {[i.edge_index for i in leftovers_a]}")
-        
-        side_b_notches, leftovers_b = _get_notch_intersections_for_side(intersections_b, beam, generator) if intersections_b else ([],[])
+        side_a_notches, leftovers_a = _get_notch_intersections_for_side(intersections_a, beam, generator) if intersections_a else ([], [])
+
+        side_b_notches, leftovers_b = _get_notch_intersections_for_side(intersections_b, beam, generator) if intersections_b else ([], [])
 
         return side_a_notches + side_b_notches, leftovers_a, leftovers_b
 
     @staticmethod
     def _parse_lap_intersections(intersections_a: list[LineGeneratorIntersection], intersections_b: list[LineGeneratorIntersection], beam: Beam, generator: ElementGenerator):
         """gets lap BeamGeneratorIntersection objects from lists of LineGeneratorIntersection objects.
-        lap intersections are those where beam edges intersect non-adjacent edges of the element generator and at least one generator edge is between the beam edges/inside the beam.
+        lap intersections are those where beam edges intersect non-adjacent edges of the element generator
+        and at least one generator edge is between the beam edges/inside the beam.
         """
         if not intersections_a and not intersections_b:
             return []
@@ -266,7 +260,7 @@ def split_beam_with_element_generators(
             if element_generator.cull_element_at_point(beam.centerline.midpoint):
                 return [(None, (None, None))], list(beam.attributes.get("joint_defs", {}).values())
         return [(beam, (None, None))], []
-    
+
     intersections.sort(key=lambda x: x.dot)
 
     beam_int_tuples = []
@@ -274,9 +268,10 @@ def split_beam_with_element_generators(
     for pair in pairwise(intersections):
         # copy beam segment
         beam_seg: Beam = _get_beam_segment(beam, pair[0].dot, pair[1].dot)
-
         # check if beam segment should be culled
         for element_generator in [pair[0].generator, pair[1].generator]:
+            if not element_generator:
+                continue
             if element_generator and element_generator.cull_element_at_point(beam_seg.centerline.midpoint):
                 rules_to_remove.extend(beam_seg.attributes.pop("joint_defs", {}).values())
                 break
@@ -331,34 +326,34 @@ def extend_beam_to_closest_element_generators(
         return beam, None, None
     intersections.sort(key=lambda x: x.dot)
 
-    def get_bottom_int(intersections)->Union[BeamGeneratorIntersection, None]:
+    def get_bottom_int(intersections) -> Union[BeamGeneratorIntersection, None]:
         """get intersection with highest negative .dot value.
         requires intersections to be sorted by .dot value.
         will operate on intersections list and remove all intersections with negative .dot value.
         """
         if not intersections or intersections[0].dot > 0:
             return None
-        bottom = intersections.pop(0) #this dot is negative
+        bottom = intersections.pop(0)  # this dot is negative
         while intersections:
             if intersections[0].dot > 0:
                 break
-            bottom=intersections.pop(0)
+            bottom = intersections.pop(0)
         return bottom
-        
+
     def get_top_int(beam, intersections):
         """get intersection with lowest .dot value > beam.length.
         will operate on intersections list and remove all intersections with .dot value > beam.length.
         """
         if not intersections or intersections[-1].dot < beam.length:
             return None
-        top = intersections.pop() #this dot is > beam.length
+        top = intersections.pop()  # this dot is > beam.length
         while intersections:
             if intersections[-1].dot < beam.length:
                 break
-            top=intersections.pop(-1)
+            top = intersections.pop(-1)
         return top
-    
-    bottom_int = get_bottom_int(intersections) if not only_end else None 
+
+    bottom_int = get_bottom_int(intersections) if not only_end else None
     top_int = get_top_int(beam, intersections) if not only_start else None
 
     if bottom_int:
@@ -366,7 +361,7 @@ def extend_beam_to_closest_element_generators(
 
     start = bottom_int.dot if bottom_int else 0
     end = top_int.dot if top_int else beam.length
-    beam.length = end-start
+    beam.length = end - start
 
     return beam, bottom_int, top_int
 

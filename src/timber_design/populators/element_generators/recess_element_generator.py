@@ -4,6 +4,7 @@ from typing import Union
 from compas.geometry import Translation
 from compas.geometry import Vector
 from compas_timber.connections import LMiterJoint
+from compas_timber.connections import TButtJoint
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
@@ -27,7 +28,7 @@ class RecessElementGeneratorParams(ElementGeneratorParams):
         beam_width_overrides: Optional[dict] = None,
         joint_rule_overrides: Optional[list[CategoryRule]] = None,
     ):
-        super(RecessElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        super(RecessElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
 
         self.recess_beam_width = recess_beam_width
         self.recess_beam_height = recess_beam_height
@@ -40,7 +41,6 @@ class RecessElementGeneratorParams(ElementGeneratorParams):
         data["recess_beam_height"] = self.recess_beam_height
         data["sheeting_recess"] = self.sheeting_recess
         return data
-        
 
 
 class RecessElementGenerator(ElementGenerator):
@@ -50,6 +50,9 @@ class RecessElementGenerator(ElementGenerator):
     NAME = "RecessElementGenerator"
     RULES = [
         CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
+        CategoryRule(TButtJoint, "recess", "top_plate_beam", max_distance=1.0),
+        CategoryRule(TButtJoint, "recess", "bottom_plate_beam", max_distance=1.0),
+        CategoryRule(TButtJoint, "recess", "edge_stud", max_distance=1.0),
     ]
 
     def __init__(
@@ -74,6 +77,7 @@ class RecessElementGenerator(ElementGenerator):
         self.recess_beam_height = recess_beam_height
         self.sheeting_recess = sheeting_recess
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
+        self.boundary_type = FeatureBoundaryType.INCLUSIVE  # TODO make class variable
 
     @property
     def panel(self) -> Panel:
@@ -88,7 +92,7 @@ class RecessElementGenerator(ElementGenerator):
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = self._create_internal_joints()
         return [rule for rule in rules if rule is not None]
@@ -108,21 +112,17 @@ class RecessElementGenerator(ElementGenerator):
                 edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.panel.thickness - self.beam_dimensions["recess"][1]) * 0.5))
             )
         extend_line_segments(plate_edges, close_loop=True)
-        plate_edges = join_polyline_segments(plate_edges, close_loop=True)
+        plate_edges = join_polyline_segments(plate_edges, close_loop=True)[0][0]
         plate_edges[-1] = plate_edges[0]
         extend_line_segments(new_centerlines, close_loop=True)
-        elements = []
-        edge_elements = {}
         for i, edge in enumerate(new_centerlines):
-            elements.append(self.beam_from_category(edge, "recess"))
-            edge_elements[i] = [elements[-1]]
-        elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
+            self.elements.append(self.beam_from_category(edge, "recess"))
+            self.edge_elements[i] = [self.elements[-1]]
+        self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
         self.outline = self.edge_generator.outline.copy() if self.edge_generator.outline else None
-        self.edges = ({index: edge for index, edge in enumerate(self.outline.lines)},) if self.outline else ({},)
-        self.edge_elements = ({index: [edge] for index, edge in enumerate(new_centerlines)},)
-        self.boundary_type = (FeatureBoundaryType.INCLUSIVE,)
+        self.edges = {index: edge for index, edge in enumerate(self.outline.lines)} if self.outline else {}
 
     # ==========================================================================
     # methods for joints

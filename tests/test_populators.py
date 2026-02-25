@@ -1,4 +1,3 @@
-
 from compas.geometry import Point, Polyline, Vector, Plane, Transformation
 
 from timber_design.populators.generator_factories.stud_panel_generator_factory import (

@@ -1,7 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Union
 from typing import Optional
+from typing import Union
 
 from compas.geometry import Line
 from compas.geometry import Vector
@@ -11,6 +11,7 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.elements import TimberElement
+from compas_timber.utils import is_point_in_polyline
 
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -30,6 +31,7 @@ class FeatureBoundaryType(object):
     INCLUSIVE = "inclusive"
     NONE = "none"
 
+
 class ElementGeneratorParams(object):
     def __init__(
         self,
@@ -45,6 +47,7 @@ class ElementGeneratorParams(object):
             "beam_width_overrides": self.beam_width_overrides,
             "joint_rule_overrides": self.joint_rule_overrides,
         }
+
 
 class ElementGenerator(ABC):
     """Abstract class for an element generator.
@@ -62,6 +65,7 @@ class ElementGenerator(ABC):
 
     BEAM_CATEGORY_NAMES = []
     RULES = []
+    BOUNDARY_TYPE = FeatureBoundaryType.NONE
 
     def __init__(
         self,
@@ -83,7 +87,7 @@ class ElementGenerator(ABC):
         self.edges = {}
         self.edge_elements = {}
         self.outline = None
-        self.boundary_type = FeatureBoundaryType.NONE
+        self.test = []
 
     def update_rules(self, joint_rule_overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Update the rules with any overrides provided."""
@@ -186,7 +190,14 @@ class ElementGenerator(ABC):
 
     def cull_element_at_point(self, point) -> bool:
         """Determines whether an element at the given point should be culled by the element generator."""
-        return False
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.NONE:
+            return False
+        if self.outline is None:
+            return False
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.EXCLUSIVE and is_point_in_polyline(point, self.outline, in_plane=False):
+            return True
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.INCLUSIVE and not None and not is_point_in_polyline(point, self.outline, in_plane=False):
+            return True
 
     def apply_to_plate(self, plate: Plate) -> None:
         """Apply the element group's feature definition to the plate based on the element generator."""
@@ -198,6 +209,6 @@ class ElementGenerator(ABC):
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
     @abstractmethod
-    def join_elements(self, populator_direct_rules, element_generators) -> list[DirectRule]:
+    def join_elements(self, populator_joint_defs, element_generators) -> list[DirectRule]:
         """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")

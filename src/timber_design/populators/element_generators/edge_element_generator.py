@@ -23,8 +23,8 @@ from compas_timber.utils import is_polyline_clockwise
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
-from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import ElementGeneratorParams
+from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import split_beam_with_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -47,10 +47,9 @@ class EdgeElementGeneratorParams(ElementGeneratorParams):
     @property
     def __data__(self):
         data = super().__data__
-        data["standard_beam_width"] = self.standard_beam_width,
-        data["standard_beam_width_increment"] = self.standard_beam_width_increment,
-        data["edge_beam_min_width"] = self.edge_beam_min_width,
-        
+        data["standard_beam_width"] = (self.standard_beam_width,)
+        data["standard_beam_width_increment"] = (self.standard_beam_width_increment,)
+        data["edge_beam_min_width"] = (self.edge_beam_min_width,)
 
 
 class EdgeElementGenerator(ElementGenerator):
@@ -66,6 +65,7 @@ class EdgeElementGenerator(ElementGenerator):
         CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
     ]
+    BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
 
     def __init__(
         self,
@@ -124,12 +124,12 @@ class EdgeElementGenerator(ElementGenerator):
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         rules = []
         intersecting_generators = [eg for eg in element_generators if eg is not self]
         if intersecting_generators:
-            rules.extend(self._create_external_joints(populator_direct_rules, intersecting_generators))
+            rules.extend(self._create_external_joints(populator_joint_defs, intersecting_generators))
         rules.extend(self._create_internal_joints())
         return [rule for rule in rules if rule is not None]
 
@@ -155,9 +155,8 @@ class EdgeElementGenerator(ElementGenerator):
             vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
         extend_line_segments(edges, close_loop=True)
-        self.outline = join_polyline_segments(edges, close_loop=True)  # TODO: do we need both outline and edges?
+        self.outline = join_polyline_segments(edges, close_loop=True)[0][0]  # TODO: do we need both outline and edges?
         self.edges = {index: edge for index, edge in enumerate(edges)}
-        self.boundary_type = FeatureBoundaryType.INCLUSIVE
 
     def _get_edge_beam_line_and_width(self, segment_index, min_width=0.0, edge_beam_dim_increment=None) -> tuple[Line, float]:
         perp_vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, segment_index)
@@ -201,7 +200,7 @@ class EdgeElementGenerator(ElementGenerator):
     # methods for creating beam joints
     # ==========================================================================
 
-    def _create_external_joints(self, populator_direct_rules: list[DirectRule], intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def _create_external_joints(self, populator_joint_defs: list[DirectRule], intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
         rules = []
         edge_elements = {}
         for index, edge_beams in self.edge_elements.items():
@@ -209,8 +208,8 @@ class EdgeElementGenerator(ElementGenerator):
             for raw_edge_beam in edge_beams:
                 beam_int_tuples, joints_to_cull = split_beam_with_element_generators(raw_edge_beam, intersecting_element_generators)
                 for j in joints_to_cull:
-                    if j in populator_direct_rules:
-                        populator_direct_rules.remove(j)
+                    if j in populator_joint_defs:
+                        populator_joint_defs.remove(j)
                 self.elements.remove(raw_edge_beam)
                 for beam, ints in beam_int_tuples:
                     if beam:
@@ -233,7 +232,8 @@ class EdgeElementGenerator(ElementGenerator):
         rules = []
         for corner_index in range(len(self.panel.outline_a) - 1):
             edge_a_index = corner_index
-            edge_b_index = (edge_a_index - 1) % len(self.panel.outline_a) - 1
+            edge_b_index = (edge_a_index - 1) % (len(self.panel.outline_a) - 1)
+
             interior_corner = edge_a_index in self.interior_corner_indices
             rule = self._create_edge_beam_joint_rule(self.panel.edge_planes, edge_a_index, edge_b_index, interior_corner)
             point = intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]

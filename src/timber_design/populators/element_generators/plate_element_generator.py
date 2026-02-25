@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Union
 
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
@@ -18,7 +17,7 @@ class PlateElementGeneratorParams(ElementGeneratorParams):
         beam_width_overrides: Optional[dict] = None,
         joint_rule_overrides: Optional[list[CategoryRule]] = None,
     ):
-        super(PlateElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        super(PlateElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
         self.sheeting_inside = sheeting_inside
         self.sheeting_outside = sheeting_outside
 
@@ -28,7 +27,6 @@ class PlateElementGeneratorParams(ElementGeneratorParams):
         data["sheeting_inside"] = self.sheeting_inside
         data["sheeting_outside"] = self.sheeting_outside
         return data
-       
 
 
 class PlateElementGenerator(ElementGenerator):
@@ -42,10 +40,10 @@ class PlateElementGenerator(ElementGenerator):
         self,
         panel: Panel,
         frame_panel: Panel,
-        sheeting_inside: Union[float, None] = None,
-        sheeting_outside: Union[float, None] = None,
-        beam_width_overrides: Union[dict, None] = None,
-        joint_rule_overrides: Union[list[CategoryRule], None] = None,
+        sheeting_inside: Optional[float] = None,
+        sheeting_outside: Optional[float] = None,
+        beam_width_overrides: Optional[dict] = None,
+        joint_rule_overrides: Optional[list[CategoryRule]] = None,
     ) -> None:
         super(PlateElementGenerator, self).__init__(
             panel,
@@ -66,7 +64,7 @@ class PlateElementGenerator(ElementGenerator):
         """Populates the panel with plate elements."""
         self._create_plates()
 
-    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         intersecting_generators = [g for g in element_generators if g is not self]
         for plate in self.elements:
@@ -78,6 +76,10 @@ class PlateElementGenerator(ElementGenerator):
         if self.sheeting_inside:
             plate = Plate.from_outlines(self.panel.outline_a, self.frame_panel.outline_a, name="inside_plate")
             self.elements.append(plate)
+            print("plate xform", plate.transformation)
+            self.test.append(plate.modelgeometry)
         if self.sheeting_outside:
-            plate = Plate.from_outlines(self.panel.outline_b, self.panel.outline_b, name="outside_plate")
+            plate = Plate.from_outlines(self.panel.outline_b, self.frame_panel.outline_b, name="outside_plate")
+            print("plate xform", plate.transformation)
             self.elements.append(plate)
+            self.test.append(plate.modelgeometry)

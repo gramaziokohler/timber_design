@@ -1,5 +1,6 @@
 from .populator import PanelPopulator
-from .populator import FeatureDefinition
+from .populator import PanelPopulatorDefinition
+from .populator import FeaturePopulatorDefinition
 from .generator_intersection import BeamGeneratorIntersection
 from .generator_intersection import extend_beam_to_closest_element_generators
 from .generator_intersection import split_beam_with_element_generators
@@ -24,9 +25,11 @@ from .generator_factories.stud_panel_generator_factory import StudPanelGenerator
 
 __all__ = [
     "PanelPopulator",
-    "FeatureDefinition",
+    "PanelPopulatorDefinition",
+    "FeaturePopulatorDefinition",
     "ElementGenerator",
     "FeatureBoundaryType",
+    "ElementGeneratorParams",
     "EdgeElementGenerator",
     "StudElementGenerator",
     "PlateElementGenerator",

@@ -72,9 +72,7 @@ class StudPanelGeneratorFactory(PanelGeneratorFactory):
     """Factory for creating stud panel element generators."""
 
     @classmethod
-    def create_generators(
-        cls, populator_panel: Panel, params: StudPanelGeneratorFactoryParams, feature_generators: Union[List["ElementGenerator"], None] = None
-    ) -> List["ElementGenerator"]:
+    def create_generators(cls, populator_panel: Panel, params: StudPanelGeneratorFactoryParams) -> List["ElementGenerator"]:
         """Create a stud panel element generator.
 
         Parameters
@@ -134,10 +132,6 @@ class StudPanelGeneratorFactory(PanelGeneratorFactory):
                         feature, params.standard_beam_width, params.lintel_posts, params.beam_width_overrides, params.joint_rule_overrides, params.split_bottom_plate_beam
                     )
                 )
-
-        if feature_generators:
-            # pass externally definged feature generators to be included in the panel
-            generators.extend(feature_generators)
 
         for generator in generators:
             generator.resolve_beam_dimensions(frame_panel.thickness)

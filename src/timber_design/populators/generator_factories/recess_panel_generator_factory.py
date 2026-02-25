@@ -48,6 +48,7 @@ class RecessPanelGeneratorFactoryParams(GeneratorFactoryParams):
         standard_beam_width_increment: Union[float, None] = None,
         sheeting_outside: float = 0,
         sheeting_inside: float = 0,
+        sheeting_recess: float = 0,
         beam_width_overrides: Union[dict, None] = None,
         joint_rule_overrides: Union[List[CategoryRule], None] = None,
     ):
@@ -58,6 +59,7 @@ class RecessPanelGeneratorFactoryParams(GeneratorFactoryParams):
         self.standard_beam_width_increment = standard_beam_width_increment
         self.sheeting_outside = sheeting_outside
         self.sheeting_inside = sheeting_inside
+        self.sheeting_recess = sheeting_recess
         self.beam_width_overrides = beam_width_overrides or {}
         self.joint_rule_overrides = joint_rule_overrides or []
 
@@ -66,9 +68,7 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
     """Factory for creating stud panel element generators."""
 
     @classmethod
-    def create_generators(
-        cls, populator_panel: Panel, params: RecessPanelGeneratorFactoryParams, feature_generators: Union[List["ElementGenerator"], None] = None
-    ) -> List["ElementGenerator"]:
+    def create_generators(cls, populator_panel: Panel, params: RecessPanelGeneratorFactoryParams) -> List["ElementGenerator"]:
         """Create a stud panel element generator.
 
         Parameters
@@ -87,25 +87,22 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
         from timber_design.populators.element_generators.recess_element_generator import RecessElementGenerator
 
         frame_panel = get_frame_panel(populator_panel, params)
-
-        generators: List["ElementGenerator"] = []
-        generators.append(
-            EdgeElementGenerator(
-                frame_panel,
-                standard_beam_width=params.standard_beam_width,
-                standard_beam_width_increment=params.standard_beam_width_increment,
-                edge_beam_min_width=params.edge_beam_min_width,
-                beam_width_overrides=params.beam_width_overrides,
-                joint_rule_overrides=params.joint_rule_overrides,
-            )
+        edge_generator = EdgeElementGenerator(
+            frame_panel,
+            standard_beam_width=params.standard_beam_width,
+            standard_beam_width_increment=params.standard_beam_width_increment,
+            edge_beam_min_width=params.edge_beam_min_width,
+            beam_width_overrides=params.beam_width_overrides,
+            joint_rule_overrides=params.joint_rule_overrides,
         )
+        generators: List["ElementGenerator"] = [edge_generator]
         generators.append(
             RecessElementGenerator(
                 frame_panel,
-                edge_generator=generators[0],
+                edge_generator=edge_generator,
                 recess_beam_width=params.recess_beam_width,
                 recess_beam_height=params.recess_beam_height,
-                sheeting_inside=params.sheeting_inside,
+                sheeting_recess=params.sheeting_inside,
                 standard_beam_width=params.standard_beam_width,
                 beam_width_overrides=params.beam_width_overrides,
                 joint_rule_overrides=params.joint_rule_overrides,
@@ -116,9 +113,6 @@ class RecessPanelGeneratorFactory(PanelGeneratorFactory):
             from timber_design.populators.element_generators.plate_element_generator import PlateElementGenerator
 
             generators.append(PlateElementGenerator(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
-
-        if feature_generators:
-            generators.extend(feature_generators)
 
         for generator in generators:
             generator.resolve_beam_dimensions(frame_panel.thickness)

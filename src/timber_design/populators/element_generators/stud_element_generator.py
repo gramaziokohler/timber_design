@@ -22,7 +22,7 @@ class StudElementGeneratorParams(ElementGeneratorParams):
         beam_width_overrides: Optional[Dict] = None,
         joint_rule_overrides: Optional[List[CategoryRule]] = None,
     ):
-        super(StudElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        super(StudElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
         self.stud_spacing = stud_spacing
         self.standard_beam_width = standard_beam_width
 
@@ -32,7 +32,6 @@ class StudElementGeneratorParams(ElementGeneratorParams):
         data["stud_spacing"] = self.stud_spacing
         data["standard_beam_width"] = self.standard_beam_width
         return data
-
 
 
 class StudElementGenerator(ElementGenerator):
@@ -73,10 +72,10 @@ class StudElementGenerator(ElementGenerator):
         """Populates the panel with stud beams."""
         self._create_studs()
 
-    def join_elements(self, populator_direct_rules: List[DirectRule], element_generators: List[ElementGenerator]) -> Union[List[DirectRule], None]:
+    def join_elements(self, populator_joint_defs: List[DirectRule], element_generators: List[ElementGenerator]) -> Union[List[DirectRule], None]:
         """Join the stud beams to neighboring ElementGenerator elements."""
         intersecting_generators = [g for g in element_generators if g is not self]
-        return self._join_studs(populator_direct_rules, intersecting_generators)
+        return self._join_studs(populator_joint_defs, intersecting_generators)
 
     def _create_studs(self):
         """Generates the stud beams."""
@@ -87,7 +86,7 @@ class StudElementGenerator(ElementGenerator):
             x_position += self.stud_spacing
         self.elements = studs
 
-    def _join_studs(self, populator_direct_rules: List[DirectRule], element_generators: List[ElementGenerator]) -> List[DirectRule]:
+    def _join_studs(self, populator_joint_defs: List[DirectRule], element_generators: List[ElementGenerator]) -> List[DirectRule]:
         """Joins the stud beams."""
         intersecting_generators = element_generators
         elements = []
@@ -96,8 +95,8 @@ class StudElementGenerator(ElementGenerator):
         for raw_stud in self.elements:
             beam_tuples, joints_to_cull = split_beam_with_element_generators(raw_stud, intersecting_generators)
             for j in joints_to_cull:
-                if j in populator_direct_rules:
-                    populator_direct_rules.remove(j)
+                if j in populator_joint_defs:
+                    populator_joint_defs.remove(j)
             for beam, (start_int, end_int) in beam_tuples:
                 if not beam or beam.length < min_length:
                     continue

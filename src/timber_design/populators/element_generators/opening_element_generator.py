@@ -23,8 +23,8 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import ElementGenerator
-from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import ElementGeneratorParams
+from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import extend_beam_to_closest_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -39,16 +39,15 @@ class OpeningElementGeneratorParams(ElementGeneratorParams):
         beam_width_overrides: Optional[dict] = None,
         joint_rule_overrides: Optional[list[CategoryRule]] = None,
     ):
-        super(OpeningElementGeneratorParams,self).__init__(beam_width_overrides, joint_rule_overrides)
+        super(OpeningElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
         self.standard_beam_width = standard_beam_width
         self.lintel_posts = lintel_posts
         self.beam_width_overrides = beam_width_overrides
 
-
     @property
     def __data__(self):
         data = super().__data__
-        data["standard_beam_width"]= self.standard_beam_width
+        data["standard_beam_width"] = self.standard_beam_width
         data["lintel_posts"] = self.lintel_posts
         data["beam_width_overrides"] = self.beam_width_overrides
         return data
@@ -73,6 +72,7 @@ class OpeningElementGenerator(ElementGenerator):
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
     ]
+    BOUNDARY_TYPE = FeatureBoundaryType.EXCLUSIVE
 
     def __init__(
         self,
@@ -119,7 +119,7 @@ class OpeningElementGenerator(ElementGenerator):
         """
         return self._create_elements(feature)
 
-    def join_elements(self, populator_direct_rules: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
+    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         intersecting_groups = [g for g in element_generators if g != self]
         rules = []
@@ -187,7 +187,7 @@ class OpeningElementGenerator(ElementGenerator):
 
         self.edges = OpeningElementGenerator._get_edge_dict(edge_elements, frame_polyline)
         self.edge_elements = edge_elements
-        self.outline = join_polyline_segments(list(self.edges.values()), close_loop=True)
+        self.outline = join_polyline_segments(list(self.edges.values()), close_loop=True)[0][0]
         self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
@@ -348,15 +348,15 @@ class OpeningElementGenerator(ElementGenerator):
         opening_a = Polyline([p for p in self.feature.outline_a])
         opening_b = Polyline([p for p in self.feature.outline_b])
 
-        if self.opening_type == "door":
-            lines = [(i, l) for i, l in enumerate(opening_a.lines)]
-            bottom_edge_index = min(lines, key=lambda x: x[1].midpoint.y)[0]
-            opening_a[bottom_edge_index].y -= 0.1
-            opening_a[(bottom_edge_index + 1) % len(opening_a)].y -= 0.1
-            opening_a[-1] = opening_a[0]
-            opening_b[bottom_edge_index].y -= 0.1
-            opening_b[(bottom_edge_index + 1) % len(opening_b)].y -= 0.1
-            opening_b[-1] = opening_b[0]
+        # if self.opening_type == "door":
+        #     lines = [(i, l) for i, l in enumerate(opening_a.lines)]
+        #     bottom_edge_index = min(lines, key=lambda x: x[1].midpoint.y)[0]
+        #     opening_a[bottom_edge_index].y -= 0.1
+        #     opening_a[(bottom_edge_index + 1) % len(opening_a)].y -= 0.1
+        #     opening_a[-1] = opening_a[0]
+        #     opening_b[bottom_edge_index].y -= 0.1
+        #     opening_b[(bottom_edge_index + 1) % len(opening_b)].y -= 0.1
+        #     opening_b[-1] = opening_b[0]
 
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening_a.points, opening_b.points)]
         outline_a_projected = Polyline([intersection_line_plane(line, plate.planes[0]) for line in lines])

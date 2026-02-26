@@ -19,8 +19,8 @@ class X_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         super(X_TopologyJointRule, self).__init__()
         self.classes = {}
         for cls in get_leaf_subclasses(Joint):
-            supported_topo = cls.SUPPORTED_TOPOLOGY if isinstance(cls.SUPPORTED_TOPOLOGY, list) else [cls.SUPPORTED_TOPOLOGY]
-            if JointTopology.TOPO_X in supported_topo and not issubclass(cls, PlateJoint):
+            supported_topo = cls.SUPPORTED_TOPOLOGY
+            if JointTopology.TOPO_X == supported_topo and not issubclass(cls, PlateJoint):
                 self.classes[cls.__name__] = cls
         self.joint_type = self.classes.get(ghenv.Component.Params.Output[0].NickName, None)
 
@@ -36,9 +36,7 @@ class X_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
                 if val is not None:
                     kwargs[self.arg_names()[i]] = val
             supported_topo = self.joint_type.SUPPORTED_TOPOLOGY
-            if not isinstance(supported_topo, list):
-                supported_topo = [supported_topo]
-            if JointTopology.TOPO_X not in supported_topo:
+            if JointTopology.TOPO_X != supported_topo:
                 ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Joint type does not match topology. Joint may not be generated.")
             return TopologyRule(JointTopology.TOPO_X, self.joint_type, **kwargs)
 

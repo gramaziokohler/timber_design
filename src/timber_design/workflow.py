@@ -6,6 +6,7 @@ from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
+from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import distance_segment_segment
 from compas_timber.utils import intersection_line_line_param
 
@@ -242,7 +243,7 @@ class CategoryRule(JointRule):
     def __repr__(self):
         return "{}({}, {}, {}, {})".format(CategoryRule.__name__, self.joint_type.__name__, self.category_a, self.category_b, self.topos)
 
-    def comply(self, elements, model_max_distance=TOL.absolute):
+    def comply(self, elements, model_max_distance=TOL.absolute, raise_error=False):
         """Checks if the given elements comply with this CategoryRule.
         It checks:
         that the elements have the expected category attribute,
@@ -257,6 +258,8 @@ class CategoryRule(JointRule):
         model_max_distance : float, optional
             The maximum distance to consider two elements as intersecting. Defaults to TOL.absolute.
             This is only used if the rule does not already have a max_distance set.
+        raise_error : bool, optional
+            If True, raises an error when topology is not supported. Defaults to False.
 
         Returns
         -------
@@ -276,8 +279,14 @@ class CategoryRule(JointRule):
                 solver = ConnectionSolver()
                 found_topology = solver.find_topology(elements[0], elements[1], max_distance=max_distance)[0]
                 supported_topo = self.joint_type.SUPPORTED_TOPOLOGY
-                if not isinstance(supported_topo, list):
-                    supported_topo = [supported_topo]
+                if found_topology != supported_topo:
+                    if raise_error:
+                        raise BeamJoiningError(
+                        beams=elements,
+                        joint=self.joint_type,
+                        debug_info="The cluster topology must be one of: {} for {}.".format([JointTopology.get_name(supported_topo)], self.joint_type.__name__),
+                        debug_geometries=[e.shape for e in elements],
+                )
                 if found_topology in supported_topo:
                     comply = True
             return comply

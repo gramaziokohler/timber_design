@@ -6,7 +6,7 @@ import warnings
 
 from compas_timber.planning import BeamNester as CTBeamNester
 from compas_timber.planning import BeamStock
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class BeamNester(Grasshopper.Kernel.GH_ScriptInstance):

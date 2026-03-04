@@ -5,7 +5,7 @@ import System
 from ghpythonlib.treehelpers import tree_to_list
 
 from compas_timber.planning import BeamStock as CTBeamStock
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class BeamStock(Grasshopper.Kernel.GH_ScriptInstance):

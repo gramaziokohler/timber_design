@@ -1,4 +1,5 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 """Defines which Joint type will be applied in the Automatic Joints component for connecting Beams with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
 
 # flake8: noqa
@@ -9,14 +10,14 @@ import Grasshopper
 from System.Windows.Forms import ToolStripMenuItem
 from System.Windows.Forms import ToolStripSeparator
 
-from compas_timber.connections import Joint
+
 from timber_design.workflow import CategoryRule
-from compas_timber.ghpython import get_leaf_subclasses
-from compas_timber.ghpython import item_input_valid_cpython
-from compas_timber.ghpython import manage_cpython_dynamic_params
-from compas_timber.ghpython import rename_cpython_gh_output
-from compas_timber.ghpython import warning
-from compas_timber.ghpython import message
+from timber_design.ghpython import get_createable_joints
+from timber_design.ghpython import item_input_valid_cpython
+from timber_design.ghpython import manage_cpython_dynamic_params
+from timber_design.ghpython import rename_cpython_gh_output
+from timber_design.ghpython import warning
+from timber_design.ghpython import message
 
 
 class CategoryJointRule(Grasshopper.Kernel.GH_ScriptInstance):
@@ -25,7 +26,7 @@ class CategoryJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         self.topo_bools = OrderedDict([("Unknown", False), ("I", False), ("L", False), ("T", False), ("X", False)])
 
         self.classes = {}
-        for cls in get_leaf_subclasses(Joint):
+        for cls in get_createable_joints():
             self.classes[cls.__name__] = cls
 
         if ghenv.Component.Params.Output[0].NickName == "Rule":

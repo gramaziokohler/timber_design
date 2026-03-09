@@ -1,24 +1,25 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 import inspect
 
 import Grasshopper
 
-from compas_timber.connections import Joint
+
 from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from timber_design.workflow import TopologyRule
-from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
-from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
-from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
+from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
+from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
 class L_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(L_TopologyJointRule, self).__init__()
         self.classes = {}
-        for cls in get_leaf_subclasses(Joint):
+        for cls in get_createable_joints():
             supported_topo = cls.SUPPORTED_TOPOLOGY if isinstance(cls.SUPPORTED_TOPOLOGY, list) else [cls.SUPPORTED_TOPOLOGY]
             if JointTopology.TOPO_L in supported_topo and not issubclass(cls, PlateJoint):
                 self.classes[cls.__name__] = cls
@@ -29,18 +30,13 @@ class L_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = "Default: LMiterJoint"
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "LMiterJoint is default, change in context menu (right click)")
             return TopologyRule(JointTopology.TOPO_L, LMiterJoint)
-        else:
-            ghenv.Component.Message = self.joint_type.__name__
-            kwargs = {}
-            for i, val in enumerate(args):
-                if val is not None:
-                    kwargs[self.arg_names()[i]] = val
-            supported_topo = self.joint_type.SUPPORTED_TOPOLOGY
-            if not isinstance(supported_topo, list):
-                supported_topo = [supported_topo]
-            if JointTopology.TOPO_L not in supported_topo:
-                ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Joint type does not match topology. Joint may not be generated.")
-            return TopologyRule(JointTopology.TOPO_L, self.joint_type, **kwargs)
+
+        ghenv.Component.Message = self.joint_type.__name__
+        kwargs = {}
+        for i, val in enumerate(args):
+            if val is not None:
+                kwargs[self.arg_names()[i]] = val
+        return TopologyRule(JointTopology.TOPO_L, self.joint_type, **kwargs)
 
     def arg_names(self):
         names = inspect.getargspec(self.joint_type.__init__)[0][3:]

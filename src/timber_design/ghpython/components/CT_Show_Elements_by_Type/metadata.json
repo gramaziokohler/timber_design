@@ -1,20 +1,20 @@
 {
     "name": "ShowElementsByType",
     "nickname": "ElementTypes",
-    "category": "COMPAS Timber",
-    "subcategory": "Show",
+    "category": "Timber Design",
+    "subcategory": "08 Show",
     "description": "allows user to filter element geometries by type.",
-    "exposure": 2,
+    "exposure": 4,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
-                {
-                    "name": "model",
-                    "description": "Model object.",
-                    "typeHintID": "none",
-                    "scriptParamAccess": 0
-                }
+            {
+                "name": "model",
+                "description": "Model object.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            }
         ],
         "outputParameters": [
             {

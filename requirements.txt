@@ -1,1 +1,1 @@
-compas_timber>=0.16.2
+compas_timber>=2.0.0-dev

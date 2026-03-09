@@ -1,5 +1,4 @@
 from compas.tolerance import TOL
-
 from compas_timber.connections import Cluster
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
@@ -625,7 +624,7 @@ def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="
         pass
 
 
-def get_clusters_from_model(model, max_distance=None):
+def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
     """Analyzes the model to find clusters of beams and plates. This will create JointCandidates and PlateJointCandidates in the model.
     Parameters
     ----------
@@ -639,9 +638,13 @@ def get_clusters_from_model(model, max_distance=None):
     list[:class:`~compas_timber.connections.Cluster`]
         A list of clusters found in the model.
     """
+    # too high a max_cluster_size will lead to combinatorial explosion, even when efficient algorithm is used.
+    # see: https://github.com/gramaziokohler/compas_timber/pull/705
+    if max_cluster_size > 16:
+        raise ValueError(f"max_cluster_size should not be too high to avoid combinatorial explosion, got {max_cluster_size}")
     model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    analyzer = MaxNCompositeAnalyzer(model, n=len(list(model.elements())), max_distance=max_distance)
+    analyzer = MaxNCompositeAnalyzer(model, n=max_cluster_size, max_distance=max_distance)
     clusters = analyzer.find()
     return clusters
 

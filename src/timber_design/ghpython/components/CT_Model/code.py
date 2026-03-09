@@ -9,15 +9,16 @@ from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
 
-from timber_design.workflow import DebugInfomation
-from timber_design.workflow import JointRuleSolver
 # from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
+from compas_timber.model import TimberModel
+
 from timber_design.ghpython import error
 from timber_design.ghpython import warning
-from compas_timber.model import TimberModel
+from timber_design.workflow import DebugInfomation
+from timber_design.workflow import JointRuleSolver
 
 # workaround for https://github.com/gramaziokohler/compas_timber/issues/280
 TOL.absolute = 1e-6

@@ -5,14 +5,14 @@
 import inspect
 
 import Grasshopper  # type: ignore
-
 from compas_timber.connections import PlateJoint
-from timber_design.workflow import DirectRule
+
 from timber_design.ghpython import get_createable_joints
 from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
+from timber_design.workflow import DirectRule
 
 
 class DirectJointRule(Grasshopper.Kernel.GH_ScriptInstance):

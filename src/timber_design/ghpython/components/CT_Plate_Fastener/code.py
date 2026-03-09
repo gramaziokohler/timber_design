@@ -4,7 +4,6 @@ import Grasshopper
 import Rhino
 import System
 from compas.scene import SceneObject
-
 from compas_timber.elements import PlateFastener
 
 

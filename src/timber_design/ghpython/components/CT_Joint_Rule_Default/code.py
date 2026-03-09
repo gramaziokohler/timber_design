@@ -1,11 +1,11 @@
 # r: timber_design>=0.1.0
 # venv: td_migration
 import Grasshopper
-
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
+
 from timber_design.workflow import TopologyRule
 
 

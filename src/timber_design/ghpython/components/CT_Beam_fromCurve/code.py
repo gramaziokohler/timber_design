@@ -81,7 +81,6 @@ class Beam_fromCurve(Grasshopper.Kernel.GH_ScriptInstance):
                 beam.attributes["rhino_guid"] = str(guid) if guid else None
                 beam.attributes["category"] = c
 
-
                 beams.append(beam)
                 scene.add(beam.blank)
 

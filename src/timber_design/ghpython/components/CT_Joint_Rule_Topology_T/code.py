@@ -1,24 +1,25 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 import inspect
 
 import Grasshopper
 
-from compas_timber.connections import Joint
+
 from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import TButtJoint
 from timber_design.workflow import TopologyRule
-from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
-from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
-from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
+from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
+from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
 class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(T_TopologyJointRule, self).__init__()
         self.classes = {}
-        for cls in get_leaf_subclasses(Joint):
+        for cls in get_createable_joints():
             supported_topo = cls.SUPPORTED_TOPOLOGY
             if JointTopology.TOPO_T == supported_topo and not issubclass(cls, PlateJoint):
                 self.classes[cls.__name__] = cls
@@ -29,16 +30,13 @@ class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = "Default: TButtJoint"
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "TButtJoint is default, change in context menu (right click)")
             return TopologyRule(JointTopology.TOPO_T, TButtJoint)
-        else:
-            ghenv.Component.Message = self.joint_type.__name__
-            kwargs = {}
-            for i, val in enumerate(args):
-                if val is not None:
-                    kwargs[self.arg_names()[i]] = val
-            supported_topo = self.joint_type.SUPPORTED_TOPOLOGY
-            if JointTopology.TOPO_T != supported_topo:
-                ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Joint type does not match topology. Joint may not be generated.")
-            return TopologyRule(JointTopology.TOPO_T, self.joint_type, **kwargs)
+
+        ghenv.Component.Message = self.joint_type.__name__
+        kwargs = {}
+        for i, val in enumerate(args):
+            if val is not None:
+                kwargs[self.arg_names()[i]] = val
+        return TopologyRule(JointTopology.TOPO_T, self.joint_type, **kwargs)
 
     def arg_names(self):
         names = inspect.getargspec(self.joint_type.__init__)[0][3:]

@@ -132,6 +132,7 @@ data/
 *.DS_Store
 
 .vscode
+.vs
 
 docs/api/generated/
 

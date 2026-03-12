@@ -1,4 +1,4 @@
-name: compas_timber
+name: timber_design
 version: {{ version }}
 authors:
   - Gramazio Kohler Research, ETH Zurich

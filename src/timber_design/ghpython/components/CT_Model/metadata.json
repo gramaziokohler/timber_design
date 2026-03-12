@@ -1,8 +1,8 @@
 {
     "name": "Model",
     "nickname": "Model",
-    "category": "COMPAS Timber",
-    "subcategory": "Model",
+    "category": "Timber Design",
+    "subcategory": "07 Model",
     "description": "Creates an Model",
     "exposure": 2,
     "ghpython": {

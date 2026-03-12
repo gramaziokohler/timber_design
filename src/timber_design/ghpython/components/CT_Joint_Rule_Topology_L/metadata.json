@@ -1,19 +1,18 @@
 {
     "name": "L Topological Joint Rules",
     "nickname": "L_Topo_Joint",
-    "category": "COMPAS Timber",
-    "subcategory": "Joint Rules",
+    "category": "Timber Design",
+    "subcategory": "04 Beam Joint Rules",
     "description": "makes rule to apply joint type to L topology. Defualts to LMiterJoint",
     "exposure": 4,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
-        "inputParameters": [
-        ],
+        "inputParameters": [],
         "outputParameters": [
             {
                 "name": "Rule",
-                "description": "List of TopologyRules."
+                "description": "L-Topology Rule."
             }
         ]
     }

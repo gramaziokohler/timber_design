@@ -14,8 +14,9 @@ from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
-from compas_timber.elements import Beam
 from compas_timber.elements import Panel
+
+from timber_design.populators.beam2d import Beam2D
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
@@ -61,6 +62,7 @@ class EdgeElementGenerator(ElementGenerator):
         self.standard_beam_width_increment = standard_beam_width_increment
         self.edge_beam_min_width = edge_beam_min_width or standard_beam_width
         self._interior_corner_indices = []
+        self._edge_elements = {}  # type: dict[int, list[Beam2D]]
 
     @property
     def panel(self) -> Panel:
@@ -96,7 +98,7 @@ class EdgeElementGenerator(ElementGenerator):
         """generates the edge beams for the panel."""
         self._create_edge_beams()
 
-    def cull_beam_segment(self, beam: Beam) -> bool:
+    def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Cull and split the studs for door openings."""
         return False
 
@@ -123,10 +125,10 @@ class EdgeElementGenerator(ElementGenerator):
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this generator
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1))
+            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1))
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
-            self.edge_elements[i] = [edge_beam]
+            self._edge_elements[i] = [edge_beam]
             self.elements.append(edge_beam)
             vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
@@ -157,7 +159,7 @@ class EdgeElementGenerator(ElementGenerator):
                 offset = abs(dot) + min_width - width / 2
         return outer_segment.translated(-perp_vector * offset), width
 
-    def _set_edge_beam_category(self, beam: Beam, index: int) -> None:
+    def _set_edge_beam_category(self, beam: Beam2D, index: int) -> None:
         if abs(beam.centerline.direction[0]) < abs(beam.centerline.direction[1]):
             beam.attributes["category"] = "edge_stud"
         else:
@@ -166,7 +168,7 @@ class EdgeElementGenerator(ElementGenerator):
             else:
                 beam.attributes["category"] = "top_plate_beam"
 
-    def _apply_linear_cut_to_edge_beam(self, beam: Beam, edge_index: int) -> None:
+    def _apply_linear_cut_to_edge_beam(self, beam: Beam2D, edge_index: int) -> None:
         """Trim the edge beams to fit between the plate beams."""
         plane = self.panel.edge_planes[edge_index]
         if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
@@ -180,7 +182,7 @@ class EdgeElementGenerator(ElementGenerator):
     def _create_external_joints(self, populator_direct_rules: list[DirectRule], intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
         rules = []
         edge_elements = {}
-        for index, edge_beams in self.edge_elements.items():
+        for index, edge_beams in self._edge_elements.items():
             edge_elements[index] = []
             for raw_edge_beam in edge_beams:
                 beam_int_tuples, joints_to_cull = split_beam_with_element_generators(raw_edge_beam, intersecting_element_generators)
@@ -195,13 +197,11 @@ class EdgeElementGenerator(ElementGenerator):
                         for intersection in ints:
                             if not intersection:
                                 continue
-                            for int_index in intersection.edge_indices:
-                                beams = intersection.generator.edge_elements.get(int_index, []) if intersection.generator else []
-                                params = intersection.generator or self
-                                for intersecting_beam in beams:
-                                    rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
+                            params = intersection.generator or self
+                            for intersecting_beam in intersection.connecting_beams:
+                                rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
 
-        self.edge_elements = edge_elements
+        self._edge_elements = edge_elements
         return [rule for rule in rules if rule is not None]
 
     def _create_internal_joints(self) -> list[DirectRule]:
@@ -223,8 +223,8 @@ class EdgeElementGenerator(ElementGenerator):
 
     def _create_edge_beam_joint_rule(self, edge_planes: dict[int, Plane], edge_a_index: int, edge_b_index: int, interior_corner: bool) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
-        beam_a = self.edge_elements[edge_a_index][0]
-        beam_b = self.edge_elements[edge_b_index][-1]
+        beam_a = self._edge_elements[edge_a_index][0]
+        beam_b = self._edge_elements[edge_b_index][-1]
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
         edge_plane_a = edge_planes[edge_a_index]

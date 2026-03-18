@@ -7,10 +7,10 @@ from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
 from compas_timber.connections import JointTopology
-from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.elements import TimberElement
 
+from timber_design.populators.beam2d import Beam2D
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -65,7 +65,6 @@ class ElementGenerator(ABC):
 
         self.elements = []
         self.edges = {}
-        self.edge_elements = {}
         self.outline = None
         self.boundary_type = FeatureBoundaryType.NONE
 
@@ -102,8 +101,8 @@ class ElementGenerator(ABC):
             else:
                 self.beam_dimensions[category] = (self.standard_beam_width, frame_thickness)
 
-    def beam_from_category(self, centerline: Line, category: str, **kwargs) -> Beam:
-        """Creates a beam from a centerline and a category, using the dimensions from the element generator.
+    def beam_from_category(self, centerline: Line, category: str, **kwargs) -> Beam2D:
+        """Creates a :class:`~timber_design.populators.Beam2D` from a centerline and a category.
 
         Parameters
         ----------
@@ -116,14 +115,14 @@ class ElementGenerator(ABC):
 
         Returns
         -------
-        :class:`compas_timber.elements.Beam`
+        :class:`~timber_design.populators.Beam2D`
             The created beam with the specified category and attributes.
         """
         if category not in self.beam_dimensions:
             raise ValueError("Unknown beam category: {}".format(category))
         width = self.beam_dimensions[category][0]
         height = self.beam_dimensions[category][1]
-        beam = Beam.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
+        beam = Beam2D.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
             beam.attributes[key] = value
         beam.attributes["category"] = category
@@ -153,7 +152,7 @@ class ElementGenerator(ABC):
 
         # set the 'dot' attribute for future parsing of joints when splitting beams.
         kwargs.update(rule.kwargs)
-        if all([isinstance(el, Beam) for el in [element_a, element_b]]):
+        if all([isinstance(el, Beam2D) for el in [element_a, element_b]]):
             point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
             if not point:
                 return None
@@ -164,7 +163,7 @@ class ElementGenerator(ABC):
                 element.attributes["joint_defs"][element_dot] = direct_rule
         return direct_rule
 
-    def cull_beam_segment(self, beam: Beam) -> bool:
+    def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Determines whether the beam segment should be culled by the element generator."""
         return False
 

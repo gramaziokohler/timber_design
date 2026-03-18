@@ -83,9 +83,7 @@ class StudElementGenerator(ElementGenerator):
                 for intersection in [start_int, end_int]:
                     if not intersection:
                         continue
-                    for index in intersection.edge_indices:
-                        beams = intersection.generator.edge_elements.get(index, []) if intersection.generator else []
-                        for intersecting_beam in beams:
-                            rules.append(self.get_direct_rule_from_elements(beam, intersecting_beam))
+                    for intersecting_beam in intersection.connecting_beams:
+                        rules.append(self.get_direct_rule_from_elements(beam, intersecting_beam))
         self.elements = elements
         return [rule for rule in rules if rule is not None]

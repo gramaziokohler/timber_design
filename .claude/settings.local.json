@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import compas_timber; import os; print\\(os.path.dirname\\(compas_timber.__file__\\)\\)\")",
+      "Bash(python -c \"import sys; print\\(''\\\\n''.join\\(sys.path\\)\\)\")",
+      "Bash(python -c \"from compas_timber.connections import Cluster; import inspect; print\\(inspect.getfile\\(Cluster\\)\\)\")"
+    ]
+  }
+}

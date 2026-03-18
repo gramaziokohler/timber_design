@@ -1,7 +1,12 @@
+from .beam2d import Beam2D
+
 from .populator import PanelPopulator
 from .populator import PanelPopulatorDefinition
 from .populator import FeaturePopulatorDefinition
+
+from .generator_intersection import BeamBeamIntersection
 from .generator_intersection import BeamGeneratorIntersection
+from .generator_intersection import IntersectionType
 from .generator_intersection import extend_beam_to_closest_element_generators
 from .generator_intersection import split_beam_with_element_generators
 from .generator_intersection import is_point_between_beam_edges
@@ -27,6 +32,7 @@ __all__ = [
     "PanelPopulator",
     "PanelPopulatorDefinition",
     "FeaturePopulatorDefinition",
+    "Beam2D",
     "ElementGenerator",
     "FeatureBoundaryType",
     "ElementGeneratorParams",
@@ -35,7 +41,9 @@ __all__ = [
     "PlateElementGenerator",
     "OpeningElementGenerator",
     "RecessElementGenerator",
+    "BeamBeamIntersection",
     "BeamGeneratorIntersection",
+    "IntersectionType",
     "extend_beam_to_closest_element_generators",
     "split_beam_with_element_generators",
     "is_point_between_beam_edges",

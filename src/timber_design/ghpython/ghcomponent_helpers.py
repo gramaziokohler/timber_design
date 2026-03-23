@@ -293,7 +293,8 @@ def manage_dynamic_params(input_names, ghenv, rename_count=0, permanent_param_co
                     elif i < rename_count:
                         rename_gh_input(name, i, ghenv)
                     else:
-                        add_gh_param(name, "Input", ghenv)
+                        add_gh_param(name, "Input", ghenv, index=i + permanent_param_count)
+    ghenv.Component.Params.OnParametersChanged()
 
 
 def list_input_valid_cpython(ghenv, Param, name):

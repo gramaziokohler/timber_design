@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=66.0"]
+requires = ["setuptools>=66.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 # ============================================================================
@@ -12,11 +12,15 @@ description = "Automation toolkit for the design of timber structures based on C
 keywords = []
 authors = [
     { name = "Chen Kasirer", email = "kasirer@arch.ethz.ch" },
+    { name = "Oliver Appling Bucklin", email = "bucklin@arch.ethz.ch" },
+    { name = "Panayiotis Papacharalambous", email = "papacharalambous@arch.ethz.ch" },
+    { name = "Anastasiia Stryzhevska", email = "astryzhevska@arch.ethz.ch" },
+    { name = "Eric Gozzi", email = "eric.gozzi@arch.ethz.ch" },
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.9"
-dynamic = ['dependencies', 'optional-dependencies', 'version']
+dynamic = ['version']
 classifiers = [
     "Development Status :: 4 - Beta",
     "Topic :: Scientific/Engineering",
@@ -28,6 +32,30 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "compas_timber>=2.1.1-rc0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "bump-my-version",
+    "compas_invocations2[mkdocs]>=1.0.2",
+    "invoke >=0.14",
+    "ruff",
+    "twine",
+    "pytest-mock",
+    "pytest>=8.0",
+    "build",
+    "pytest-cov",
+    "pytest-randomly",
+]
+
+gh = [
+    "compas_invocations2",
+    "tomlkit",
+    "pythonnet",
 ]
 
 [project.urls]
@@ -49,8 +77,6 @@ zip-safe = false
 
 [tool.setuptools.dynamic]
 version = { attr = "timber_design.__version__" }
-dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]

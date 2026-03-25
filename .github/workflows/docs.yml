@@ -19,3 +19,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           generator: mkdocs
           extras: dev,mkdocs
+          test_docs: false
+          

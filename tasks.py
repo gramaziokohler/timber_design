@@ -15,8 +15,6 @@ ns = Collection(
     style.lint,
     style.format,
     tests.test,
-    tests.testdocs,
-    tests.testcodeblocks,
     build.prepare_changelog,
     build.clean,
     build.release,

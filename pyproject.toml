@@ -92,7 +92,6 @@ python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
     "-ra",
     "--strict-markers",
-    "--doctest-glob=*.rst",
     "--tb=short",
     "--import-mode=importlib",
 ]

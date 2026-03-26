@@ -157,8 +157,7 @@ class EdgeElementGenerator(ElementGenerator):
             vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
         extend_line_segments(edges, close_loop=True)
-        self.outline = join_polyline_segments(edges, close_loop=True)[0][0]  # TODO: do we need both outline and edges?
-        self.edges = {index: edge for index, edge in enumerate(edges)}
+        self.outline = join_polyline_segments(edges, close_loop=True)[0][0]
 
     def _get_edge_beam_line_and_width(self, segment_index, min_width=0.0, edge_beam_dim_increment=None) -> tuple[Line, float]:
         perp_vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, segment_index)

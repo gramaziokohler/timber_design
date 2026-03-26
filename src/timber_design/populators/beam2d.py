@@ -1,6 +1,7 @@
 from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Polygon
+from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas_timber.elements import Beam
@@ -11,7 +12,7 @@ class Beam2D(Beam):
 
     Adds lazy properties for the beam's projected blank edges and polygon,
     used by :class:`~timber_design.populators.BeamGeneratorIntersection` and
-    :class:`~timber_design.populators.BeamBeamIntersection` for intersection
+    :meth:`~timber_design.populators.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
     All geometry is expressed in the beam's own local XY plane (the panel
@@ -28,8 +29,8 @@ class Beam2D(Beam):
         The ``-yaxis`` long blank edge (offset by ``-width/2``).
     blank_b : :class:`compas.geometry.Line`
         The ``+yaxis`` long blank edge (offset by ``+width/2``).
-    blank_edges : dict[int, :class:`compas.geometry.Line`]
-        The four ordered boundary edges of the 2D blank rectangle.
+    blank_outline : :class:`compas.geometry.Polyline`
+        Closed 2D outline of the blank rectangle (five points, CCW).
     blank_polygon : :class:`compas.geometry.Polygon`
         The 2D footprint of the blank as a four-vertex polygon.
     """
@@ -83,24 +84,26 @@ class Beam2D(Beam):
         return self.centerline.translated(self.frame.yaxis * self.width / 2.0)
 
     @property
-    def blank_edges(self):
-        """The four ordered boundary edges of the 2D blank rectangle.
+    def blank_outline(self):
+        """The closed 2D outline of the beam blank as a :class:`~compas.geometry.Polyline`.
 
-        Edges are ordered counter-clockwise starting from the ``-yaxis`` long
-        side so that adjacency-based classification (CORNER, NOTCH) works
-        correctly::
+        Vertices are ordered counter-clockwise starting from the ``-yaxis``
+        corner so that :attr:`~compas.geometry.Polyline.lines` yields edges in
+        the same sequence used by adjacency-based classification (CORNER,
+        NOTCH)::
 
             3 ← (start cap)     tl ┌────────────┐ tr
                                    │            │
             0 → (bottom, -y)    bl └────────────┘ br   start→end
-                                                1 (end cap, -y→+y)
+                                                1 (end cap, bl→tl)
             2 ← (top, +y)       tr ┌────────────┐ tl   end→start
 
-        Adjacency: 0↔1, 1↔2, 2↔3, 3↔0.
+        ``outline.lines[i]`` is adjacent to ``outline.lines[(i ± 1) % 4]``.
 
         Returns
         -------
-        dict[int, :class:`compas.geometry.Line`]
+        :class:`compas.geometry.Polyline`
+            Closed five-point polyline ``[bl, br, tr, tl, bl]``.
         """
         origin = self.frame.point
         end = origin + self.frame.xaxis * self.length
@@ -109,12 +112,7 @@ class Beam2D(Beam):
         br = end - half_y
         tr = end + half_y
         tl = origin + half_y
-        return {
-            0: Line(bl, br),  # bottom long side  (-y, start → end)
-            1: Line(br, tr),  # end cap
-            2: Line(tr, tl),  # top long side     (+y, end → start)
-            3: Line(tl, bl),  # start cap
-        }
+        return Polyline([bl, br, tr, tl, bl])
 
     @property
     def blank_polygon(self):
@@ -135,7 +133,7 @@ class Beam2D(Beam):
     # Point containment
     # ------------------------------------------------------------------
 
-    def contains_point(self, point, tolerance=1.0):
+    def contains_point(self, point):
         """Return ``True`` if *point* lies within the 2D blank rectangle.
 
         Uses a fast axis-aligned projection test in the beam's local frame.
@@ -156,6 +154,6 @@ class Beam2D(Beam):
         along = dot_vectors(vec, self.frame.xaxis)
         perp = dot_vectors(vec, self.frame.yaxis)
         return (
-            -tolerance <= along <= self.length + tolerance
-            and -self.width / 2.0 - tolerance <= perp <= self.width / 2.0 + tolerance
+            0 <= along <= self.length
+            and -self.width / 2.0 <= perp <= self.width / 2.0 
         )

@@ -20,7 +20,7 @@ from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
-from compas_timber.model import TimberModel
+from timber_design.populators.model2d import Model2D
 from compas_timber.panel_features import PanelFeature
 
 
@@ -93,7 +93,7 @@ class PanelPopulator(object):
         The element generators responsible for creating elements for this panel.
     joint_defs : list[:class:`timber_design.workflow.DirectRule`]
         Joint/connection rules produced when generators are joined.
-    model : :class:`compas_timber.model.TimberModel`
+    model : :class:`~timber_design.populators.Model2D`
         The temporary timber model populated by the generators.
 
     """
@@ -109,7 +109,7 @@ class PanelPopulator(object):
             feature_def.feature = feature_def.feature.transformed(self.transformation_to_populator)
             self.element_generators.append(feature_def.generator_type(feature_def.feature, **feature_def.params.__data__))
         self.joint_defs: list[DirectRule] = []
-        self.model = TimberModel()
+        self.model = Model2D()
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)

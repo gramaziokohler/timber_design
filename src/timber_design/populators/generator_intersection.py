@@ -2,18 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from typing import NamedTuple
-from typing import Optional
 from typing import Union
 
 if TYPE_CHECKING:
     from timber_design.populators import ElementGenerator
     from timber_design.workflow import DirectRule
 
-from compas.geometry import Line
 from compas.geometry import Point
+from compas.geometry import Polyline
 from compas.geometry import Translation
 from compas.geometry import Vector
-from compas.geometry import distance_point_point
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
@@ -27,7 +25,7 @@ from timber_design.populators.beam2d import Beam2D
 # =============================================================================
 
 
-class _LineEdgeIntersection(object):
+class _BeamOutlineIntersection(object):
     """Internal: a single intersection between one beam blank edge and one boundary edge."""
 
     def __init__(self, point, dot, edge_index, line):
@@ -56,7 +54,7 @@ class IntersectionType(object):
     These types describe the spatial relationship between the intersecting
     beam's blank and the boundary edges it crosses.  They map to timber joint
     topologies but are intentionally kept geometry-only so they can be used
-    by both :class:`BeamGeneratorIntersection` and :class:`BeamBeamIntersection`.
+    by :class:`BeamGeneratorIntersection` (BGI).
 
     Attributes
     ----------
@@ -64,11 +62,12 @@ class IntersectionType(object):
         Both blank edges cross the **same** boundary edge.
         The beam end meets a face → **T topology**.
     CORNER : str
-        Each blank edge crosses an **adjacent** boundary edge, meaning the
-        beam end lands at a corner where **two other beams already meet**.
-        Resolving this intersection will yield two :attr:`connecting_beams`
-        and requires a three-way (Y / corner cluster) joint.
-        → **L / Y topology**.
+        The primary beam's end lands at a corner where **two other beams
+        already meet** (Y / K topology).  Not detectable from a single beam
+        pair — must be assembled from multiple pairwise results at a higher
+        level.  Resolving this intersection yields two
+        :attr:`connecting_beams` and requires a three-way cluster joint.
+        → **Y / K topology (primary beam is main_beam)**.
     NOTCH : str
         One blank edge crosses two adjacent boundary edges while the other
         does not intersect at all — the beam clips only one corner of the
@@ -90,16 +89,18 @@ class IntersectionType(object):
 # =============================================================================
 
 
-def _get_beam_2d_intersections(beam, edges, limit_to_segments=True):
-    # type: (Beam2D, dict, bool) -> tuple[list[_LineEdgeIntersection], list[_LineEdgeIntersection]]
-    """Intersect the two blank side-edges of *beam* against every edge in *edges*.
+def _get_beam_outline_intersections(beam, outline, limit_to_segments=True):
+    # type: (Beam2D, Polyline, bool) -> tuple[list[_BeamOutlineIntersection], list[_BeamOutlineIntersection]]
+    """Intersect the two blank side-edges of *beam* against every segment of *outline*.
 
     Parameters
     ----------
     beam : :class:`~timber_design.populators.Beam2D`
         The beam whose blank edges are being intersected.
-    edges : dict[int, :class:`compas.geometry.Line`]
-        Ordered boundary edges, keyed by index.
+    outline : :class:`compas.geometry.Polyline`
+        Closed boundary polyline.  Each segment is tested in turn; its
+        position in ``outline.lines`` becomes the ``edge_index`` stored on
+        the returned :class:`_LineEdgeIntersection` objects.
     limit_to_segments : bool
         When ``True`` use segment-segment intersection; otherwise line-segment.
 
@@ -111,7 +112,7 @@ def _get_beam_2d_intersections(beam, edges, limit_to_segments=True):
     """
     intersections_a = []
     intersections_b = []
-    for index, edge in edges.items():
+    for index, edge in enumerate(outline.lines):
         for blank_edge, results in [(beam.blank_a, intersections_a), (beam.blank_b, intersections_b)]:
             if limit_to_segments:
                 pt = intersection_segment_segment(blank_edge, edge)[0]
@@ -119,100 +120,103 @@ def _get_beam_2d_intersections(beam, edges, limit_to_segments=True):
                 pt = intersection_line_segment(blank_edge, edge)[0]
             if pt:
                 d = dot_vectors(Vector.from_start_end(blank_edge.start, pt), blank_edge.direction)
-                results.append(_LineEdgeIntersection(Point(*pt), d, index, edge))
+                results.append(_BeamOutlineIntersection(Point(*pt), d, index, edge))
     return intersections_a, intersections_b
 
 
-def _parse_simple_intersections(ints_a, ints_b, beam, edges):
-    # type: (list, list, Beam2D, dict) -> tuple[list[_ParsedIntersection], list, list]
+def _parse_simple_intersections(ints_a, ints_b):
+    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection]) -> list[_ParsedIntersection]
     """Both blank edges hit the same boundary edge → SINGLE.
 
-        |   |
-        |   |
-        |   |
-        |  _|____________
-        |   |
-        |  _|____________
-        |   |
-        |   |
-        |   |
-        |   |
+           |
+           |
+           |
+         __|____________
+        |  |
+        |  |    beam
+        |__|____________
+           |
+           |
+           |
+           |outline
 
     """
     keys_a = {i.edge_index for i in ints_a}
     keys_b = {i.edge_index for i in ints_b}
+    # Single intersection if one edge hits both blank edges.
     shared = keys_a & keys_b
-    results = []
+    simple_intersections = []
     for k in shared:
         ia = next(i for i in ints_a if i.edge_index == k)
         ib = next(i for i in ints_b if i.edge_index == k)
-        results.append(
+        simple_intersections.append(
             _ParsedIntersection(
                 type=IntersectionType.SINGLE,
                 point=(ia.point + ib.point) * 0.5,
                 dot=(ia.dot + ib.dot) * 0.5,
             )
         )
-    leftovers_a = [i for i in ints_a if i.edge_index not in shared]
-    leftovers_b = [i for i in ints_b if i.edge_index not in shared]
-    return results, leftovers_a, leftovers_b
+    for i in list(ints_a):
+        if i.edge_index in shared:
+            ints_a.remove(i)
+    for i in list(ints_b):
+        if i.edge_index in shared:
+            ints_b.remove(i)
+    return simple_intersections
 
-
-def _parse_corner_intersections(ints_a, ints_b, beam, edges):
-    # type: (list, list, Beam2D, dict) -> tuple[list[_ParsedIntersection], list, list]
+def _parse_corner_intersections(ints_a, ints_b, outline):
+    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Polyline) -> list[_ParsedIntersection]
     """Each blank edge hits an adjacent boundary edge → CORNER.
 
-           /   /
-          /   /
-         / __/___________
-        /   /
-        |  _|____________
-        |   |
-        |   |
-        |   |
-        |   |
+              /
+             /
+          __/___________
+         | /
+         | |    beam
+         |_|____________
+           |
+           |
+           |
+           |outline
 
     At a CORNER the intersection point sits at a boundary corner shared by two
     beams, so :meth:`BeamGeneratorIntersection.resolve` will return two entries
     in :attr:`~BeamGeneratorIntersection.connecting_beams`.
     """
-    edge_count = len(edges)
-    leftovers_a = list(ints_a)
-    leftovers_b = list(ints_b)
-    results = []
+    edge_count = len(outline.lines)
+    corner_intersections = []
     for ia in ints_a:
         adjacent = {(ia.edge_index - 1) % edge_count, (ia.edge_index + 1) % edge_count}
         for ib in ints_b:
             if ib.edge_index in adjacent:
-                results.append(
+                corner_intersections.append(
                     _ParsedIntersection(
                         type=IntersectionType.CORNER,
                         point=(ia.point + ib.point) * 0.5,
                         dot=(ia.dot + ib.dot) * 0.5,
                     )
                 )
-                if ia in leftovers_a:
-                    leftovers_a.remove(ia)
-                if ib in leftovers_b:
-                    leftovers_b.remove(ib)
+                if ia in ints_a:
+                    ints_a.remove(ia)
+                if ib in ints_b:
+                    ints_b.remove(ib)
                 break
-    return results, leftovers_a, leftovers_b
+    return corner_intersections
 
-
-def _parse_notch_intersections(ints_a, ints_b, beam, edges):
-    # type: (list, list, Beam2D, dict) -> tuple[list[_ParsedIntersection], list, list]
+def _parse_notch_intersections(ints_a, ints_b, beam, outline):
+    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Beam2D, Polyline) -> list[_ParsedIntersection]
     """One blank edge hits two adjacent boundary edges → NOTCH.
 
-        |   |  /    /
-        |   | /    /
-        |   |/    /
-        |   /    /
-        |  /|   /
-        |  \\|   \\
-        |   \\    \\
-        |   |\\    \\
-        |   | \\    \\
-        |   |  \\    \\
+        |    |  /    
+        |    | /    
+        |    |/    
+        |    /    
+        |   /|   
+        |  /_|_____outline
+        |    |
+        |    |
+        |    |
+        |beam|
 
     Uses :func:`is_point_between_beam_edges` to check whether the corner shared
     by the two consecutive boundary edges lies inside the beam's width, which
@@ -222,11 +226,11 @@ def _parse_notch_intersections(ints_a, ints_b, beam, edges):
     ``Cluster``.
     """
     if not ints_a and not ints_b:
-        return [], [], []
+        return []
 
-    edge_count = len(edges)
+    edge_count = len(outline.lines)
 
-    def _get_notch_intersections_for_side(intersection_set, beam, edges):
+    def _get_notch_intersections_for_side(intersection_set, beam):
         leftovers = [i for i in intersection_set]
         notch_intersections = []
         # in case the first and last edges of the boundary make a notch, rotate
@@ -254,31 +258,35 @@ def _parse_notch_intersections(ints_a, ints_b, beam, edges):
             i += 1
         return notch_intersections, leftovers
 
-    side_a_notches, leftovers_a = _get_notch_intersections_for_side(ints_a, beam, edges) if ints_a else ([], [])
-    side_b_notches, leftovers_b = _get_notch_intersections_for_side(ints_b, beam, edges) if ints_b else ([], [])
-    return side_a_notches + side_b_notches, leftovers_a, leftovers_b
+    side_a_notches, ints_a = _get_notch_intersections_for_side(ints_a, beam) if ints_a else ([], [])
+    side_b_notches, ints_b = _get_notch_intersections_for_side(ints_b, beam) if ints_b else ([], [])
+    return side_a_notches + side_b_notches
 
-
-def _parse_lap_intersections(ints_a, ints_b, beam, edges):
-    # type: (list, list, Beam2D, dict) -> list[_ParsedIntersection]
+def _parse_lap_intersections(ints_a, ints_b, beam, outline):
+    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Beam2D, Polyline) -> list[_ParsedIntersection]
     """Blank edges cross non-adjacent boundary edges with a corner inside the beam → LAP.
-
-        |       |
-        |       |
+        _________
         |       |
         |       |
         |    ___|___
-        |   |   |   |
-        |   |   |   |
-        |   |   |   |
-        |   |   |   |
-        |   |   |   |
-        |   |   |   |
-        |___|___|   |
-            |       |
-            |       |
-            |       |
-            |       |
+        |   |   |   
+        |   |   |   
+        |   |   |   
+        |   |   |   
+        |   |___|___ outline
+        |       |
+        |       |
+        |       |
+        |    ___|___outline
+        |   |   |   
+        |   |   |   
+        |   |   |   
+        |   |   |   
+     ___|___|   |
+        |       |
+        |       |
+        | beam  |
+        |_______|
 
     Uses :func:`is_point_between_beam_edges` to check whether the boundary
     corner between each consecutive pair of intersected edges lies inside the
@@ -382,112 +390,31 @@ class BeamGeneratorIntersection(object):
         skip_laps : bool
             Skip :attr:`~IntersectionType.LAP` classification only.
         """
-        edges = element_generator.edges
-        ints_a, ints_b = _get_beam_2d_intersections(beam, edges, limit_to_segments)
+        if element_generator.outline is None:
+            return []
+        outline = element_generator.outline
+        ints_a, ints_b = _get_beam_outline_intersections(beam, outline, limit_to_segments)
 
-        parsed, ints_a, ints_b = _parse_simple_intersections(ints_a, ints_b, beam, edges)
-        corners, ints_a, ints_b = _parse_corner_intersections(ints_a, ints_b, beam, edges)
-        parsed.extend(corners)
+        parsed = _parse_simple_intersections(ints_a, ints_b)
+        parsed.extend(_parse_corner_intersections(ints_a, ints_b, outline))
 
         if not skip_notches:
-            notches, ints_a, ints_b = _parse_notch_intersections(ints_a, ints_b, beam, edges)
-            parsed.extend(notches)
+            parsed.extend(_parse_notch_intersections(ints_a, ints_b, beam, outline))
             if not skip_laps:
-                parsed.extend(_parse_lap_intersections(ints_a, ints_b, beam, edges))
+                parsed.extend(_parse_lap_intersections(ints_a, ints_b, beam, outline))
 
         return [cls(pi.type, pi.point, pi.dot, beam, element_generator) for pi in parsed]
 
-    def resolve(self):
-        """Populate :attr:`connecting_beams` from the generator's current elements.
-
-        A generator element is *connecting* when :attr:`point` falls inside its
-        2D blank (see :meth:`~timber_design.populators.Beam2D.contains_point`).
-
-        For :attr:`~IntersectionType.CORNER` intersections two beams will be
-        found — one for each of the adjacent boundary edges.  The caller is
-        responsible for handling the multi-beam case appropriately.
-        """
-        if not self.generator:
-            return
-        self.connecting_beams = [
-            e for e in self.generator.elements
-            if isinstance(e, Beam2D) and e.contains_point(self.point)
-        ]
 
 
-class BeamBeamIntersection(object):
-    """Records a 2D blank-space intersection between two :class:`~timber_design.populators.Beam2D` beams.
-
-    Used for joint creation in both the generator-boundary and the
-    cross-generator collision-detection workflows.
-
-    The :attr:`type` maps directly to timber joint topologies:
-
-    +---------+------------------+-------------------------------+
-    | Type    | Topology         | Typical joint                 |
-    +=========+==================+===============================+
-    | SINGLE  | T                | TButtJoint                    |
-    +---------+------------------+-------------------------------+
-    | CORNER  | L / Y            | LButtJoint / corner cluster   |
-    +---------+------------------+-------------------------------+
-    | LAP     | X                | XLapJoint                     |
-    +---------+------------------+-------------------------------+
-    | NOTCH   | half-lap / notch | custom                        |
-    +---------+------------------+-------------------------------+
-
-    Parameters
-    ----------
-    type : str
-        One of :class:`IntersectionType`.
-    point : :class:`compas.geometry.Point`
-        Approximate 2D location of the intersection.
-    dot_a : float
-        Position of the intersection along *beam_a*'s centerline (signed
-        distance from start).
-    beam_a : :class:`~timber_design.populators.Beam2D`
-        The beam whose blank was intersected against *beam_b*.
-    beam_b : :class:`~timber_design.populators.Beam2D`
-        The beam whose blank boundary was used as the intersection target.
-    """
-
-    def __init__(self, type, point, dot_a, beam_a, beam_b):
-        self.type = type
-        self.point = point
-        self.dot_a = dot_a
-        self.beam_a = beam_a
-        self.beam_b = beam_b
-
-    @classmethod
-    def from_beam_pair(cls, beam_a, beam_b, limit_to_segments=True):
-        # type: (Beam2D, Beam2D, bool) -> list[BeamBeamIntersection]
-        """Detect all blank-space intersections between *beam_a* and *beam_b*.
-
-        *beam_b*'s :attr:`~Beam2D.blank_edges` are used as the boundary, so
-        the result describes how *beam_a* relates to *beam_b*.
-
-        For a symmetric result (e.g. to find joints regardless of element
-        ordering) call this twice with swapped arguments and deduplicate by
-        type.
-
-        Parameters
-        ----------
-        beam_a : :class:`~timber_design.populators.Beam2D`
-        beam_b : :class:`~timber_design.populators.Beam2D`
-        limit_to_segments : bool
-            When ``True`` (default) only overlapping blank regions produce
-            results.
-        """
-        edges = beam_b.blank_edges
-        ints_a, ints_b = _get_beam_2d_intersections(beam_a, edges, limit_to_segments)
-
-        parsed, ints_a, ints_b = _parse_simple_intersections(ints_a, ints_b, beam_a, edges)
-        corners, ints_a, ints_b = _parse_corner_intersections(ints_a, ints_b, beam_a, edges)
-        parsed.extend(corners)
-        notches, ints_a, ints_b = _parse_notch_intersections(ints_a, ints_b, beam_a, edges)
-        parsed.extend(notches)
-        parsed.extend(_parse_lap_intersections(ints_a, ints_b, beam_a, edges))
-
-        return [cls(pi.type, pi.point, pi.dot, beam_a, beam_b) for pi in parsed]
+def _midpoint(points):
+    # type: (list[Point]) -> Point
+    n = len(points)
+    return Point(
+        sum(p.x for p in points) / n,
+        sum(p.y for p in points) / n,
+        sum(p.z for p in points) / n,
+    )
 
 
 # =============================================================================
@@ -539,10 +466,6 @@ def split_beam_with_element_generators(beam, element_generators, ignore_notches=
         return [(beam, (None, None))], []
 
     intersections.sort(key=lambda x: x.dot)
-
-    # Resolve connecting_beams now that all generators' elements are finalised.
-    for bgi in intersections:
-        bgi.resolve()
 
     beam_int_tuples = []
     rules_to_remove = []

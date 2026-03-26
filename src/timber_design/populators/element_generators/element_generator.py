@@ -84,7 +84,6 @@ class ElementGenerator(ABC):
         self.beam_dimensions: dict[str, tuple[float, float]] = {}  # to be populated with update_beam_dimensions
 
         self.elements = []
-        self.edges = {}
         self.outline = None
         self.test = []
 

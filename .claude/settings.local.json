@@ -3,7 +3,16 @@
     "allow": [
       "Bash(python -c \"import compas_timber; import os; print\\(os.path.dirname\\(compas_timber.__file__\\)\\)\")",
       "Bash(python -c \"import sys; print\\(''\\\\n''.join\\(sys.path\\)\\)\")",
-      "Bash(python -c \"from compas_timber.connections import Cluster; import inspect; print\\(inspect.getfile\\(Cluster\\)\\)\")"
+      "Bash(python -c \"from compas_timber.connections import Cluster; import inspect; print\\(inspect.getfile\\(Cluster\\)\\)\")",
+      "Bash(grep -n \"\\\\.edges\" C:Usersobucklinrepostimber_designsrctimber_designpopulators***.py)",
+      "Bash(python -c \":*)",
+      "Bash(cd /d C:Usersobucklinrepostimber_design)",
+      "Bash(python -c \"import ast, sys, os; base = ''C:/Users/obucklin/repos/timber_design/src/timber_design/populators''; files = [''generator_intersection.py'', ''element_generators/element_generator.py'', ''element_generators/edge_element_generator.py'', ''element_generators/opening_element_generator.py'', ''element_generators/recess_element_generator.py'']; [ast.parse\\(open\\(os.path.join\\(base,f\\)\\).read\\(\\)\\) or print\\(''OK:'', f\\) for f in files]; print\\(''All good''\\)\")",
+      "Bash(python -c \"import compas_timber; print\\(compas_timber.__file__\\)\")",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(python -m pip show compas_timber)",
+      "Bash(python -c \"import ast, os; ast.parse\\(open\\(''C:/Users/obucklin/repos/timber_design/src/timber_design/populators/generator_intersection.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(pip show:*)"
     ]
   }
 }

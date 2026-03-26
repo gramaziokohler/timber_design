@@ -105,7 +105,7 @@ class RecessElementGenerator(ElementGenerator):
         """Get the edge beam definitions for the outer polyline of the panel."""
         plate_edges = []
         new_centerlines = []
-        for i, edge in self.edge_generator.edges.items():
+        for i, edge in enumerate(self.edge_generator.outline.lines):
             vector = -get_polyline_segment_perpendicular_vector(self.edge_generator.outline, i)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
@@ -122,7 +122,6 @@ class RecessElementGenerator(ElementGenerator):
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
         self.outline = self.edge_generator.outline.copy() if self.edge_generator.outline else None
-        self.edges = {index: edge for index, edge in enumerate(self.outline.lines)} if self.outline else {}
 
     # ==========================================================================
     # methods for joints
@@ -131,9 +130,9 @@ class RecessElementGenerator(ElementGenerator):
     def _create_internal_joints(self):
         """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
         rules = []
-        for corner_index in range(len(self.edges)):
+        for corner_index in range(len(self.outline.lines)):
             beam_a = self.elements[corner_index]
-            beam_b = self.elements[(corner_index - 1) % len(self.edges)]
+            beam_b = self.elements[(corner_index - 1) % len(self.outline.lines)]
             rule = self.get_direct_rule_from_elements(beam_a, beam_b)
             rules.append(rule)
         return [rule for rule in rules if rule is not None]

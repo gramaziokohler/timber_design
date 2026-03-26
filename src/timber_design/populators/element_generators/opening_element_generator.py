@@ -185,9 +185,9 @@ class OpeningElementGenerator(ElementGenerator):
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, header, is_joinery=False)
             header.add_features(long_cut)
 
-        self.edges = OpeningElementGenerator._get_edge_dict(edge_elements, frame_polyline)
+        edges = OpeningElementGenerator._get_edge_dict(edge_elements, frame_polyline)
         self.edge_elements = edge_elements
-        self.outline = join_polyline_segments(list(self.edges.values()), close_loop=True)[0][0]
+        self.outline = join_polyline_segments(list(edges.values()), close_loop=True)[0][0]
         self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:

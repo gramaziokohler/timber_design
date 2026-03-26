@@ -1,6 +1,6 @@
 # r: timber_design>=0.1.0
 # venv: td_migration
-"""Creates a Beam from a LineCurve."""
+"""Creates a Plate from a Top and Bottom Outline."""
 
 # flake8: noqa
 import Grasshopper
@@ -12,6 +12,7 @@ from compas_rhino.conversions import polyline_to_compas
 
 from compas_timber.elements import Plate as CTPlate
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
 
 class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
@@ -23,8 +24,8 @@ class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
 
         scene = Scene()
 
-        t_guid, t_geometry = self._get_guid_and_geometry(top)
-        b_guid, b_geometry = self._get_guid_and_geometry(bottom)
+        t_guid, t_geometry = get_guid_and_geometry(top)
+        b_guid, b_geometry = get_guid_and_geometry(bottom)
         t_rhino_polyline = rs.coercecurve(t_geometry)
         b_rhino_polyline = rs.coercecurve(b_geometry)
         top_line = polyline_to_compas(t_rhino_polyline.ToPolyline())
@@ -34,7 +35,7 @@ class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
         if openings:
             for o_outline in openings:
                 if o_outline:
-                    o_guid, o_geometry = self._get_guid_and_geometry(o_outline)
+                    o_guid, o_geometry = get_guid_and_geometry(o_outline)
                     o_rhino_polyline = rs.coercecurve(o_geometry)
                     o.append(polyline_to_compas(o_rhino_polyline.ToPolyline()))
 
@@ -43,20 +44,8 @@ class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
         plate.attributes["rhino_guid_b"] = str(b_guid) if b_guid else None
         plate.attributes["category"] = category
 
-        scene.add(plate.shape)
+        scene.add(plate.geometry)
 
         geo = scene.draw()
 
         return plate, geo
-
-    def _get_guid_and_geometry(self, line):  # TODO: move to ghpython_helpers
-        # internalized curves and GH geometry will not have persistent GUIDs, referenced Rhino objects will
-        # type hint on the input has to be 'ghdoc' for this to work
-        guid = None
-        geometry = line
-        rhino_obj = Rhino.RhinoDoc.ActiveDoc.Objects.FindId(line)
-
-        if rhino_obj:
-            guid = line
-            geometry = rhino_obj.Geometry
-        return guid, geometry

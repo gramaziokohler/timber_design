@@ -1,0 +1,24 @@
+on: [push]
+
+jobs:
+  build_cpy_ghuser_components:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: NuGet/setup-nuget@v1.0.5
+
+      - name: Install CPython and pythonnet package
+        run: |
+          choco install python --version=3.9.10
+          python -m pip install pythonnet==3.0.3
+
+      - uses: compas-dev/compas-actions.ghpython_components@v5
+        with:
+          source: src/timber_design/ghpython/components
+          target: dist/ghuser
+          interpreter: cpython  # optional, defaults to ironpython
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: cpy_ghuser-components
+          path: dist/ghuser

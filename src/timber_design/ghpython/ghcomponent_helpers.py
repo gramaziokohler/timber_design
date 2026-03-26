@@ -1,5 +1,7 @@
 try:
     import Grasshopper  # type: ignore
+    import Rhino  # type: ignore
+    import numpy as np  # type: ignore
     import RhinoCodePluginGH.Parameters  # type: ignore
 except (ImportError, SyntaxError):
     pass
@@ -293,8 +295,7 @@ def manage_dynamic_params(input_names, ghenv, rename_count=0, permanent_param_co
                     elif i < rename_count:
                         rename_gh_input(name, i, ghenv)
                     else:
-                        add_gh_param(name, "Input", ghenv, index=i + permanent_param_count)
-    ghenv.Component.Params.OnParametersChanged()
+                        add_gh_param(name, "Input", ghenv)
 
 
 def list_input_valid_cpython(ghenv, Param, name):
@@ -491,3 +492,46 @@ def manage_cpython_dynamic_params(input_names, ghenv, rename_count=0, permanent_
                     else:
                         add_cpython_gh_param(name, "Input", ghenv, index=i + permanent_param_count)
     ghenv.Component.VariableParameterMaintenance()
+
+
+def get_guid_and_geometry(obj):
+    """
+    Try to get the GUID of a referenced Rhino object, otherwise just return the geometry.
+    Simpler logic: treat input as possible GUID, try FindId, else return geometry as is.
+    """
+    guid = None
+    geometry = obj
+    rhino_obj = Rhino.RhinoDoc.ActiveDoc.Objects.FindId(obj)
+    if rhino_obj:
+        guid = obj
+        geometry = rhino_obj.Geometry
+    return guid, geometry
+
+def compute_obb(brep):
+    pts = [v.Location for v in brep.Vertices]
+    arr = np.array([[p.X, p.Y, p.Z] for p in pts])
+    centroid = arr.mean(axis=0)
+    cov = np.cov(arr - centroid, rowvar=False)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    order = np.argsort(eigvals)[::-1]
+    eigvecs = eigvecs[:, order]
+    x_axis = Rhino.Geometry.Vector3d(*eigvecs[:,0])
+    y_axis = Rhino.Geometry.Vector3d(*eigvecs[:,1])
+    z_axis = Rhino.Geometry.Vector3d(*eigvecs[:,2])
+    plane = Rhino.Geometry.Plane(
+        Rhino.Geometry.Point3d(*centroid),
+        x_axis,
+        y_axis
+    )
+    xform = Rhino.Geometry.Transform.ChangeBasis(
+        Rhino.Geometry.Plane.WorldXY,
+        plane
+    )
+    pts_local = []
+    for p in pts:
+        pt = Rhino.Geometry.Point3d(p)
+        pt.Transform(xform)
+        pts_local.append(pt)
+    bbox = Rhino.Geometry.BoundingBox(pts_local)
+    box = Rhino.Geometry.Box(plane, bbox)
+    return box

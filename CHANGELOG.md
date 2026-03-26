@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Migrated over the components and design workflow module from COMPAS Timber.
+* Added `Plate.from_brep()` and `Beam.from_box()` gh components
 
 ### Changed
 

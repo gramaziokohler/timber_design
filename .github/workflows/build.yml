@@ -9,17 +9,27 @@ on:
       - main
 
 jobs:
-  build:
+  Build:
     if: "!contains(github.event.pull_request.labels.*.name, 'docs-only')"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest]
-        python: ["3.12"]
+        os: [macos-latest, windows-latest]
+        python: ['3.9', '3.12', '3.14']
 
     steps:
-      - uses: compas-dev/compas-actions.build@v4
+      - uses: actions/checkout@v5
+      
+      - uses: astral-sh/setup-uv@v7
         with:
-          python: ${{ matrix.python }}
-          invoke_lint: true
-          invoke_test: true
+          python-version: ${{ matrix.python }}
+          activate-environment: true
+      
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          invoke lint
+          invoke test

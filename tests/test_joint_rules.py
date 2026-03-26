@@ -19,7 +19,7 @@ from compas_timber.connections import PlateLButtJoint
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import PlateJointCandidate
-from compas_timber.connections import Cluster
+from compas_timber.analyzers import Cluster
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from timber_design.workflow import DirectRule

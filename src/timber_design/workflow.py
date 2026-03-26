@@ -1,8 +1,8 @@
 from compas.tolerance import TOL
-from compas_timber.connections import Cluster
+from compas_timber.analyzers import Cluster
+from compas_timber.analyzers import MaxNCompositeAnalyzer
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
-from compas_timber.connections import MaxNCompositeAnalyzer
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint
@@ -44,8 +44,6 @@ class JointRuleSolver(object):
     ----------
     rules : list(:class:`~compas_timber.connections.JointRule`)
         A list of rules to apply to the model.
-    model : :class:`~compas_timber.model.TimberModel`
-        The timber model to which the rules will be applied.
     use_default_topo : bool, optional
         Whether to use the default topology rules. Defaults to False.
     max_distance : float, optional

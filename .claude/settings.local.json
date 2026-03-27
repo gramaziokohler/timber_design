@@ -12,7 +12,14 @@
       "Bash(source .venv/Scripts/activate)",
       "Bash(python -m pip show compas_timber)",
       "Bash(python -c \"import ast, os; ast.parse\\(open\\(''C:/Users/obucklin/repos/timber_design/src/timber_design/populators/generator_intersection.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(python -c \"import site; print\\(''\\\\n''.join\\(site.getsitepackages\\(\\)\\)\\)\")",
+      "Bash(grep -r cluster C:Usersobucklinrepostimber_design/src/ --include=*.py)",
+      "Bash(python -c \"from compas_timber.connections import get_clusters_from_joint_candidates; import inspect; print\\(inspect.getfile\\(get_clusters_from_joint_candidates\\)\\)\")",
+      "Bash(pip list:*)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(find /c/Users/obucklin -name *.py -path */compas_timber/*)",
+      "Bash(find /c/Users/obucklin -path */site-packages/compas_timber* -name *.py)"
     ]
   }
 }

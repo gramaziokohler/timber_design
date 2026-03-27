@@ -3,8 +3,9 @@ from __future__ import annotations
 from itertools import combinations
 
 from compas.geometry import Point
-from compas_timber.analyzers import Cluster
+from compas_timber.connections import Cluster
 from compas_timber.connections import JointCandidate
+from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections.solver import JointTopology
 from compas_timber.model import TimberModel
 
@@ -27,11 +28,31 @@ def _midpoint(points):
     )
 
 
+def _aabb_overlap(beam_a, beam_b):
+    # type: (Beam2D, Beam2D) -> bool
+    """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY."""
+    pts_a = (beam_a.blank_a.start, beam_a.blank_a.end, beam_a.blank_b.start, beam_a.blank_b.end)
+    pts_b = (beam_b.blank_a.start, beam_b.blank_a.end, beam_b.blank_b.start, beam_b.blank_b.end)
+    a_xmin = min(p.x for p in pts_a)
+    a_xmax = max(p.x for p in pts_a)
+    a_ymin = min(p.y for p in pts_a)
+    a_ymax = max(p.y for p in pts_a)
+    b_xmin = min(p.x for p in pts_b)
+    b_xmax = max(p.x for p in pts_b)
+    b_ymin = min(p.y for p in pts_b)
+    b_ymax = max(p.y for p in pts_b)
+    return a_xmax >= b_xmin and b_xmax >= a_xmin and a_ymax >= b_ymin and b_ymax >= a_ymin
+
+
 def _detect_beam_pair(beam_a, beam_b):
     # type: (Beam2D, Beam2D) -> JointCandidate | None
     """Return a :class:`~compas_timber.connections.JointCandidate` for the 2D
     blank-space intersection between *beam_a* and *beam_b*, or ``None`` when
     the blanks do not overlap.
+
+    A fast axis-aligned bounding-box check is applied first; only pairs whose
+    AABBs overlap proceed to the more expensive containment and edge-crossing
+    tests.
 
     Topology is determined by endpoint-containment tests on the four blank
     corners of each beam (``blank_a.start/end`` and ``blank_b.start/end``):
@@ -42,6 +63,8 @@ def _detect_beam_pair(beam_a, beam_b):
     - **TOPO_X**: no corners inside either beam; overlap detected via
       edge–edge crossings of the blank outlines.
     """
+    if not _aabb_overlap(beam_a, beam_b):
+        return None
     a_corners = [beam_a.blank_a.start, beam_a.blank_a.end, beam_a.blank_b.start, beam_a.blank_b.end]
     b_corners = [beam_b.blank_a.start, beam_b.blank_a.end, beam_b.blank_b.start, beam_b.blank_b.end]
     a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
@@ -85,34 +108,26 @@ def find_beam_clusters(beams):
     # type: (list[Beam2D]) -> list[Cluster]
     """Find all joint clusters among *beams* using 2D blank-outline geometry.
 
-    Builds :class:`~compas_timber.analyzers.Cluster` objects directly from the
-    blank-edge intersection tests, without requiring a
-    :class:`~compas_timber.model.TimberModel` or a ``max_distance`` threshold.
+    **Algorithm overview**
 
-    **Two-beam clusters** (one :class:`~compas_timber.connections.JointCandidate`
-    each) are created for all intersecting pairs:
+    1. Compute all pairwise :class:`~compas_timber.connections.JointCandidate`
+       objects using endpoint-containment and edge-crossing tests on each
+       pair's 2D blank outlines (with an AABB pre-filter).
+    2. Use :func:`~compas_timber.connections.get_clusters_from_joint_candidates`
+       to spatially group the candidates with ``max_distance`` set to twice
+       the widest beam.  This efficiently separates spatially isolated pairs
+       from groups of candidates that could form a three-beam cluster.
+    3. Within each spatial group apply the 2D containment checks:
 
-    - *TOPO_L* — corners of both beams inside each other (L-corner joint).
-    - *TOPO_T* — corners of one beam inside the other (T-joint;
-      ``element_a`` is always the end beam).
-    - *TOPO_X* — no corners inside either; long-edge crossings detected
-      (lap / X-joint).
+       - *CORNER* (TOPO_Y / TOPO_K): the *primary* beam is the end beam in
+         ≥2 candidates in the group, and the two other beams are themselves
+         directly connected (their pair is also in the group).
+       - *NOTCH* (TOPO_K): ≥2 beams end inside the *primary* beam (primary
+         is the face beam in ≥2 T-joint candidates), and those end beams are
+         directly connected.
 
-    **Three-beam clusters** (two candidates, one per pair) are created when
-    three mutually intersecting beams share a common junction.  The criterion
-    is purely geometric — no distance threshold is needed:
-
-    - *CORNER* (TOPO_Y or TOPO_K): the primary beam is the *end* beam in ≥2
-      pairwise candidates, **and** those two other beams are themselves
-      directly connected.  The primary beam butts into the corner where the
-      other two meet.
-    - *NOTCH* (TOPO_K): ≥2 beams end inside the primary beam (primary is
-      *face* beam in ≥2 T-joint candidates), **and** those end-beams are
-      themselves directly connected.  The primary beam spans over the
-      junction where the other two meet.
-
-    Pairwise candidates that are already covered by a three-beam cluster are
-    **not** returned as additional two-beam clusters.
+    Candidates already consumed by a three-beam cluster are not returned as
+    separate two-beam clusters.
 
     Parameters
     ----------
@@ -120,10 +135,10 @@ def find_beam_clusters(beams):
 
     Returns
     -------
-    list[:class:`~compas_timber.analyzers.Cluster`]
+    list[:class:`~compas_timber.connections.Cluster`]
     """
     # ------------------------------------------------------------------
-    # Step 1 — pre-compute all pairwise candidates
+    # Step 1 — pairwise candidates (AABB-filtered)
     # ------------------------------------------------------------------
     pair_candidates = {}  # frozenset({id_a, id_b}) -> JointCandidate
     for beam_a, beam_b in combinations(beams, 2):
@@ -131,62 +146,77 @@ def find_beam_clusters(beams):
         if cand is not None:
             pair_candidates[frozenset([id(beam_a), id(beam_b)])] = cand
 
-    # ------------------------------------------------------------------
-    # Step 2 — find three-beam clusters (CORNER and NOTCH)
-    # ------------------------------------------------------------------
-    seen_multi = set()  # frozenset of three element ids, one per 3-beam cluster
-    clusters = []
-
-    for primary in beams:
-        # Candidates where primary is the *end* beam:
-        #   T-joint with primary as element_a, or L-joint involving primary
-        end_cands = [
-            c for key, c in pair_candidates.items()
-            if id(primary) in key
-            and c.topology in (JointTopology.TOPO_T, JointTopology.TOPO_L)
-            and (c.topology == JointTopology.TOPO_L or c.element_a is primary)
-        ]
-
-        # Candidates where primary is the *face* beam:
-        #   T-joint with primary as element_b only (L handled in end_cands)
-        face_cands = [
-            c for key, c in pair_candidates.items()
-            if id(primary) in key
-            and c.topology == JointTopology.TOPO_T
-            and c.element_b is primary
-        ]
-
-        # CORNER: primary (end) butts into the junction of two connected beams
-        for c1, c2 in combinations(end_cands, 2):
-            b1 = _other_beam(c1, primary)
-            b2 = _other_beam(c2, primary)
-            if frozenset([id(b1), id(b2)]) not in pair_candidates:
-                continue  # b1 and b2 are not connected — not the same junction
-            cluster_key = frozenset([id(primary), id(b1), id(b2)])
-            if cluster_key not in seen_multi:
-                seen_multi.add(cluster_key)
-                clusters.append(Cluster([c1, c2]))
-
-        # NOTCH: two connected beams both end inside primary (primary is face)
-        for c1, c2 in combinations(face_cands, 2):
-            b1 = c1.element_a  # always element_a for T-joints
-            b2 = c2.element_a
-            if frozenset([id(b1), id(b2)]) not in pair_candidates:
-                continue  # b1 and b2 are not connected — separate T-joints
-            cluster_key = frozenset([id(primary), id(b1), id(b2)])
-            if cluster_key not in seen_multi:
-                seen_multi.add(cluster_key)
-                clusters.append(Cluster([c1, c2]))
+    if not pair_candidates:
+        return []
 
     # ------------------------------------------------------------------
-    # Step 3 — wrap remaining pairwise candidates as two-beam clusters
+    # Step 2 — spatial pre-clustering
     # ------------------------------------------------------------------
-    for pair_key, cand in pair_candidates.items():
-        if any(pair_key.issubset(multi_key) for multi_key in seen_multi):
-            continue  # already covered by a three-beam cluster
-        clusters.append(Cluster([cand]))
+    max_distance = max(b.width for b in beams) * 2.0
+    spatial_groups = get_clusters_from_joint_candidates(
+        list(pair_candidates.values()), max_distance=max_distance
+    )
 
-    return clusters
+    # ------------------------------------------------------------------
+    # Step 3 — CORNER / NOTCH classification within each spatial group
+    # ------------------------------------------------------------------
+    seen_multi = set()  # frozenset of 3 beam ids for each confirmed multi-beam cluster
+    result_clusters = []
+
+    for group in spatial_groups:
+        candidates = group.joints  # list[JointCandidate] within this spatial group
+
+        if len(candidates) == 1:
+            result_clusters.append(Cluster(candidates))
+            continue
+
+        # Beam-pair keys present in this group — used to confirm b1↔b2 connection
+        group_pair_keys = {frozenset([id(c.element_a), id(c.element_b)]) for c in candidates}
+
+        # Unique beams in this group
+        group_beams = {c.element_a for c in candidates} | {c.element_b for c in candidates}
+
+        for primary in group_beams:
+            # Candidates where primary is the *end* beam
+            end_cands = [
+                c for c in candidates
+                if c.topology in (JointTopology.TOPO_T, JointTopology.TOPO_L)
+                and (c.topology == JointTopology.TOPO_L or c.element_a is primary)
+            ]
+            # Candidates where primary is the *face* beam (T only)
+            face_cands = [
+                c for c in candidates
+                if c.topology == JointTopology.TOPO_T and c.element_b is primary
+            ]
+
+            # CORNER: primary ends into the junction of two connected beams
+            for c1, c2 in combinations(end_cands, 2):
+                b1 = _other_beam(c1, primary)
+                b2 = _other_beam(c2, primary)
+                if frozenset([id(b1), id(b2)]) not in group_pair_keys:
+                    continue
+                cluster_key = frozenset([id(primary), id(b1), id(b2)])
+                if cluster_key not in seen_multi:
+                    seen_multi.add(cluster_key)
+                    result_clusters.append(Cluster([c1, c2]))
+
+            # NOTCH: two connected beams both terminate inside primary
+            for c1, c2 in combinations(face_cands, 2):
+                b1, b2 = c1.element_a, c2.element_a
+                if frozenset([id(b1), id(b2)]) not in group_pair_keys:
+                    continue
+                cluster_key = frozenset([id(primary), id(b1), id(b2)])
+                if cluster_key not in seen_multi:
+                    seen_multi.add(cluster_key)
+                    result_clusters.append(Cluster([c1, c2]))
+
+        # Remaining candidates in this group not consumed by a multi-beam cluster
+        for cand in candidates:
+            pair_key = frozenset([id(cand.element_a), id(cand.element_b)])
+            if not any(pair_key.issubset(mk) for mk in seen_multi):
+                result_clusters.append(Cluster([cand]))
+
+    return result_clusters
 
 
 # =============================================================================

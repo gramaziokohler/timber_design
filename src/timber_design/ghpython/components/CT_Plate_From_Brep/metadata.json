@@ -11,13 +11,13 @@
         "inputParameters": [
             {
                 "name": "brep",
-                "description": "Input Brep geometry. Referenced brep, Guid of brep in the active Rhino document.",
+                "description": "Referenced brep, Guid of brep in the active Rhino document.",
                 "typeHintID": "ghdoc",
                 "scriptParamAccess": 0
             },
             {
                 "name": "category",
-                "description": "Category of a beam.",
+                "description": "Category of a plate.",
                 "typeHintID": "str",
                 "scriptParamAccess": 0
             },

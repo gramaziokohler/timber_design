@@ -4,7 +4,6 @@
 
 # flake8: noqa
 import Grasshopper
-import Rhino
 import rhinoscriptsyntax as rs
 import System
 

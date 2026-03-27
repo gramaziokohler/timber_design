@@ -12,6 +12,9 @@ jobs:
           choco install python --version=3.9.10
           python -m pip install pythonnet==3.0.3
 
+      - name: Ensure dist/ghuser exists
+        run: mkdir dist/ghuser
+
       - uses: compas-dev/compas-actions.ghpython_components@v5
         with:
           source: src/timber_design/ghpython/components

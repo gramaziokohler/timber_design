@@ -506,32 +506,3 @@ def get_guid_and_geometry(obj):
         guid = obj
         geometry = rhino_obj.Geometry
     return guid, geometry
-
-def compute_obb(brep):
-    pts = [v.Location for v in brep.Vertices]
-    arr = np.array([[p.X, p.Y, p.Z] for p in pts])
-    centroid = arr.mean(axis=0)
-    cov = np.cov(arr - centroid, rowvar=False)
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    order = np.argsort(eigvals)[::-1]
-    eigvecs = eigvecs[:, order]
-    x_axis = Rhino.Geometry.Vector3d(*eigvecs[:,0])
-    y_axis = Rhino.Geometry.Vector3d(*eigvecs[:,1])
-    z_axis = Rhino.Geometry.Vector3d(*eigvecs[:,2])
-    plane = Rhino.Geometry.Plane(
-        Rhino.Geometry.Point3d(*centroid),
-        x_axis,
-        y_axis
-    )
-    xform = Rhino.Geometry.Transform.ChangeBasis(
-        Rhino.Geometry.Plane.WorldXY,
-        plane
-    )
-    pts_local = []
-    for p in pts:
-        pt = Rhino.Geometry.Point3d(p)
-        pt.Transform(xform)
-        pts_local.append(pt)
-    bbox = Rhino.Geometry.BoundingBox(pts_local)
-    box = Rhino.Geometry.Box(plane, bbox)
-    return box

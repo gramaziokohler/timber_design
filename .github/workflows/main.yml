@@ -15,10 +15,10 @@ jobs:
       - uses: compas-dev/compas-actions.ghpython_components@v5
         with:
           source: src/timber_design/ghpython/components
-          target: tests
-          interpreter: cpython  # optional, defaults to ironpython
+          target: dist/ghuser
+          interpreter: cpython
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: cpy_ghuser-components
-          path: tests
+          path: dist/ghuser

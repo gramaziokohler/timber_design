@@ -8,6 +8,7 @@ from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections.solver import JointTopology
 from compas_timber.model import TimberModel
+from compas_timber.connections import ConnectionSolver
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.generator_intersection import _get_beam_outline_intersections
@@ -31,8 +32,8 @@ def _midpoint(points):
 def _aabb_overlap(beam_a, beam_b):
     # type: (Beam2D, Beam2D) -> bool
     """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY."""
-    pts_a = (beam_a.blank_a.start, beam_a.blank_a.end, beam_a.blank_b.start, beam_a.blank_b.end)
-    pts_b = (beam_b.blank_a.start, beam_b.blank_a.end, beam_b.blank_b.start, beam_b.blank_b.end)
+    pts_a = (beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end)
+    pts_b = (beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end)
     a_xmin = min(p.x for p in pts_a)
     a_xmax = max(p.x for p in pts_a)
     a_ymin = min(p.y for p in pts_a)
@@ -55,7 +56,7 @@ def _detect_beam_pair(beam_a, beam_b):
     tests.
 
     Topology is determined by endpoint-containment tests on the four blank
-    corners of each beam (``blank_a.start/end`` and ``blank_b.start/end``):
+    corners of each beam (``edge_a.start/end`` and ``edge_b.start/end``):
 
     - **TOPO_L**: corners of *both* beams lie inside the other beam's blank.
     - **TOPO_T**: corners of only *one* beam lie inside the other.
@@ -65,8 +66,8 @@ def _detect_beam_pair(beam_a, beam_b):
     """
     if not _aabb_overlap(beam_a, beam_b):
         return None
-    a_corners = [beam_a.blank_a.start, beam_a.blank_a.end, beam_a.blank_b.start, beam_a.blank_b.end]
-    b_corners = [beam_b.blank_a.start, beam_b.blank_a.end, beam_b.blank_b.start, beam_b.blank_b.end]
+    a_corners = [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
+    b_corners = [beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end]
     a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
     b_in_a = [pt for pt in b_corners if beam_a.contains_point(pt)]
 
@@ -237,7 +238,7 @@ class Model2D(TimberModel):
     2D blank-outline geometry and requires no ``max_distance`` threshold.
     """
 
-    def connect_adjacent_beams(self, max_distance=None):
+    def connect_adjacent_beams(self, generators, max_distance=None):
         """Populate joint candidates using 2D blank-outline containment.
 
         Replaces the 3D centerline-distance approach of the base class with
@@ -252,8 +253,16 @@ class Model2D(TimberModel):
         for candidate in list(self.joint_candidates):
             self.remove_joint_candidate(candidate)
 
-        beams = [e for e in self.elements() if isinstance(e, Beam2D)]
-        for beam_a, beam_b in combinations(beams, 2):
+        solver = ConnectionSolver()
+        generator_pairs = solver.find_intersecting_pairs(generators, rtree=True)
+
+        for gen_a, gen_b in generator_pairs:
+
+            for beam_a, beam_b in 
             candidate = _detect_beam_pair(beam_a, beam_b)
             if candidate is not None:
                 self.add_joint_candidate(candidate)
+
+    def find_overlapping_generators(generators):
+        solver = ConnectionSolver()
+        return solver.find_intersecting_pairs(generators, rtree=True)

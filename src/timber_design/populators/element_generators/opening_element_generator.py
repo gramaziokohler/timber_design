@@ -122,10 +122,8 @@ class OpeningElementGenerator(ElementGenerator):
     def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
         """Join the elements for WindowDetailB."""
         intersecting_groups = [g for g in element_generators if g != self]
-        rules = []
-        rules.extend(self._get_external_joints(intersecting_groups))
-        rules.extend(self._get_internal_joints())
-        return [rule for rule in rules if rule is not None]
+        self._extend_studs(intersecting_groups)
+        return [rule for rule in self._get_internal_joints() if rule is not None]
 
     def cull_beam_segment(self, beam: Beam) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
@@ -273,39 +271,13 @@ class OpeningElementGenerator(ElementGenerator):
                     rules.append(self.get_direct_rule_from_elements(sill, king, max_distance=king.width / 2))
         return [rule for rule in rules if rule is not None]
 
-    def _get_external_joints(self, intersecting_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the king and jack studs to neighboring panel populator beams."""
-        rules = []
+    def _extend_studs(self, intersecting_generators: list[ElementGenerator]) -> None:
+        """Extend king and jack studs in-place to the nearest neighboring panel boundaries."""
         for king_stud in filter(lambda x: x.attributes["category"] == "king_stud", self.elements):
-            if king_stud is None:
-                continue  # TODO: error handling
-            # extend king stud to closest intersecting features
-            king_stud, bottom_int, top_int = extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
-            # create joints
-            if not king_stud:
-                raise ValueError("Failed to extend king stud to intersecting elements.")
-            for intersection in [bottom_int, top_int]:
-                if intersection is not None:
-                    for index in intersection.edge_indices:
-                        beams = intersection.generator.edge_elements.get(index, []) if intersection.generator else []
-                        for beam in beams:
-                            rules.append(self.get_direct_rule_from_elements(king_stud, beam))
+            extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
 
         for jack_stud in filter(lambda x: x.attributes["category"] == "jack_stud", self.elements):
-            if jack_stud is None:
-                continue  # TODO: error handling
-            # extend jack stud to closest intersecting features
-            jack_stud, bottom_int, _ = extend_beam_to_closest_element_generators(jack_stud, intersecting_generators, only_start=True)
-            # create joints
-            if not jack_stud:
-                raise ValueError("Failed to extend jack stud to intersecting elements.")
-            if not bottom_int:
-                continue
-            for index in bottom_int.edge_indices:
-                beams = bottom_int.generator.edge_elements.get(index, []) if bottom_int.generator else []
-                for beam in beams:
-                    rules.append(self.get_direct_rule_from_elements(jack_stud, beam))
-        return [rule for rule in rules if rule is not None]
+            extend_beam_to_closest_element_generators(jack_stud, intersecting_generators, only_start=True)
 
     # ==========================================================================
     # Opening element culling functions

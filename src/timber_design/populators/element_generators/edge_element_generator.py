@@ -18,7 +18,11 @@ from compas_timber.elements import Panel
 
 from timber_design.populators.beam2d import Beam2D
 from compas_timber.fabrication import LongitudinalCutProxy
-from compas_timber.utils import extend_line_segments
+try:
+    from compas_timber.utils import extend_line_segments
+except ImportError:
+    def extend_line_segments(segments, close_loop=False):
+        raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
 from compas_timber.utils import join_polyline_segments

@@ -8,7 +8,6 @@ from .generator_intersection import BeamGeneratorIntersection
 from .generator_intersection import IntersectionType
 from .generator_intersection import extend_beam_to_closest_element_generators
 from .generator_intersection import split_beam_with_element_generators
-from .generator_intersection import is_point_between_beam_edges
 from .model2d import Model2D
 from .model2d import find_beam_clusters
 
@@ -48,7 +47,6 @@ __all__ = [
     "IntersectionType",
     "extend_beam_to_closest_element_generators",
     "split_beam_with_element_generators",
-    "is_point_between_beam_edges",
     "PanelGeneratorFactory",
     "GeneratorFactoryParams",
     "RecessPanelGeneratorFactoryParams",

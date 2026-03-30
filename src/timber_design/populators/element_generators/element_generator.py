@@ -1,20 +1,23 @@
 from abc import ABC
 from abc import abstractmethod
+from itertools import pairwise
 from typing import Optional
 from typing import Union
 
 from compas.geometry import Line
+from compas.geometry import Box
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
-from compas_timber.elements import TimberElement
+from compas_timber.base import TimberElement
 from compas_timber.utils import is_point_in_polyline
 
-from timber_design.populators.beam2d import Beam2D
+from timber_design.populators import Beam2D
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+from timber_design.populators import BeamGeneratorIntersection
 
 
 class FeatureBoundaryType(object):
@@ -200,6 +203,43 @@ class ElementGenerator(ABC):
     def apply_to_plate(self, plate: Plate) -> None:
         """Apply the element group's feature definition to the plate based on the element generator."""
         pass
+
+    def trim_beam(self, beam: Beam2D, skip_notches: Optional[bool]=True, skip_laps: Optional[bool]=True, ) -> list[Beam2D]:
+        """Splits the beam based on the element generator's feature definition and returns the resulting beam segments."""
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.NONE:
+            return [beam], []
+        if self.outline is None:
+            return [beam], []
+        
+        intersections = [
+            BeamGeneratorIntersection(None, 0.0, None),
+            BeamGeneratorIntersection(None, beam.length, None),
+        ]
+        intersections.extend(BeamGeneratorIntersection.from_beam_and_generator(beam, self, skip_notches=skip_notches, skip_laps=skip_laps))
+        intersections.sort(key=lambda x: x.dot)
+
+        beam_segs = []
+        rules_to_cull = []
+        for pair in pairwise(intersections):
+            beam_seg = beam.get_beam_segment(pair[0].dot, pair[1].dot)
+            if self.cull_element_at_point(beam_seg.centerline.midpoint):
+                rules_to_cull.extend(beam_seg.attributes.pop("joint_defs", {}).values())
+                break
+            else:
+                beam_segs.append(beam_seg)
+        return beam_segs, rules_to_cull
+
+    def compute_aabb(self):
+        x_vals = []
+        y_vals = []
+        for e in self.elements:
+            x_vals.extend([p[0] for p in e.aabb.points])
+            y_vals.extend([p[1] for p in e.aabb.points])
+        xmin = min(x_vals)
+        xmax = max(x_vals)
+        ymin = min(y_vals)
+        ymax = max(y_vals)
+        return Box.from_points([xmin, ymin, 0.0],[xmax, ymax, 0.0])
 
     @abstractmethod
     def generate_elements(self):

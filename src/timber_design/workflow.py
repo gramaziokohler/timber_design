@@ -4,7 +4,7 @@ from compas.tolerance import TOL
 from compas_timber.connections import ConnectionSolver
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
-from compas_timber.connections import MaxNCompositeAnalyzer
+from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
 from compas_timber.utils import distance_segment_segment
@@ -574,6 +574,5 @@ def get_clusters_from_model(model, max_distance=None):
     """
     model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    analyzer = MaxNCompositeAnalyzer(model, n=len(list(model.elements())), max_distance=max_distance)
-    clusters = analyzer.find()
+    clusters = get_clusters_from_joint_candidates(model.joint_candidates, max_distance=max_distance)
     return clusters

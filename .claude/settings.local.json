@@ -19,7 +19,22 @@
       "Bash(pip list:*)",
       "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(find /c/Users/obucklin -name *.py -path */compas_timber/*)",
-      "Bash(find /c/Users/obucklin -path */site-packages/compas_timber* -name *.py)"
+      "Bash(find /c/Users/obucklin -path */site-packages/compas_timber* -name *.py)",
+      "Bash(wc -l /Users/obucklin/Documents/repos/timber_design/src/timber_design/populators/element_generators/*.py)",
+      "Bash(python -m pytest tests/test_generator_intersection.py -v)",
+      "Bash(python -c \"from compas_timber.elements import Beam\")",
+      "Bash(python -c \"import compas_timber.elements as e; print\\([x for x in dir\\(e\\) if ''imber'' in x or ''lement'' in x]\\)\")",
+      "Bash(python -c \"import compas_timber.elements as e; print\\([x for x in dir\\(e\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(python -c \"from compas_timber.base import TimberElement; print\\(''OK''\\)\")",
+      "Bash(python -c \"import compas_timber.connections as c; print\\([x for x in dir\\(c\\) if not x.startswith\\(''''_''''\\)]\\)\")",
+      "Bash(python -m pytest tests/test_populators.py tests/test_joint_rules.py -v)",
+      "Bash(python -c \"import compas_timber.connections as c; print\\([x for x in dir\\(c\\) if ''nalyzer'' in x or ''omposite'' in x or ''Cluster'' in x]\\)\")",
+      "Bash(python -c \"from compas_timber.connections import Cluster; help\\(Cluster\\)\")",
+      "Bash(python -c \"from compas_timber.connections import get_clusters_from_joint_candidates; help\\(get_clusters_from_joint_candidates\\)\")",
+      "Bash(python -c \"from compas_timber.connections import ConnectionSolver, find_neighboring_elements; help\\(ConnectionSolver\\)\")",
+      "Bash(python -c \"from compas_timber.model import TimberModel; m = TimberModel\\(\\); print\\([x for x in dir\\(m\\) if ''candidate'' in x.lower\\(\\) or ''joint'' in x.lower\\(\\) or ''connect'' in x.lower\\(\\)]\\)\")",
+      "Bash(python -c \"import compas_timber.utils as u; print\\([x for x in dir\\(u\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(python -c \"from compas_timber.utils import join_polyline_segments; help\\(join_polyline_segments\\)\")"
     ]
   }
 }

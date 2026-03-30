@@ -1,5 +1,4 @@
-from compas.geometry import Line
-from compas.geometry import Point
+from compas.geometry import Translation
 from compas.geometry import Polygon
 from compas.geometry import Polyline
 from compas.geometry import Vector
@@ -25,9 +24,11 @@ class Beam2D(Beam):
 
     Properties
     ----------
-    blank_a : :class:`compas.geometry.Line`
+    edges : tuple of :class:`compas.geometry.Line`
+        Both long blank edges as ``(edge_a, edge_b)``, computed together and cached.
+    edge_a : :class:`compas.geometry.Line`
         The ``-yaxis`` long blank edge (offset by ``-width/2``).
-    blank_b : :class:`compas.geometry.Line`
+    edge_b : :class:`compas.geometry.Line`
         The ``+yaxis`` long blank edge (offset by ``+width/2``).
     blank_outline : :class:`compas.geometry.Polyline`
         Closed 2D outline of the blank rectangle (five points, CCW).
@@ -35,8 +36,14 @@ class Beam2D(Beam):
         The 2D footprint of the blank as a four-vertex polygon.
     """
 
+    def __init__(self, name, centerline, width, height, z_vector=None):
+        super().__init__(name, centerline, width, height, z_vector)
+        self._edges = None
+        self._blank_outline = None
+        self._blank_polygon = None
+
     @classmethod
-    def from_centerline(cls, centerline, width, height, z_vector=None):
+    def from_centerline(cls, centerline, width, height, **kwargs):
         """Create a :class:`Beam2D` from a centerline.
 
         Delegates to :meth:`compas_timber.elements.Beam.from_centerline` and
@@ -53,8 +60,11 @@ class Beam2D(Beam):
         -------
         :class:`Beam2D`
         """
-        instance = Beam.from_centerline(centerline, width=width, height=height, z_vector=z_vector)
+        instance = Beam.from_centerline(centerline, width=width, height=height, **kwargs)
         instance.__class__ = cls
+        instance._edges = None
+        instance._blank_outline = None
+        instance._blank_polygon = None
         return instance
 
     # ------------------------------------------------------------------
@@ -62,7 +72,17 @@ class Beam2D(Beam):
     # ------------------------------------------------------------------
 
     @property
-    def blank_a(self):
+    def edges(self):
+        """The two long blank edges as a tuple of :class:`compas.geometry.Line`s.  """
+        if not self._edges:
+            self._edges = (
+                self.centerline.translated(self.frame.yaxis * -self.width / 2.0), 
+                self.centerline.translated(self.frame.yaxis * self.width / 2.0)
+                )
+        return self._edges
+    
+    @property
+    def edge_a(self):
         """The ``-yaxis`` long blank edge.
 
         Returns
@@ -70,10 +90,10 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``-width / 2`` along ``frame.yaxis``.
         """
-        return self.centerline.translated(self.frame.yaxis * -self.width / 2.0)
+        return self.edges[0]
 
     @property
-    def blank_b(self):
+    def edge_b(self):
         """The ``+yaxis`` long blank edge.
 
         Returns
@@ -81,7 +101,7 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return self.centerline.translated(self.frame.yaxis * self.width / 2.0)
+        return self.edges[1]
 
     @property
     def blank_outline(self):
@@ -105,14 +125,16 @@ class Beam2D(Beam):
         :class:`compas.geometry.Polyline`
             Closed five-point polyline ``[bl, br, tr, tl, bl]``.
         """
-        origin = self.frame.point
-        end = origin + self.frame.xaxis * self.length
-        half_y = self.frame.yaxis * (self.width / 2.0)
-        bl = origin - half_y
-        br = end - half_y
-        tr = end + half_y
-        tl = origin + half_y
-        return Polyline([bl, br, tr, tl, bl])
+        if not self._blank_outline:
+            origin = self.frame.point
+            end = origin + self.frame.xaxis * self.length
+            half_y = self.frame.yaxis * (self.width / 2.0)
+            bl = origin - half_y
+            br = end - half_y
+            tr = end + half_y
+            tl = origin + half_y
+            self._blank_outline = Polyline([bl, br, tr, tl, bl])
+        return self._blank_outline
 
     @property
     def blank_polygon(self):
@@ -124,11 +146,14 @@ class Beam2D(Beam):
         -------
         :class:`compas.geometry.Polygon`
         """
-        origin = self.frame.point
-        end = origin + self.frame.xaxis * self.length
-        half_y = self.frame.yaxis * (self.width / 2.0)
-        return Polygon([origin - half_y, end - half_y, end + half_y, origin + half_y])
+        if not self._blank_polygon:
+            origin = self.frame.point
+            end = origin + self.frame.xaxis * self.length
+            half_y = self.frame.yaxis * (self.width / 2.0)
+            self._blank_polygon = Polygon([origin - half_y, end - half_y, end + half_y, origin + half_y])
+        return self._blank_polygon
 
+    
     # ------------------------------------------------------------------
     # Point containment
     # ------------------------------------------------------------------
@@ -157,3 +182,20 @@ class Beam2D(Beam):
             0 <= along <= self.length
             and -self.width / 2.0 <= perp <= self.width / 2.0 
         )
+
+    @classmethod
+    def get_beam_segment(self, start_length, end_length):
+        # type: (Beam2D, float, float) -> Beam2D
+        beam_seg = self.copy()
+        beam_seg.transform(Translation.from_vector(beam.frame.xaxis * start_length))
+        beam_seg.length = end_length - start_length
+        for feature in self.features:
+            feature.beam = beam_seg #TODO: check feature position?
+        for dot, rule in self.attributes.get("joint_defs", {}).items():
+            if start_length < dot < end_length: # joint on this segment
+                rule.elements[rule.elements.index(self)] = beam_seg
+                shifted_dot = dot - start_length
+                if beam_seg.attributes.get("joint_defs") is None:
+                    beam_seg.attributes["joint_defs"] = {}
+                beam_seg.attributes["joint_defs"][shifted_dot] = rule
+        return beam_seg

@@ -20,6 +20,7 @@ from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
+from timber_design.populators.model2d import ConnectionSolver2D
 from timber_design.populators.model2d import Model2D
 from compas_timber.panel_features import PanelFeature
 
@@ -121,6 +122,28 @@ class PanelPopulator(object):
         for g in self.element_generators:
             rules: list[DirectRule] = g.join_elements(self.joint_defs, self.element_generators)
             self.joint_defs.extend(rules)
+
+    def connect_overlapping_generators(self):
+        """Populate joint candidates in the model using 2D blank-outline containment.
+
+        Iterates over all pairs of :attr:`element_generators` whose element
+        AABBs overlap and tests every cross-generator beam pair for a 2D
+        blank-outline intersection.  Detected candidates are added to
+        :attr:`model` via :meth:`~timber_design.populators.Model2D.add_joint_candidate`.
+
+        Clears any existing joint candidates before re-populating, so this
+        method is safe to call multiple times.
+        """
+        for candidate in list(self.model.joint_candidates):
+            self.model.remove_joint_candidate(candidate)
+
+        solver = ConnectionSolver2D()
+        for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
+            for beam_a in gen_a.elements:
+                for beam_b in gen_b.elements:
+                    candidate = solver.find_topology(beam_a, beam_b)
+                    if candidate is not None:
+                        self.model.add_joint_candidate(candidate)
 
     def process_joinery(self):
         for element_generator in self.element_generators:

@@ -34,7 +34,14 @@
       "Bash(python -c \"from compas_timber.connections import ConnectionSolver, find_neighboring_elements; help\\(ConnectionSolver\\)\")",
       "Bash(python -c \"from compas_timber.model import TimberModel; m = TimberModel\\(\\); print\\([x for x in dir\\(m\\) if ''candidate'' in x.lower\\(\\) or ''joint'' in x.lower\\(\\) or ''connect'' in x.lower\\(\\)]\\)\")",
       "Bash(python -c \"import compas_timber.utils as u; print\\([x for x in dir\\(u\\) if not x.startswith\\(''_''\\)]\\)\")",
-      "Bash(python -c \"from compas_timber.utils import join_polyline_segments; help\\(join_polyline_segments\\)\")"
+      "Bash(python -c \"from compas_timber.utils import join_polyline_segments; help\\(join_polyline_segments\\)\")",
+      "Bash(npm root:*)",
+      "Bash(powershell.exe -Command \"[System.Environment]::SetEnvironmentVariable\\(''PATH'', [System.Environment]::GetEnvironmentVariable\\(''PATH'', ''User''\\) + '';C:\\\\Users\\\\obucklin\\\\bin'', ''User''\\)\")",
+      "Bash(python3 -c \"import sys; import compas_timber.connections; print\\(compas_timber.connections.__file__\\)\")",
+      "Bash(python -c \"import inspect, compas_timber.connections.solver as m; print\\(inspect.getsource\\(m\\)\\)\")",
+      "Bash(find /c/Users/obucklin/AppData -name solver.py -path */compas_timber/*)",
+      "Bash(xargs -I{} find {} -maxdepth 1 -name compas_timber* -type d)",
+      "Bash(find /c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/Lib/site-packages/compas_timber -name *.py)"
     ]
   }
 }

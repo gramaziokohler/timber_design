@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 from itertools import combinations
+from itertools import product
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from timber_design.populators.element_generators.element_generator import ElementGenerator
 
 from compas.geometry import Point
+from compas.geometry import Vector
+from compas.geometry import dot_vectors
+from compas.geometry import intersection_line_line_xy
 from compas_timber.connections import Cluster
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections.solver import JointTopology
 from compas_timber.model import TimberModel
-from compas_timber.connections import ConnectionSolver
 
 from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.generator_intersection import _get_beam_outline_intersections
+from timber_design.populators.generator_intersection import _get_beam_edge_outline_intersections
 
 
 # =============================================================================
@@ -45,53 +52,201 @@ def _aabb_overlap(beam_a, beam_b):
     return a_xmax >= b_xmin and b_xmax >= a_xmin and a_ymax >= b_ymin and b_ymax >= a_ymin
 
 
-def _detect_beam_pair(beam_a, beam_b):
-    # type: (Beam2D, Beam2D) -> JointCandidate | None
-    """Return a :class:`~compas_timber.connections.JointCandidate` for the 2D
-    blank-space intersection between *beam_a* and *beam_b*, or ``None`` when
-    the blanks do not overlap.
+def _generators_aabb_overlap(gen_a, gen_b):
+    # type: (ElementGenerator, ElementGenerator) -> bool
+    """Return ``True`` if the element AABBs of two generators overlap in XY."""
+    if not gen_a.elements or not gen_b.elements:
+        return False
+    a_pts = [pt for e in gen_a.elements for pt in e.aabb.points]
+    b_pts = [pt for e in gen_b.elements for pt in e.aabb.points]
+    a_xmin = min(p.x for p in a_pts)
+    a_xmax = max(p.x for p in a_pts)
+    a_ymin = min(p.y for p in a_pts)
+    a_ymax = max(p.y for p in a_pts)
+    b_xmin = min(p.x for p in b_pts)
+    b_xmax = max(p.x for p in b_pts)
+    b_ymin = min(p.y for p in b_pts)
+    b_ymax = max(p.y for p in b_pts)
+    return a_xmax >= b_xmin and b_xmax >= a_xmin and a_ymax >= b_ymin and b_ymax >= a_ymin
 
-    A fast axis-aligned bounding-box check is applied first; only pairs whose
-    AABBs overlap proceed to the more expensive containment and edge-crossing
-    tests.
 
-    Topology is determined by endpoint-containment tests on the four blank
-    corners of each beam (``edge_a.start/end`` and ``edge_b.start/end``):
+def _find_t_connection_extended(end_beam, face_beam, max_extension=None):
+    # type: (Beam2D, Beam2D, float | None) -> Point | None
+    """Return the connection location if *end_beam*'s edge lines, extended beyond
+    their endpoints, intersect *face_beam*'s long blank edges within
+    *face_beam*'s blank extents.
 
-    - **TOPO_L**: corners of *both* beams lie inside the other beam's blank.
-    - **TOPO_T**: corners of only *one* beam lie inside the other.
-      ``element_a`` of the returned candidate is always the *end* beam.
-    - **TOPO_X**: no corners inside either beam; overlap detected via
-      edge–edge crossings of the blank outlines.
+    This handles beams that have been trimmed flush with the adjacent beam's
+    outer face by :func:`~timber_design.populators.split_beam_with_element_generators`,
+    leaving no blank-corner overlap for the normal containment test.
+
+    Parameters
+    ----------
+    end_beam : :class:`~timber_design.populators.Beam2D`
+        The beam whose edge lines are extended.
+    face_beam : :class:`~timber_design.populators.Beam2D`
+        The beam whose long blank edges are tested against.
+    max_extension : float, optional
+        Maximum distance beyond *end_beam*'s endpoints to search.
+        Defaults to ``face_beam.width``.
+
+    Returns
+    -------
+    :class:`compas.geometry.Point` | None
+        Midpoint of all found intersection points, or ``None`` if none are found.
     """
-    if not _aabb_overlap(beam_a, beam_b):
-        return None
-    a_corners = [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
-    b_corners = [beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end]
-    a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
-    b_in_a = [pt for pt in b_corners if beam_a.contains_point(pt)]
+    if max_extension is None:
+        max_extension = face_beam.width
 
-    if not a_in_b and not b_in_a:
-        # No endpoints inside — look for edge-edge crossings (TOPO_X)
-        ints_a, ints_b = _get_beam_outline_intersections(beam_a, beam_b.blank_outline)
-        if not ints_a and not ints_b:
+    pts = []
+    for src_edge in (end_beam.edge_a, end_beam.edge_b):
+        for tgt_edge in (face_beam.edge_a, face_beam.edge_b):
+            result = intersection_line_line_xy(src_edge, tgt_edge)
+            if result is None:
+                continue
+            pt = Point(*result)
+
+            # Must lie within face_beam's blank extent along its length
+            vec_tgt = Vector.from_start_end(face_beam.frame.point, pt)
+            along_tgt = dot_vectors(vec_tgt, face_beam.frame.xaxis)
+            if not (0.0 <= along_tgt <= face_beam.length):
+                continue
+
+            # Must be at or within max_extension outside one of end_beam's ends
+            # (not somewhere along the middle of end_beam)
+            vec_src = Vector.from_start_end(end_beam.frame.point, pt)
+            along_src = dot_vectors(vec_src, end_beam.frame.xaxis)
+            near_start = -max_extension <= along_src <= 0.0
+            near_end = end_beam.length <= along_src <= end_beam.length + max_extension
+            if near_start or near_end:
+                pts.append(pt)
+
+    return _midpoint(pts) if pts else None
+
+
+# =============================================================================
+# ConnectionSolver2D
+# =============================================================================
+
+
+class ConnectionSolver2D(object):
+    """2D blank-outline-aware solver for beam adjacency and topology detection.
+
+    Mirrors the interface of :class:`~compas_timber.connections.ConnectionSolver`
+    but uses endpoint-containment tests on :class:`~timber_design.populators.Beam2D`
+    blank outlines instead of 3D centerline distance.
+
+    Usage
+    -----
+    Typical two-step usage::
+
+        solver = ConnectionSolver2D()
+        for beam_a, beam_b in solver.find_intersecting_pairs(beams):
+            candidate = solver.find_topology(beam_a, beam_b)
+            if candidate:
+                model.add_joint_candidate(candidate)
+
+    For generator-level pre-filtering::
+
+        for gen_a, gen_b in solver.find_intersecting_generator_pairs(generators):
+            for beam_a, beam_b in product(gen_a.elements, gen_b.elements):
+                candidate = solver.find_topology(beam_a, beam_b)
+                if candidate:
+                    model.add_joint_candidate(candidate)
+    """
+
+    def find_intersecting_pairs(self, beams):
+        """Yield ``(beam_a, beam_b)`` pairs from *beams* whose blank AABBs overlap.
+
+        Parameters
+        ----------
+        beams : list[:class:`~timber_design.populators.Beam2D`]
+
+        Yields
+        ------
+        tuple[:class:`~timber_design.populators.Beam2D`, :class:`~timber_design.populators.Beam2D`]
+        """
+        for beam_a, beam_b in combinations(beams, 2):
+            if _aabb_overlap(beam_a, beam_b):
+                yield beam_a, beam_b
+
+    def find_intersecting_generator_pairs(self, generators):
+        """Yield ``(gen_a, gen_b)`` pairs from *generators* whose element AABBs overlap.
+
+        Parameters
+        ----------
+        generators : list[:class:`~timber_design.populators.element_generators.ElementGenerator`]
+
+        Yields
+        ------
+        tuple[ElementGenerator, ElementGenerator]
+        """
+        for gen_a, gen_b in combinations(generators, 2):
+            if _generators_aabb_overlap(gen_a, gen_b):
+                yield gen_a, gen_b
+
+    def find_topology(self, beam_a, beam_b):
+        """Return the 2D blank-overlap topology between *beam_a* and *beam_b*.
+
+        Determines topology via endpoint-containment tests on the four blank
+        corners of each beam (``edge_a.start/end`` and ``edge_b.start/end``):
+
+        - **TOPO_L**: corners of *both* beams lie inside the other beam's blank.
+        - **TOPO_T**: corners of only *one* beam lie inside the other.
+          ``element_a`` of the returned candidate is always the *end* beam.
+        - **TOPO_X**: no corners inside either beam; overlap detected via
+          edge-edge crossings of the blank outlines.
+
+        Parameters
+        ----------
+        beam_a : :class:`~timber_design.populators.Beam2D`
+        beam_b : :class:`~timber_design.populators.Beam2D`
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.JointCandidate` | None
+            ``None`` when the blanks do not overlap.
+        """
+        if not _aabb_overlap(beam_a, beam_b):
             return None
-        location = _midpoint([i.point for i in ints_a + ints_b])
-        return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_X, location=location)
 
-    if a_in_b and b_in_a:
-        # L-joint: both beams have blank corners inside each other
-        location = _midpoint(a_in_b + b_in_a)
-        return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_L, location=location)
+        a_corners = [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
+        b_corners = [beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end]
+        a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
+        b_in_a = [pt for pt in b_corners if beam_a.contains_point(pt)]
 
-    if a_in_b:
-        # T-joint: beam_a is the end beam
-        location = _midpoint(a_in_b)
-        return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_T, location=location)
+        if not a_in_b and not b_in_a:
+            # No endpoints inside — look for edge-edge crossings (TOPO_X)
+            ints_a, ints_b = _get_beam_edge_outline_intersections(beam_a, beam_b.blank_outline)
+            if ints_a or ints_b:
+                location = _midpoint([i.point for i in ints_a + ints_b])
+                return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_X, location=location)
 
-    # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
-    location = _midpoint(b_in_a)
-    return JointCandidate(element_a=beam_b, element_b=beam_a, topology=JointTopology.TOPO_T, location=location)
+            # No direct overlap — try extending edge lines for beams that have been
+            # trimmed flush with the adjacent beam's outer face.
+            loc_a = _find_t_connection_extended(beam_a, beam_b)
+            loc_b = _find_t_connection_extended(beam_b, beam_a)
+            if loc_a is not None and loc_b is not None:
+                return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_L, location=_midpoint([loc_a, loc_b]))
+            if loc_a is not None:
+                return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_T, location=loc_a)
+            if loc_b is not None:
+                return JointCandidate(element_a=beam_b, element_b=beam_a, topology=JointTopology.TOPO_T, location=loc_b)
+            return None
+
+        if a_in_b and b_in_a:
+            # L-joint: both beams have blank corners inside each other
+            location = _midpoint(a_in_b + b_in_a)
+            return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_L, location=location)
+
+        if a_in_b:
+            # T-joint: beam_a is the end beam
+            location = _midpoint(a_in_b)
+            return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_T, location=location)
+
+        # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
+        location = _midpoint(b_in_a)
+        return JointCandidate(element_a=beam_b, element_b=beam_a, topology=JointTopology.TOPO_T, location=location)
 
 
 def _other_beam(candidate, beam):
@@ -105,88 +260,77 @@ def _other_beam(candidate, beam):
 # =============================================================================
 
 
-def find_beam_clusters(beams):
-    # type: (list[Beam2D]) -> list[Cluster]
-    """Find all joint clusters among *beams* using 2D blank-outline geometry.
+def find_beam_clusters(candidates, max_distance=None):
+    # type: (list[JointCandidate], float | None) -> list[Cluster]
+    """Classify pre-computed pairwise joint candidates into beam clusters.
 
-    **Algorithm overview**
+    Expects candidates already produced by
+    :meth:`~timber_design.populators.PanelPopulator.connect_overlapping_generators` — it does
+    **not** recompute pairwise intersections.
 
-    1. Compute all pairwise :class:`~compas_timber.connections.JointCandidate`
-       objects using endpoint-containment and edge-crossing tests on each
-       pair's 2D blank outlines (with an AABB pre-filter).
-    2. Use :func:`~compas_timber.connections.get_clusters_from_joint_candidates`
-       to spatially group the candidates with ``max_distance`` set to twice
-       the widest beam.  This efficiently separates spatially isolated pairs
-       from groups of candidates that could form a three-beam cluster.
-    3. Within each spatial group apply the 2D containment checks:
+    Uses :func:`~compas_timber.connections.get_clusters_from_joint_candidates`
+    to spatially group candidates (``max_distance`` defaults to twice the
+    widest beam), then applies 2D containment checks within each group:
 
-       - *CORNER* (TOPO_Y / TOPO_K): the *primary* beam is the end beam in
-         ≥2 candidates in the group, and the two other beams are themselves
-         directly connected (their pair is also in the group).
-       - *NOTCH* (TOPO_K): ≥2 beams end inside the *primary* beam (primary
-         is the face beam in ≥2 T-joint candidates), and those end beams are
-         directly connected.
+    - *CORNER* (TOPO_Y / TOPO_K): the primary beam is the end beam in ≥2
+      candidates in the group, and the two other beams are themselves
+      directly connected (their pair candidate is also in the group).
+    - *NOTCH* (TOPO_K): ≥2 beams end inside the primary beam, and those
+      end beams are themselves directly connected.
 
     Candidates already consumed by a three-beam cluster are not returned as
     separate two-beam clusters.
 
     Parameters
     ----------
-    beams : list[:class:`~timber_design.populators.Beam2D`]
+    candidates : list[:class:`~compas_timber.connections.JointCandidate`]
+        Pre-computed pairwise candidates (e.g. from ``model.joint_candidates``).
+    max_distance : float, optional
+        Spatial grouping radius.  Defaults to twice the widest beam width
+        found among the candidates' elements.
 
     Returns
     -------
     list[:class:`~compas_timber.connections.Cluster`]
     """
-    # ------------------------------------------------------------------
-    # Step 1 — pairwise candidates (AABB-filtered)
-    # ------------------------------------------------------------------
-    pair_candidates = {}  # frozenset({id_a, id_b}) -> JointCandidate
-    for beam_a, beam_b in combinations(beams, 2):
-        cand = _detect_beam_pair(beam_a, beam_b)
-        if cand is not None:
-            pair_candidates[frozenset([id(beam_a), id(beam_b)])] = cand
-
-    if not pair_candidates:
+    if not candidates:
         return []
 
-    # ------------------------------------------------------------------
-    # Step 2 — spatial pre-clustering
-    # ------------------------------------------------------------------
-    max_distance = max(b.width for b in beams) * 2.0
-    spatial_groups = get_clusters_from_joint_candidates(
-        list(pair_candidates.values()), max_distance=max_distance
-    )
+    if max_distance is None:
+        max_distance = max(b.width for c in candidates for b in c.elements) * 2.0
 
     # ------------------------------------------------------------------
-    # Step 3 — CORNER / NOTCH classification within each spatial group
+    # Spatial pre-clustering via KDTree
+    # ------------------------------------------------------------------
+    spatial_groups = get_clusters_from_joint_candidates(candidates, max_distance=max_distance)
+
+    # ------------------------------------------------------------------
+    # CORNER / NOTCH classification within each spatial group
     # ------------------------------------------------------------------
     seen_multi = set()  # frozenset of 3 beam ids for each confirmed multi-beam cluster
     result_clusters = []
 
     for group in spatial_groups:
-        candidates = group.joints  # list[JointCandidate] within this spatial group
+        group_candidates = group.joints  # list[JointCandidate] in this spatial group
 
-        if len(candidates) == 1:
-            result_clusters.append(Cluster(candidates))
+        if len(group_candidates) == 1:
+            result_clusters.append(Cluster(group_candidates))
             continue
 
-        # Beam-pair keys present in this group — used to confirm b1↔b2 connection
-        group_pair_keys = {frozenset([id(c.element_a), id(c.element_b)]) for c in candidates}
-
-        # Unique beams in this group
-        group_beams = {c.element_a for c in candidates} | {c.element_b for c in candidates}
+        # Beam-pair keys in this group — used to confirm b1↔b2 connectivity
+        group_pair_keys = {frozenset([id(c.element_a), id(c.element_b)]) for c in group_candidates}
+        group_beams = {c.element_a for c in group_candidates} | {c.element_b for c in group_candidates}
 
         for primary in group_beams:
             # Candidates where primary is the *end* beam
             end_cands = [
-                c for c in candidates
+                c for c in group_candidates
                 if c.topology in (JointTopology.TOPO_T, JointTopology.TOPO_L)
                 and (c.topology == JointTopology.TOPO_L or c.element_a is primary)
             ]
             # Candidates where primary is the *face* beam (T only)
             face_cands = [
-                c for c in candidates
+                c for c in group_candidates
                 if c.topology == JointTopology.TOPO_T and c.element_b is primary
             ]
 
@@ -211,8 +355,8 @@ def find_beam_clusters(beams):
                     seen_multi.add(cluster_key)
                     result_clusters.append(Cluster([c1, c2]))
 
-        # Remaining candidates in this group not consumed by a multi-beam cluster
-        for cand in candidates:
+        # Remaining candidates not consumed by a multi-beam cluster
+        for cand in group_candidates:
             pair_key = frozenset([id(cand.element_a), id(cand.element_b)])
             if not any(pair_key.issubset(mk) for mk in seen_multi):
                 result_clusters.append(Cluster([cand]))
@@ -233,17 +377,33 @@ class Model2D(TimberModel):
     3D centerline distance.  All downstream machinery (joint creation,
     :meth:`process_joinery`, etc.) is inherited unchanged.
 
-    For cluster assembly, prefer :func:`find_beam_clusters` over
-    :class:`~compas_timber.analyzers.NBeamKDTreeAnalyzer` — it uses the same
-    2D blank-outline geometry and requires no ``max_distance`` threshold.
+    When used inside a :class:`~timber_design.populators.PanelPopulator`, prefer
+    :meth:`~timber_design.populators.PanelPopulator.connect_overlapping_generators`
+    which uses generator-level AABB pre-filtering.  For standalone use, call
+    :meth:`connect_adjacent_beams` directly.
+
+    Beam clusters can be retrieved via :attr:`joint_clusters` after candidates
+    have been populated.
     """
 
-    def connect_adjacent_beams(self, generators, max_distance=None):
-        """Populate joint candidates using 2D blank-outline containment.
+    @property
+    def joint_clusters(self):
+        """Return beam clusters from pre-computed joint candidates.
+
+        Returns
+        -------
+        list[:class:`~compas_timber.connections.Cluster`]
+        """
+        return find_beam_clusters(list(self.joint_candidates))
+
+    def connect_adjacent_beams(self, max_distance=None):
+        """Populate joint candidates for all :class:`~timber_design.populators.Beam2D` elements in the model.
 
         Replaces the 3D centerline-distance approach of the base class with
-        endpoint-containment tests on every pair of
-        :class:`~timber_design.populators.Beam2D` elements in the model.
+        2D blank-outline containment tests.  Use
+        :meth:`~timber_design.populators.PanelPopulator.connect_overlapping_generators`
+        instead when element generators are available, as it applies a faster
+        generator-level AABB pre-filter.
 
         Parameters
         ----------
@@ -253,16 +413,9 @@ class Model2D(TimberModel):
         for candidate in list(self.joint_candidates):
             self.remove_joint_candidate(candidate)
 
-        solver = ConnectionSolver()
-        generator_pairs = solver.find_intersecting_pairs(generators, rtree=True)
-
-        for gen_a, gen_b in generator_pairs:
-
-            for beam_a, beam_b in 
-            candidate = _detect_beam_pair(beam_a, beam_b)
+        solver = ConnectionSolver2D()
+        beams = [e for e in self.elements() if isinstance(e, Beam2D)]
+        for beam_a, beam_b in solver.find_intersecting_pairs(beams):
+            candidate = solver.find_topology(beam_a, beam_b)
             if candidate is not None:
                 self.add_joint_candidate(candidate)
-
-    def find_overlapping_generators(generators):
-        solver = ConnectionSolver()
-        return solver.find_intersecting_pairs(generators, rtree=True)

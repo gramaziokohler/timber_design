@@ -2,6 +2,7 @@ from compas.geometry import Translation
 from compas.geometry import Polygon
 from compas.geometry import Polyline
 from compas.geometry import Vector
+from compas.geometry import Line
 from compas.geometry import dot_vectors
 from compas_timber.elements import Beam
 
@@ -101,7 +102,29 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return self.edges[1]
+        return self.edges[1] 
+
+    @property
+    def start_segment(self):
+        """The ``+yaxis`` long blank edge.
+
+        Returns
+        -------
+        :class:`compas.geometry.Line`
+            Centerline translated by ``+width / 2`` along ``frame.yaxis``.
+        """
+        return Line(self.edges[0].start, self.edges[1].start) 
+
+    @property
+    def end_segment(self):
+        """The ``+yaxis`` long blank edge.
+
+        Returns
+        -------
+        :class:`compas.geometry.Line`
+            Centerline translated by ``+width / 2`` along ``frame.yaxis``.
+        """
+        return Line(self.edges[0].end, self.edges[1].end)
 
     @property
     def blank_outline(self):

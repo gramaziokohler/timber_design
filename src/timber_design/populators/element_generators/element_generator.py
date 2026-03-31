@@ -1,8 +1,8 @@
 from abc import ABC
 from abc import abstractmethod
-from itertools import pairwise
 from typing import Optional
 from typing import Union
+from compas.itertools import pairwise
 
 from compas.geometry import Line
 from compas.geometry import Box

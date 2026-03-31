@@ -14,7 +14,6 @@ from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-from compas.itertools import pairwise
 
 from timber_design.populators.beam2d import Beam2D
 
@@ -24,56 +23,75 @@ from timber_design.populators.beam2d import Beam2D
 # =============================================================================
 
 
-class _BeamOutlineIntersection(NamedTuple):
-    """Internal: a single intersection between one beam blank edge and one boundary edge."""
+class _BeamEdgeOutlineIntersection(object):
+    """Internal: a single intersection between one beam blank edge and one boundary edge.
 
-    point: Point
-    dot: float
-    edge_index: int
-    line: object  # the boundary edge
+    Used by :func:`_get_beam_edge_outline_intersections` for the TOPO_X test
+    in :mod:`~timber_design.populators.model2d`.
+    """
+
+    def __init__(self, point, dot, edge_index, line):
+        self.point = point
+        self.dot = dot
+        self.edge_index = edge_index
+        self.line = line
+
+    @classmethod
+    def from_beam_and_outline(cls, beam, outline, limit_to_segments=True):
+        # type: (Beam2D, Polyline, bool) -> tuple[list, list]
+        """Intersect the two blank side-edges of *beam* against every segment of *outline*.
+
+        Returns
+        -------
+        tuple of two lists of :class:`_BeamEdgeOutlineIntersection`
+            ``(intersections_a, intersections_b)`` for :attr:`~Beam2D.edge_a`
+            and :attr:`~Beam2D.edge_b` respectively.
+        """
+        intersections_a = []
+        intersections_b = []
+        for index, edge in enumerate(outline.lines):
+            for blank_edge, results in zip(beam.edges, (intersections_a, intersections_b)):
+                if limit_to_segments:
+                    pt = intersection_segment_segment(blank_edge, edge)[0]
+                else:
+                    pt = intersection_line_segment(blank_edge, edge)[0]
+                if pt:
+                    d = dot_vectors(Vector.from_start_end(blank_edge.start, pt), blank_edge.direction)
+                    results.append(cls(Point(*pt), d, index, edge))
+        return intersections_a, intersections_b
 
 
 class _ParsedIntersection(NamedTuple):
-    """Internal: a classified intersection result, neutral of source (generator or beam)."""
+    """Internal: a classified intersection result."""
 
     type: str
     point: Point
-    dot: float
+    dots: list
 
 
 # =============================================================================
-# Intersection type constants  (shared by BGI and BBI)
+# Intersection type constants
 # =============================================================================
 
 
 class IntersectionType(object):
-    """Geometric classification of a beam blank intersection with a boundary.
-
-    These types describe the spatial relationship between the intersecting
-    beam's blank and the boundary edges it crosses.  They map to timber joint
-    topologies but are intentionally kept geometry-only so they can be used
-    by :class:`BeamGeneratorIntersection` (BGI).
+    """Geometric classification of a beam blank intersection with a generator boundary.
 
     Attributes
     ----------
     SINGLE : str
-        Both blank edges cross the **same** boundary edge.
-        The beam end meets a face → **T topology**.
+        One generator outline edge spans the full beam width — both long blank
+        edges crossed by the same boundary segment.  T-topology.
     CORNER : str
-        The primary beam's end lands at a corner where **two other beams
-        already meet** (Y / K topology).  Not detectable from a single beam
-        pair — must be assembled from multiple pairwise results at a higher
-        level.  Resolving this intersection yields two
-        :attr:`connecting_beams` and requires a three-way cluster joint.
-        → **Y / K topology (primary beam is main_beam)**.
+        The beam blank crosses from one long face to the other through a single
+        generator corner.  Adjacent boundary edges cross different long faces.
+        Y / K topology (primary beam is the main/end beam).
     NOTCH : str
-        One blank edge crosses two adjacent boundary edges while the other
-        does not intersect at all — the beam clips only one corner of the
-        boundary.  → **notch / half-lap**.
+        One generator corner dips into the same long face it entered from.
+        Adjacent boundary edges both cross the same long blank face.
     LAP : str
-        The blank edges cross non-adjacent boundary edges and at least one
-        boundary corner lies inside the beam's width.
-        The beam passes fully through the boundary region → **X / lap**.
+        Two or more generator corners lie inside the beam blank.
+        The beam passes through a generator region.  X / lap topology.
     """
 
     SINGLE = "single"
@@ -83,341 +101,362 @@ class IntersectionType(object):
 
 
 # =============================================================================
-# Module-level detection functions  (shared by BGI and BBI)
+# New core: outline-walk crossing detection
 # =============================================================================
 
+# beam.blank_outline.lines indices
+# 0  bl→br   edge_a direction   (long face, -yaxis side)
+# 1  br→tr   end cap            (beam end)
+# 2  tr→tl   edge_b reversed    (long face, +yaxis side)
+# 3  tl→bl   start cap          (beam start)
+_LONG_FACE_INDICES = frozenset({0, 2})
 
-def _get_beam_outline_intersections(beam, outline, limit_to_segments=True):
-    # type: (Beam2D, Polyline, bool) -> tuple[list[_BeamOutlineIntersection], list[_BeamOutlineIntersection]]
-    """Intersect the two blank side-edges of *beam* against every segment of *outline*.
+
+def _find_crossings(beam, outline, limit_to_segments=True, skip_notches=False, skip_laps=False):
+    # type: (Beam2D, Polyline, bool, bool, bool) -> list[_ParsedIntersection]
+    """Walk every edge of *outline* and detect how it enters and exits *beam*'s blank.
+
+    Algorithm
+    ---------
+    1. For each outline edge, find intersections with every edge of
+       ``beam.blank_outline`` (the four-sided beam rectangle).
+    2. Determine whether each outline edge is **entering** or **exiting** the
+       beam blank by checking ``beam.contains_point`` on the edge endpoints.
+    3. Pair consecutive entry/exit crossings, counting how many outline corners
+       between them lie inside the beam blank.
+    4. Classify each pair by the *beam blank edge indices* crossed:
+
+       * **Same outline edge** (0 corners between): **SINGLE**
+       * **1 corner inside, different long faces** (0↔2): **CORNER**
+       * **1 corner inside, same long face** (0→0 or 2→2): **NOTCH**
+       * **≥2 corners inside**: **LAP**
+
+    Only crossings through the long faces (blank_outline indices 0 and 2) are
+    used for intersection classification.  End-cap crossings are ignored because
+    they correspond to the beam travelling *along* the generator boundary, which
+    is not a trim-worthy event.
 
     Parameters
     ----------
     beam : :class:`~timber_design.populators.Beam2D`
-        The beam whose blank edges are being intersected.
     outline : :class:`compas.geometry.Polyline`
-        Closed boundary polyline.  Each segment is tested in turn; its
-        position in ``outline.lines`` becomes the ``edge_index`` stored on
-        the returned :class:`_LineEdgeIntersection` objects.
     limit_to_segments : bool
-        When ``True`` use segment-segment intersection; otherwise line-segment.
+        When ``False``, the long blank edges are treated as infinite lines so
+        that intersections outside the beam's current extents are found (used
+        for extending beams to a generator boundary).
+    skip_notches : bool
+    skip_laps : bool
 
     Returns
     -------
-    tuple of two lists of :class:`_LineEdgeIntersection`
-        ``(intersections_a, intersections_b)`` for :attr:`~Beam2D.edge_a`
-        and :attr:`~Beam2D.edge_b` respectively.
+    list[:class:`_ParsedIntersection`]
     """
-    intersections_a = []
-    intersections_b = []
-    for index, edge in enumerate(outline.lines):
-        for blank_edge, results in zip(beam.edges, (intersections_a, intersections_b)):
-            if limit_to_segments:
-                pt = intersection_segment_segment(blank_edge, edge)[0]
+    blank_lines = beam.blank_outline.lines  # 4 edges: edge_a(0), end-cap(1), edge_b-rev(2), start-cap(3)
+    n_outline = len(outline.lines)
+
+    def _beam_dot(pt):
+        return dot_vectors(Vector.from_start_end(beam.frame.point, pt), beam.frame.xaxis)
+
+    def _intersect_with_blank_edge(gen_edge, blank_idx):
+        blank_edge = blank_lines[blank_idx]
+        if not limit_to_segments and blank_idx in _LONG_FACE_INDICES:
+            result = intersection_line_segment(blank_edge, gen_edge)
+        else:
+            result = intersection_segment_segment(gen_edge, blank_edge)
+        pt = result[0] if result else None
+        return Point(*pt) if pt else None
+
+    # ------------------------------------------------------------------
+    # Step 1: collect all (outline_idx, blank_idx, point) intersections
+    # ------------------------------------------------------------------
+    all_hits = []  # list of (outline_idx, blank_idx, Point)
+    for i, gen_edge in enumerate(outline.lines):
+        for j in range(4):
+            pt = _intersect_with_blank_edge(gen_edge, j)
+            if pt is not None:
+                all_hits.append((i, j, pt))
+
+    # Filter to long-face hits only (indices 0 and 2)
+    long_hits = [(i, j, pt) for (i, j, pt) in all_hits if j in _LONG_FACE_INDICES]
+
+    if not long_hits:
+        return []
+
+    # Group long_hits by outline edge index
+    by_outline = {}
+    for i, j, pt in all_hits:
+        by_outline.setdefault(i, []).append((j, pt))
+
+    # ------------------------------------------------------------------
+    # Step 2: walk outline edges, track inside/outside, pair entry/exit
+    # ------------------------------------------------------------------
+
+    def _corners_between(entry_i, exit_i):
+        """Outline corner points between edge entry_i and edge exit_i (wrap-aware).
+
+        The corner *after* edge k is ``outline.lines[k].end``.  We collect
+        every such corner from ``entry_i`` up to (but not including) ``exit_i``,
+        wrapping around the closed outline when ``entry_i > exit_i``.
+        """
+        if entry_i <= exit_i:
+            k_range = range(entry_i, exit_i)
+        else:
+            k_range = list(range(entry_i, n_outline)) + list(range(0, exit_i))
+        return [
+            outline.lines[k].end
+            for k in k_range
+            if beam.contains_point(outline.lines[k].end)
+        ]
+
+    inside = beam.contains_point(outline.lines[0].start)
+    current_entry = None       # (outline_idx, blank_idx, Point)
+    pending_initial_exit = None  # exit recorded before any entry (outline started inside beam)
+    crossings = []             # list of (entry, exit, corners_inside)
+
+    for i in range(n_outline):
+        hits = by_outline.get(i, [])
+
+        if len(hits) == 2 and not inside:
+            # Outline edge traverses the full beam width in one step
+            gen_edge = outline.lines[i]
+            direction = Vector.from_start_end(gen_edge.start, gen_edge.end)
+            hits_sorted = sorted(
+                hits,
+                key=lambda h: dot_vectors(Vector.from_start_end(gen_edge.start, h[1]), direction),
+            )
+            entry = (i, hits_sorted[0][0], hits_sorted[0][1])
+            exit_ = (i, hits_sorted[1][0], hits_sorted[1][1])
+            crossings.append((entry, exit_, []))
+            # inside stays False
+
+        elif len(hits) == 1:
+            j, pt = hits[0]
+            if not inside:
+                current_entry = (i, j, pt)
+                inside = True
             else:
-                pt = intersection_line_segment(blank_edge, edge)[0]
-            if pt:
-                d = dot_vectors(Vector.from_start_end(blank_edge.start, pt), blank_edge.direction)
-                results.append(_BeamOutlineIntersection(Point(*pt), d, index, edge))
-    return intersections_a, intersections_b
+                # Exiting
+                exit_ = (i, j, pt)
+                if current_entry is not None:
+                    corners_inside = _corners_between(current_entry[0], i)
+                    crossings.append((current_entry, exit_, corners_inside))
+                    current_entry = None
+                else:
+                    # Outline started inside the beam — save exit for wrap-around pairing
+                    pending_initial_exit = exit_
+                inside = False
 
-def _parse_simple_intersections(ints_a, ints_b):
-    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection]) -> list[_ParsedIntersection]
-    """Both blank edges hit the same boundary edge → SINGLE.
+        # 0 hits: continuing inside or outside with no crossing
 
-           |
-           |
-           |
-         __|____________
-        |  |
-        |  |    beam
-        |__|____________
-           |
-           |
-           |
-           |outline
+    # Wrap-around: entry near the end of the outline, exit at the beginning.
+    # This happens when the outline's first point (corner) is inside the beam.
+    if current_entry is not None and pending_initial_exit is not None:
+        corners_inside = _corners_between(current_entry[0], pending_initial_exit[0])
+        crossings.append((current_entry, pending_initial_exit, corners_inside))
 
-    """
-    keys_a = {i.edge_index for i in ints_a}
-    keys_b = {i.edge_index for i in ints_b}
-    # Single intersection if one edge hits both blank edges.
-    shared = keys_a & keys_b
-    simple_intersections = []
-    for k in shared:
-        ia = next(i for i in ints_a if i.edge_index == k)
-        ib = next(i for i in ints_b if i.edge_index == k)
-        simple_intersections.append(
-            _ParsedIntersection(
+    # ------------------------------------------------------------------
+    # Step 3: classify each (entry, exit, corners_inside) crossing
+    # ------------------------------------------------------------------
+    parsed = []
+    for entry, exit_, corners_inside in crossings:
+        entry_i, entry_b, entry_pt = entry
+        exit_i, exit_b, exit_pt = exit_
+        n_corners = len(corners_inside)
+        midpt = (entry_pt + exit_pt) * 0.5
+        d_entry = _beam_dot(entry_pt)
+        d_exit = _beam_dot(exit_pt)
+
+        if entry_i == exit_i:
+            # Same outline edge — SINGLE (T-type transverse cut)
+            parsed.append(_ParsedIntersection(
                 type=IntersectionType.SINGLE,
-                point=(ia.point + ib.point) * 0.5,
-                dot=(ia.dot + ib.dot) * 0.5,
-            )
-        )
-    for i in list(ints_a):
-        if i.edge_index in shared:
-            ints_a.remove(i)
-    for i in list(ints_b):
-        if i.edge_index in shared:
-            ints_b.remove(i)
-    return simple_intersections
+                point=midpt,
+                dots=[d_entry, d_exit],
+            ))
 
-def _parse_corner_intersections(ints_a, ints_b, outline):
-    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Polyline) -> list[_ParsedIntersection]
-    """Each blank edge hits an adjacent boundary edge → CORNER.
-
-              /
-             /
-          __/___________
-         | /
-         | |    beam
-         |_|____________
-           |
-           |
-           |
-           |outline
-
-    At a CORNER the intersection point sits at a boundary corner shared by two
-    beams, so :meth:`BeamGeneratorIntersection.resolve` will return two entries
-    in :attr:`~BeamGeneratorIntersection.connecting_beams`.
-    """
-    edge_count = len(outline.lines)
-    corner_intersections = []
-    for ia in ints_a:
-        adjacent = {(ia.edge_index - 1) % edge_count, (ia.edge_index + 1) % edge_count}
-        for ib in ints_b:
-            if ib.edge_index in adjacent:
-                corner_intersections.append(
-                    _ParsedIntersection(
+        elif n_corners == 1:
+            corner_dot = _beam_dot(corners_inside[0])
+            if entry_b == exit_b:
+                # Same long faces — NOTCH
+                parsed.append(_ParsedIntersection(
+                    type=IntersectionType.NOTCH,
+                    point=midpt,
+                    dots=[d_entry, d_exit, corner_dot],
+                ))
+            elif entry_b in _LONG_FACE_INDICES and exit_b in _LONG_FACE_INDICES:
+                # Different long face or mixed with end cap — CORNER
+                if not skip_notches:
+                    parsed.append(_ParsedIntersection(
                         type=IntersectionType.CORNER,
-                        point=(ia.point + ib.point) * 0.5,
-                        dot=(ia.dot + ib.dot) * 0.5,
-                    )
-                )
-                if ia in ints_a:
-                    ints_a.remove(ia)
-                if ib in ints_b:
-                    ints_b.remove(ib)
-                break
-    return corner_intersections
-
-def _parse_notch_intersections(ints_a, ints_b, beam, outline):
-    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Beam2D, Polyline) -> list[_ParsedIntersection]
-    """One blank edge hits two adjacent boundary edges → NOTCH.
-
-        |    |  /    
-        |    | /    
-        |    |/    
-        |    /    
-        |   /|   
-        |  /_|_____outline
-        |    |
-        |    |
-        |    |
-        |beam|
-
-    Uses :meth:`~Beam2D.contains_point` to check whether the corner shared
-    by the two consecutive boundary edges lies inside the beam's blank, which
-    is more reliable than comparing edge-index adjacency alone.
-
-    This may also result in a 3-beam corner that should be resolved using a
-    ``Cluster``.
-    """
-    if not ints_a and not ints_b:
-        return []
-
-    edge_count = len(outline.lines)
-
-    def _get_notch_intersections_for_side(intersection_set, beam):
-        leftovers = [i for i in intersection_set]
-        notch_intersections = []
-        # in case the first and last edges of the boundary make a notch, rotate
-        if intersection_set and beam.contains_point(intersection_set[0].line.start):
-            intersection_set.append(intersection_set.pop(0))
-        i = 0
-        while i < len(intersection_set) - 1:
-            first_int, second_int = intersection_set[i : i + 2]
-            if second_int.edge_index - first_int.edge_index == 1 or (
-                first_int.edge_index == edge_count - 1 and second_int.edge_index == 0
-            ):
-                if beam.contains_point(first_int.line.end):
-                    notch_intersections.append(
-                        _ParsedIntersection(
-                            type=IntersectionType.NOTCH,
-                            point=(first_int.point + second_int.point) * 0.5,
-                            dot=(first_int.dot + second_int.dot) * 0.5,
-                        )
-                    )
-                    i += 1  # skip next intersection — it's consumed
-                    if first_int in leftovers:
-                        leftovers.remove(first_int)
-                    if second_int in leftovers:
-                        leftovers.remove(second_int)
-            i += 1
-        return notch_intersections, leftovers
-
-    side_a_notches, ints_a = _get_notch_intersections_for_side(ints_a, beam) if ints_a else ([], [])
-    side_b_notches, ints_b = _get_notch_intersections_for_side(ints_b, beam) if ints_b else ([], [])
-    return side_a_notches + side_b_notches
-
-def _parse_lap_intersections(ints_a, ints_b, beam, outline):
-    # type: (list[_BeamOutlineIntersection], list[_BeamOutlineIntersection], Beam2D, Polyline) -> list[_ParsedIntersection]
-    """Blank edges cross non-adjacent boundary edges with a corner inside the beam → LAP.
-        _________
-        |       |
-        |       |
-        |    ___|___
-        |   |   |   
-        |   |   |   
-        |   |   |   
-        |   |   |   
-        |   |___|___ outline
-        |       |
-        |       |
-        |       |
-        |    ___|___outline
-        |   |   |   
-        |   |   |   
-        |   |   |   
-        |   |   |   
-     ___|___|   |
-        |       |
-        |       |
-        | beam  |
-        |_______|
-
-    Uses :meth:`~Beam2D.contains_point` to check whether the boundary
-    corner between each consecutive pair of intersected edges lies inside the
-    beam's blank, which is more accurate than a distance check.
-    """
-    if not ints_a and not ints_b:
-        return []
-
-    lap_intersections = []
-    intersections = [i for i in ints_a] + [i for i in ints_b]
-    intersections.sort(key=lambda x: x.edge_index)
-
-    # handle wrap-around: if the boundary starts inside the beam, rotate list
-    if intersections and beam.contains_point(intersections[0].line.start):
-        intersections.append(intersections.pop(0))
-
-    for pair in pairwise(intersections):
-        if beam.contains_point(pair[0].line.end):
-            lap_intersections.append(
-                _ParsedIntersection(
+                        point=midpt,
+                        dots=[d_entry, d_exit, corner_dot],
+                    ))
+            elif entry_b in _LONG_FACE_INDICES or exit_b in _LONG_FACE_INDICES:
+                # Different long face or mixed with end cap — CORNER
+                if not skip_laps:
+                    parsed.append(_ParsedIntersection(
+                        type=IntersectionType.LAP,
+                        point=midpt,
+                        dots=[d_entry, d_exit, corner_dot],
+                    ))
+            else:
+                # Both entry and exit through end caps raise error
+                raise ValueError("Invalid crossing with entry and exit through beam end faces")
+        elif n_corners >= 2:
+            if not skip_laps:
+                parsed.append(_ParsedIntersection(
                     type=IntersectionType.LAP,
-                    point=(pair[0].point + pair[1].point) * 0.5,
-                    dot=(pair[0].dot + pair[1].dot) * 0.5,
-                )
-            )
-    return lap_intersections
+                    point=midpt,
+                    dots=[d_entry, d_exit]+[_beam_dot(pt) for pt in corners_inside],
+                ))
+
+    return parsed
 
 
 # =============================================================================
-# Public intersection classes
+# Module-level utility  (used by model2d for TOPO_X detection)
+# =============================================================================
+
+
+def _get_beam_edge_outline_intersections(beam, outline, limit_to_segments=True):
+    # type: (Beam2D, Polyline, bool) -> tuple[list, list]
+    """Return ``(ints_a, ints_b)`` lists of :class:`_BeamEdgeOutlineIntersection`.
+
+    Intersects :attr:`~Beam2D.edge_a` and :attr:`~Beam2D.edge_b` against every
+    segment of *outline*.  Used by
+    :func:`~timber_design.populators.model2d.ConnectionSolver2D.find_topology`
+    for TOPO_X detection.
+    """
+    return _BeamEdgeOutlineIntersection.from_beam_and_outline(beam, outline, limit_to_segments)
+
+
+# =============================================================================
+# Public intersection class
 # =============================================================================
 
 
 class BeamGeneratorIntersection(object):
     """Records where a :class:`~timber_design.populators.Beam2D` blank intersects a generator outline.
 
-    Used for splitting and culling beams along a generator boundary.  Call
-    :meth:`resolve` after all generators have finished
-    :meth:`~timber_design.populators.ElementGenerator.generate_elements` to
-    populate :attr:`connecting_beams`.
-
     Parameters
     ----------
     type : str
         One of :class:`IntersectionType`.
-    dot : float
-        Signed distance from the beam's start to the intersection along its
-        centerline.  Used to determine the split position.
-    generator : :class:`~timber_design.populators.ElementGenerator` or None
-        The generator whose outline was intersected.  ``None`` for the
-        synthetic start/end sentinels inside
+    dots : list[float] or float
+        Positions along the beam centreline where the generator boundary
+        crosses the blank.  Two values for SINGLE / LAP; three values (two
+        crossing dots + one corner dot) for CORNER / NOTCH.  A bare scalar is
+        accepted for the synthetic sentinel objects used inside
         :func:`split_beam_with_element_generators`.
+    generator : :class:`~timber_design.populators.ElementGenerator` or None
     """
 
-    def __init__(self, type, dot, generator):
+    def __init__(self, type, dots, generator):
         self.type = type
-        self.dot = dot
+        self.dots = dots if isinstance(dots, list) else [dots, dots]
         self.generator = generator
+
+    @property
+    def dot(self):
+        """Midpoint of the two crossing positions — used for sorting.
+
+        Returns
+        -------
+        float
+        """
+        return (self.dots[0] + self.dots[1]) / 2.0
+
+    @property
+    def dot_start(self):
+        """Outermost position toward the beam start across all stored dot values.
+
+        Considers every dot in :attr:`dots` — including the corner dot stored
+        for CORNER and NOTCH intersections — so that the full extent of the
+        intersection zone is accounted for when maximising segment length.
+
+        Returns
+        -------
+        float
+        """
+        return min(self.dots)
+
+    @property
+    def dot_end(self):
+        """Outermost position toward the beam end across all stored dot values.
+
+        Considers every dot in :attr:`dots` — including the corner dot stored
+        for CORNER and NOTCH intersections — so that the full extent of the
+        intersection zone is accounted for when maximising segment length.
+
+        Returns
+        -------
+        float
+        """
+        return max(self.dots)
 
     @classmethod
     def from_beam_and_generator(cls, beam, element_generator, limit_to_segments=True, skip_notches=False, skip_laps=False):
         # type: (Beam2D, ElementGenerator, bool, bool, bool) -> list[BeamGeneratorIntersection]
         """Detect and classify intersections between *beam*'s blank and *element_generator*'s outline.
 
+        Uses the outline-walk algorithm: iterates over every edge of the
+        generator outline, finds where it enters and exits the beam blank, and
+        classifies each entry/exit pair as SINGLE, CORNER, NOTCH, or LAP.
+
         Parameters
         ----------
         beam : :class:`~timber_design.populators.Beam2D`
         element_generator : :class:`~timber_design.populators.ElementGenerator`
         limit_to_segments : bool
-            When ``True`` (default) only segment-segment intersections are
-            considered.  Set to ``False`` when extending beams to the nearest
-            boundary.
+            When ``False``, the beam's long blank edges are extended as
+            infinite lines.  Use for :func:`extend_beam_to_closest_element_generators`.
         skip_notches : bool
-            Skip :attr:`~IntersectionType.NOTCH` classification (also implies
-            ``skip_laps``).
         skip_laps : bool
-            Skip :attr:`~IntersectionType.LAP` classification only.
         """
         if element_generator.outline is None:
             return []
-        outline = element_generator.outline
-        ints_a, ints_b = _get_beam_outline_intersections(beam, outline, limit_to_segments)
-
-        parsed = _parse_simple_intersections(ints_a, ints_b)
-        parsed.extend(_parse_corner_intersections(ints_a, ints_b, outline))
-
-        if not skip_notches:
-            parsed.extend(_parse_notch_intersections(ints_a, ints_b, beam, outline))
-            if not skip_laps:
-                parsed.extend(_parse_lap_intersections(ints_a, ints_b, beam, outline))
-
-        return [cls(pi.type, pi.dot, element_generator) for pi in parsed]
+        parsed = _find_crossings(
+            beam,
+            element_generator.outline,
+            limit_to_segments=limit_to_segments,
+            skip_notches=skip_notches,
+            skip_laps=skip_laps,
+        )
+        return [cls(pi.type, pi.dots, element_generator) for pi in parsed]
 
 
 # =============================================================================
 # Public functions
 # =============================================================================
 
-def split_beam_with_element_generators(beam, element_generators, skip_notches=False, skip_laps=False):
-    # type: (Beam2D, list[ElementGenerator], bool, bool) -> tuple[list[tuple], list[DirectRule]]
-    """Split *beam* at every intersection with the outlines of *element_generators*.
 
-    Returns a list of ``(beam_segment, (start_bgi, end_bgi))`` tuples.  Each
-    :class:`BeamGeneratorIntersection` has its
-    :attr:`~BeamGeneratorIntersection.connecting_beams` already resolved so
-    callers can iterate them directly.
+def split_beam_with_element_generators(beam, element_generators, skip_notches=False, skip_laps=False):
+    # type: (Beam2D, list[ElementGenerator], bool, bool) -> tuple[list, list]
+    """Split *beam* at every intersection with the outlines of *element_generators*.
 
     Parameters
     ----------
     beam : :class:`~timber_design.populators.Beam2D`
     element_generators : list[:class:`~timber_design.populators.ElementGenerator`]
-    ignore_notches : bool
-        Skip NOTCH (and LAP) classification.
-    ignore_laps : bool
-        Skip LAP classification only.
+    skip_notches : bool
+    skip_laps : bool
 
     Returns
     -------
-    beam_int_tuples : list of ``(Beam2D | None, (BGI | None, BGI | None))``
-    rules_to_remove : list[:class:`~timber_design.workflow.DirectRule`]
-        Joint rules that were on culled segments and must be removed from the
-        populator's rule list.
+    beam_segs : list[:class:`~timber_design.populators.Beam2D`]
+    rules_to_cull : list
     """
     beam_segs = [beam]
     rules_to_cull = []
     for generator in element_generators:
-        temp_beams = []        
+        temp_beams = []
         for seg in beam_segs:
             temp_segs, rules = generator.trim_beam(seg)
             temp_beams.extend(temp_segs)
             rules_to_cull.extend(rules)
         beam_segs = temp_beams
-
     return beam_segs, rules_to_cull
+
 
 def extend_beam_to_closest_element_generators(beam, element_generators, only_start=False, only_end=False):
     # type: (Beam2D, list[ElementGenerator], bool, bool) -> None
@@ -428,9 +467,7 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
     beam : :class:`~timber_design.populators.Beam2D`
     element_generators : list[:class:`~timber_design.populators.ElementGenerator`]
     only_start : bool
-        Extend only the start end.
     only_end : bool
-        Extend only the end.
     """
     if only_end and only_start:
         raise ValueError("Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam))
@@ -448,7 +485,7 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
     intersections.sort(key=lambda x: x.dot)
 
     def get_bottom_dot(intersections):
-        """Get the highest negative .dot value, consuming all negative entries."""
+        """Highest negative dot (closest to 0 from below), consuming all negative entries."""
         if not intersections or intersections[0].dot > 0:
             return None
         bottom = intersections.pop(0)
@@ -456,10 +493,10 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
             if intersections[0].dot > 0:
                 break
             bottom = intersections.pop(0)
-        return bottom.dot
+        return bottom.dot_start  # outermost = farthest from beam centre
 
     def get_top_dot(beam, intersections):
-        """Get the lowest .dot value beyond beam.length, consuming all such entries."""
+        """Lowest dot beyond beam.length, consuming all such entries."""
         if not intersections or intersections[-1].dot < beam.length:
             return None
         top = intersections.pop()
@@ -467,7 +504,7 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
             if intersections[-1].dot < beam.length:
                 break
             top = intersections.pop(-1)
-        return top.dot
+        return top.dot_end  # outermost = farthest from beam centre
 
     bottom_dot = get_bottom_dot(intersections) if not only_end else None
     top_dot = get_top_dot(beam, intersections) if not only_start else None

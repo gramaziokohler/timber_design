@@ -11,6 +11,9 @@ try:
         from timber_design.workflow import DirectRule
 except ImportError:
     pass
+
+from itertools import product
+
 from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Point
@@ -23,6 +26,7 @@ from compas_timber.elements import Panel
 from timber_design.populators.model2d import ConnectionSolver2D
 from timber_design.populators.model2d import Model2D
 from compas_timber.panel_features import PanelFeature
+
 
 
 class FeaturePopulatorDefinition(object):
@@ -115,54 +119,46 @@ class PanelPopulator(object):
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
 
-    def process_populator(self):
+    def populate(self):
+        """Runs the full population process, including generating elements, trimming, joining, and processing joinery."""
+        self.generate_elements()
+        self.trim_elements()
+        self.add_elements_to_model()
+        self.join_elements()
+        self.process_joinery()
+
+    def generate_elements(self):
         """Processes the panel populator and creates the elements and joints."""
         for g in self.element_generators:
             g.generate_elements()
-        for g in self.element_generators:
-            rules: list[DirectRule] = g.join_elements(self.joint_defs, self.element_generators)
-            self.joint_defs.extend(rules)
 
-    def connect_overlapping_generators(self):
-        """Populate joint candidates in the model using 2D blank-outline containment.
-
-        Iterates over all pairs of :attr:`element_generators` whose element
-        AABBs overlap and tests every cross-generator beam pair for a 2D
-        blank-outline intersection.  Detected candidates are added to
-        :attr:`model` via :meth:`~timber_design.populators.Model2D.add_joint_candidate`.
-
-        Clears any existing joint candidates before re-populating, so this
-        method is safe to call multiple times.
-        """
-        for candidate in list(self.model.joint_candidates):
-            self.model.remove_joint_candidate(candidate)
-
+    def trim_elements(self):
         solver = ConnectionSolver2D()
         for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
-            for beam_a in gen_a.elements:
-                for beam_b in gen_b.elements:
-                    candidate = solver.find_topology(beam_a, beam_b)
-                    if candidate is not None:
-                        self.model.add_joint_candidate(candidate)
+            gen_a.trim_elements_with_generator(gen_b)
+            gen_b.trim_elements_with_generator(gen_a)
+
+    def add_elements_to_model(self):
+        for gen in self.element_generators:
+            for element in gen.elements:
+                self.model.add_elements(element)
+
+    def join_elements(self):
+        for gen in self.element_generators:
+            self.joint_defs.extend(gen.create_internal_joints() or [])
+        solver = ConnectionSolver2D()
+        for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
+            for element_a, element_b in product(gen_a.elements, gen_b.elements):
+                candidate = solver.find_topology(element_a, element_b)
+                if candidate is not None:
+                    self.model.add_joint_candidate(candidate)
+        #TODO: handle clusters
 
     def process_joinery(self):
-        for element_generator in self.element_generators:
-            for element in element_generator.elements:
-                element.attributes.pop("joint_defs", None)
-                if element in list(self.model.elements()):
-                    print(f"Element already in model: {element.attributes.get('category', None)}")
-                    break
-                self.model.add_elements(element_generator.elements)
-
-        for j_def in self.joint_defs:
-            if not j_def:
-                continue
-            for e in j_def.elements:
-                if e not in self.model.elements():
-                    raise ValueError("Element in joint definition not found in model: {}, x = {}".format(e.attributes.get("category", None), e.frame.point[0]))
-            else:
-                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+        for j_def in self.joint_defs:   
+             j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
         self.model.process_joinery()
+
 
     def merge_with_model(self, model, clear_panel=False):
         """Merges the panel populator with a timber model."""

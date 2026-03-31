@@ -119,12 +119,6 @@ class OpeningElementGenerator(ElementGenerator):
         """
         return self._create_elements(feature)
 
-    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the elements for WindowDetailB."""
-        intersecting_groups = [g for g in element_generators if g != self]
-        self._extend_studs(intersecting_groups)
-        return [rule for rule in self._get_internal_joints() if rule is not None]
-
     def cull_beam_segment(self, beam: Beam) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
         if super().cull_beam_segment(beam):
@@ -247,7 +241,7 @@ class OpeningElementGenerator(ElementGenerator):
     # Opening element joining functions
     # ==========================================================================
 
-    def _get_internal_joints(self) -> list[DirectRule]:
+    def get_internal_joints(self) -> list[DirectRule]:
         """Join the sill and header to king and jack studs."""
         sills: list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
 

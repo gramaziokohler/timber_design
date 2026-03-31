@@ -17,7 +17,9 @@ from compas_timber.utils import is_point_in_polyline
 from timber_design.populators import Beam2D
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
-from timber_design.populators import BeamGeneratorIntersection
+from timber_design.populators import BeamOutlineIntersectionData
+from timber_design.populators import find_beam_outline_crossings
+from timber_design.populators.model2d import ConnectionSolver2D
 
 
 class FeatureBoundaryType(object):
@@ -207,27 +209,59 @@ class ElementGenerator(ABC):
     def trim_beam(self, beam: Beam2D, skip_notches: Optional[bool]=True, skip_laps: Optional[bool]=True, ) -> list[Beam2D]:
         """Splits the beam based on the element generator's feature definition and returns the resulting beam segments."""
         if self.BOUNDARY_TYPE == FeatureBoundaryType.NONE:
-            return [beam], []
+            return [beam]
         if self.outline is None:
-            return [beam], []
+            return [beam]
         
         intersections = [
-            BeamGeneratorIntersection(None, 0.0, None),
-            BeamGeneratorIntersection(None, beam.length, None),
+            BeamOutlineIntersectionData(start_dot=0.0),
+            BeamOutlineIntersectionData(end_dot=beam.length),
         ]
-        intersections.extend(BeamGeneratorIntersection.from_beam_and_generator(beam, self, skip_notches=skip_notches, skip_laps=skip_laps))
-        intersections.sort(key=lambda x: x.dot)
+        intersections.extend(find_beam_outline_crossings(beam, self.outline, skip_notches=skip_notches, skip_laps=skip_laps))
+        intersections.sort(key=lambda x: x.average_dot)
 
         beam_segs = []
-        rules_to_cull = []
         for pair in pairwise(intersections):
-            beam_seg = beam.get_beam_segment(pair[0].dot, pair[1].dot)
-            if self.cull_element_at_point(beam_seg.centerline.midpoint):
-                rules_to_cull.extend(beam_seg.attributes.pop("joint_defs", {}).values())
-                break
-            else:
+            dots = pair[0].all_dots + pair[1].all_dots
+            beam_seg = beam.get_beam_segment(min(dots), max(dots))
+            if not self.cull_element_at_point(beam_seg.centerline.midpoint):
                 beam_segs.append(beam_seg)
-        return beam_segs, rules_to_cull
+        return beam_segs
+
+    def find_internal_joints(self, model, max_distance=1.0):
+        solver = ConnectionSolver2D()
+        pairs = solver.find_intersecting_pairs(self.elements, rtree=True, max_distance=max_distance)
+        for pair in pairs:
+            beam_a, beam_b = pair
+            candidate = solver.find_topology(beam_a, beam_b, max_distance=max_distance)
+            if candidate.topology == JointTopology.TOPO_UNKNOWN:
+                continue
+            assert beam_a and beam_b
+            model.add_joint_candidate(candidate)
+        return pairs
+
+    def trim_elements_with_generator(self, generator, skip_notches=False, skip_laps=False):
+        # type: (ElementGenerator, bool, bool) -> list[TimberElement]
+        """Split *generator_a*'s elements at every intersection with *generator_b*'s outline.
+        Parameters
+        ----------
+        generator_a : :class:`~timber_design.populators.ElementGenerator`
+        generator_b : :class:`~timber_design.populators.ElementGenerator`
+        skip_notches : bool
+        skip_laps : bool
+        Returns
+        -------
+        new_elements : list[:class:`~timber_design.populators.elements.Element`]
+        rules_to_cull : list
+        """
+        new_elements = []
+        rules_to_cull = []
+        for element in self.elements:
+            if element.is_beam:
+                new_elements.extend(generator.trim_beam(element))
+            else:
+                new_elements.append(element)
+        self.elements = new_elements
 
     def compute_aabb(self):
         x_vals = []
@@ -246,7 +280,10 @@ class ElementGenerator(ABC):
         """Generates elements for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
-    @abstractmethod
-    def join_elements(self, populator_joint_defs, element_generators) -> list[DirectRule]:
+    def create_internal_joints(self, model) -> list[DirectRule]:
         """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""
-        raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
+        rules = []
+        pairs = self.find_internal_joints(model)
+        for pair in pairs:
+            rules.append(self.get_direct_rule_from_elements(*pair))
+        return rules

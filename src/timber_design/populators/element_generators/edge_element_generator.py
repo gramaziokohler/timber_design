@@ -26,11 +26,15 @@ except ImportError:
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import is_polyline_clockwise
 from compas_timber.utils import join_polyline_segments
+from compas_timber.utils import get_interior_corner_indices
+from compas_timber.utils import get_interior_segment_indices
 
-from timber_design.populators import ElementGenerator
+
+from compas_timber.connections import JointCandidate
+
+from timber_design.populators import ConnectionSolver2D, ElementGenerator
 from timber_design.populators import ElementGeneratorParams
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import split_beam_with_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -90,33 +94,12 @@ class EdgeElementGenerator(ElementGenerator):
         self.standard_beam_width_increment = standard_beam_width_increment
         self.edge_beam_min_width = edge_beam_min_width or standard_beam_width
         self._interior_corner_indices = []
-        self._edge_elements = {}  # type: dict[int, list[Beam2D]]
 
     @property
     def panel(self) -> Panel:
         """The panel associated with this element generator."""
         return self.feature  # type: ignore
 
-    @property
-    def interior_corner_indices(self):
-        """Get the indices of the interior corners of the panel outline."""
-        if not self._interior_corner_indices:
-            """Get the indices of the interior corners of the panel outline."""
-            points = self.panel.outline_a.points[0:-1]
-            cw = is_polyline_clockwise(self.panel.outline_a, Vector(0, 0, 1))
-            for i in range(len(points)):
-                angle = angle_vectors_signed(points[i - 1] - points[i], points[(i + 1) % len(points)] - points[i], Vector(0, 0, 1), deg=True)
-                if not (cw ^ (angle < 0)):
-                    self._interior_corner_indices.append(i)
-        return self._interior_corner_indices
-
-    @property
-    def interior_segment_indices(self):
-        """Get the indices of the interior segments of the panel outline."""
-        if not self._interior_corner_indices:
-            for i in range(len(self.panel.outline_a) - 1):
-                if i in self.interior_corner_indices and (i + 1) % len(self.panel.outline_a) - 1 in self.interior_corner_indices:
-                    yield i
 
     # ==========================================================================
     # methods for edge beams
@@ -129,15 +112,6 @@ class EdgeElementGenerator(ElementGenerator):
     def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Cull and split the studs for door openings."""
         return False
-
-    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the elements for WindowDetailB."""
-        rules = []
-        intersecting_generators = [eg for eg in element_generators if eg is not self]
-        if intersecting_generators:
-            rules.extend(self._create_external_joints(populator_joint_defs, intersecting_generators))
-        rules.extend(self._create_internal_joints())
-        return [rule for rule in rules if rule is not None]
 
     # ==========================================================================
     # private methods for creating edge beams
@@ -153,10 +127,9 @@ class EdgeElementGenerator(ElementGenerator):
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this generator
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1))
+            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1), edge_index = i)
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
-            self._edge_elements[i] = [edge_beam]
             self.elements.append(edge_beam)
             vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
@@ -205,60 +178,29 @@ class EdgeElementGenerator(ElementGenerator):
     # methods for creating beam joints
     # ==========================================================================
 
-    def _create_external_joints(self, populator_joint_defs: list[DirectRule], intersecting_element_generators: list[ElementGenerator]) -> list[DirectRule]:
-        rules = []
-        edge_elements = {}
-        for index, edge_beams in self._edge_elements.items():
-            edge_elements[index] = []
-            for raw_edge_beam in edge_beams:
-                beam_int_tuples, joints_to_cull = split_beam_with_element_generators(raw_edge_beam, intersecting_element_generators)
-                for j in joints_to_cull:
-                    if j in populator_joint_defs:
-                        populator_joint_defs.remove(j)
-                self.elements.remove(raw_edge_beam)
-                for beam, ints in beam_int_tuples:
-                    if beam:
-                        self.elements.append(beam)
-                        edge_elements[index].append(beam)
-                        for intersection in ints:
-                            if not intersection:
-                                continue
-                            params = intersection.generator or self
-                            for intersecting_beam in intersection.connecting_beams:
-                                rules.append(params.get_direct_rule_from_elements(beam, intersecting_beam))
-
-        self._edge_elements = edge_elements
-        return [rule for rule in rules if rule is not None]
-
-    def _create_internal_joints(self) -> list[DirectRule]:
+    def create_internal_joints(self, model) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
         rules = []
-        for corner_index in range(len(self.panel.outline_a) - 1):
-            edge_a_index = corner_index
-            edge_b_index = (edge_a_index - 1) % (len(self.panel.outline_a) - 1)
+        pairs = self.find_internal_joints(model)
+        for pair in pairs:
+            rules.append(self.create_edge_beam_joint_rule(*pair))
+        return rules
 
-            interior_corner = edge_a_index in self.interior_corner_indices
-            rule = self._create_edge_beam_joint_rule(self.panel.edge_planes, edge_a_index, edge_b_index, interior_corner)
-            point = intersection_line_line(rule.elements[0].centerline, rule.elements[1].centerline)[0]
-            for element in rule.elements:
-                if element.attributes.get("joint_defs", None) is None:
-                    element.attributes["joint_defs"] = {}
-                element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
-                element.attributes["joint_defs"][element_dot] = rule
-            rules.append(rule)
-        return [rule for rule in rules if rule is not None]
 
-    def _create_edge_beam_joint_rule(self, edge_planes: dict[int, Plane], edge_a_index: int, edge_b_index: int, interior_corner: bool) -> DirectRule:
+
+    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
-        beam_a = self._edge_elements[edge_a_index][0]
-        beam_b = self._edge_elements[edge_b_index][-1]
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
-        edge_plane_a = edge_planes[edge_a_index]
-        edge_plane_b = edge_planes[edge_b_index]
-        miter = False
-        if angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3:
-            miter = True
+        edge_a_index = beam_a.attributes["edge_index"]
+        edge_b_index = beam_b.attributes["edge_index"]  
+
+        corner_index = max(edge_a_index, edge_b_index)
+        interior_corner = corner_index in self.interior_corner_indices
+
+        edge_plane_a = self.panel.edge_planes[edge_a_index]
+        edge_plane_b = self.panel.edge_planes[edge_b_index]
+        miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3:
 
         if miter:
             if interior_corner:
@@ -274,18 +216,12 @@ class EdgeElementGenerator(ElementGenerator):
                 if not ppx or not ccx:
                     raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
                 miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
-                if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                    plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
-                    return DirectRule(LMiterJoint, [beam_b, beam_a], miter_plane=miter_plane, clean=True)
-                else:  # a = main, b = cross
-                    plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
-                    return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane, clean=True)
+
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane, clean=True)
 
             else:
-                if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                    return DirectRule(LMiterJoint, [beam_b, beam_a], miter_type="ref_surfaces", trim_plane_a=edge_plane_a, trim_plane_b=edge_plane_b)
-                else:  # a = main, b = cross
-                    return DirectRule(LMiterJoint, [beam_a, beam_b], miter_type="ref_surfaces", trim_plane_a=edge_plane_b, trim_plane_b=edge_plane_a)
+                # trim_plane_a=edge_plane_a, trim_plane_b=edge_plane_b)
+                return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True)
 
         else:
             if interior_corner:

@@ -37,36 +37,11 @@ class Beam2D(Beam):
         The 2D footprint of the blank as a four-vertex polygon.
     """
 
-    def __init__(self, name, centerline, width, height, z_vector=None):
-        super().__init__(name, centerline, width, height, z_vector)
+    def __init__(self, name, centerline, width, height):
+        super().__init__(name, centerline, width, height)
         self._edges = None
         self._blank_outline = None
         self._blank_polygon = None
-
-    @classmethod
-    def from_centerline(cls, centerline, width, height, **kwargs):
-        """Create a :class:`Beam2D` from a centerline.
-
-        Delegates to :meth:`compas_timber.elements.Beam.from_centerline` and
-        promotes the result to :class:`Beam2D` in-place.
-
-        Parameters
-        ----------
-        centerline : :class:`compas.geometry.Line`
-        width : float
-        height : float
-        z_vector : :class:`compas.geometry.Vector`, optional
-
-        Returns
-        -------
-        :class:`Beam2D`
-        """
-        instance = Beam.from_centerline(centerline, width=width, height=height, **kwargs)
-        instance.__class__ = cls
-        instance._edges = None
-        instance._blank_outline = None
-        instance._blank_polygon = None
-        return instance
 
     # ------------------------------------------------------------------
     # Blank edge properties
@@ -75,12 +50,7 @@ class Beam2D(Beam):
     @property
     def edges(self):
         """The two long blank edges as a tuple of :class:`compas.geometry.Line`s.  """
-        if not self._edges:
-            self._edges = (
-                self.centerline.translated(self.frame.yaxis * -self.width / 2.0), 
-                self.centerline.translated(self.frame.yaxis * self.width / 2.0)
-                )
-        return self._edges
+        return self.blank_outline.lines
     
     @property
     def edge_a(self):
@@ -102,7 +72,7 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return self.edges[1] 
+        return self.edges[2] 
 
     @property
     def start_segment(self):
@@ -113,7 +83,7 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return Line(self.edges[0].start, self.edges[1].start) 
+        return self.edges[3] 
 
     @property
     def end_segment(self):
@@ -124,7 +94,7 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return Line(self.edges[0].end, self.edges[1].end)
+        return self.edges[1] 
 
     @property
     def blank_outline(self):
@@ -210,15 +180,8 @@ class Beam2D(Beam):
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D
         beam_seg = self.copy()
-        beam_seg.transform(Translation.from_vector(beam.frame.xaxis * start_length))
+        beam_seg.transform(Translation.from_vector(self.frame.xaxis * start_length))
         beam_seg.length = end_length - start_length
         for feature in self.features:
             feature.beam = beam_seg #TODO: check feature position?
-        for dot, rule in self.attributes.get("joint_defs", {}).items():
-            if start_length < dot < end_length: # joint on this segment
-                rule.elements[rule.elements.index(self)] = beam_seg
-                shifted_dot = dot - start_length
-                if beam_seg.attributes.get("joint_defs") is None:
-                    beam_seg.attributes["joint_defs"] = {}
-                beam_seg.attributes["joint_defs"][shifted_dot] = rule
         return beam_seg

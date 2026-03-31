@@ -64,14 +64,6 @@ class PlateElementGenerator(ElementGenerator):
         """Populates the panel with plate elements."""
         self._create_plates()
 
-    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the elements for WindowDetailB."""
-        intersecting_generators = [g for g in element_generators if g is not self]
-        for plate in self.elements:
-            for intersecting_generator in intersecting_generators:
-                intersecting_generator.apply_to_plate(plate)
-        return []
-
     def _create_plates(self) -> None:
         if self.sheeting_inside:
             plate = Plate.from_outlines(self.panel.outline_a, self.frame_panel.outline_a, name="inside_plate")

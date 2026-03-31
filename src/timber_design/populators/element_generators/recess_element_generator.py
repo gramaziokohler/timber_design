@@ -92,11 +92,6 @@ class RecessElementGenerator(ElementGenerator):
         """Cull and split the studs for door openings."""
         return False
 
-    def join_elements(self, populator_joint_defs: list[DirectRule], element_generators: list[ElementGenerator]) -> list[DirectRule]:
-        """Join the elements for WindowDetailB."""
-        rules = self._create_internal_joints()
-        return [rule for rule in rules if rule is not None]
-
     def apply_to_plate(self, plate):
         if plate.name == "inside_plate":
             return self._cut_out_of_plate(plate)
@@ -127,15 +122,6 @@ class RecessElementGenerator(ElementGenerator):
     # methods for joints
     # ==========================================================================
 
-    def _create_internal_joints(self):
-        """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
-        rules = []
-        for corner_index in range(len(self.outline.lines)):
-            beam_a = self.elements[corner_index]
-            beam_b = self.elements[(corner_index - 1) % len(self.outline.lines)]
-            rule = self.get_direct_rule_from_elements(beam_a, beam_b)
-            rules.append(rule)
-        return [rule for rule in rules if rule is not None]
 
     def _cut_out_of_plate(self, plate: Plate):
         """Apply the opening contour to the given plate.

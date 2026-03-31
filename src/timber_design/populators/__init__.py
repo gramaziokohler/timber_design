@@ -5,12 +5,12 @@ from .populator import PanelPopulatorDefinition
 from .populator import FeaturePopulatorDefinition
 
 from .generator_intersection import BeamGeneratorIntersection
-from .generator_intersection import IntersectionType
 from .generator_intersection import extend_beam_to_closest_element_generators
-from .generator_intersection import split_beam_with_element_generators
+from .generator_intersection import trim_generator_elements_with_genenrator
+from .generator_intersection import find_beam_outline_crossings
+
 from .model2d import ConnectionSolver2D
 from .model2d import Model2D
-from .model2d import find_beam_clusters
 
 from .element_generators.element_generator import ElementGenerator
 from .element_generators.element_generator import FeatureBoundaryType
@@ -45,14 +45,14 @@ __all__ = [
     "BeamGeneratorIntersection",
     "ConnectionSolver2D",
     "Model2D",
-    "find_beam_clusters",
     "IntersectionType",
     "extend_beam_to_closest_element_generators",
-    "split_beam_with_element_generators",
+    "trim_generator_elements_with_genenrator",
     "PanelGeneratorFactory",
     "GeneratorFactoryParams",
     "RecessPanelGeneratorFactoryParams",
     "RecessPanelGeneratorFactory",
     "StudPanelGeneratorFactoryParams",
     "StudPanelGeneratorFactory",
+    "find_beam_outline_crossings",
 ]

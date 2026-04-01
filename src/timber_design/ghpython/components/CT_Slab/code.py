@@ -1,4 +1,5 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 """Creates a Beam from a LineCurve."""
 
 # flake8: noqa
@@ -10,7 +11,7 @@ from compas.scene import Scene
 
 from timber_design.workflow import ContainerDefinition
 from compas_timber.elements import Panel
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class PanelComponent(Grasshopper.Kernel.GH_ScriptInstance):

@@ -132,6 +132,8 @@ data/
 *.DS_Store
 
 .vscode
+.vs
+.claude
 
 .vs
 .claude

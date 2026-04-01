@@ -1,4 +1,5 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 import inspect
 
@@ -8,17 +9,17 @@ import System
 from compas_timber.connections import Joint
 from compas_timber.connections import PlateJoint
 from timber_design.workflow import DirectRule
-from compas_timber.ghpython.ghcomponent_helpers import get_leaf_subclasses
-from compas_timber.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
-from compas_timber.ghpython.ghcomponent_helpers import rename_cpython_gh_output
-from compas_timber.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
+from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
+from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 
 
 class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(JointRuleFromList, self).__init__()
         self.classes = {}
-        for cls in get_leaf_subclasses(Joint):
+        for cls in get_createable_joints():
             if not issubclass(cls, PlateJoint):
                 self.classes[cls.__name__] = cls
 
@@ -44,7 +45,7 @@ class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
                 if val is not None:
                     kwargs[self.arg_names[i]] = val
 
-            return DirectRule(self.joint_type, elements, **kwargs)
+            return DirectRule(self.joint_type, [e for e in elements], **kwargs)
 
     @property
     def arg_start_index(self):

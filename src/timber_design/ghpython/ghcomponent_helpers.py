@@ -110,6 +110,7 @@ def get_createable_joints():
     from compas_timber.connections import XLapJoint
     from compas_timber.connections import XNotchJoint
     from compas_timber.connections import YButtJoint
+    from compas_timber.connections import ILapJoint
 
     return [
         TButtJoint,
@@ -129,6 +130,7 @@ def get_createable_joints():
         TTenonMortiseJoint,
         YButtJoint,
         TOliGinaJoint,
+        ILapJoint,
     ]
 
 

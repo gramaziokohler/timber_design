@@ -7,6 +7,7 @@ from compas.geometry import Frame
 
 from timber_design.workflow import JointRuleSolver
 from timber_design.workflow import get_clusters_from_model
+from timber_design.workflow import guess_joint_topology_2beams
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LLapJoint
@@ -589,3 +590,27 @@ def test_joints_created_with_k_topo_cluster_l_fails(K_beams):
     assert len(unjoined_clusters) == 1
     assert len(model.joints) == 2
     assert all([isinstance(j, TButtJoint) for j in model.joints])
+
+
+def test_guess_joint_topology_i_for_collinear_end_to_end_beams():
+    w = 0.2
+    h = 0.2
+    beam_a = Beam.from_centerline(Line(Point(0, 0, 0), Point(1, 0, 0)), w, h)
+    beam_b = Beam.from_centerline(Line(Point(1, 0, 0), Point(2, 0, 0)), w, h)
+
+    topology, beams_pair = guess_joint_topology_2beams(beam_a, beam_b)
+
+    assert topology == "I"
+    assert beams_pair == (beam_a, beam_b)
+
+
+def test_guess_joint_topology_l_for_non_collinear_end_to_end_beams():
+    w = 0.2
+    h = 0.2
+    beam_a = Beam.from_centerline(Line(Point(0, 0, 0), Point(1, 0, 0)), w, h)
+    beam_b = Beam.from_centerline(Line(Point(1, 0, 0), Point(1, 1, 0)), w, h)
+
+    topology, beams_pair = guess_joint_topology_2beams(beam_a, beam_b)
+
+    assert topology == "L"
+    assert beams_pair == (beam_a, beam_b)

@@ -1,3 +1,4 @@
+from compas.geometry import angle_vectors
 from compas.tolerance import TOL
 from compas_timber.analyzers import Cluster
 from compas_timber.analyzers import MaxNCompositeAnalyzer
@@ -7,6 +8,7 @@ from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
+from compas_timber.connections import ILapJoint
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
 
@@ -66,6 +68,7 @@ class JointRuleSolver(object):
         category_rules = []
         if use_default_topo:
             topo_rules = {
+                JointTopology.TOPO_I: TopologyRule(JointTopology.TOPO_I, XLapJoint),
                 JointTopology.TOPO_L: TopologyRule(JointTopology.TOPO_L, LMiterJoint),
                 JointTopology.TOPO_T: TopologyRule(JointTopology.TOPO_T, TButtJoint),
                 JointTopology.TOPO_X: TopologyRule(JointTopology.TOPO_X, XLapJoint),
@@ -582,7 +585,12 @@ def guess_joint_topology_2beams(beamA, beamB, tol=1e-6, max_distance=1e-6):
     xb = is_near_end(tb)
 
     if all([xa, xb]):
-        # L-joint (both meeting at ends) TODO: this could also be an I-joint (splice) -> will need to check for angle between beams
+        # Distinguish splice-like I-joints from corner-like L-joints by beam direction.
+        angle = angle_vectors(beamA.centerline.direction, beamB.centerline.direction)
+        angle_tol = max(tol, 1e-3)
+        if angle < angle_tol or abs(3.141592653589793 - angle) < angle_tol:
+            return ["I", (beamA, beamB)]
+        # L-joint (both meeting at ends)
         return ["L", (beamA, beamB)]
     elif any([xa, xb]):
         # T-joint (one meeting with the end along the other)
@@ -597,11 +605,11 @@ def guess_joint_topology_2beams(beamA, beamB, tol=1e-6, max_distance=1e-6):
         return ["X", (beamA, beamB)]
 
 
-def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="l-miter"):
+def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="l-miter", i_default="i-lap"):
     beams = model.beams
     n = len(beams)
 
-    connectivity = {"L": [], "T": [], "X": []}
+    connectivity = {"L": [], "T": [], "X": [], "I": []}
 
     # find what kind of joint topology it looks like based on centerlines
     for i in range(n - 1):
@@ -621,6 +629,8 @@ def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="
     for beamA, beamB in connectivity["X"]:
         pass
 
+    for beamA, beamB in connectivity["I"]:
+        ILapJoint(beamA, beamB, model)
 
 def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
     """Analyzes the model to find clusters of beams and plates. This will create JointCandidates and PlateJointCandidates in the model.

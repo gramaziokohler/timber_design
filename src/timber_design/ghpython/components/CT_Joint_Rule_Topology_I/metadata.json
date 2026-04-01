@@ -1,0 +1,19 @@
+{
+    "name": "I Topological Joint Rules",
+    "nickname": "I_Topo_Joint",
+    "category": "Timber Design",
+    "subcategory": "04 Beam Joint Rules",
+    "description": "makes rule to apply joint type to I topology. Defualts to ILapJoint",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "Rule",
+                "description": "I-Topology Rule."
+            }
+        ]
+    }
+}

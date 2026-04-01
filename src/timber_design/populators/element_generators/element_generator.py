@@ -231,6 +231,7 @@ class ElementGenerator(ABC):
     def find_internal_joints(self, model, max_distance=1.0):
         solver = ConnectionSolver2D()
         pairs = solver.find_intersecting_pairs(self.elements, rtree=True, max_distance=max_distance)
+        pairs = solver.find_intersecting_pairs(beam_elements, rtree=True, max_distance=max_distance)
         for pair in pairs:
             beam_a, beam_b = pair
             candidate = solver.find_topology(beam_a, beam_b, max_distance=max_distance)

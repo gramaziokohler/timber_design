@@ -23,9 +23,10 @@ from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
-from timber_design.populators.model2d import ConnectionSolver2D
-from timber_design.populators.model2d import Model2D
+from compas_timber.connections import JointCandidate
+from compas_timber.model import TimberModel
 from compas_timber.panel_features import PanelFeature
+from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 
 
 
@@ -114,7 +115,7 @@ class PanelPopulator(object):
             feature_def.feature = feature_def.feature.transformed(self.transformation_to_populator)
             self.element_generators.append(feature_def.generator_type(feature_def.feature, **feature_def.params.__data__))
         self.joint_defs: list[DirectRule] = []
-        self.model = Model2D()
+        self.model = TimberModel()
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
@@ -141,17 +142,21 @@ class PanelPopulator(object):
     def add_elements_to_model(self):
         for gen in self.element_generators:
             for element in gen.elements:
-                self.model.add_elements(element)
+                self.model.add_element(element)
 
     def join_elements(self):
         for gen in self.element_generators:
-            self.joint_defs.extend(gen.create_internal_joints() or [])
+            self.joint_defs.extend(gen.create_internal_joints(self.model) or [])
         solver = ConnectionSolver2D()
         for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
             for element_a, element_b in product(gen_a.elements, gen_b.elements):
-                candidate = solver.find_topology(element_a, element_b)
-                if candidate is not None:
+                topo_result = solver.find_topology(element_a, element_b)
+                if topo_result is not None:
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, topology = topo_result.topology, location = topo_result.location)
                     self.model.add_joint_candidate(candidate)
+                    try:
+                        self.joint_defs.append(gen_a.get_direct_rule_from_elements())
+
         #TODO: handle clusters
 
     def process_joinery(self):

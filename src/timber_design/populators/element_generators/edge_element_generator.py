@@ -93,13 +93,11 @@ class EdgeElementGenerator(ElementGenerator):
         )
         self.standard_beam_width_increment = standard_beam_width_increment
         self.edge_beam_min_width = edge_beam_min_width or standard_beam_width
-        self._interior_corner_indices = []
 
     @property
     def panel(self) -> Panel:
         """The panel associated with this element generator."""
         return self.feature  # type: ignore
-
 
     # ==========================================================================
     # methods for edge beams
@@ -179,28 +177,31 @@ class EdgeElementGenerator(ElementGenerator):
     # ==========================================================================
 
     def create_internal_joints(self, model) -> list[DirectRule]:
-        """Generate the joint definitions for the panel edges. When there is an interface, we use the interface.detail_set to create the joint definition."""
+        """Generate the joint definitions for the panel edges."""
         rules = []
-        pairs = self.find_internal_joints(model)
-        for pair in pairs:
-            rules.append(self.create_edge_beam_joint_rule(*pair))
+        interior_corners = get_interior_corner_indices(self.panel.outline_a)
+
+        for candidate in self.create_joint_candidates(model):
+            corner_index = max(candidate.element_a.attributes["edge_index"], candidate.element_b.attributes["edge_index"])
+
+            rule = self.create_edge_beam_joint_rule(*candidate.elements, corner_index in interior_corners)
+            if rule is not None:
+                rules.append(rule)
         return rules
 
 
 
-    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
+    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D, interior_corner:bool) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
         edge_a_index = beam_a.attributes["edge_index"]
         edge_b_index = beam_b.attributes["edge_index"]  
 
-        corner_index = max(edge_a_index, edge_b_index)
-        interior_corner = corner_index in self.interior_corner_indices
 
         edge_plane_a = self.panel.edge_planes[edge_a_index]
         edge_plane_b = self.panel.edge_planes[edge_b_index]
-        miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3:
+        miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3
 
         if miter:
             if interior_corner:

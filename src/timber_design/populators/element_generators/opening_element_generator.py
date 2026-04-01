@@ -109,15 +109,6 @@ class OpeningElementGenerator(ElementGenerator):
                     )
                 )
 
-    def generate_elements(self, feature: Opening):
-        """Populates the panel with elements and joints according to the detail set.
-
-        Parameters
-        ----------
-        feature : :class:`compas_timber.elements.Opening`
-            The opening feature to populate.
-        """
-        return self._create_elements(feature)
 
     def cull_beam_segment(self, beam: Beam) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
@@ -137,9 +128,9 @@ class OpeningElementGenerator(ElementGenerator):
         """
         self.cut_out_of_plate(plate)
 
-    def _create_elements(self, opening: Opening) -> None:
+    def generate_elements(self) -> None:
         """Generate the beams for a opening."""
-        frame_polyline_a, frame_polyline_b = self._create_frame_polylines(opening)
+        frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature)
         frame_polyline = OpeningElementGenerator._create_frame_polyline(frame_polyline_a, frame_polyline_b)
 
         if self.opening_type == "door":
@@ -159,9 +150,9 @@ class OpeningElementGenerator(ElementGenerator):
             edge_elements[0].append(self.beam_from_category(segments[0], "jack_stud", name="left_jack_stud"))
             edge_elements[2].append(self.beam_from_category(segments[2], "jack_stud", name="right_jack_stud"))
 
-        elements = []
+        self.elements = []
         for beams in edge_elements.values():
-            elements.extend(beams)
+            self.elements.extend(beams)
 
         OpeningElementGenerator._offset_frame_beams(edge_elements, frame_polyline)
 
@@ -180,7 +171,6 @@ class OpeningElementGenerator(ElementGenerator):
         edges = OpeningElementGenerator._get_edge_dict(edge_elements, frame_polyline)
         self.edge_elements = edge_elements
         self.outline = join_polyline_segments(list(edges.values()), close_loop=True)[0][0]
-        self.boundary_type = FeatureBoundaryType.EXCLUSIVE
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
         king_dims = self.beam_dimensions.get("king_stud")
@@ -241,20 +231,19 @@ class OpeningElementGenerator(ElementGenerator):
     # Opening element joining functions
     # ==========================================================================
 
-    def get_internal_joints(self) -> list[DirectRule]:
+    def create_internal_joints(self, model) -> list[DirectRule]:
         """Join the sill and header to king and jack studs."""
         sills: list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
 
         header = list(filter(lambda x: x.attributes["category"] == "header", self.elements))[0]
-        king_studs = filter(lambda x: x.attributes["category"] == "king_stud", self.elements)
-        jack_studs = filter(lambda x: x.attributes["category"] == "jack_stud", self.elements)
+        king_studs = list(filter(lambda x: x.attributes["category"] == "king_stud", self.elements))
+        jack_studs = list(filter(lambda x: x.attributes["category"] == "jack_stud", self.elements))
         rules = []
         # join header
         for king in king_studs:
             rules.append(self.get_direct_rule_from_elements(header, king, max_distance=king.width / 2))
         for jack in jack_studs:
-            if jack:
-                rules.append(self.get_direct_rule_from_elements(jack, header, max_distance=jack.width / 2))
+            rules.append(self.get_direct_rule_from_elements(jack, header, max_distance=jack.width / 2))
         # join sill
         if sills:
             sill: Beam = sills[0]
@@ -263,6 +252,8 @@ class OpeningElementGenerator(ElementGenerator):
                     rules.append(self.get_direct_rule_from_elements(sill, jack, max_distance=jack.width / 2))
                 else:
                     rules.append(self.get_direct_rule_from_elements(sill, king, max_distance=king.width / 2))
+        for rule in rules:
+            rule.joint_type.create(model, rule.element_a, rule.element_b, **rule.kwargs)
         return [rule for rule in rules if rule is not None]
 
     def _extend_studs(self, intersecting_generators: list[ElementGenerator]) -> None:

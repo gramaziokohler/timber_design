@@ -11,14 +11,11 @@ from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line_xy
-from compas_timber.connections import Cluster
+from compas.geometry import intersection_segment_segment
 from compas_timber.connections import JointCandidate
-from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections.solver import JointTopology
-from compas_timber.model import TimberModel
 
 from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.generator_intersection import _get_beam_edge_outline_intersections
 
 
 # =============================================================================
@@ -26,7 +23,7 @@ from timber_design.populators.generator_intersection import _get_beam_edge_outli
 # =============================================================================
 
 
-def _midpoint(points):
+def _average_point(points):
     # type: (list[Point]) -> Point
     n = len(points)
     return Point(
@@ -113,8 +110,9 @@ class ConnectionSolver2D(object):
         tuple[:class:`~timber_design.populators.Beam2D`, :class:`~timber_design.populators.Beam2D`]
         """
         for beam_a, beam_b in combinations(beams, 2):
-            if _aabb_overlap(beam_a, beam_b):
-                yield beam_a, beam_b
+            if beam_a.is_beam and beam_b.is_beam:
+                if _aabb_overlap(beam_a, beam_b):
+                    yield beam_a, beam_b
 
     def find_intersecting_generator_pairs(self, generators):
         """Yield ``(gen_a, gen_b)`` pairs from *generators* whose element AABBs overlap.
@@ -153,6 +151,8 @@ class ConnectionSolver2D(object):
         :class:`~compas_timber.connections.JointCandidate` | None
             ``None`` when the blanks do not overlap.
         """
+        if not all([b.is_beam for b in [beam_a, beam_b]]):
+            return None
         if not _aabb_overlap(beam_a, beam_b):
             return None
 
@@ -161,26 +161,37 @@ class ConnectionSolver2D(object):
         a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
         b_in_a = [pt for pt in b_corners if beam_a.contains_point(pt)]
 
-        if not a_in_b and not b_in_a:
-            # No endpoints inside — look for edge-edge crossings (TOPO_X)
-            ints_a, ints_b = _get_beam_edge_outline_intersections(beam_a, beam_b.blank_outline)
-            if ints_a or ints_b:
-                location = _midpoint([i.point for i in ints_a + ints_b])
-                return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_X, location=location)
 
         if a_in_b and b_in_a:
             # L-joint: both beams have blank corners inside each other
-            location = _midpoint(a_in_b + b_in_a)
-            return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_L, location=location)
-
+            location = _average_point(a_in_b + b_in_a)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_L, location=location)
         if a_in_b:
             # T-joint: beam_a is the end beam
-            location = _midpoint(a_in_b)
-            return JointCandidate(element_a=beam_a, element_b=beam_b, topology=JointTopology.TOPO_T, location=location)
+            location = _average_point(a_in_b)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_T, location=location)
+        if b_in_a:
+            # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
+            location = _average_point(b_in_a)
+            return Beam2DSolverResult(beam_a=beam_b, beam_b=beam_a, topology=JointTopology.TOPO_T, location=location)
 
-        # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
-        location = _midpoint(b_in_a)
-        return JointCandidate(element_a=beam_b, element_b=beam_a, topology=JointTopology.TOPO_T, location=location)
+        # No endpoints inside — look for edge-edge crossings (TOPO_X)
+        pts = []
+        for seg_a in beam_a.blank_outline.lines:
+            for seg_b in beam_b.blank_outline.lines:
+                result = intersection_segment_segment(seg_a, seg_b)
+                if result[0]:
+                    pts.append(Point(*result[0]))
+        if pts:
+            location = _average_point(pts)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_X, location=location)
+        return None
 
 
 
+class Beam2DSolverResult:
+    def __init__(self, beam_a, beam_b, topology, location):
+        self.beam_a = beam_a
+        self.beam_b = beam_b
+        self.topology = topology
+        self.location = location

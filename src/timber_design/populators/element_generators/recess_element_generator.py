@@ -48,6 +48,7 @@ class RecessElementGenerator(ElementGenerator):
 
     BEAM_CATEGORY_NAMES = ["recess"]
     NAME = "RecessElementGenerator"
+    BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
     RULES = [
         CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
         CategoryRule(TButtJoint, "recess", "top_plate_beam", max_distance=1.0),
@@ -77,7 +78,6 @@ class RecessElementGenerator(ElementGenerator):
         self.recess_beam_height = recess_beam_height
         self.sheeting_recess = sheeting_recess
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
-        self.boundary_type = FeatureBoundaryType.INCLUSIVE  # TODO make class variable
 
     @property
     def panel(self) -> Panel:
@@ -110,9 +110,8 @@ class RecessElementGenerator(ElementGenerator):
         plate_edges = join_polyline_segments(plate_edges, close_loop=True)[0][0]
         plate_edges[-1] = plate_edges[0]
         extend_line_segments(new_centerlines, close_loop=True)
-        for i, edge in enumerate(new_centerlines):
+        for edge in new_centerlines:
             self.elements.append(self.beam_from_category(edge, "recess"))
-            self.edge_elements[i] = [self.elements[-1]]
         self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))

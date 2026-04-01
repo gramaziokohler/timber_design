@@ -37,8 +37,8 @@ class Beam2D(Beam):
         The 2D footprint of the blank as a four-vertex polygon.
     """
 
-    def __init__(self, name, centerline, width, height):
-        super().__init__(name, centerline, width, height)
+    def __init__(self, frame, length, width, height, **kwargs):
+        super().__init__(frame, length, width, height, **kwargs)
         self._edges = None
         self._blank_outline = None
         self._blank_polygon = None
@@ -76,25 +76,25 @@ class Beam2D(Beam):
 
     @property
     def start_segment(self):
-        """The ``+yaxis`` long blank edge.
+        """The start cap of the blank (perpendicular to beam axis at the start).
 
         Returns
         -------
         :class:`compas.geometry.Line`
-            Centerline translated by ``+width / 2`` along ``frame.yaxis``.
+            ``tl → bl`` edge (blank_outline index 3).
         """
-        return self.edges[3] 
+        return self.edges[3]
 
     @property
     def end_segment(self):
-        """The ``+yaxis`` long blank edge.
+        """The end cap of the blank (perpendicular to beam axis at the end).
 
         Returns
         -------
         :class:`compas.geometry.Line`
-            Centerline translated by ``+width / 2`` along ``frame.yaxis``.
+            ``br → tr`` edge (blank_outline index 1).
         """
-        return self.edges[1] 
+        return self.edges[1]
 
     @property
     def blank_outline(self):
@@ -146,7 +146,6 @@ class Beam2D(Beam):
             self._blank_polygon = Polygon([origin - half_y, end - half_y, end + half_y, origin + half_y])
         return self._blank_polygon
 
-    
     # ------------------------------------------------------------------
     # Point containment
     # ------------------------------------------------------------------
@@ -176,7 +175,6 @@ class Beam2D(Beam):
             and -self.width / 2.0 <= perp <= self.width / 2.0 
         )
 
-    @classmethod
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D
         beam_seg = self.copy()

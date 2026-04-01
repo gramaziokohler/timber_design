@@ -5,21 +5,20 @@ from typing import Union
 from compas.itertools import pairwise
 
 from compas.geometry import Line
-from compas.geometry import Box
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
-from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.base import TimberElement
 from compas_timber.utils import is_point_in_polyline
+from compas_timber.connections import JointCandidate
 
 from timber_design.populators import Beam2D
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 from timber_design.populators import BeamOutlineIntersectionData
 from timber_design.populators import find_beam_outline_crossings
-from timber_design.populators.model2d import ConnectionSolver2D
+from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 
 
 class FeatureBoundaryType(object):
@@ -166,26 +165,13 @@ class ElementGenerator(ABC):
                 # perfect match
                 rule_kwargs = rule.kwargs.copy()
                 rule_kwargs.update(kwargs)
-                direct_rule = DirectRule(rule.joint_type, [element_a, element_b], **rule_kwargs)
-                break
+                return DirectRule(rule.joint_type, [element_a, element_b], **rule_kwargs)
         else:
             # match set but wrong order
             rule_kwargs = rule.kwargs.copy()
             rule_kwargs.update(kwargs)
-            direct_rule = DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
+            return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
-        # set the 'dot' attribute for future parsing of joints when splitting beams.
-        kwargs.update(rule.kwargs)
-        if all([isinstance(el, Beam2D) for el in [element_a, element_b]]):
-            point = direct_rule.kwargs.get("location", intersection_line_line(element_a.centerline, element_b.centerline)[0])
-            if not point:
-                return None
-            for element in [element_a, element_b]:
-                if element.attributes.get("joint_defs", None) is None:
-                    element.attributes["joint_defs"] = {}
-                element_dot = dot_vectors(Vector.from_start_end(element.centerline.start, point), element.centerline.direction)
-                element.attributes["joint_defs"][element_dot] = direct_rule
-        return direct_rule
 
     def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Determines whether the beam segment should be culled by the element generator."""
@@ -228,18 +214,19 @@ class ElementGenerator(ABC):
                 beam_segs.append(beam_seg)
         return beam_segs
 
-    def find_internal_joints(self, model, max_distance=1.0):
+    def create_joint_candidates(self, model):
+        """Yield ``(beam_a, beam_b)`` pairs within this generator whose blank AABBs overlap."""
         solver = ConnectionSolver2D()
-        pairs = solver.find_intersecting_pairs(self.elements, rtree=True, max_distance=max_distance)
-        pairs = solver.find_intersecting_pairs(beam_elements, rtree=True, max_distance=max_distance)
-        for pair in pairs:
-            beam_a, beam_b = pair
-            candidate = solver.find_topology(beam_a, beam_b, max_distance=max_distance)
-            if candidate.topology == JointTopology.TOPO_UNKNOWN:
-                continue
-            assert beam_a and beam_b
-            model.add_joint_candidate(candidate)
-        return pairs
+        beam_elements = [e for e in self.elements if isinstance(e, Beam2D)]
+        pairs = solver.find_intersecting_pairs(beam_elements)
+        candidates = []
+        for element_a, element_b in pairs:
+            topo_result = solver.find_topology(element_a, element_b)
+            if topo_result is not None:
+                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, topology = topo_result.topology, location = topo_result.location)
+                model.add_joint_candidate(candidate)
+                candidates.append(candidate)
+        return candidates
 
     def trim_elements_with_generator(self, generator, skip_notches=False, skip_laps=False):
         # type: (ElementGenerator, bool, bool) -> list[TimberElement]
@@ -264,27 +251,16 @@ class ElementGenerator(ABC):
                 new_elements.append(element)
         self.elements = new_elements
 
-    def compute_aabb(self):
-        x_vals = []
-        y_vals = []
-        for e in self.elements:
-            x_vals.extend([p[0] for p in e.aabb.points])
-            y_vals.extend([p[1] for p in e.aabb.points])
-        xmin = min(x_vals)
-        xmax = max(x_vals)
-        ymin = min(y_vals)
-        ymax = max(y_vals)
-        return Box.from_points([xmin, ymin, 0.0],[xmax, ymax, 0.0])
-
     @abstractmethod
     def generate_elements(self):
         """Generates elements for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
     def create_internal_joints(self, model) -> list[DirectRule]:
-        """Generates DirectRule joint definitions for the panel based on the panel populator and optional feature definition."""
+        """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this generator."""
         rules = []
-        pairs = self.find_internal_joints(model)
-        for pair in pairs:
-            rules.append(self.get_direct_rule_from_elements(*pair))
+        for pair in self.create_joint_candidates(model):
+            rule = self.get_direct_rule_from_elements(*pair)
+            if rule is not None:
+                rules.append(rule)
         return rules

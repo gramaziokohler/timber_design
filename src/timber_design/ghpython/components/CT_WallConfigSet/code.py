@@ -1,13 +1,14 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 import Grasshopper
 import System
 
 from compas_timber.connections import JointTopology
-from timber_design.wall_populator import LConnectionDetailA
-from timber_design.wall_populator import TConnectionDetailA
-from timber_design.wall_populator import WallPopulatorConfigurationSet
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.workflow import LConnectionDetailA
+from timber_design.workflow import TConnectionDetailA
+from timber_design.workflow import WallPopulatorConfigurationSet
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class WallPopulatorConfigSetComponent(Grasshopper.Kernel.GH_ScriptInstance):

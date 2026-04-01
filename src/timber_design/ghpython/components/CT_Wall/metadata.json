@@ -1,9 +1,9 @@
 {
     "name": "Wall",
     "nickname": "Wall",
-    "category": "COMPAS Timber",
-    "subcategory": "Containers",
-    "description": "Creates a Wall from a Surface.",
+    "category": "Timber Design",
+    "subcategory": "03 Containers",
+    "description": "Under maintenance!",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

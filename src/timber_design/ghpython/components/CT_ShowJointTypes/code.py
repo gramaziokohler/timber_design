@@ -1,11 +1,12 @@
-# r: compas_timber>=0.15.3
+# r: timber_design>=0.1.0
+# venv: td_migration
 # flake8: noqa
 import Grasshopper
 import System
 from compas_rhino.conversions import point_to_rhino
 
 from compas_timber.utils import intersection_line_line_param
-from compas_timber.ghpython.ghcomponent_helpers import item_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class ShowJointTypes(Grasshopper.Kernel.GH_ScriptInstance):

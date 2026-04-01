@@ -1,10 +1,10 @@
 {
     "name": "BeamsFromMeshEdges",
     "nickname": "BeamsFromMesh",
-    "category": "COMPAS Timber",
-    "subcategory": "Design",
+    "category": "Timber Design",
+    "subcategory": "01 Timber elements",
     "description": "Creates Beams and from mesh edges and maps them to the mesh vertexes.",
-    "exposure": 8,
+    "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,

@@ -72,7 +72,7 @@ class StudPanelGeneratorFactory(PanelGeneratorFactory):
     """Factory for creating stud panel element generators."""
 
     @classmethod
-    def create_generators(cls, populator_panel: Panel, params: StudPanelGeneratorFactoryParams) -> List["ElementGenerator"]:
+    def create_generators(cls, populator_panel: Panel, params: StudPanelGeneratorFactoryParams, feature_definitions=None) -> List["ElementGenerator"]:
         """Create a stud panel element generator.
 
         Parameters
@@ -93,47 +93,71 @@ class StudPanelGeneratorFactory(PanelGeneratorFactory):
         generators: List["ElementGenerator"] = []
 
         from timber_design.populators import EdgeElementGenerator
+        from timber_design.populators.element_generators.edge_element_generator import EdgeElementGeneratorParams
 
         generators.append(
             EdgeElementGenerator(
                 frame_panel,
-                standard_beam_width=params.standard_beam_width,
-                standard_beam_width_increment=params.standard_beam_width_increment,
-                edge_beam_min_width=params.edge_beam_min_width,
-                beam_width_overrides=params.beam_width_overrides,
-                joint_rule_overrides=params.joint_rule_overrides,
+                EdgeElementGeneratorParams(
+                    standard_beam_width_increment=params.standard_beam_width_increment,
+                    edge_beam_min_width=params.edge_beam_min_width or params.standard_beam_width,
+                    beam_width_overrides=params.beam_width_overrides,
+                    joint_rule_overrides=params.joint_rule_overrides,
+                ),
             )
         )
 
         if params.stud_spacing:
             from timber_design.populators import StudElementGenerator
+            from timber_design.populators.element_generators.stud_element_generator import StudElementGeneratorParams
 
             generators.append(
                 StudElementGenerator(
                     frame_panel,
-                    stud_spacing=params.stud_spacing,
-                    standard_beam_width=params.standard_beam_width,
-                    beam_width_overrides=params.beam_width_overrides,
-                    joint_rule_overrides=params.joint_rule_overrides,
+                    StudElementGeneratorParams(
+                        stud_spacing=params.stud_spacing,
+                        beam_width_overrides=params.beam_width_overrides,
+                        joint_rule_overrides=params.joint_rule_overrides,
+                    ),
                 )
             )
 
         if params.sheeting_inside or params.sheeting_outside:
             from timber_design.populators import PlateElementGenerator
+            from timber_design.populators.element_generators.plate_element_generator import PlateElementGeneratorParams
 
-            generators.append(PlateElementGenerator(populator_panel, frame_panel, sheeting_outside=params.sheeting_outside, sheeting_inside=params.sheeting_inside))
+            generators.append(
+                PlateElementGenerator(
+                    populator_panel,
+                    frame_panel,
+                    PlateElementGeneratorParams(
+                        sheeting_inside=params.sheeting_inside,
+                        sheeting_outside=params.sheeting_outside,
+                    ),
+                )
+            )
 
-        if any([isinstance(feature, Opening) for feature in populator_panel.features]):
-            from timber_design.populators import OpeningElementGenerator
         for feature in populator_panel.features:
             if isinstance(feature, Opening):
+                from timber_design.populators import OpeningElementGenerator
+                from timber_design.populators.element_generators.opening_element_generator import OpeningElementGeneratorParams
+
                 generators.append(
                     OpeningElementGenerator(
-                        feature, params.standard_beam_width, params.lintel_posts, params.beam_width_overrides, params.joint_rule_overrides, params.split_bottom_plate_beam
+                        feature,
+                        OpeningElementGeneratorParams(
+                            lintel_posts=params.lintel_posts,
+                            split_bottom_plate_beam=params.split_bottom_plate_beam,
+                            beam_width_overrides=params.beam_width_overrides,
+                            joint_rule_overrides=params.joint_rule_overrides,
+                        ),
                     )
                 )
 
+        for feature_def in feature_definitions or []:
+            generators.append(feature_def.generator_type(feature_def.feature, feature_def.params))
+
         for generator in generators:
-            generator.resolve_beam_dimensions(frame_panel.thickness)
+            generator.resolve_beam_dimensions(frame_panel.thickness, params.standard_beam_width)
 
         return generators

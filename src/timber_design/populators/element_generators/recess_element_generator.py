@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -16,23 +18,13 @@ from timber_design.populators import ElementGenerator
 from timber_design.populators import ElementGeneratorParams
 from timber_design.populators import FeatureBoundaryType
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
 
 
+@dataclass
 class RecessElementGeneratorParams(ElementGeneratorParams):
-    def __init__(
-        self,
-        recess_beam_width: float,
-        recess_beam_height: Optional[float] = None,
-        sheeting_recess: Optional[float] = None,
-        beam_width_overrides: Optional[dict] = None,
-        joint_rule_overrides: Optional[list[CategoryRule]] = None,
-    ):
-        super(RecessElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
-
-        self.recess_beam_width = recess_beam_width
-        self.recess_beam_height = recess_beam_height
-        self.sheeting_recess = sheeting_recess
+    recess_beam_width: float = 0.0
+    recess_beam_height: Optional[float] = None
+    sheeting_recess: Optional[float] = None
 
     @property
     def __data__(self):
@@ -60,23 +52,13 @@ class RecessElementGenerator(ElementGenerator):
         self,
         frame_panel: Panel,
         edge_generator: ElementGenerator,
-        recess_beam_width: float,
-        recess_beam_height: float,
-        sheeting_recess: float,
-        standard_beam_width: Union[float, None] = None,
-        beam_width_overrides: Union[dict, None] = None,
-        joint_rule_overrides: Union[list[CategoryRule], None] = None,
+        params: RecessElementGeneratorParams,
     ):
-        super(RecessElementGenerator, self).__init__(
-            frame_panel,
-            standard_beam_width,
-            beam_width_overrides,
-            joint_rule_overrides,
-        )
+        super(RecessElementGenerator, self).__init__(frame_panel, params)
         self.edge_generator = edge_generator
-        self.recess_beam_width = recess_beam_width
-        self.recess_beam_height = recess_beam_height
-        self.sheeting_recess = sheeting_recess
+        self.recess_beam_width = params.recess_beam_width
+        self.recess_beam_height = params.recess_beam_height
+        self.sheeting_recess = params.sheeting_recess
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     @property
@@ -84,19 +66,11 @@ class RecessElementGenerator(ElementGenerator):
         """The panel feature."""
         return self.feature
 
-    def generate_elements(self):
-        """Populates the panel with plate and beam elements for the recess detail."""
-        return self._create_recess_elements()
-
-    def cull_beam_segment(self, stud) -> bool:
-        """Cull and split the studs for door openings."""
-        return False
-
     def apply_to_plate(self, plate):
         if plate.name == "inside_plate":
             return self._cut_out_of_plate(plate)
 
-    def _create_recess_elements(self) -> None:
+    def generate_elements(self) -> None:
         """Get the edge beam definitions for the outer polyline of the panel."""
         plate_edges = []
         new_centerlines = []

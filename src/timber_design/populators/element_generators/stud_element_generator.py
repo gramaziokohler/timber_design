@@ -1,4 +1,4 @@
-from typing import Dict
+from dataclasses import dataclass
 from typing import List
 from typing import Optional
 from typing import Union
@@ -10,26 +10,16 @@ from compas_timber.elements import Panel
 from timber_design.populators import ElementGenerator
 from timber_design.populators import ElementGeneratorParams
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
 
 
+@dataclass
 class StudElementGeneratorParams(ElementGeneratorParams):
-    def __init__(
-        self,
-        stud_spacing: float,
-        standard_beam_width: float,
-        beam_width_overrides: Optional[Dict] = None,
-        joint_rule_overrides: Optional[List[CategoryRule]] = None,
-    ):
-        super(StudElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
-        self.stud_spacing = stud_spacing
-        self.standard_beam_width = standard_beam_width
+    stud_spacing: float = 0.0
 
     @property
     def __data__(self):
         data = super().__data__
         data["stud_spacing"] = self.stud_spacing
-        data["standard_beam_width"] = self.standard_beam_width
         return data
 
 
@@ -49,18 +39,10 @@ class StudElementGenerator(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        stud_spacing: float,
-        standard_beam_width: float,
-        beam_width_overrides: Union[Dict, None] = None,
-        joint_rule_overrides: Union[List[CategoryRule], None] = None,
+        params: StudElementGeneratorParams,
     ):
-        super(StudElementGenerator, self).__init__(
-            panel,
-            standard_beam_width,
-            beam_width_overrides,
-            joint_rule_overrides,
-        )
-        self.stud_spacing = stud_spacing
+        super(StudElementGenerator, self).__init__(panel, params)
+        self.stud_spacing = params.stud_spacing
 
     @property
     def panel(self) -> Panel:

@@ -1,5 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import List
 from typing import Optional
 from typing import Union
 from compas.itertools import pairwise
@@ -8,6 +10,7 @@ from compas.geometry import Line
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_line
+from timber_design.populators.beam2d import AABB2D
 from compas_timber.elements import Plate
 from compas_timber.base import TimberElement
 from compas_timber.utils import is_point_in_polyline
@@ -36,14 +39,10 @@ class FeatureBoundaryType(object):
     NONE = "none"
 
 
-class ElementGeneratorParams(object):
-    def __init__(
-        self,
-        beam_width_overrides: Optional[dict] = None,
-        joint_rule_overrides: Optional[list[CategoryRule]] = None,
-    ):
-        self.beam_width_overrides = beam_width_overrides
-        self.joint_rule_overrides = joint_rule_overrides
+@dataclass
+class ElementGeneratorParams:
+    beam_width_overrides: Optional[dict] = None
+    joint_rule_overrides: Optional[List[CategoryRule]] = None
 
     @property
     def __data__(self):
@@ -74,22 +73,38 @@ class ElementGenerator(ABC):
     def __init__(
         self,
         feature,
-        standard_beam_width=None,
-        beam_width_overrides=None,
-        joint_rule_overrides=None,
+        params: "ElementGeneratorParams",
     ):
         self.feature = feature
-        self.standard_beam_width = standard_beam_width or 0.0
-        self.beam_width_overrides = beam_width_overrides or {}  # actual dimensions need a PanelPopulator instance
-        if joint_rule_overrides:
-            self.rules = self.update_rules(joint_rule_overrides)
+        self.beam_width_overrides = params.beam_width_overrides or {}
+        if params.joint_rule_overrides:
+            self.rules = self.update_rules(params.joint_rule_overrides)
         else:
             self.rules = self.RULES
-        self.beam_dimensions: dict[str, tuple[float, float]] = {}  # to be populated with update_beam_dimensions
-
+        self.beam_dimensions: dict[str, tuple[float, float]] = {}
+        self.joint_defs = []
         self.elements = []
         self.outline = None
         self.test = []
+
+
+    @property
+    def aabb(self):
+        """The 2D axis-aligned bounding box enclosing all elements in this generator.
+
+        Returns an :class:`~timber_design.populators.beam2d.AABB2D` so the
+        result is compatible with :func:`~timber_design.populators.connection_solver_2d.aabb_overlap`
+        and avoids the ``ZeroDivisionError`` from ``Box.from_points`` on flat
+        (z=0) geometry.
+        """
+        pts = []
+        for element in self.elements:
+            if element.aabb:
+                pts.extend(element.aabb.points)
+        if not pts:
+            return None
+        return AABB2D.from_points(pts)
+
 
     def update_rules(self, joint_rule_overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Update the rules with any overrides provided."""
@@ -115,14 +130,13 @@ class ElementGenerator(ABC):
                 rules.append(override)
         return rules
 
-    def resolve_beam_dimensions(self, frame_thickness: float) -> None:
-        # TODO: consider renaming to `resolve_beam_dimensions`
-        """updates the beam dimensions map based on the standard beam width, frame thickness, and any overrides provided."""
+    def resolve_beam_dimensions(self, frame_thickness: float, standard_beam_width: float = 0.0) -> None:
+        """Populate ``beam_dimensions`` from *frame_thickness*, *standard_beam_width*, and any per-category overrides."""
         for category in self.BEAM_CATEGORY_NAMES:
             if category in self.beam_width_overrides:
                 self.beam_dimensions[category] = (self.beam_width_overrides[category], frame_thickness)
             else:
-                self.beam_dimensions[category] = (self.standard_beam_width, frame_thickness)
+                self.beam_dimensions[category] = (standard_beam_width, frame_thickness)
 
     def beam_from_category(self, centerline: Line, category: str, **kwargs) -> Beam2D:
         """Creates a :class:`~timber_design.populators.Beam2D` from a centerline and a category.
@@ -157,7 +171,8 @@ class ElementGenerator(ABC):
         """Get the joint type for the given elements."""
         matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
-            raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
+            return None
+        #     raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
 
         direct_rule = None
         for rule in matching_rules:
@@ -183,9 +198,10 @@ class ElementGenerator(ABC):
             return False
         if self.outline is None:
             return False
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.EXCLUSIVE and is_point_in_polyline(point, self.outline, in_plane=False):
+        is_inside = is_point_in_polyline(point, self.outline, in_plane=False)
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.EXCLUSIVE and is_inside:
             return True
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.INCLUSIVE and not None and not is_point_in_polyline(point, self.outline, in_plane=False):
+        if self.BOUNDARY_TYPE == FeatureBoundaryType.INCLUSIVE and not is_inside:
             return True
 
     def apply_to_plate(self, plate: Plate) -> None:
@@ -198,20 +214,36 @@ class ElementGenerator(ABC):
             return [beam]
         if self.outline is None:
             return [beam]
-        
+
+        crossings = find_beam_outline_crossings(beam, self.outline, skip_notches=skip_notches, skip_laps=skip_laps)
+        if not crossings:
+            # No outline crossings — keep or cull the whole beam, preserving object identity.
+            return [] if self.cull_element_at_point(beam.centerline.midpoint) else [beam]
+
         intersections = [
             BeamOutlineIntersectionData(start_dot=0.0),
             BeamOutlineIntersectionData(end_dot=beam.length),
         ]
-        intersections.extend(find_beam_outline_crossings(beam, self.outline, skip_notches=skip_notches, skip_laps=skip_laps))
-        intersections.sort(key=lambda x: x.average_dot)
+        intersections.extend(crossings)
 
+        intersections.sort(key=lambda x: x.average_dot)
         beam_segs = []
         for pair in pairwise(intersections):
-            dots = pair[0].all_dots + pair[1].all_dots
-            beam_seg = beam.get_beam_segment(min(dots), max(dots))
-            if not self.cull_element_at_point(beam_seg.centerline.midpoint):
-                beam_segs.append(beam_seg)
+            seg_start = min(pair[0].all_dots)
+            seg_end = max(pair[1].all_dots)
+
+            # Skip degenerate segments that arise when a crossing lands exactly
+            # at the beam start/end or two crossings are at the same position.
+            if seg_end - seg_start < 0.000001:
+                continue
+
+            beam_seg = beam.get_beam_segment(seg_start, seg_end)
+            if self.cull_element_at_point(beam_seg.centerline.midpoint):
+                continue
+            if self.cull_beam_segment(beam_seg):
+                continue
+            beam_segs.append(beam_seg)
+
         return beam_segs
 
     def create_joint_candidates(self, model):
@@ -223,18 +255,17 @@ class ElementGenerator(ABC):
         for element_a, element_b in pairs:
             topo_result = solver.find_topology(element_a, element_b)
             if topo_result is not None:
-                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, topology = topo_result.topology, location = topo_result.location)
+                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance = topo_result.distance, topology = topo_result.topology, location = topo_result.location)
                 model.add_joint_candidate(candidate)
                 candidates.append(candidate)
         return candidates
 
     def trim_elements_with_generator(self, generator, skip_notches=False, skip_laps=False):
         # type: (ElementGenerator, bool, bool) -> list[TimberElement]
-        """Split *generator_a*'s elements at every intersection with *generator_b*'s outline.
+        """Split this generator's elements at every intersection with *generator_b*'s outline.
         Parameters
         ----------
-        generator_a : :class:`~timber_design.populators.ElementGenerator`
-        generator_b : :class:`~timber_design.populators.ElementGenerator`
+        generator : :class:`~timber_design.populators.ElementGenerator`
         skip_notches : bool
         skip_laps : bool
         Returns
@@ -243,24 +274,26 @@ class ElementGenerator(ABC):
         rules_to_cull : list
         """
         new_elements = []
-        rules_to_cull = []
         for element in self.elements:
             if element.is_beam:
                 new_elements.extend(generator.trim_beam(element))
-            else:
+            elif element.is_plate:
+                generator.apply_to_plate(element)
                 new_elements.append(element)
         self.elements = new_elements
+
 
     @abstractmethod
     def generate_elements(self):
         """Generates elements for the panel based on the panel populator and optional feature definition."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of ElementGenerator")
 
-    def create_internal_joints(self, model) -> list[DirectRule]:
+    def extend_elements(self, other_generators: list["ElementGenerator"]):
+        pass
+
+    def create_internal_joint_defs(self, model) -> list[DirectRule]:
         """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this generator."""
-        rules = []
-        for pair in self.create_joint_candidates(model):
-            rule = self.get_direct_rule_from_elements(*pair)
+        for candidate in self.create_joint_candidates(model):
+            rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
-                rules.append(rule)
-        return rules
+                self.joint_defs.append(rule)

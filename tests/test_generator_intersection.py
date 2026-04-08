@@ -58,27 +58,6 @@ class MockGenerator(object):
     def cull_element_at_point(self, point):
         return False
 
-    def trim_beam(self, beam, skip_notches=True, skip_laps=True):
-        from itertools import pairwise
-        crossings = find_beam_outline_crossings(beam, self.outline) if self.outline else []
-        if not crossings:
-            return [beam]
-        sentinels = [
-            BeamOutlineIntersectionData(start_dot=0.0, end_dot=0.0),
-            BeamOutlineIntersectionData(start_dot=beam.length, end_dot=beam.length),
-        ]
-        all_crossings = sentinels[:1] + crossings + sentinels[1:]
-        all_crossings.sort(key=lambda x: x.average_dot or 0.0)
-        segs = []
-        for left, right in pairwise(all_crossings):
-            start_pos = max(left.all_dots) if left.all_dots else 0.0
-            end_pos = min(right.all_dots) if right.all_dots else beam.length
-            if end_pos <= start_pos:
-                continue
-            seg = beam.get_beam_segment(start_pos, end_pos)
-            if not self.cull_element_at_point(seg.centerline.midpoint):
-                segs.append(seg)
-        return segs
 
 
 # =============================================================================

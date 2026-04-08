@@ -6,7 +6,14 @@
       "Read",
       "Bash(\"C:\\\\Users\\\\obucklin\\\\repos\\\\timber_design\\\\.claude\\\\test_permissions.tmp\")",
       "Bash(rm \"C:\\\\Users\\\\obucklin\\\\repos\\\\timber_design\\\\.claude\\\\test_permissions.tmp\")",
-      "Bash(\"C:\\\\Users\\\\obucklin\\\\repos\\\\timber_design\\\\src\\\\timber_design\\\\populators\\\\.perm_test.tmp\")"
+      "Bash(\"C:\\\\Users\\\\obucklin\\\\repos\\\\timber_design\\\\src\\\\timber_design\\\\populators\\\\.perm_test.tmp\")",
+      "Bash(find /c/Users/obucklin/repos -type f -name *.py -path *compas_timber*)",
+      "Bash(find /c/Users/obucklin/repos/compas_timber -type f -name *.py -path */compas_timber/elements*)",
+      "Bash(xargs grep:*)",
+      "Bash(python3 -c \"from compas_model.elements import Element; import inspect; print\\(inspect.getfile\\(Element\\)\\)\")",
+      "Bash(python3:*)",
+      "Bash(find /c/Users/obucklin -type f -name *.py -path */compas/*)",
+      "Bash(find /c/Users/obucklin -type f -name *.py -path *compas_model*)"
     ]
   }
 }

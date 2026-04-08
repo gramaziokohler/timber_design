@@ -3,9 +3,11 @@ from __future__ import annotations
 from itertools import combinations
 from itertools import product
 from typing import TYPE_CHECKING
+from typing import Union
 
 if TYPE_CHECKING:
     from timber_design.populators.element_generators.element_generator import ElementGenerator
+    from timber_design.populators.beam2d import Beam2D
 
 from compas.geometry import Point
 from compas.geometry import Vector
@@ -15,7 +17,6 @@ from compas.geometry import intersection_segment_segment
 from compas_timber.connections import JointCandidate
 from compas_timber.connections.solver import JointTopology
 
-from timber_design.populators.beam2d import Beam2D
 
 
 # =============================================================================
@@ -33,39 +34,41 @@ def _average_point(points):
     )
 
 
-def _aabb_overlap(beam_a, beam_b):
-    # type: (Beam2D, Beam2D) -> bool
-    """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY."""
-    pts_a = (beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end)
-    pts_b = (beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end)
-    a_xmin = min(p.x for p in pts_a)
-    a_xmax = max(p.x for p in pts_a)
-    a_ymin = min(p.y for p in pts_a)
-    a_ymax = max(p.y for p in pts_a)
-    b_xmin = min(p.x for p in pts_b)
-    b_xmax = max(p.x for p in pts_b)
-    b_ymin = min(p.y for p in pts_b)
-    b_ymax = max(p.y for p in pts_b)
-    return a_xmax >= b_xmin and b_xmax >= a_xmin and a_ymax >= b_ymin and b_ymax >= a_ymin
+def aabb_overlap(a, b, tolerance=0.0):
+    # type: (Union[Beam2D, ElementGenerator], Union[Beam2D, ElementGenerator], float) -> bool
+    """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY.
 
-
-def _generators_aabb_overlap(gen_a, gen_b):
-    # type: (ElementGenerator, ElementGenerator) -> bool
-    """Return ``True`` if the element AABBs of two generators overlap in XY."""
-    if not gen_a.elements or not gen_b.elements:
+    Parameters
+    ----------
+    a, b : :class:`~timber_design.populators.Beam2D` or ElementGenerator
+    tolerance : float
+        Each AABB is expanded by this amount in every direction before the
+        overlap test.  Use a small positive value (e.g. the model tolerance)
+        so that beams whose blanks merely *touch* are still considered
+        overlapping.
+    """
+    if not (a.aabb and b.aabb):
         return False
-    a_pts = [pt for e in gen_a.elements for pt in e.aabb.points]
-    b_pts = [pt for e in gen_b.elements for pt in e.aabb.points]
-    a_xmin = min(p.x for p in a_pts)
-    a_xmax = max(p.x for p in a_pts)
-    a_ymin = min(p.y for p in a_pts)
-    a_ymax = max(p.y for p in a_pts)
-    b_xmin = min(p.x for p in b_pts)
-    b_xmax = max(p.x for p in b_pts)
-    b_ymin = min(p.y for p in b_pts)
-    b_ymax = max(p.y for p in b_pts)
-    return a_xmax >= b_xmin and b_xmax >= a_xmin and a_ymax >= b_ymin and b_ymax >= a_ymin
+    return (
+        a.aabb.xmax + tolerance >= b.aabb.xmin - tolerance
+        and b.aabb.xmax + tolerance >= a.aabb.xmin - tolerance
+        and a.aabb.ymax + tolerance >= b.aabb.ymin - tolerance
+        and b.aabb.ymax + tolerance >= a.aabb.ymin - tolerance
+    )
 
+
+def aabb_overlap_x(a, b, tolerance=0.0):
+    # type: (Union[Beam2D, ElementGenerator], Union[Beam2D, ElementGenerator], float) -> bool
+    """Return ``True`` if the element AABBs of two generators overlap in X.
+
+    Parameters
+    ----------
+    tolerance : float
+        Expand each AABB by this amount before the overlap test.
+    """
+    if not (a.aabb and b.aabb):
+        return False
+    return a.aabb.xmax + tolerance >= b.aabb.xmin - tolerance and b.aabb.xmax + tolerance >= a.aabb.xmin - tolerance
 
 # =============================================================================
 # ConnectionSolver2D
@@ -78,6 +81,14 @@ class ConnectionSolver2D(object):
     Mirrors the interface of :class:`~compas_timber.connections.ConnectionSolver`
     but uses endpoint-containment tests on :class:`~timber_design.populators.Beam2D`
     blank outlines instead of 3D centerline distance.
+
+    Parameters
+    ----------
+    max_distance : float
+        Maximum gap between two AABBs that is still considered overlapping.
+        Defaults to ``1.0`` so that beams whose blanks merely *touch* (or are
+        very slightly apart due to floating-point drift) are still paired.
+        Pass ``0.0`` for strict overlap only.
 
     Usage
     -----
@@ -98,8 +109,15 @@ class ConnectionSolver2D(object):
                     model.add_joint_candidate(candidate)
     """
 
+    def __init__(self, max_distance=1.0):
+        # type: (float) -> None
+        self.max_distance = max_distance
+
     def find_intersecting_pairs(self, beams):
         """Yield ``(beam_a, beam_b)`` pairs from *beams* whose blank AABBs overlap.
+
+        Pairs whose AABBs are within :attr:`max_distance` of each other are
+        also included so that touching/near-touching beams are not missed.
 
         Parameters
         ----------
@@ -111,11 +129,14 @@ class ConnectionSolver2D(object):
         """
         for beam_a, beam_b in combinations(beams, 2):
             if beam_a.is_beam and beam_b.is_beam:
-                if _aabb_overlap(beam_a, beam_b):
+                if aabb_overlap(beam_a, beam_b, tolerance=self.max_distance):
                     yield beam_a, beam_b
 
     def find_intersecting_generator_pairs(self, generators):
         """Yield ``(gen_a, gen_b)`` pairs from *generators* whose element AABBs overlap.
+
+        Pairs whose AABBs are within :attr:`max_distance` of each other are
+        also included so that adjacent generators are not missed.
 
         Parameters
         ----------
@@ -126,7 +147,7 @@ class ConnectionSolver2D(object):
         tuple[ElementGenerator, ElementGenerator]
         """
         for gen_a, gen_b in combinations(generators, 2):
-            if _generators_aabb_overlap(gen_a, gen_b):
+            if aabb_overlap(gen_a, gen_b, tolerance=self.max_distance):
                 yield gen_a, gen_b
 
     def find_topology(self, beam_a, beam_b):
@@ -153,7 +174,7 @@ class ConnectionSolver2D(object):
         """
         if not all([b.is_beam for b in [beam_a, beam_b]]):
             return None
-        if not _aabb_overlap(beam_a, beam_b):
+        if not aabb_overlap(beam_a, beam_b, tolerance=self.max_distance):
             return None
 
         a_corners = [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
@@ -165,15 +186,44 @@ class ConnectionSolver2D(object):
         if a_in_b and b_in_a:
             # L-joint: both beams have blank corners inside each other
             location = _average_point(a_in_b + b_in_a)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_L, location=location)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_L, location=location)
         if a_in_b:
             # T-joint: beam_a is the end beam
             location = _average_point(a_in_b)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_T, location=location)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_T, location=location)
         if b_in_a:
             # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
             location = _average_point(b_in_a)
-            return Beam2DSolverResult(beam_a=beam_b, beam_b=beam_a, topology=JointTopology.TOPO_T, location=location)
+            return Beam2DSolverResult(beam_a=beam_b, beam_b=beam_a, distance = 0.0, topology=JointTopology.TOPO_T, location=location)
+
+        # Check for face-to-face: parallel beams sharing a colinear long edge.
+        # Conditions:
+        #   1. Beam directions are parallel (|dot| ≈ 1).
+        #   2. Any long edge of beam_a is colinear with any long edge of beam_b,
+        #      i.e. the perpendicular distance between the two edge lines is
+        #      within tolerance (the component of the inter-start vector that is
+        #      orthogonal to the beam axis is negligible).
+        if abs(abs(dot_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis)) - 1.0) < 0.01:
+            long_edges_a = [beam_a.edge_a, beam_a.edge_b]
+            long_edges_b = [beam_b.edge_a, beam_b.edge_b]
+            for ea in long_edges_a:
+                for eb in long_edges_b:
+                    inter_vec = Vector.from_start_end(ea.start, eb.start)
+                    along = dot_vectors(inter_vec, beam_a.frame.xaxis)
+                    perp = Vector(
+                        inter_vec.x - beam_a.frame.xaxis[0] * along,
+                        inter_vec.y - beam_a.frame.xaxis[1] * along,
+                        inter_vec.z - beam_a.frame.xaxis[2] * along,
+                    )
+                    if perp.length <= self.max_distance:
+                        location = _average_point([ea.start, ea.end, eb.start, eb.end])
+                        return Beam2DSolverResult(
+                            beam_a=beam_a,
+                            beam_b=beam_b,
+                            distance=perp.length,
+                            topology=JointTopology.TOPO_FACE_FACE,
+                            location=location,
+                        )
 
         # No endpoints inside — look for edge-edge crossings (TOPO_X)
         pts = []
@@ -184,14 +234,16 @@ class ConnectionSolver2D(object):
                     pts.append(Point(*result[0]))
         if pts:
             location = _average_point(pts)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, topology=JointTopology.TOPO_X, location=location)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_X, location=location, test=pts+[beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]+[beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end])
         return None
 
 
 
 class Beam2DSolverResult:
-    def __init__(self, beam_a, beam_b, topology, location):
+    def __init__(self, beam_a, beam_b, distance, topology, location, test=None):
         self.beam_a = beam_a
         self.beam_b = beam_b
+        self.distance = distance
         self.topology = topology
         self.location = location
+        self.test=test

@@ -178,22 +178,6 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 # =============================================================================
 
 
-def trim_generator_elements_with_genenrator(generator_a, generator_b, skip_notches=False, skip_laps=False):
-    # type: (ElementGenerator, ElementGenerator, bool, bool) -> list
-    """Return new element list for *generator_a* after trimming against *generator_b*'s outline.
-
-    Does **not** mutate *generator_a*.  For in-place trimming use
-    :meth:`~timber_design.populators.ElementGenerator.trim_elements_with_generator`.
-    """
-    new_elements = []
-    for element in generator_a.elements:
-        if element.is_beam:
-            new_elements.extend(generator_b.trim_beam(element))
-        else:
-            new_elements.append(element)
-    return new_elements
-
-
 def extend_beam_to_closest_element_generators(beam, element_generators, only_start=False, only_end=False):
     # type: (Beam2D, list[ElementGenerator], bool, bool) -> None
     """Extend *beam* in-place so its ends reach the nearest generator outlines.
@@ -249,4 +233,12 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
 
     start = bottom_dot if bottom_dot is not None else 0
     end = top_dot if top_dot is not None else beam.length
-    beam.length = end - start
+    new_length = end - start
+    if new_length <= 0:
+        raise ValueError(
+            "extend_beam_to_closest_element_generators produced degenerate length {} "
+            "(bottom_dot={}, top_dot={}, original_length={}) on beam '{}'".format(
+                new_length, bottom_dot, top_dot, beam.length, beam.attributes.get("name", "?")
+            )
+        )
+    beam.length = new_length

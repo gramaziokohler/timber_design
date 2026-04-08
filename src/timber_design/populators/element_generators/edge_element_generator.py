@@ -1,4 +1,6 @@
 import math
+from dataclasses import dataclass
+from typing import Optional
 from typing import Union
 
 from compas.geometry import Line
@@ -39,26 +41,17 @@ from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
+@dataclass
 class EdgeElementGeneratorParams(ElementGeneratorParams):
-    def __init__(
-        self,
-        standard_beam_width: float,
-        standard_beam_width_increment: Union[float, None] = None,
-        edge_beam_min_width: Union[float, None] = None,
-        beam_width_overrides: Union[dict, None] = None,
-        joint_rule_overrides: Union[list[CategoryRule], None] = None,
-    ):
-        super(EdgeElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
-        self.standard_beam_width = standard_beam_width
-        self.standard_beam_width_increment = standard_beam_width_increment
-        self.edge_beam_min_width = edge_beam_min_width
+    standard_beam_width_increment: Optional[float] = None
+    edge_beam_min_width: Optional[float] = None
 
     @property
     def __data__(self):
         data = super().__data__
-        data["standard_beam_width"] = (self.standard_beam_width,)
-        data["standard_beam_width_increment"] = (self.standard_beam_width_increment,)
-        data["edge_beam_min_width"] = (self.edge_beam_min_width,)
+        data["standard_beam_width_increment"] = self.standard_beam_width_increment
+        data["edge_beam_min_width"] = self.edge_beam_min_width
+        return data
 
 
 class EdgeElementGenerator(ElementGenerator):
@@ -79,43 +72,23 @@ class EdgeElementGenerator(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        standard_beam_width: float,
-        standard_beam_width_increment: Union[float, None] = None,
-        edge_beam_min_width: Union[float, None] = None,
-        beam_width_overrides: Union[dict, None] = None,
-        joint_rule_overrides: Union[list[CategoryRule], None] = None,
+        params: EdgeElementGeneratorParams,
     ) -> None:
-        super(EdgeElementGenerator, self).__init__(
-            panel,
-            standard_beam_width,
-            beam_width_overrides,
-            joint_rule_overrides,
-        )
-        self.standard_beam_width_increment = standard_beam_width_increment
-        self.edge_beam_min_width = edge_beam_min_width or standard_beam_width
+        super(EdgeElementGenerator, self).__init__(panel, params)
+        self.standard_beam_width_increment = params.standard_beam_width_increment
+        self.edge_beam_min_width = params.edge_beam_min_width or 0.0
 
     @property
     def panel(self) -> Panel:
         """The panel associated with this element generator."""
         return self.feature  # type: ignore
 
-    # ==========================================================================
-    # methods for edge beams
-    # ==========================================================================
-
-    def generate_elements(self) -> None:
-        """generates the edge beams for the panel."""
-        self._create_edge_beams()
-
-    def cull_beam_segment(self, beam: Beam2D) -> bool:
-        """Cull and split the studs for door openings."""
-        return False
 
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
 
-    def _create_edge_beams(self) -> None:
+    def generate_elements(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
         for i in range(len(self.panel.outline_a) - 1):
@@ -176,28 +149,24 @@ class EdgeElementGenerator(ElementGenerator):
     # methods for creating beam joints
     # ==========================================================================
 
-    def create_internal_joints(self, model) -> list[DirectRule]:
+    def create_internal_joint_defs(self, model) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges."""
-        rules = []
-        interior_corners = get_interior_corner_indices(self.panel.outline_a)
-
         for candidate in self.create_joint_candidates(model):
-            corner_index = max(candidate.element_a.attributes["edge_index"], candidate.element_b.attributes["edge_index"])
-
-            rule = self.create_edge_beam_joint_rule(*candidate.elements, corner_index in interior_corners)
+            rule = self.create_edge_beam_joint_rule(*candidate.elements)
             if rule is not None:
-                rules.append(rule)
-        return rules
+                self.joint_defs.append(rule)
 
-
-
-    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D, interior_corner:bool) -> DirectRule:
+    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
         edge_a_index = beam_a.attributes["edge_index"]
         edge_b_index = beam_b.attributes["edge_index"]  
-
+        if abs(edge_a_index-edge_b_index) >1:
+            corner_index = 0
+        else:
+            corner_index = max(edge_a_index, edge_b_index)
+        interior_corner = corner_index in get_interior_corner_indices(self.panel.outline_a)
 
         edge_plane_a = self.panel.edge_planes[edge_a_index]
         edge_plane_b = self.panel.edge_planes[edge_b_index]
@@ -207,22 +176,22 @@ class EdgeElementGenerator(ElementGenerator):
             if interior_corner:
                 ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
                 ref_side_main: dict[int, float] = beam_ref_side_incidence(beam_a, beam_b)
-                front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main.items(), key=lambda x: x[1])])
+                front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main.items(), key=lambda x: x[1])[0]])
 
                 ref_side_cross: dict[int, float] = beam_ref_side_incidence(beam_b, beam_a)
-                front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])])
+                front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])[0]])
 
                 ccx = intersection_plane_plane(front_a, front_b)
 
                 if not ppx or not ccx:
                     raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
                 miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
-
                 return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane, clean=True)
 
             else:
                 # trim_plane_a=edge_plane_a, trim_plane_b=edge_plane_b)
-                return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True)
+
+                return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True, clean=True)
 
         else:
             if interior_corner:

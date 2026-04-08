@@ -69,8 +69,9 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
         if JointRules:
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
+            Model.connect_adjacent_beams(max_distance=solver.max_distance)  # ensure that the model is connected before analyzing
+            Model.connect_adjacent_plates(max_distance=solver.max_distance)  # ensure that the model is connected before analyzing
             joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
-
             for je in joint_errors:
                 debug_info.add_joint_error(je)
 

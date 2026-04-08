@@ -14,11 +14,6 @@ except ImportError:
 
 from itertools import product
 
-from compas.geometry import Box
-from compas.geometry import Frame
-from compas.geometry import Point
-from compas.geometry import Transformation
-from compas.geometry import Translation
 from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
@@ -27,6 +22,8 @@ from compas_timber.connections import JointCandidate
 from compas_timber.model import TimberModel
 from compas_timber.panel_features import PanelFeature
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+from timber_design.workflow import JointRuleSolver
+from compas_timber.connections import get_clusters_from_joint_candidates
 
 
 
@@ -108,30 +105,41 @@ class PanelPopulator(object):
         super(PanelPopulator, self).__init__()
         self.original_panel: Panel = panel_definition.panel
 
-        self.transformation_to_populator, self.panel = PanelPopulator.create_local_panel(panel_definition)
-        self.element_generators = panel_definition.factory.create_generators(self.panel, panel_definition.params)
+        self.transformation_to_populator, self.panel = panel_definition.factory.create_local_panel(panel_definition)
 
-        for feature_def in feature_definitions or []:
-            feature_def.feature = feature_def.feature.transformed(self.transformation_to_populator)
-            self.element_generators.append(feature_def.generator_type(feature_def.feature, **feature_def.params.__data__))
-        self.joint_defs: list[DirectRule] = []
+        transformed_feature_defs = [
+            FeaturePopulatorDefinition(
+                feature_def.feature.transformed(self.transformation_to_populator),
+                feature_def.params,
+                feature_def.generator_type,
+            )
+            for feature_def in (feature_definitions or [])
+        ]
+
+        self.element_generators = panel_definition.factory.create_generators(
+            self.panel, panel_definition.params, transformed_feature_defs
+        )
+
         self.model = TimberModel()
+        self.test = []
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
 
-    def populate(self):
+    def populate_elements(self):
         """Runs the full population process, including generating elements, trimming, joining, and processing joinery."""
         self.generate_elements()
+        self.extend_elements()
         self.trim_elements()
         self.add_elements_to_model()
-        self.join_elements()
-        self.process_joinery()
 
     def generate_elements(self):
-        """Processes the panel populator and creates the elements and joints."""
         for g in self.element_generators:
             g.generate_elements()
+
+    def extend_elements(self):
+        for g in self.element_generators:
+            g.extend_elements(self.element_generators)
 
     def trim_elements(self):
         solver = ConnectionSolver2D()
@@ -145,23 +153,31 @@ class PanelPopulator(object):
                 self.model.add_element(element)
 
     def join_elements(self):
+        self.create_generator_joints()
+        self.create_cross_generator_joints()
+        #TODO: handle clusters
+
+    def create_generator_joints(self):
         for gen in self.element_generators:
-            self.joint_defs.extend(gen.create_internal_joints(self.model) or [])
+            gen.create_internal_joint_defs(self.model)
+            for j_def in gen.joint_defs:
+                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+
+    def create_cross_generator_joints(self):
         solver = ConnectionSolver2D()
         for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
+            candidates = []
             for element_a, element_b in product(gen_a.elements, gen_b.elements):
                 topo_result = solver.find_topology(element_a, element_b)
                 if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, topology = topo_result.topology, location = topo_result.location)
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance = topo_result.distance, topology = topo_result.topology, location = topo_result.location)
                     self.model.add_joint_candidate(candidate)
-                    try:
-                        self.joint_defs.append(gen_a.get_direct_rule_from_elements())
-
-        #TODO: handle clusters
+                    candidates.append(candidate)
+            clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
+            jrs = JointRuleSolver(gen_a.rules + gen_b.rules)
+            jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):
-        for j_def in self.joint_defs:   
-             j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
         self.model.process_joinery()
 
 
@@ -179,49 +195,5 @@ class PanelPopulator(object):
         for j in self.model.joints:
             model.add_joint(j)
 
-    @classmethod
-    def create_local_panel(cls, panel_definition: PanelPopulatorDefinition) -> tuple[Transformation, Panel]:
-        """Create a local panel for the generator.
-        Parameters
-        ----------
-        panel : :class:`compas_timber.elements.Panel`
-            The panel to be populated.
-        params : :class:`timber_design.populators.GeneratorFactoryParams`
-                Keyword arguments for the generator.
-        feature_generators : list[:class:`timber_design.populators.ElementGenerator`], optional
-            A list of feature generators to consider when populating the panel.
-        Returns
-        -------
-        tuple[:class:`compas_timber.elements.Panel`, :class:`compas.geometry.Transformation`, list[:class:`timber_design.populators.ElementGenerator`]]
-            The local panel, the transformation to the populator space, and the updated feature generators.
-        """
-        transformation_to_populator = _get_transformation_to_populator_space(panel_definition)
-        polylines = panel_definition.panel.plate_geometry.outline_a, panel_definition.panel.plate_geometry.outline_b
-        local_polylines = [pl.transformed(transformation_to_populator) for pl in polylines]
-        box = Box.from_points([pt for pl in local_polylines for pt in pl.points])
-        local_panel = Panel(Frame.worldXY(), box.xsize, box.ysize, box.zsize, local_polylines[0], local_polylines[1])
-
-        return transformation_to_populator, local_panel
 
 
-def _get_transformation_to_populator_space(panel_definition: PanelPopulatorDefinition) -> Transformation:
-    """The Transformation from panel space to slab populator space."""
-    transformation_to_populator_panel = _get_transformation_to_populator_panel(panel_definition.panel, panel_definition.orientation)
-    translation_to_frame_center = _get_translation_to_frame_center(panel_definition.panel, panel_definition.params)
-    return translation_to_frame_center * transformation_to_populator_panel
-
-
-def _get_transformation_to_populator_panel(panel: Panel, stud_direction: Vector) -> Transformation:
-    stud_dir_frame = Frame(Point(0, 0, 0), cross_vectors(stud_direction, Vector(0, 0, 1)), stud_direction)  # get frame with stud direction as y axis
-    transform_to_stud_dir_frame = Transformation.from_frame(stud_dir_frame).inverse()
-    pts = [pt.transformed(transform_to_stud_dir_frame) for pt in panel.plate_geometry.outline_a.points + panel.plate_geometry.outline_b.points]
-    min_pt = Box.from_points(pts).points[0]
-    obb_frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_stud_dir_frame.inverse())
-    return Transformation.from_frame(obb_frame).inverse()
-
-
-def _get_translation_to_frame_center(panel: Panel, params: "GeneratorFactoryParams") -> Translation:
-    si = getattr(params, "sheeting_inside", 0) or 0.0
-    so = getattr(params, "sheeting_outside", 0) or 0.0
-    frame_thickness = panel.thickness - si - so
-    return Translation.from_vector(-Vector(0, 0, si + frame_thickness / 2))

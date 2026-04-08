@@ -1,4 +1,6 @@
 from collections import OrderedDict
+from dataclasses import dataclass
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -8,6 +10,7 @@ from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Translation
+from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
@@ -28,28 +31,21 @@ from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import extend_beam_to_closest_element_generators
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+from timber_design.populators import aabb_overlap_x
+from timber_design.populators import aabb_overlap
+from timber_design.populators import Beam2D
 
 
+@dataclass
 class OpeningElementGeneratorParams(ElementGeneratorParams):
-    def __init__(
-        self,
-        standard_beam_width: float,
-        lintel_posts: Optional[bool] = False,
-        split_bottom_plate_beam: Optional[bool] = False,
-        beam_width_overrides: Optional[dict] = None,
-        joint_rule_overrides: Optional[list[CategoryRule]] = None,
-    ):
-        super(OpeningElementGeneratorParams, self).__init__(beam_width_overrides, joint_rule_overrides)
-        self.standard_beam_width = standard_beam_width
-        self.lintel_posts = lintel_posts
-        self.beam_width_overrides = beam_width_overrides
+    lintel_posts: bool = False
+    split_bottom_plate_beam: bool = False
 
     @property
     def __data__(self):
         data = super().__data__
-        data["standard_beam_width"] = self.standard_beam_width
         data["lintel_posts"] = self.lintel_posts
-        data["beam_width_overrides"] = self.beam_width_overrides
+        data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
         return data
 
 
@@ -61,13 +57,14 @@ class OpeningElementGenerator(ElementGenerator):
     RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
         CategoryRule(TButtJoint, "sill", "jack_stud"),
-        CategoryRule(TButtJoint, "jack_stud", "header"),
-        CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam"),
+        CategoryRule(LButtJoint, "jack_stud", "header", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "jack_stud", "top_plate_beam", mill_depth = 5.0),
         CategoryRule(TButtJoint, "jack_stud", "edge_stud"),
-        CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam"),
-        CategoryRule(TButtJoint, "king_stud", "top_plate_beam"),
-        CategoryRule(TButtJoint, "king_stud", "header"),
-        CategoryRule(TButtJoint, "king_stud", "sill"),
+        CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "king_stud", "header", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "king_stud", "sill", mill_depth = 5.0),
         CategoryRule(TButtJoint, "king_stud", "edge_stud"),
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
@@ -77,18 +74,15 @@ class OpeningElementGenerator(ElementGenerator):
     def __init__(
         self,
         opening: Opening,
-        standard_beam_width: float,
-        lintel_posts: bool = False,
-        beam_width_overrides: Union[dict, None] = None,
-        joint_rule_overrides: Union[list[CategoryRule], None] = None,
-        split_bottom_plate_beam: bool = False,
+        params: OpeningElementGeneratorParams,
     ):
-        super().__init__(opening, standard_beam_width, beam_width_overrides, joint_rule_overrides)
-        self.lintel_posts = lintel_posts
-        self.split_bottom_plate_beam = split_bottom_plate_beam
+        super().__init__(opening, params)
+        self.lintel_posts = params.lintel_posts
+        self.split_bottom_plate_beam = params.split_bottom_plate_beam
         self.opening_type = opening.opening_type
         self.sill_angle = 0.0
         self.header_angle = 0.0
+        # explicit beam attributes — populated by generate_elements()
         if self.opening_type == "door" and self.split_bottom_plate_beam:
             if self.lintel_posts:
                 self.rules = [r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
@@ -118,16 +112,6 @@ class OpeningElementGenerator(ElementGenerator):
             return self._cull_stud(beam)
         return False
 
-    def apply_to_plate(self, plate: Plate) -> None:
-        """Apply the opening contour to the given plate.
-
-        Parameters
-        ----------
-        plate : :class:`compas_timber.elements.Plate`
-            The plate to which the opening will be applied.
-        """
-        self.cut_out_of_plate(plate)
-
     def generate_elements(self) -> None:
         """Generate the beams for a opening."""
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature)
@@ -140,37 +124,74 @@ class OpeningElementGenerator(ElementGenerator):
         segments = [line for line in frame_polyline.lines]
         segments[2].flip()  # align to panel populator stud direction
 
-        # create beams
-        edge_elements = OrderedDict()
-        edge_elements[0] = [self.beam_from_category(segments[0], "king_stud", name="left_king_stud")]
-        edge_elements[1] = [self.beam_from_category(segments[1], "header")]
-        edge_elements[2] = [self.beam_from_category(segments[2], "king_stud", name="right_king_stud")]
-        edge_elements[3] = [self.beam_from_category(segments[3], "sill")] if self.opening_type == "window" else []
+        # create beams and assign to explicit attributes
+
+        edge_segs = []
+        jack_offset = 0
         if self.lintel_posts:
-            edge_elements[0].append(self.beam_from_category(segments[0], "jack_stud", name="left_jack_stud"))
-            edge_elements[2].append(self.beam_from_category(segments[2], "jack_stud", name="right_jack_stud"))
+            jack_offset = self.beam_dimensions["jack_stud"][0] / 2
+            self.elements.append(self.beam_from_category(segments[0].translated([-jack_offset, 0, 0]), "jack_stud", name="left_jack_stud"))
+            self.elements.append(self.beam_from_category(segments[2].translated([jack_offset, 0, 0]), "jack_stud", name="right_jack_stud"))
 
-        self.elements = []
-        for beams in edge_elements.values():
-            self.elements.extend(beams)
+        king_offset = self.beam_dimensions["king_stud"][0] / 2
+        self.elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset*2), 0, 0]), "king_stud", name="left_king_stud"))
+        self.elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset*2, 0, 0]), "king_stud", name="right_king_stud"))
+        edge_segs.append(segments[0].translated([-(king_offset + jack_offset)*2, 0, 0]))
 
-        OpeningElementGenerator._offset_frame_beams(edge_elements, frame_polyline)
+        header_offset = self.beam_dimensions["header"][0] / 2                         
+        self.elements.append(self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", name="header"))
+        edge_segs.append(segments[1].translated([0, header_offset*2, 0]))
 
-        if not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled opening at sill
-            sill = edge_elements[3][0]
+        edge_segs.append(segments[2].translated([(king_offset + jack_offset)*2, 0, 0]))
+
+        if self.opening_type == "window":
+            sill_offset = self.beam_dimensions["sill"][0] / 2 
+            self.elements.append(self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", name="sill"))
+            edge_segs.append(segments[3].translated([0, -sill_offset*2, 0]))
+
+
+
+
+        if self.sill is not None and not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled sill
             plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
-            long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, sill, is_joinery=False)
-            sill.add_features(long_cut)
+            long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, self.sill, is_joinery=False)
+            self.sill.add_features(long_cut)
 
-        if not TOL.is_zero(frame_polyline_a[1][1] - frame_polyline_b[1][1]):  # angled opening at header
-            header = edge_elements[1][0]
+        if not TOL.is_zero(frame_polyline_a[1][1] - frame_polyline_b[1][1]):  # angled header
             plane = Plane.from_points([frame_polyline_a[1], frame_polyline_a[2], frame_polyline_b[1]])
-            long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, header, is_joinery=False)
-            header.add_features(long_cut)
+            long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, self.header, is_joinery=False)
+            self.header.add_features(long_cut)
 
-        edges = OpeningElementGenerator._get_edge_dict(edge_elements, frame_polyline)
-        self.edge_elements = edge_elements
-        self.outline = join_polyline_segments(list(edges.values()), close_loop=True)[0][0]
+        extend_line_segments(edge_segs, close_loop=True)
+        self.outline = join_polyline_segments(edge_segs, close_loop=True)[0][0]
+        self.test.append(edge_segs)
+
+    @property   
+    def header(self):
+        return [b for b in self.elements if b.attributes.get("category") == "header"][0]
+
+    @property
+    def sill(self):
+        sills = [b for b in self.elements if b.attributes.get("category") == "sill"]
+        return sills[0] if sills else None
+
+    @property   
+    def king_studs(self):
+        return [b for b in self.elements if b.attributes.get("category") == "king_stud"]
+
+    @property   
+    def jack_studs(self):
+        return [b for b in self.elements if b.attributes.get("category") == "jack_stud"]
+
+    @property
+    def left_king_stud(self):
+        return min(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
+
+    @property
+    def right_king_stud(self):
+        return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
+
+
 
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
         king_dims = self.beam_dimensions.get("king_stud")
@@ -200,101 +221,70 @@ class OpeningElementGenerator(ElementGenerator):
             ]
         )
 
-    @staticmethod
-    def _offset_frame_beams(edge_elements: dict, frame_polyline: Polyline) -> None:
-        """Apply an offset to the beams so that their edges align with the frame polyline."""
-        for edge_index, beams in edge_elements.items():
-            vector = get_polyline_segment_perpendicular_vector(frame_polyline, edge_index)
-            distance = 0
-            for beam in beams[::-1]:
-                beam.transform(Translation.from_vector(vector * (distance + beam.width * 0.5)))
-                distance += beam.width
 
-    @staticmethod
-    def _get_edge_dict(edge_elements: OrderedDict[int, list[Beam]], frame_polyline: Polyline) -> dict[int, Line]:
-        """Get the edge lines for the element group based on the frame polyline and edge beams"""
-        segs = []
-        for index, segment in enumerate(frame_polyline.lines):
-            beams = edge_elements.get(index)
-            if not beams:  # in case there is no sill
-                segs.append(segment)
-                continue
-            vector = get_polyline_segment_perpendicular_vector(frame_polyline, index)
-            segs.append(beams[0].centerline.translated(vector * beams[0].width / 2))
-        edges = {}
-        extend_line_segments(segs, close_loop=True)
-        for i, segment in enumerate(segs):
-            edges[i] = segment
-        return edges
 
     # ==========================================================================
     # Opening element joining functions
     # ==========================================================================
 
-    def create_internal_joints(self, model) -> list[DirectRule]:
-        """Join the sill and header to king and jack studs."""
-        sills: list[Beam] = list(filter(lambda x: x.attributes["category"] == "sill", self.elements))
+    # def create_internal_joint_defs(self, model) -> list[DirectRule]:
+    #     """Join the sill and header to king and jack studs."""
+    #     print("Creating internal joints for opening element generator...")
+    #     king_studs = [s for s in [self.left_king_stud, self.right_king_stud] if s is not None]
+    #     jack_studs = [s for s in [self.left_jack_stud, self.right_jack_stud] if s is not None]
+    #     # join header to king and jack studs
+    #     for king in king_studs:
+    #         self.joint_defs.append(self.get_direct_rule_from_elements(self.header, king, max_distance=king.width / 2))
+    #     for jack in jack_studs:
+    #         self.joint_defs.append(self.get_direct_rule_from_elements(jack, self.header, max_distance=jack.width / 2))
+    #     # join sill to jack studs (or king studs if no jack studs)
+    #     if self.sill is not None:
+    #         for jack, king in zip(jack_studs, king_studs):
+    #             self.joint_defs.append(self.get_direct_rule_from_elements(self.sill, jack, max_distance=jack.width / 2))
+    #         if not jack_studs:
+    #             for king in king_studs:
+    #                 self.joint_defs.append(self.get_direct_rule_from_elements(self.sill, king, max_distance=king.width / 2))
+    #     print(f"Created {len(self.joint_defs)} internal joint definitions for opening.")
 
-        header = list(filter(lambda x: x.attributes["category"] == "header", self.elements))[0]
-        king_studs = list(filter(lambda x: x.attributes["category"] == "king_stud", self.elements))
-        jack_studs = list(filter(lambda x: x.attributes["category"] == "jack_stud", self.elements))
-        rules = []
-        # join header
-        for king in king_studs:
-            rules.append(self.get_direct_rule_from_elements(header, king, max_distance=king.width / 2))
-        for jack in jack_studs:
-            rules.append(self.get_direct_rule_from_elements(jack, header, max_distance=jack.width / 2))
-        # join sill
-        if sills:
-            sill: Beam = sills[0]
-            for jack, king in zip(jack_studs, king_studs):
-                if jack:
-                    rules.append(self.get_direct_rule_from_elements(sill, jack, max_distance=jack.width / 2))
-                else:
-                    rules.append(self.get_direct_rule_from_elements(sill, king, max_distance=king.width / 2))
-        for rule in rules:
-            rule.joint_type.create(model, rule.element_a, rule.element_b, **rule.kwargs)
-        return [rule for rule in rules if rule is not None]
+    def extend_elements(self, other_generators):
+        intersecting_generators = []
+        for g in other_generators:
+            if g is not self and aabb_overlap_x(self, g):
+                intersecting_generators.append(g)
+        if not intersecting_generators:
+            return
+        self._extend_studs(intersecting_generators)
+
+
+    def trim_elements_with_generator(self, generator, skip_notches=False, skip_laps=False):
+        """Trim elements against *generator*'s outline.
+
+        Named beams (``header``, ``sill``, ``king_studs``, ``jack_studs``) are
+        now dynamic properties that search ``self.elements`` by category, so no
+        rebinding is needed after trimming — the base implementation's in-place
+        replacement of ``self.elements`` is sufficient.
+        """
+        super().trim_elements_with_generator(generator, skip_notches=skip_notches, skip_laps=skip_laps)
+
 
     def _extend_studs(self, intersecting_generators: list[ElementGenerator]) -> None:
         """Extend king and jack studs in-place to the nearest neighboring panel boundaries."""
-        for king_stud in filter(lambda x: x.attributes["category"] == "king_stud", self.elements):
+        print(f"this is a {self.__class__.__name__} crossing with the following {[g.__class__.__name__ for g in intersecting_generators]}")
+        for king_stud in [s for s in self.king_studs if s is not None]:
             extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
 
-        for jack_stud in filter(lambda x: x.attributes["category"] == "jack_stud", self.elements):
+        for jack_stud in [s for s in self.jack_studs if s is not None]:
             extend_beam_to_closest_element_generators(jack_stud, intersecting_generators, only_start=True)
 
     # ==========================================================================
     # Opening element culling functions
     # ==========================================================================
 
-    def _cull_stud(self, stud: Beam) -> bool:
-        """Split the bottom plate beam for door openings."""
-        self.elements.sort(key=lambda x: x.frame.point[0])  # sort left to right
-        king_studs = filter(lambda x: x.attributes["category"] == "king_stud", self.elements)
-        jack_studs = filter(lambda x: x.attributes["category"] == "jack_stud", self.elements)
+    def _cull_stud(self, stud: Beam2D) -> bool:
+        """Determine whether a stud coincides with a king or jack stud and should be culled."""
+        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
-        stud_x = stud.frame.point[0]
-        for king, jack, side in zip(king_studs, jack_studs, ["left", "right"]):
-            king_x = king.frame.point[0]
-            bounds = (king_x - (king.width / 2), king_x + (king.width / 2))
-            # check king stud overlap
-            if do_segments_overlap(stud.centerline, king.centerline):
-                if stud_x + stud.width / 2 > bounds[0] and stud_x - stud.width / 2 < bounds[1]:
-                    return True
-            if all(jack_studs):
-                # check jack stud overlap
-                if do_segments_overlap(stud.centerline, jack.centerline):
-                    jack_x = jack.frame.point[0]
-                    if side == "left":
-                        bounds = (king_x - (king.width / 2), jack_x + (jack.width / 2))
-                    else:  # right jack stud
-                        bounds = (jack_x - (jack.width / 2), king_x + (king.width / 2))
-                    if stud_x + stud.width / 2 > bounds[0] and stud_x - stud.width / 2 < bounds[1]:
-                        return True
-        return False
-
-    def cut_out_of_plate(self, plate: Plate) -> None:
+    def apply_to_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.
 
         Parameters

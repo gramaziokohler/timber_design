@@ -44,11 +44,6 @@ class StudElementGenerator(ElementGenerator):
         super(StudElementGenerator, self).__init__(panel, params)
         self.stud_spacing = params.stud_spacing
 
-    @property
-    def panel(self) -> Panel:
-        """The panel feature."""
-        return self.feature
-
     def generate_elements(self):
         """Populates the panel with stud beams."""
         self._create_studs()

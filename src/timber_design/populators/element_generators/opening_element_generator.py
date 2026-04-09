@@ -149,9 +149,6 @@ class OpeningElementGenerator(ElementGenerator):
             self.elements.append(self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", name="sill"))
             edge_segs.append(segments[3].translated([0, -sill_offset*2, 0]))
 
-
-
-
         if self.sill is not None and not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled sill
             plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, self.sill, is_joinery=False)
@@ -164,7 +161,6 @@ class OpeningElementGenerator(ElementGenerator):
 
         extend_line_segments(edge_segs, close_loop=True)
         self.outline = join_polyline_segments(edge_segs, close_loop=True)[0][0]
-        self.test.append(edge_segs)
 
     @property   
     def header(self):
@@ -223,29 +219,6 @@ class OpeningElementGenerator(ElementGenerator):
 
 
 
-    # ==========================================================================
-    # Opening element joining functions
-    # ==========================================================================
-
-    # def create_internal_joint_defs(self, model) -> list[DirectRule]:
-    #     """Join the sill and header to king and jack studs."""
-    #     print("Creating internal joints for opening element generator...")
-    #     king_studs = [s for s in [self.left_king_stud, self.right_king_stud] if s is not None]
-    #     jack_studs = [s for s in [self.left_jack_stud, self.right_jack_stud] if s is not None]
-    #     # join header to king and jack studs
-    #     for king in king_studs:
-    #         self.joint_defs.append(self.get_direct_rule_from_elements(self.header, king, max_distance=king.width / 2))
-    #     for jack in jack_studs:
-    #         self.joint_defs.append(self.get_direct_rule_from_elements(jack, self.header, max_distance=jack.width / 2))
-    #     # join sill to jack studs (or king studs if no jack studs)
-    #     if self.sill is not None:
-    #         for jack, king in zip(jack_studs, king_studs):
-    #             self.joint_defs.append(self.get_direct_rule_from_elements(self.sill, jack, max_distance=jack.width / 2))
-    #         if not jack_studs:
-    #             for king in king_studs:
-    #                 self.joint_defs.append(self.get_direct_rule_from_elements(self.sill, king, max_distance=king.width / 2))
-    #     print(f"Created {len(self.joint_defs)} internal joint definitions for opening.")
-
     def extend_elements(self, other_generators):
         intersecting_generators = []
         for g in other_generators:
@@ -256,20 +229,8 @@ class OpeningElementGenerator(ElementGenerator):
         self._extend_studs(intersecting_generators)
 
 
-    def trim_elements_with_generator(self, generator, skip_notches=False, skip_laps=False):
-        """Trim elements against *generator*'s outline.
-
-        Named beams (``header``, ``sill``, ``king_studs``, ``jack_studs``) are
-        now dynamic properties that search ``self.elements`` by category, so no
-        rebinding is needed after trimming — the base implementation's in-place
-        replacement of ``self.elements`` is sufficient.
-        """
-        super().trim_elements_with_generator(generator, skip_notches=skip_notches, skip_laps=skip_laps)
-
-
     def _extend_studs(self, intersecting_generators: list[ElementGenerator]) -> None:
         """Extend king and jack studs in-place to the nearest neighboring panel boundaries."""
-        print(f"this is a {self.__class__.__name__} crossing with the following {[g.__class__.__name__ for g in intersecting_generators]}")
         for king_stud in [s for s in self.king_studs if s is not None]:
             extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
 
@@ -294,17 +255,6 @@ class OpeningElementGenerator(ElementGenerator):
         """
         opening_a = Polyline([p for p in self.feature.outline_a])
         opening_b = Polyline([p for p in self.feature.outline_b])
-
-        # if self.opening_type == "door":
-        #     lines = [(i, l) for i, l in enumerate(opening_a.lines)]
-        #     bottom_edge_index = min(lines, key=lambda x: x[1].midpoint.y)[0]
-        #     opening_a[bottom_edge_index].y -= 0.1
-        #     opening_a[(bottom_edge_index + 1) % len(opening_a)].y -= 0.1
-        #     opening_a[-1] = opening_a[0]
-        #     opening_b[bottom_edge_index].y -= 0.1
-        #     opening_b[(bottom_edge_index + 1) % len(opening_b)].y -= 0.1
-        #     opening_b[-1] = opening_b[0]
-
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening_a.points, opening_b.points)]
         outline_a_projected = Polyline([intersection_line_plane(line, plate.planes[0]) for line in lines])
         outline_b_projected = Polyline([intersection_line_plane(line, plate.planes[1]) for line in lines])

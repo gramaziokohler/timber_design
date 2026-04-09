@@ -41,11 +41,6 @@ class PlateElementGenerator(ElementGenerator):
         self.sheeting_inside = params.sheeting_inside
         self.sheeting_outside = params.sheeting_outside
 
-    @property
-    def panel(self) -> Panel:
-        """The panel feature."""
-        return self.feature
-
     def generate_elements(self) -> None:
         """Populates the panel with plate elements."""
         self._create_plates()

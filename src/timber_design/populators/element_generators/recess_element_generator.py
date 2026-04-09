@@ -61,11 +61,6 @@ class RecessElementGenerator(ElementGenerator):
         self.sheeting_recess = params.sheeting_recess
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
-    @property
-    def panel(self) -> Panel:
-        """The panel feature."""
-        return self.feature
-
     def apply_to_plate(self, plate):
         if plate.name == "inside_plate":
             return self._cut_out_of_plate(plate)

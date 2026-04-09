@@ -9,7 +9,6 @@ from compas.itertools import pairwise
 from compas.geometry import Line
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
-from compas.geometry import intersection_line_line
 from timber_design.populators.beam2d import AABB2D
 from compas_timber.elements import Plate
 from compas_timber.base import TimberElement
@@ -85,7 +84,6 @@ class ElementGenerator(ABC):
         self.joint_defs = []
         self.elements = []
         self.outline = None
-        self.test = []
 
 
     @property
@@ -105,6 +103,15 @@ class ElementGenerator(ABC):
             return None
         return AABB2D.from_points(pts)
 
+    @property
+    def panel(self):
+        """The panel (or feature) associated with this generator.
+
+        For generators whose ``feature`` is the panel itself (edge, plate,
+        stud, recess) this is a direct alias.  Subclasses that use a different
+        feature type (e.g. ``OpeningElementGenerator``) can override this.
+        """
+        return self.feature
 
     def update_rules(self, joint_rule_overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Update the rules with any overrides provided."""

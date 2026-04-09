@@ -78,12 +78,6 @@ class EdgeElementGenerator(ElementGenerator):
         self.standard_beam_width_increment = params.standard_beam_width_increment
         self.edge_beam_min_width = params.edge_beam_min_width or 0.0
 
-    @property
-    def panel(self) -> Panel:
-        """The panel associated with this element generator."""
-        return self.feature  # type: ignore
-
-
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================

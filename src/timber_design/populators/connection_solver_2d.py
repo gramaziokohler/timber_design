@@ -1,23 +1,16 @@
 from __future__ import annotations
 
 from itertools import combinations
-from itertools import product
 from typing import TYPE_CHECKING
-from typing import Union
 
 if TYPE_CHECKING:
-    from timber_design.populators.element_generators.element_generator import ElementGenerator
-    from timber_design.populators.beam2d import Beam2D
+    pass
 
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
-from compas.geometry import intersection_line_line_xy
 from compas.geometry import intersection_segment_segment
-from compas_timber.connections import JointCandidate
 from compas_timber.connections.solver import JointTopology
-
-
 
 # =============================================================================
 # Internal helpers
@@ -35,12 +28,12 @@ def _average_point(points):
 
 
 def aabb_overlap(a, b, tolerance=0.0):
-    # type: (Union[Beam2D, ElementGenerator], Union[Beam2D, ElementGenerator], float) -> bool
+    # type: (Union[Beam2D, PopulatorAgent], Union[Beam2D, PopulatorAgent], float) -> bool
     """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY.
 
     Parameters
     ----------
-    a, b : :class:`~timber_design.populators.Beam2D` or ElementGenerator
+    a, b : :class:`~timber_design.populators.Beam2D` or PopulatorAgent
     tolerance : float
         Each AABB is expanded by this amount in every direction before the
         overlap test.  Use a small positive value (e.g. the model tolerance)
@@ -58,8 +51,8 @@ def aabb_overlap(a, b, tolerance=0.0):
 
 
 def aabb_overlap_x(a, b, tolerance=0.0):
-    # type: (Union[Beam2D, ElementGenerator], Union[Beam2D, ElementGenerator], float) -> bool
-    """Return ``True`` if the element AABBs of two generators overlap in X.
+    # type: (Union[Beam2D, PopulatorAgent], Union[Beam2D, PopulatorAgent], float) -> bool
+    """Return ``True`` if the element AABBs of two agents overlap in X.
 
     Parameters
     ----------
@@ -69,6 +62,7 @@ def aabb_overlap_x(a, b, tolerance=0.0):
     if not (a.aabb and b.aabb):
         return False
     return a.aabb.xmax + tolerance >= b.aabb.xmin - tolerance and b.aabb.xmax + tolerance >= a.aabb.xmin - tolerance
+
 
 # =============================================================================
 # ConnectionSolver2D
@@ -100,10 +94,10 @@ class ConnectionSolver2D(object):
             if candidate:
                 model.add_joint_candidate(candidate)
 
-    For generator-level pre-filtering::
+    For agent-level pre-filtering::
 
-        for gen_a, gen_b in solver.find_intersecting_generator_pairs(generators):
-            for beam_a, beam_b in product(gen_a.elements, gen_b.elements):
+        for agent_a, agent_b in solver.find_intersecting_agent_pairs(agents):
+            for beam_a, beam_b in product(agent_a.elements, agent_b.elements):
                 candidate = solver.find_topology(beam_a, beam_b)
                 if candidate:
                     model.add_joint_candidate(candidate)
@@ -132,23 +126,23 @@ class ConnectionSolver2D(object):
                 if aabb_overlap(beam_a, beam_b, tolerance=self.max_distance):
                     yield beam_a, beam_b
 
-    def find_intersecting_generator_pairs(self, generators):
-        """Yield ``(gen_a, gen_b)`` pairs from *generators* whose element AABBs overlap.
+    def find_intersecting_agent_pairs(self, agents):
+        """Yield ``(agent_a, agent_b)`` pairs from *agents* whose element AABBs overlap.
 
         Pairs whose AABBs are within :attr:`max_distance` of each other are
-        also included so that adjacent generators are not missed.
+        also included so that adjacent agents are not missed.
 
         Parameters
         ----------
-        generators : list[:class:`~timber_design.populators.element_generators.ElementGenerator`]
+        agents : list[:class:`~timber_design.populators.populator_agents.PopulatorAgent`]
 
         Yields
         ------
-        tuple[ElementGenerator, ElementGenerator]
+        tuple[:class:`~timber_design.populators.PopulatorAgent`, :class:`~timber_design.populators.PopulatorAgent`]
         """
-        for gen_a, gen_b in combinations(generators, 2):
-            if aabb_overlap(gen_a, gen_b, tolerance=self.max_distance):
-                yield gen_a, gen_b
+        for agent_a, agent_b in combinations(agents, 2):
+            if aabb_overlap(agent_a, agent_b, tolerance=self.max_distance):
+                yield agent_a, agent_b
 
     def find_topology(self, beam_a, beam_b):
         """Return the 2D blank-overlap topology between *beam_a* and *beam_b*.
@@ -182,19 +176,18 @@ class ConnectionSolver2D(object):
         a_in_b = [pt for pt in a_corners if beam_b.contains_point(pt)]
         b_in_a = [pt for pt in b_corners if beam_a.contains_point(pt)]
 
-
         if a_in_b and b_in_a:
             # L-joint: both beams have blank corners inside each other
             location = _average_point(a_in_b + b_in_a)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_L, location=location)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance=0.0, topology=JointTopology.TOPO_L, location=location)
         if a_in_b:
             # T-joint: beam_a is the end beam
             location = _average_point(a_in_b)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_T, location=location)
+            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance=0.0, topology=JointTopology.TOPO_T, location=location)
         if b_in_a:
             # T-joint: beam_b is the end beam — normalise so element_a is always the end beam
             location = _average_point(b_in_a)
-            return Beam2DSolverResult(beam_a=beam_b, beam_b=beam_a, distance = 0.0, topology=JointTopology.TOPO_T, location=location)
+            return Beam2DSolverResult(beam_a=beam_b, beam_b=beam_a, distance=0.0, topology=JointTopology.TOPO_T, location=location)
 
         # Check for face-to-face: parallel beams sharing a colinear long edge.
         # Conditions:
@@ -234,9 +227,17 @@ class ConnectionSolver2D(object):
                     pts.append(Point(*result[0]))
         if pts:
             location = _average_point(pts)
-            return Beam2DSolverResult(beam_a=beam_a, beam_b=beam_b, distance = 0.0, topology=JointTopology.TOPO_X, location=location, test=pts+[beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]+[beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end])
+            return Beam2DSolverResult(
+                beam_a=beam_a,
+                beam_b=beam_b,
+                distance=0.0,
+                topology=JointTopology.TOPO_X,
+                location=location,
+                test=pts
+                + [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
+                + [beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end],
+            )
         return None
-
 
 
 class Beam2DSolverResult:
@@ -246,4 +247,4 @@ class Beam2DSolverResult:
         self.distance = distance
         self.topology = topology
         self.location = location
-        self.test=test
+        self.test = test

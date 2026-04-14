@@ -1,4 +1,3 @@
-from calendar import c
 from compas.tolerance import TOL
 from compas_timber.connections import Cluster
 from compas_timber.connections import JointTopology
@@ -59,6 +58,10 @@ class JointRuleSolver(object):
         self.max_distance = max_distance
         self.clusters = []
         self.joining_errors = []
+
+    @property
+    def max_rule_distance(self):
+        return max([rule.max_distance for rule in self.rules if rule.max_distance] + [self.max_distance])
 
     @staticmethod
     def _sort_rules(rules, use_default_topo=False):
@@ -623,7 +626,7 @@ def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="
         pass
 
 
-def get_clusters_from_model(model, max_distance=None, ignore_joints = True):
+def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
     """Analyzes the model to find clusters of beams and plates. This will create JointCandidates and PlateJointCandidates in the model.
     Parameters
     ----------
@@ -693,4 +696,3 @@ class DebugInfomation(object):
             self.joint_errors.extend(error)
         else:
             self.joint_errors.append(error)
-

@@ -1,9 +1,8 @@
-from compas.geometry import Translation
+from compas.geometry import Point
 from compas.geometry import Polygon
 from compas.geometry import Polyline
-from compas.geometry import Point
+from compas.geometry import Translation
 from compas.geometry import Vector
-from compas.geometry import Line
 from compas.geometry import dot_vectors
 from compas_timber.elements import Beam
 
@@ -52,7 +51,7 @@ class Beam2D(Beam):
     """A :class:`~compas_timber.elements.Beam` extended with 2D blank geometry.
 
     Adds lazy properties for the beam's projected blank edges and polygon,
-    used by :class:`~timber_design.populators.BeamGeneratorIntersection` and
+    used by :class:`~timber_design.populators.BeamOutlineIntersectionData` and
     :meth:`~timber_design.populators.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
@@ -89,9 +88,9 @@ class Beam2D(Beam):
 
     @property
     def edges(self):
-        """The two long blank edges as a tuple of :class:`compas.geometry.Line`s.  """
+        """The two long blank edges as a tuple of :class:`compas.geometry.Line`s."""
         return self.blank_outline.lines
-    
+
     @property
     def edge_a(self):
         """The ``-yaxis`` long blank edge.
@@ -112,7 +111,7 @@ class Beam2D(Beam):
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return self.edges[2] 
+        return self.edges[2]
 
     @property
     def start_segment(self):
@@ -225,10 +224,7 @@ class Beam2D(Beam):
         vec = Vector.from_start_end(self.frame.point, point)
         along = dot_vectors(vec, self.frame.xaxis)
         perp = dot_vectors(vec, self.frame.yaxis)
-        return (
-            -tolerance <= along <= self.length + tolerance
-            and -self.width / 2.0 - tolerance <= perp <= self.width / 2.0 + tolerance
-        )
+        return -tolerance <= along <= self.length + tolerance and -self.width / 2.0 - tolerance <= perp <= self.width / 2.0 + tolerance
 
     def _invalidate_blank_cache(self):
         """Clear all cached blank geometry so it is recomputed on next access."""
@@ -245,9 +241,7 @@ class Beam2D(Beam):
         seg_length = end_length - start_length
         if seg_length <= 0.000001:
             raise ValueError(
-                "get_beam_segment called with degenerate range [{}, {}] on beam '{}' (length={})".format(
-                    start_length, end_length, self.attributes.get("name", "?"), self.length
-                )
+                "get_beam_segment called with degenerate range [{}, {}] on beam '{}' (length={})".format(start_length, end_length, self.attributes.get("name", "?"), self.length)
             )
         beam_seg = self.copy()
         # copy() deep-copies any cached _blank_outline/_blank_polygon which would

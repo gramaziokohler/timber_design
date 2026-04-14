@@ -1,188 +1,194 @@
-try:
-    from typing import TYPE_CHECKING
-    from typing import Optional
-
-    if TYPE_CHECKING:
-        from compas_timber.panel_features import PanelFeature
-
-        from timber_design.populators import ElementGeneratorParams
-        from timber_design.populators import GeneratorFactoryParams
-        from timber_design.populators import PanelGeneratorFactory
-        from timber_design.workflow import DirectRule
-except ImportError:
-    pass
-
 from itertools import product
 
-from compas.geometry import Vector
-from compas.geometry import cross_vectors
-from compas.tolerance import TOL
-from compas_timber.elements import Panel
 from compas_timber.connections import JointCandidate
+from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.model import TimberModel
-from compas_timber.panel_features import PanelFeature
+
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.workflow import JointRuleSolver
-from compas_timber.connections import get_clusters_from_joint_candidates
-
-
-
-class FeaturePopulatorDefinition(object):
-    """Defines a feature in the panel populator.
-
-    Parameters
-    ----------
-    feature : :class:`compas_timber.elements.PanelFeature`
-        The geometry of the feature.
-    element_generator : timber_design.element_generators.ElementGeneratorParameters
-        The element_generator for the feature.
-
-    """
-
-    def __init__(self, feature: PanelFeature, params: "ElementGeneratorParams", generator_type):
-        self.feature = feature
-        self.params = params
-        self.generator_type = generator_type
-
-
-class PanelPopulatorDefinition(object):
-    """Defines a feature in the panel populator.
-
-    Parameters
-    ----------
-    feature : :class:`compas_timber.elements.PanelFeature`
-        The geometry of the feature.
-    element_generator : timber_design.element_generators.ElementGeneratorParameters
-        The element_generator for the feature.
-
-    """
-
-    def __init__(self, panel: "Panel", params: "GeneratorFactoryParams", factory: "PanelGeneratorFactory", orientation: Optional[Vector] = None):
-        self.panel = panel
-        self.params = params
-        self.factory = factory
-        self.orientation = self.get_projected_vector(orientation)
-
-    def get_projected_vector(self, orientation: Optional[Vector] = None) -> Vector:
-        if not orientation:
-            return Vector(0, 1, 0)
-        perp = cross_vectors(self.panel.normal, orientation)
-        if all(TOL.is_zero(perp[i]) for i in range(3)):
-            return Vector(0, 1, 0)
-        return Vector(*cross_vectors(perp, self.panel.normal)).transformed(self.panel.transformation_to_local())
 
 
 class PanelPopulator(object):
-    """Create a timber assembly from a panel.
+    """Orchestrates the full population of a timber panel with framing elements.
+
+    ``PanelPopulator`` is the top-level coordinator for the panel-population
+    workflow.  It holds a list of :class:`~timber_design.populators.PopulatorAgent`
+    instances — each responsible for one logical group of elements (edge beams,
+    studs, plates, openings, …) — and drives them through a fixed sequence of
+    stages:
+
+    1. **generate_elements** — each agent creates its beams and plates.
+    2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
+    3. **trim_elements** — beams that cross an agent boundary are split; segments inside an *exclusive* zone or outside an *inclusive* zone are discarded.
+    4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
+    5. **join_elements** — within-agent joint candidates are resolved, then cross-agent candidates are collected, clustered, and matched against the joint-rule lists of
+    both agents.
+    6. **process_joinery** — fabrication features (BTLx processings) are computed and applied to each element.
+    7. **merge_with_model** — elements are transformed back to world space and attached as children of the source panel in the caller's model.
+
+    All geometry during stages 1–6 lives in a flat 2D *populator space*: the
+    panel is re-expressed as a local axis-aligned rectangle (X = panel length,
+    Y = panel width, Z = panel thickness).  This simplifies topology detection
+    and trimming, which are performed in 2D by :class:`~timber_design.populators.ConnectionSolver2D`.
 
     Parameters
     ----------
     panel : :class:`compas_timber.elements.Panel`
-        The source panel to populate.
-    params : :class:`timber_design.populators.GeneratorFactoryParams`
-        Parameters used by the generator factory to create local data and generators.
-    factory : :class:`timber_design.populators.PanelGeneratorFactory`
-        Factory used to create element generators and localized panel data.
-    feature_generators : list[:class:`timber_design.populators.ElementGenerator`] | None, optional
-        Optional list of feature-specific element generators to include.
+        The local (populator-space) panel.
+    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+        Ordered list of agents.  Ordering matters for trimming: agents
+        earlier in the list are trimmed against later ones, so the edge
+        agent should come first.
+    original_panel : :class:`compas_timber.elements.Panel`, optional
+        Reference to the source panel in the caller's model space.
+    transformation_to_populator : :class:`compas.geometry.Transformation`, optional
+        Transformation from world/panel space to populator space.
+        Its inverse is applied in :meth:`merge_with_model`.
 
     Attributes
     ----------
     panel : :class:`compas_timber.elements.Panel`
-        A localized copy or view of the input panel used by the generators.
-    transformation_panel_to_populator : :class:`compas.geometry.Transformation`
-        Transformation that brings panel local coordinates into the populator frame.
-    element_generators : list[:class:`timber_design.populators.ElementGenerator`]
-        The element generators responsible for creating elements for this panel.
-    joint_defs : list[:class:`timber_design.workflow.DirectRule`]
-        Joint/connection rules produced when generators are joined.
-    model : :class:`~timber_design.populators.Model2D`
-        The temporary timber model populated by the generators.
+        A localized copy of the panel in populator (2D) space.
+    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+        Ordered list of agents.
+    original_panel : :class:`compas_timber.elements.Panel`
+        Reference to the source panel in the caller's model space.
+    transformation_to_populator : :class:`compas.geometry.Transformation`
+        Transformation from world/panel space to populator space.
+        Its inverse is applied in :meth:`merge_with_model`.
+    model : :class:`compas_timber.model.TimberModel`
+        Internal model that accumulates elements and joints during population.
 
+    Examples
+    --------
+    Typical usage::
+
+        from timber_design.populators import StudPanelPopulatorConfig
+
+        config = StudPanelPopulatorConfig(
+            standard_beam_width=60.0,
+            stud_spacing=625.0,
+            sheeting_inside=15.0,
+        )
+        populator = config.create_populator(panel)
+        populator.populate_elements()
+        populator.join_elements()
+        populator.process_joinery()
+        populator.merge_with_model(model)
     """
 
-    def __init__(self, panel_definition: PanelPopulatorDefinition, feature_definitions: Optional[list[FeaturePopulatorDefinition]] = None):
+    def __init__(self, panel, agents, original_panel=None, transformation_to_populator=None):
         super(PanelPopulator, self).__init__()
-        self.original_panel: Panel = panel_definition.panel
-
-        self.transformation_to_populator, self.panel = panel_definition.factory.create_local_panel(panel_definition)
-
-        transformed_feature_defs = [
-            FeaturePopulatorDefinition(
-                feature_def.feature.transformed(self.transformation_to_populator),
-                feature_def.params,
-                feature_def.generator_type,
-            )
-            for feature_def in (feature_definitions or [])
-        ]
-
-        self.element_generators = panel_definition.factory.create_generators(
-            self.panel, panel_definition.params, transformed_feature_defs
-        )
-
+        self.panel = panel
+        self.agents = agents
+        self.original_panel = original_panel
+        self.transformation_to_populator = transformation_to_populator
         self.model = TimberModel()
-        self.test = []
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
 
     def populate_elements(self):
-        """Runs the full population process, including generating elements, trimming, joining, and processing joinery."""
+        """Execute stages 1–4: generate, extend, trim, and add elements to the model.
+
+        Call :meth:`join_elements` and :meth:`process_joinery` afterwards to
+        complete the population workflow.
+        """
         self.generate_elements()
         self.extend_elements()
         self.trim_elements()
         self.add_elements_to_model()
 
     def generate_elements(self):
-        for g in self.element_generators:
+        """Ask each agent to create its beams and plates (stage 1)."""
+        for g in self.agents:
             g.generate_elements()
 
     def extend_elements(self):
-        for g in self.element_generators:
-            g.extend_elements(self.element_generators)
+        """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
+        for g in self.agents:
+            g.extend_elements(self.agents)
 
     def trim_elements(self):
+        """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
+
+        Uses :class:`~timber_design.populators.ConnectionSolver2D` to find
+        pairs of agents whose axis-aligned bounding boxes overlap, then
+        calls :meth:`~timber_design.populators.PopulatorAgent.trim_elements_with_agent`
+        on both agents of each pair.
+        """
         solver = ConnectionSolver2D()
-        for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
-            gen_a.trim_elements_with_generator(gen_b)
-            gen_b.trim_elements_with_generator(gen_a)
+        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
+            agent_a.trim_elements_with_agent(agent_b)
+            agent_b.trim_elements_with_agent(agent_a)
 
     def add_elements_to_model(self):
-        for gen in self.element_generators:
-            for element in gen.elements:
+        """Add all surviving elements to the internal model (stage 4)."""
+        for agent in self.agents:
+            for element in agent.elements:
                 self.model.add_element(element)
 
     def join_elements(self):
-        self.create_generator_joints()
-        self.create_cross_generator_joints()
-        #TODO: handle clusters
+        """Resolve all joint candidates and create joints in the model (stage 5).
 
-    def create_generator_joints(self):
-        for gen in self.element_generators:
-            gen.create_internal_joint_defs(self.model)
-            for j_def in gen.joint_defs:
+        Runs :meth:`create_agent_joints` first (within-agent joints),
+        then :meth:`create_cross_agent_joints` (between-agent joints).
+        """
+        self.create_agent_joints()
+        self.create_cross_agent_joints()
+
+    def create_agent_joints(self):
+        """Create joints between elements that belong to the same agent.
+
+        Each agent collects its own joint candidates via
+        :meth:`~timber_design.populators.PopulatorAgent.create_internal_joint_defs`,
+        then each :class:`~timber_design.workflow.DirectRule` in
+        ``agent.joint_defs`` is immediately applied to the model.
+        """
+        for agent in self.agents:
+            agent.create_internal_joint_defs(self.model)
+            for j_def in agent.joint_defs:
                 j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
 
-    def create_cross_generator_joints(self):
+    def create_cross_agent_joints(self):
+        """Create joints between elements that belong to different agents.
+
+        For each overlapping agent pair the solver enumerates all
+        cross-product element pairs, detects topology, collects
+        :class:`~compas_timber.connections.JointCandidate` objects, clusters
+        them by proximity, and hands the clusters to a
+        :class:`~timber_design.workflow.JointRuleSolver` built from the
+        combined rule lists of both agents.
+        """
         solver = ConnectionSolver2D()
-        for gen_a, gen_b in solver.find_intersecting_generator_pairs(self.element_generators):
+        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
             candidates = []
-            for element_a, element_b in product(gen_a.elements, gen_b.elements):
+            for element_a, element_b in product(agent_a.elements, agent_b.elements):
                 topo_result = solver.find_topology(element_a, element_b)
                 if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance = topo_result.distance, topology = topo_result.topology, location = topo_result.location)
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
                     self.model.add_joint_candidate(candidate)
                     candidates.append(candidate)
             clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-            jrs = JointRuleSolver(gen_a.rules + gen_b.rules)
+            jrs = JointRuleSolver(agent_a.rules + agent_b.rules)
             jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):
+        """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
         self.model.process_joinery()
 
-
     def merge_with_model(self, model, clear_panel=False):
-        """Merges the panel populator with a timber model."""
+        """Transform elements back to world space and attach them to the caller's model (stage 7).
+
+        Parameters
+        ----------
+        model : :class:`compas_timber.model.TimberModel`
+            The caller's model to merge into.
+        clear_panel : bool, optional
+            When ``True``, removes all existing children of :attr:`original_panel`
+            (and their joints) from *model* before merging.  Use this to
+            re-populate a panel that has already been processed.
+        """
         if clear_panel:
             for element in self.original_panel.children:
                 for joint in model.joints:
@@ -194,6 +200,3 @@ class PanelPopulator(object):
             model.add_element(element, parent=self.original_panel)
         for j in self.model.joints:
             model.add_joint(j)
-
-
-

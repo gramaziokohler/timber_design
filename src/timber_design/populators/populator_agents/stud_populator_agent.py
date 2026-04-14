@@ -1,19 +1,16 @@
 from dataclasses import dataclass
-from typing import List
-from typing import Optional
-from typing import Union
 
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Panel
 
-from timber_design.populators import ElementGenerator
-from timber_design.populators import ElementGeneratorParams
+from timber_design.populators import PopulatorAgent
+from timber_design.populators import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class StudElementGeneratorParams(ElementGeneratorParams):
+class StudPopulatorAgentConfig(PopulatorAgentConfig):
     stud_spacing: float = 0.0
 
     @property
@@ -23,11 +20,33 @@ class StudElementGeneratorParams(ElementGeneratorParams):
         return data
 
 
-class StudElementGenerator(ElementGenerator):
-    """A panel detail set that uses the default edge beams, studs, and plates."""
+class StudPopulatorAgent(PopulatorAgent):
+    """Generates evenly-spaced vertical studs for a stud-framed wall panel.
+
+    Studs are placed at fixed ``stud_spacing`` intervals along the panel X
+    axis, starting at ``stud_spacing`` from the left edge and stopping before
+    the right edge.  Each stud runs the full panel height (Y axis).
+
+    Stud segments that intersect with an :class:`~timber_design.populators.OpeningPopulatorAgent`
+    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_elements`
+    phase; overlapping king or jack studs are culled by
+    :meth:`~OpeningPopulatorAgent._cull_stud`.
+
+    Parameters
+    ----------
+    panel : :class:`compas_timber.elements.Panel`
+        The panel to fill with studs.
+    params : :class:`StudPopulatorAgentParams`
+        Must include ``stud_spacing`` and optionally beam width overrides.
+
+    Attributes
+    ----------
+    stud_spacing : float
+        On-centre spacing between studs in model units.
+    """
 
     BEAM_CATEGORY_NAMES = ["stud"]
-    NAME = "StudElementGenerator"
+    NAME = "StudPopulatorAgent"
     RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -39,9 +58,9 @@ class StudElementGenerator(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        params: StudElementGeneratorParams,
+        params: StudPopulatorAgentConfig,
     ):
-        super(StudElementGenerator, self).__init__(panel, params)
+        super(StudPopulatorAgent, self).__init__(panel, params)
         self.stud_spacing = params.stud_spacing
 
     def generate_elements(self):
@@ -57,4 +76,6 @@ class StudElementGenerator(ElementGenerator):
             x_position += self.stud_spacing
         self.elements = studs
 
-  
+
+# Set after both classes are defined so forward reference is resolved
+StudPopulatorAgentConfig.AGENT_TYPE = StudPopulatorAgent

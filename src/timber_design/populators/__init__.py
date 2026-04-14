@@ -2,68 +2,61 @@ from .beam2d import AABB2D
 from .beam2d import Beam2D
 
 from .populator import PanelPopulator
-from .populator import PanelPopulatorDefinition
-from .populator import FeaturePopulatorDefinition
 
-from .generator_intersection import BeamOutlineIntersectionData
-from .generator_intersection import extend_beam_to_closest_element_generators
-from .generator_intersection import find_beam_outline_crossings
+from .agent_intersection import BeamOutlineIntersectionData
+from .agent_intersection import extend_beam_to_closest_agents
+from .agent_intersection import find_beam_outline_crossings
 
 from .connection_solver_2d import ConnectionSolver2D
 from .connection_solver_2d import aabb_overlap_x
 from .connection_solver_2d import aabb_overlap
 
-from .element_generators.element_generator import ElementGenerator
-from .element_generators.element_generator import FeatureBoundaryType
-from .element_generators.element_generator import ElementGeneratorParams
-from .element_generators.stud_element_generator import StudElementGenerator
-from .element_generators.stud_element_generator import StudElementGeneratorParams
-from .element_generators.plate_element_generator import PlateElementGenerator
-from .element_generators.plate_element_generator import PlateElementGeneratorParams
-from .element_generators.edge_element_generator import EdgeElementGenerator
-from .element_generators.edge_element_generator import EdgeElementGeneratorParams
-from .element_generators.opening_element_generator import OpeningElementGenerator
-from .element_generators.opening_element_generator import OpeningElementGeneratorParams
-from .element_generators.recess_element_generator import RecessElementGenerator
-from .element_generators.recess_element_generator import RecessElementGeneratorParams
+from .populator_agents.populator_agent import PopulatorAgent
+from .populator_agents.populator_agent import FeatureBoundaryType
+from .populator_agents.populator_agent import PopulatorAgentConfig
+from .populator_agents.stud_populator_agent import StudPopulatorAgent
+from .populator_agents.stud_populator_agent import StudPopulatorAgentConfig
+from .populator_agents.plate_populator_agent import PlatePopulatorAgent
+from .populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
+from .populator_agents.edge_populator_agent import EdgePopulatorAgent
+from .populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
+from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
+from .populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
+from .populator_agents.recess_populator_agent import RecessPopulatorAgent
+from .populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
 
-from .generator_factories.panel_generator_factory import PanelGeneratorFactory
-from .generator_factories.panel_generator_factory import GeneratorFactoryParams
-from .generator_factories.recess_panel_generator_factory import RecessPanelGeneratorFactoryParams
-from .generator_factories.recess_panel_generator_factory import RecessPanelGeneratorFactory
-from .generator_factories.stud_panel_generator_factory import StudPanelGeneratorFactoryParams
-from .generator_factories.stud_panel_generator_factory import StudPanelGeneratorFactory
+
+from .populator_configs.panel_populator_config import PanelPopulatorConfig
+from .populator_configs.panel_populator_config import get_frame_panel
+from .populator_configs.stud_panel_populator_config import StudPanelPopulatorConfig
+from .populator_configs.recess_panel_populator_config import RecessPanelPopulatorConfig
 
 
 __all__ = [
     "PanelPopulator",
-    "PanelPopulatorDefinition",
-    "FeaturePopulatorDefinition",
     "AABB2D",
     "Beam2D",
-    "ElementGenerator",
+    "PopulatorAgent",
     "FeatureBoundaryType",
-    "ElementGeneratorParams",
-    "EdgeElementGenerator",
-    "EdgeElementGeneratorParams",
-    "StudElementGenerator",
-    "StudElementGeneratorParams",
-    "PlateElementGenerator",
-    "PlateElementGeneratorParams",
-    "OpeningElementGenerator",
-    "OpeningElementGeneratorParams",
-    "RecessElementGenerator",
-    "RecessElementGeneratorParams",
+    "PopulatorAgentConfig",
+    "EdgePopulatorAgent",
+    "EdgePopulatorAgentConfig",
+    "StudPopulatorAgent",
+    "StudPopulatorAgentConfig",
+    "PlatePopulatorAgent",
+    "PlatePopulatorAgentConfig",
+    "OpeningPopulatorAgent",
+    "OpeningPopulatorAgentConfig",
+    "RecessPopulatorAgent",
+    "RecessPopulatorAgentConfig",
     "BeamOutlineIntersectionData",
     "ConnectionSolver2D",
     "aabb_overlap_x",
     "aabb_overlap",
-    "extend_beam_to_closest_element_generators",
+    "extend_beam_to_closest_agents",
     "find_beam_outline_crossings",
-    "PanelGeneratorFactory",
-    "GeneratorFactoryParams",
-    "RecessPanelGeneratorFactoryParams",
-    "RecessPanelGeneratorFactory",
-    "StudPanelGeneratorFactoryParams",
-    "StudPanelGeneratorFactory",
+    "PanelPopulatorConfig",
+    "get_frame_panel",
+    "StudPanelPopulatorConfig",
+    "RecessPanelPopulatorConfig",
 ]

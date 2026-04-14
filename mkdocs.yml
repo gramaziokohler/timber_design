@@ -141,6 +141,11 @@ plugins:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - User Guide:
+      - Populating Panels: user_guide/populating_panels.md
   - API Reference:
       - workflow: api/timber_design.workflow.md
+      - populators: api/timber_design.populators.md
+  - Contribution:
+      - Class Diagrams: contribution/class_diagrams.md
   - License: license.md

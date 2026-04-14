@@ -3,18 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from timber_design.populators import ElementGenerator
+    pass
 
 from compas.geometry import Point
-from compas.geometry import Polyline
 from compas.geometry import Translation
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-
-from timber_design.populators.beam2d import Beam2D
-
 
 # =============================================================================
 # Intersection data
@@ -22,7 +18,7 @@ from timber_design.populators.beam2d import Beam2D
 
 
 class BeamOutlineIntersectionData(object):
-    """Stores dot-position data for one entry/exit crossing of a generator outline through a beam blank.
+    """Stores dot-position data for one entry/exit crossing of an agent outline through a beam blank.
 
     Parameters
     ----------
@@ -77,7 +73,7 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
     limit_to_segments : bool
         When ``False``, the long blank edges are treated as infinite lines so
         that intersections outside the beam's current extents are found (used
-        for extending beams to a generator boundary).
+        for extending beams to an agent boundary).
     skip_notches : bool
         (reserved for future classification filtering)
     skip_laps : bool
@@ -94,12 +90,12 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
         """Project *pt* onto the beam centreline and return the signed distance from beam start."""
         return dot_vectors(Vector.from_start_end(beam.frame.point, pt), beam.frame.xaxis)
 
-    def _intersect_with_blank_edge(gen_edge, blank_idx):
+    def _intersect_with_blank_edge(agent_edge, blank_idx):
         blank_edge = blank_lines[blank_idx]
         if not limit_to_segments and blank_idx in _LONG_FACE_INDICES:
-            result = intersection_line_segment(blank_edge, gen_edge)
+            result = intersection_line_segment(blank_edge, agent_edge)
         else:
-            result = intersection_segment_segment(gen_edge, blank_edge)
+            result = intersection_segment_segment(agent_edge, blank_edge)
         pt = result[0] if result else None
         return Point(*pt) if pt else None
 
@@ -107,10 +103,10 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
     # Step 1: collect all dot-position intersection hits per outline segment
     # ------------------------------------------------------------------
     dots_by_outline = {}
-    for i, gen_edge in enumerate(outline.lines):
+    for i, agent_edge in enumerate(outline.lines):
         dots_by_outline[i] = []
         for j in range(4):
-            pt = _intersect_with_blank_edge(gen_edge, j)
+            pt = _intersect_with_blank_edge(agent_edge, j)
             if pt is not None:
                 dots_by_outline[i].append(_beam_dot(pt))
 
@@ -148,10 +144,12 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 
         elif len(hit_dots) == 2:
             # outline edge traverses the full beam width in one step (SINGLE)
-            crossings_as_dots.append(BeamOutlineIntersectionData(
-                start_dot=min(hit_dots),
-                end_dot=max(hit_dots),
-            ))
+            crossings_as_dots.append(
+                BeamOutlineIntersectionData(
+                    start_dot=min(hit_dots),
+                    end_dot=max(hit_dots),
+                )
+            )
             current_entry = None
 
     # ------------------------------------------------------------------
@@ -178,14 +176,14 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 # =============================================================================
 
 
-def extend_beam_to_closest_element_generators(beam, element_generators, only_start=False, only_end=False):
-    # type: (Beam2D, list[ElementGenerator], bool, bool) -> None
-    """Extend *beam* in-place so its ends reach the nearest generator outlines.
+def extend_beam_to_closest_agents(beam, agents, only_start=False, only_end=False):
+    # type: (Beam2D, list[PopulatorAgent], bool, bool) -> None
+    """Extend *beam* in-place so its ends reach the nearest agent outlines.
 
     Parameters
     ----------
     beam : :class:`~timber_design.populators.Beam2D`
-    element_generators : list[:class:`~timber_design.populators.ElementGenerator`]
+    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
     only_start : bool
         Only extend toward the beam start (negative dot direction).
     only_end : bool
@@ -195,11 +193,9 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
         raise ValueError("Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam))
 
     intersections = []
-    for eg in element_generators:
-        if eg.outline is not None:
-            intersections.extend(
-                find_beam_outline_crossings(beam, eg.outline, limit_to_segments=False)
-            )
+    for agent in agents:
+        if agent.outline is not None:
+            intersections.extend(find_beam_outline_crossings(beam, agent.outline, limit_to_segments=False))
 
     if not intersections:
         return
@@ -236,8 +232,7 @@ def extend_beam_to_closest_element_generators(beam, element_generators, only_sta
     new_length = end - start
     if new_length <= 0:
         raise ValueError(
-            "extend_beam_to_closest_element_generators produced degenerate length {} "
-            "(bottom_dot={}, top_dot={}, original_length={}) on beam '{}'".format(
+            "extend_beam_to_closest_agents produced degenerate length {} (bottom_dot={}, top_dot={}, original_length={}) on beam '{}'".format(
                 new_length, bottom_dot, top_dot, beam.length, beam.attributes.get("name", "?")
             )
         )

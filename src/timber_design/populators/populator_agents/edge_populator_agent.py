@@ -1,48 +1,44 @@
 import math
 from dataclasses import dataclass
 from typing import Optional
-from typing import Union
 
 from compas.geometry import Line
 from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import angle_vectors
-from compas.geometry import angle_vectors_signed
 from compas.geometry import dot_vectors
-from compas.geometry import intersection_line_line
 from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
 from compas_timber.elements import Panel
+from compas_timber.fabrication import LongitudinalCutProxy
 
 from timber_design.populators.beam2d import Beam2D
-from compas_timber.fabrication import LongitudinalCutProxy
+
 try:
     from compas_timber.utils import extend_line_segments
 except ImportError:
+
     def extend_line_segments(segments, close_loop=False):
         raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
-from compas_timber.utils import get_polyline_segment_perpendicular_vector
-from compas_timber.utils import is_polyline_clockwise
-from compas_timber.utils import join_polyline_segments
+
+
 from compas_timber.utils import get_interior_corner_indices
-from compas_timber.utils import get_interior_segment_indices
+from compas_timber.utils import get_polyline_segment_perpendicular_vector
+from compas_timber.utils import join_polyline_segments
 
-
-from compas_timber.connections import JointCandidate
-
-from timber_design.populators import ConnectionSolver2D, ElementGenerator
-from timber_design.populators import ElementGeneratorParams
 from timber_design.populators import FeatureBoundaryType
+from timber_design.populators import PopulatorAgent
+from timber_design.populators import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
 @dataclass
-class EdgeElementGeneratorParams(ElementGeneratorParams):
+class EdgePopulatorAgentConfig(PopulatorAgentConfig):
     standard_beam_width_increment: Optional[float] = None
     edge_beam_min_width: Optional[float] = None
 
@@ -54,11 +50,47 @@ class EdgeElementGeneratorParams(ElementGeneratorParams):
         return data
 
 
-class EdgeElementGenerator(ElementGenerator):
-    """A panel detail set that uses the default edge beams, studs, and plates."""
+class EdgePopulatorAgent(PopulatorAgent):
+    """Generates edge beams (plates and edge studs) along the panel outline.
+
+    Creates one :class:`~timber_design.populators.Beam2D` per segment of the
+    panel outline.  Each beam's width is derived from the depth of the panel
+    chamfer at that edge (the distance between ``outline_a`` and ``outline_b``
+    projected onto the outward normal).  An optional *minimum width* and
+    *width increment* allow widths to be snapped to standard lumber sizes.
+
+    Beam categories are assigned automatically:
+
+    - ``"top_plate_beam"`` — horizontal edge whose outward normal points in
+      the ``+Y`` direction.
+    - ``"bottom_plate_beam"`` — horizontal edge whose outward normal points
+      in the ``-Y`` direction.
+    - ``"edge_stud"`` — vertical edges.
+
+    The agent's :attr:`~PopulatorAgent.outline` is the innermost boundary
+    formed by all edge-beam inner faces.  Its
+    :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
+    agents that fall outside this outline are discarded.
+
+    Parameters
+    ----------
+    panel : :class:`compas_timber.elements.Panel`
+        The panel whose outline drives edge-beam placement.
+    params : :class:`EdgePopulatorAgentParams`
+        Controls optional standard-width rounding and minimum beam width.
+
+    Attributes
+    ----------
+    standard_beam_width_increment : float or None
+        When set, edge-beam widths are rounded up to the next multiple of
+        this value.
+    edge_beam_min_width : float
+        Minimum edge-beam width (default ``0.0``).
+    """
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    NAME = "PanelEdgeElementGenerator"
+    NAME = "PanelEdgePopulatorAgent"
     RULES = [
         CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -72,9 +104,9 @@ class EdgeElementGenerator(ElementGenerator):
     def __init__(
         self,
         panel: Panel,
-        params: EdgeElementGeneratorParams,
+        params: EdgePopulatorAgentConfig,
     ) -> None:
-        super(EdgeElementGenerator, self).__init__(panel, params)
+        super(EdgePopulatorAgent, self).__init__(panel, params)
         self.standard_beam_width_increment = params.standard_beam_width_increment
         self.edge_beam_min_width = params.edge_beam_min_width or 0.0
 
@@ -90,9 +122,9 @@ class EdgeElementGenerator(ElementGenerator):
             segs.append(seg)
             widths.append(width)
         extend_line_segments(segs, close_loop=True)
-        edges: list[Line] = []  # boundaries of this generator
+        edges: list[Line] = []  # boundaries of this agent
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1), edge_index = i)
+            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1), edge_index=i)
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
             self.elements.append(edge_beam)
@@ -155,8 +187,8 @@ class EdgeElementGenerator(ElementGenerator):
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
         edge_a_index = beam_a.attributes["edge_index"]
-        edge_b_index = beam_b.attributes["edge_index"]  
-        if abs(edge_a_index-edge_b_index) >1:
+        edge_b_index = beam_b.attributes["edge_index"]
+        if abs(edge_a_index - edge_b_index) > 1:
             corner_index = 0
         else:
             corner_index = max(edge_a_index, edge_b_index)
@@ -200,3 +232,7 @@ class EdgeElementGenerator(ElementGenerator):
                     return DirectRule(LButtJoint, [beam_b, beam_a], back_plane=edge_plane_b)
                 else:  # a = main, b = cross
                     return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=edge_plane_a)
+
+
+# Set after both classes are defined so forward reference is resolved
+EdgePopulatorAgentConfig.AGENT_TYPE = EdgePopulatorAgent

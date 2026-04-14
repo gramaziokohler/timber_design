@@ -1,16 +1,10 @@
-from collections import OrderedDict
 from dataclasses import dataclass
-from typing import List
-from typing import Optional
-from typing import Union
 
 from compas.geometry import Box
 from compas.geometry import Line
 from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Polyline
-from compas.geometry import Translation
-from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
@@ -20,24 +14,23 @@ from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.panel_features import Opening
-from compas_timber.utils import do_segments_overlap
 from compas_timber.utils import extend_line_segments
-from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators import ElementGenerator
-from timber_design.populators import ElementGeneratorParams
-from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import extend_beam_to_closest_element_generators
-from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
-from timber_design.populators import aabb_overlap_x
-from timber_design.populators import aabb_overlap
 from timber_design.populators import Beam2D
+from timber_design.populators import FeatureBoundaryType
+from timber_design.populators import PopulatorAgent
+from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators import aabb_overlap
+from timber_design.populators import aabb_overlap_x
+from timber_design.populators import extend_beam_to_closest_agents
+from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class OpeningElementGeneratorParams(ElementGeneratorParams):
+class OpeningPopulatorAgentConfig(PopulatorAgentConfig):
+    FEATURE_TYPE = Opening
+
     lintel_posts: bool = False
     split_bottom_plate_beam: bool = False
 
@@ -49,22 +42,71 @@ class OpeningElementGeneratorParams(ElementGeneratorParams):
         return data
 
 
-class OpeningElementGenerator(ElementGenerator):
-    """A panel detail set that uses the edge beams and plates but no studs."""
+class OpeningPopulatorAgent(PopulatorAgent):
+    """Generates the structural surround for a door or window opening.
 
+    Creates the following beam categories (depending on opening type and
+    ``params``):
+
+    - **header** — horizontal beam above the opening.
+    - **sill** — horizontal beam below the opening (windows only).
+    - **king_stud** — full-height vertical studs flanking the opening.
+    - **jack_stud** — shorter vertical studs (lintel posts) between the king
+      studs and the header/sill, created only when ``params.lintel_posts`` is
+      ``True``.
+
+    The agent computes its :attr:`~PopulatorAgent.outline` from the
+    outer edges of the king (and jack) studs and the header/sill, so that
+    peer agents (studs) can trim their elements at the opening boundary.
+
+    Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~FeatureBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
+    fall inside the outline are discarded by :meth:`~PopulatorAgent.trim_beam`.
+
+    Parameters
+    ----------
+    opening : :class:`compas_timber.panel_features.Opening`
+        The opening feature that drives element placement.
+    params : :class:`OpeningPopulatorAgentParams`
+        Beam dimension and joint-rule settings.
+
+    Attributes
+    ----------
+    opening_type : str
+        ``"door"`` or ``"window"``, read from the opening feature.
+    lintel_posts : bool
+        Whether jack studs (lintel posts) are generated.
+    split_bottom_plate_beam : bool
+        For doors: if ``True`` the bottom plate is L-butted to the king/jack
+        studs rather than T-butted, allowing it to be split at the opening.
+    header : :class:`~timber_design.populators.Beam2D`
+        The header beam (read-only property).
+    sill : :class:`~timber_design.populators.Beam2D` or None
+        The sill beam (``None`` for door openings).
+    king_studs : list[:class:`~timber_design.populators.Beam2D`]
+        Both king studs.
+    jack_studs : list[:class:`~timber_design.populators.Beam2D`]
+        Jack studs (empty list when ``lintel_posts`` is ``False``).
+    left_king_stud : :class:`~timber_design.populators.Beam2D` or None
+        King stud with the smaller X coordinate.
+    right_king_stud : :class:`~timber_design.populators.Beam2D` or None
+        King stud with the larger X coordinate.
+    """
+
+    FEATURE_TYPE = Opening
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
-    NAME = "OpeningElementGenerator"
+    NAME = "OpeningPopulatorAgent"
     RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
         CategoryRule(TButtJoint, "sill", "jack_stud"),
-        CategoryRule(LButtJoint, "jack_stud", "header", mill_depth = 5.0),
-        CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth = 5.0),
-        CategoryRule(TButtJoint, "jack_stud", "top_plate_beam", mill_depth = 5.0),
+        CategoryRule(LButtJoint, "jack_stud", "header", mill_depth=5.0),
+        CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=5.0),
+        CategoryRule(TButtJoint, "jack_stud", "top_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "edge_stud"),
-        CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam", mill_depth = 5.0),
-        CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth = 5.0),
-        CategoryRule(TButtJoint, "king_stud", "header", mill_depth = 5.0),
-        CategoryRule(TButtJoint, "king_stud", "sill", mill_depth = 5.0),
+        CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam", mill_depth=5.0),
+        CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth=5.0),
+        CategoryRule(TButtJoint, "king_stud", "header", mill_depth=5.0),
+        CategoryRule(TButtJoint, "king_stud", "sill", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "edge_stud"),
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
@@ -74,7 +116,7 @@ class OpeningElementGenerator(ElementGenerator):
     def __init__(
         self,
         opening: Opening,
-        params: OpeningElementGeneratorParams,
+        params: OpeningPopulatorAgentConfig,
     ):
         super().__init__(opening, params)
         self.lintel_posts = params.lintel_posts
@@ -103,7 +145,6 @@ class OpeningElementGenerator(ElementGenerator):
                     )
                 )
 
-
     def cull_beam_segment(self, beam: Beam) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
         if super().cull_beam_segment(beam):
@@ -115,7 +156,7 @@ class OpeningElementGenerator(ElementGenerator):
     def generate_elements(self) -> None:
         """Generate the beams for a opening."""
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature)
-        frame_polyline = OpeningElementGenerator._create_frame_polyline(frame_polyline_a, frame_polyline_b)
+        frame_polyline = OpeningPopulatorAgent._create_frame_polyline(frame_polyline_a, frame_polyline_b)
 
         if self.opening_type == "door":
             frame_polyline.points[0].y -= 100  # offset to avoid z-fighting
@@ -134,20 +175,20 @@ class OpeningElementGenerator(ElementGenerator):
             self.elements.append(self.beam_from_category(segments[2].translated([jack_offset, 0, 0]), "jack_stud", name="right_jack_stud"))
 
         king_offset = self.beam_dimensions["king_stud"][0] / 2
-        self.elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset*2), 0, 0]), "king_stud", name="left_king_stud"))
-        self.elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset*2, 0, 0]), "king_stud", name="right_king_stud"))
-        edge_segs.append(segments[0].translated([-(king_offset + jack_offset)*2, 0, 0]))
+        self.elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", name="left_king_stud"))
+        self.elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", name="right_king_stud"))
+        edge_segs.append(segments[0].translated([-(king_offset + jack_offset) * 2, 0, 0]))
 
-        header_offset = self.beam_dimensions["header"][0] / 2                         
+        header_offset = self.beam_dimensions["header"][0] / 2
         self.elements.append(self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", name="header"))
-        edge_segs.append(segments[1].translated([0, header_offset*2, 0]))
+        edge_segs.append(segments[1].translated([0, header_offset * 2, 0]))
 
-        edge_segs.append(segments[2].translated([(king_offset + jack_offset)*2, 0, 0]))
+        edge_segs.append(segments[2].translated([(king_offset + jack_offset) * 2, 0, 0]))
 
         if self.opening_type == "window":
-            sill_offset = self.beam_dimensions["sill"][0] / 2 
+            sill_offset = self.beam_dimensions["sill"][0] / 2
             self.elements.append(self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", name="sill"))
-            edge_segs.append(segments[3].translated([0, -sill_offset*2, 0]))
+            edge_segs.append(segments[3].translated([0, -sill_offset * 2, 0]))
 
         if self.sill is not None and not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled sill
             plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
@@ -162,7 +203,7 @@ class OpeningElementGenerator(ElementGenerator):
         extend_line_segments(edge_segs, close_loop=True)
         self.outline = join_polyline_segments(edge_segs, close_loop=True)[0][0]
 
-    @property   
+    @property
     def header(self):
         return [b for b in self.elements if b.attributes.get("category") == "header"][0]
 
@@ -171,11 +212,11 @@ class OpeningElementGenerator(ElementGenerator):
         sills = [b for b in self.elements if b.attributes.get("category") == "sill"]
         return sills[0] if sills else None
 
-    @property   
+    @property
     def king_studs(self):
         return [b for b in self.elements if b.attributes.get("category") == "king_stud"]
 
-    @property   
+    @property
     def jack_studs(self):
         return [b for b in self.elements if b.attributes.get("category") == "jack_stud"]
 
@@ -187,12 +228,10 @@ class OpeningElementGenerator(ElementGenerator):
     def right_king_stud(self):
         return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
 
-
-
     def _create_frame_polylines(self, opening: Opening) -> tuple[Polyline, Polyline]:
         king_dims = self.beam_dimensions.get("king_stud")
         if king_dims:
-            thickness = king_dims[1] / 2  # TODO: use frame_thickness
+            thickness = king_dims[0] / 2  # TODO: use frame_thickness
         else:
             raise ValueError("Beam dimensions for 'king_stud' not found.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
@@ -217,25 +256,22 @@ class OpeningElementGenerator(ElementGenerator):
             ]
         )
 
-
-
-    def extend_elements(self, other_generators):
-        intersecting_generators = []
-        for g in other_generators:
+    def extend_elements(self, other_agents):
+        intersecting_agents = []
+        for g in other_agents:
             if g is not self and aabb_overlap_x(self, g):
-                intersecting_generators.append(g)
-        if not intersecting_generators:
+                intersecting_agents.append(g)
+        if not intersecting_agents:
             return
-        self._extend_studs(intersecting_generators)
+        self._extend_studs(intersecting_agents)
 
-
-    def _extend_studs(self, intersecting_generators: list[ElementGenerator]) -> None:
+    def _extend_studs(self, intersecting_agents: list[PopulatorAgent]) -> None:
         """Extend king and jack studs in-place to the nearest neighboring panel boundaries."""
         for king_stud in [s for s in self.king_studs if s is not None]:
-            extend_beam_to_closest_element_generators(king_stud, intersecting_generators)
+            extend_beam_to_closest_agents(king_stud, intersecting_agents)
 
         for jack_stud in [s for s in self.jack_studs if s is not None]:
-            extend_beam_to_closest_element_generators(jack_stud, intersecting_generators, only_start=True)
+            extend_beam_to_closest_agents(jack_stud, intersecting_agents, only_start=True)
 
     # ==========================================================================
     # Opening element culling functions
@@ -260,3 +296,7 @@ class OpeningElementGenerator(ElementGenerator):
         outline_b_projected = Polyline([intersection_line_plane(line, plate.planes[1]) for line in lines])
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
+
+
+# Set after both classes are defined so forward reference is resolved
+OpeningPopulatorAgentConfig.AGENT_TYPE = OpeningPopulatorAgent

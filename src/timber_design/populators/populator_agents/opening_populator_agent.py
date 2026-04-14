@@ -277,11 +277,13 @@ class OpeningPopulatorAgent(PopulatorAgent):
     # Opening element culling functions
     # ==========================================================================
 
+    def
+
     def _cull_stud(self, stud: Beam2D) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
         return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
-    def apply_to_plate(self, plate: Plate) -> None:
+    def  apply_to_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.
 
         Parameters

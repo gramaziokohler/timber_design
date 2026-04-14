@@ -26,8 +26,11 @@ from .populator_agents.recess_populator_agent import RecessPopulatorAgent
 from .populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
 
 
+from .layer import Layer
+
 from .populator_configs.panel_populator_config import PanelPopulatorConfig
 from .populator_configs.panel_populator_config import get_frame_panel
+from .populator_configs.panel_populator_config import get_layers
 from .populator_configs.stud_panel_populator_config import StudPanelPopulatorConfig
 from .populator_configs.recess_panel_populator_config import RecessPanelPopulatorConfig
 
@@ -36,6 +39,7 @@ __all__ = [
     "PanelPopulator",
     "AABB2D",
     "Beam2D",
+    "Layer",
     "PopulatorAgent",
     "FeatureBoundaryType",
     "PopulatorAgentConfig",
@@ -57,6 +61,7 @@ __all__ = [
     "find_beam_outline_crossings",
     "PanelPopulatorConfig",
     "get_frame_panel",
+    "get_layers",
     "StudPanelPopulatorConfig",
     "RecessPanelPopulatorConfig",
 ]

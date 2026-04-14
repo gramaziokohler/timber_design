@@ -1,9 +1,13 @@
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from typing import List
 from typing import Optional
 from typing import Union
+
+if TYPE_CHECKING:
+    from timber_design.populators.layer import Layer
 
 from compas.geometry import Line
 from compas.geometry import Vector
@@ -85,6 +89,7 @@ class PopulatorAgentConfig:
     beam_width_overrides: Optional[dict] = None
     joint_rule_overrides: Optional[List[CategoryRule]] = None
     feature: Optional[object] = None
+    layer_index: Optional[int] = None
 
     @property
     def __data__(self):
@@ -93,6 +98,7 @@ class PopulatorAgentConfig:
             "joint_rule_overrides": self.joint_rule_overrides,
         }
 
+    
     def get_agent_from_feature(self, feature):
         """Instantiate the agent for the given feature.
 
@@ -114,6 +120,27 @@ class PopulatorAgentConfig:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
         return self.AGENT_TYPE(feature, self)
 
+    
+    def get_agent_from_panel(self, panel):
+        """Instantiate the agent for the given feature.
+
+        Parameters
+        ----------
+        feature : object
+            The (possibly transformed) feature to pass to the agent constructor.
+
+        Returns
+        -------
+        :class:`PopulatorAgent`
+
+        Raises
+        ------
+        NotImplementedError
+            If ``AGENT_TYPE`` has not been set on this config class.
+        """
+        if self.AGENT_TYPE is None:
+            raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
+        return self.AGENT_TYPE(panel, self)
 
 class PopulatorAgent(ABC):
     """Abstract base class for all panel populator agents.
@@ -192,6 +219,7 @@ class PopulatorAgent(ABC):
         params: "PopulatorAgentConfig",
     ):
         self.feature = feature
+        self.layer_index = params.layer_index
         self.beam_width_overrides = params.beam_width_overrides or {}
         if params.joint_rule_overrides:
             self.rules = self.update_rules(params.joint_rule_overrides)
@@ -309,6 +337,11 @@ class PopulatorAgent(ABC):
             rule_kwargs.update(kwargs)
             return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
+    def affects_layer(self, layer_index: int) -> bool:
+        """Determines whether this agent trims and culls elements on the given layer."""
+        return self.layer_index == layer_index
+
+    
     def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
@@ -399,6 +432,8 @@ class PopulatorAgent(ABC):
         new_elements : list[:class:`~timber_design.populators.elements.Element`]
         rules_to_cull : list
         """
+        if not agent.affects_layer(self.layer_index):
+            return self.elements
         new_elements = []
         for element in self.elements:
             if element.is_beam:

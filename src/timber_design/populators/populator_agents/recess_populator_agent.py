@@ -90,7 +90,7 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     def apply_to_plate(self, plate):
-        if plate.name == "inside_plate":
+        if self.affects_layer(plate.layer_index):
             return self._cut_out_of_plate(plate)
 
     def generate_elements(self) -> None:
@@ -137,6 +137,9 @@ class RecessPopulatorAgent(PopulatorAgent):
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
+    @property
+    def affects_layer(self, layer_index):
+        return layer_index <= self.layer_index
 
 # Set after both classes are defined so forward reference is resolved
 RecessPopulatorAgentConfig.AGENT_TYPE = RecessPopulatorAgent

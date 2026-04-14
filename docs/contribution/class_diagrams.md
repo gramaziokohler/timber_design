@@ -38,8 +38,8 @@ classDiagram
         +default_feature_configs : dict
         +create_populator_from_panel(panel, feature_configs) PanelPopulator
         +create_populator(feature_configs) PanelPopulator
-        +create_populator_agents(panel)* tuple
-        -_create_local_panel(panel) tuple
+        +create_populator_agents(layers)* list
+        -_prepare_panels(panel) tuple
         -_get_projected_orientation(panel) Vector
     }
 
@@ -73,7 +73,7 @@ classDiagram
         +default_feature_configs : dict[type, PopulatorAgentConfig]
         +create_populator_from_panel(panel, feature_configs) PanelPopulator
         +create_populator(feature_configs) PanelPopulator
-        +create_populator_agents(panel)* tuple
+        +create_populator_agents(layers)* list
     }
 
     class StudPanelPopulatorConfig {
@@ -88,7 +88,7 @@ classDiagram
         +split_bottom_plate_beam : bool
         +beam_width_overrides : dict
         +joint_rule_overrides : list
-        +create_populator_agents(panel) tuple
+        +create_populator_agents(layers) list
     }
 
     class RecessPanelPopulatorConfig {
@@ -102,7 +102,7 @@ classDiagram
         +sheeting_recess : float
         +beam_width_overrides : dict
         +joint_rule_overrides : list
-        +create_populator_agents(panel) tuple
+        +create_populator_agents(layers) list
     }
 
     %% Inheritance

@@ -10,7 +10,6 @@ from compas_timber.elements import Panel
 from timber_design.workflow import CategoryRule
 
 from .panel_populator_config import PanelPopulatorConfig
-from .panel_populator_config import get_frame_panel
 
 if TYPE_CHECKING:
     from timber_design.populators import PopulatorAgent
@@ -44,8 +43,8 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
         A dictionary of beam width overrides for specific beam categories.
     joint_rule_overrides : list[:class:`compas_timber.design.CategoryRule`], optional
         A list of category rules to override the default ones.
-    default_feature_configs : dict[type, tuple[type, params]], optional
-        Mapping from panel feature class to ``(agent_type, params)`` tuple.
+    default_feature_configs : list[PopulatorAgentConfig], optional
+        List of agent configs (with ``FEATURE_TYPE`` set) for default feature handling.
     """
 
     def __init__(
@@ -63,31 +62,37 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
         joint_rule_overrides: Optional[List[CategoryRule]] = None,
         default_feature_configs=None,
     ):
-        super(RecessPanelPopulatorConfig, self).__init__(panel=panel, default_feature_configs=default_feature_configs)
+        super(RecessPanelPopulatorConfig, self).__init__(
+            panel=panel,
+            sheeting_inside=sheeting_inside,
+            sheeting_outside=sheeting_outside,
+            default_feature_configs=default_feature_configs,
+        )
         self.standard_beam_width = standard_beam_width or (panel.thickness /2 if panel else None)
         self.recess_beam_width = recess_beam_width or standard_beam_width
         self.recess_beam_height = recess_beam_height or standard_beam_width
         self.edge_beam_min_width = edge_beam_min_width
         self.standard_beam_width_increment = standard_beam_width_increment
-        self.sheeting_outside = sheeting_outside
-        self.sheeting_inside = sheeting_inside
         self.sheeting_recess = sheeting_recess
         self.beam_width_overrides = beam_width_overrides or {}
         self.joint_rule_overrides = joint_rule_overrides or []
 
-    def create_populator_agents(self, populator_panel: Panel) -> tuple:
+    def create_populator_agents(self, layers) -> list:
         """Create recess panel populator agents.
 
         Parameters
         ----------
-        populator_panel : :class:`compas_timber.elements.Panel`
-            The local (populator-space) panel.
+        layers : dict[str, :class:`~timber_design.populators.Layer`]
+            All layers for the panel.  Always contains ``"local"`` and
+            ``"frame"``; ``"interior"`` and ``"exterior"`` are present only
+            when the corresponding sheeting thickness is non-zero.
 
         Returns
         -------
-        tuple[list[:class:`~timber_design.populators.PopulatorAgent`], :class:`compas_timber.elements.Panel`]
-            Agents and the frame panel; ``resolve_beam_dimensions`` is called by
-            :meth:`~PanelPopulatorConfig.create_populator` after all agents are assembled.
+        list[:class:`~timber_design.populators.PopulatorAgent`]
+            Agents ready for ``resolve_beam_dimensions``, which is called by
+            :meth:`~PanelPopulatorConfig.create_populator_from_panel` after all
+            agents are assembled.
         """
         # local imports to avoid circular imports at module import time
         from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
@@ -95,7 +100,8 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
         from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgent
         from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
 
-        frame_panel = get_frame_panel(populator_panel, self)
+        frame_layer = layers["frame"]
+        frame_panel = frame_layer.panel
         edge_agent = EdgePopulatorAgent(
             frame_panel,
             EdgePopulatorAgentConfig(
@@ -103,6 +109,7 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
                 edge_beam_min_width=self.edge_beam_min_width or self.standard_beam_width,
                 beam_width_overrides=self.beam_width_overrides,
                 joint_rule_overrides=self.joint_rule_overrides,
+                layer=frame_layer,
             ),
         )
         agents: List["PopulatorAgent"] = [edge_agent]
@@ -116,23 +123,28 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
                     sheeting_recess=self.sheeting_inside,
                     beam_width_overrides=self.beam_width_overrides,
                     joint_rule_overrides=self.joint_rule_overrides,
+                    layer=frame_layer,
                 ),
             )
         )
 
-        if self.sheeting_inside or self.sheeting_outside:
+        if "interior" in layers or "exterior" in layers:
             from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgent
             from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
 
-            agents.append(
-                PlatePopulatorAgent(
-                    populator_panel,
-                    frame_panel,
-                    PlatePopulatorAgentConfig(
-                        sheeting_inside=self.sheeting_inside,
-                        sheeting_outside=self.sheeting_outside,
-                    ),
+            if "interior" in layers:
+                agents.append(
+                    PlatePopulatorAgent(
+                        layers["interior"],
+                        PlatePopulatorAgentConfig(thickness=self.sheeting_inside),
+                    )
                 )
-            )
+            if "exterior" in layers:
+                agents.append(
+                    PlatePopulatorAgent(
+                        layers["exterior"],
+                        PlatePopulatorAgentConfig(thickness=self.sheeting_outside),
+                    )
+                )
 
-        return agents, frame_panel
+        return agents

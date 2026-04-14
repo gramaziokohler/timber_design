@@ -42,7 +42,8 @@
       "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_panel_populator_workflow.py -x -q)",
       "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/ -q)",
       "Bash(python -c ':*)",
-      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_panel_populator_workflow.py::TestInstanceFeatureDefinitions::test_injected_agent_elements_appear_in_model -q --tb=short)"
+      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_panel_populator_workflow.py::TestInstanceFeatureDefinitions::test_injected_agent_elements_appear_in_model -q --tb=short)",
+      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_populators.py -q)"
     ]
   }
 }

@@ -21,8 +21,12 @@ It is built around three layers:
 config = StudPanelPopulatorConfig(standard_beam_width=60, stud_spacing=625)
 
 populator = config.create_populator_from_panel(panel)
-  ├─ PanelPopulatorConfig._create_local_panel()   → panel in populator space
-  └─ PanelPopulatorConfig.create_populator_agents()    → list[PopulatorAgent]
+  ├─ PanelPopulatorConfig._prepare_panels()        → dict[str, Layer]
+  │     "local"    – full panel in populator space
+  │     "frame"    – structural frame (sheeting removed)
+  │     "interior" – inside sheathing layer  (if sheeting_inside > 0)
+  │     "exterior" – outside sheathing layer (if sheeting_outside > 0)
+  └─ PanelPopulatorConfig.create_populator_agents(layers) → list[PopulatorAgent]
 
 PanelPopulator.populate_elements()
   ├─ generate_elements()   each agent creates its Beam2D / Plate objects
@@ -49,11 +53,19 @@ PanelPopulator.merge_with_model()   elements transformed back to world space
 
 ---
 
+## Layers
+
+::: timber_design.populators.layer.Layer
+
+::: timber_design.populators.populator_configs.panel_populator_config.get_layers
+
+::: timber_design.populators.populator_configs.panel_populator_config.get_frame_panel
+
+---
+
 ## Populator configs
 
 ::: timber_design.populators.populator_configs.panel_populator_config.PanelPopulatorConfig
-
-::: timber_design.populators.populator_configs.panel_populator_config.get_frame_panel
 
 ::: timber_design.populators.populator_configs.stud_panel_populator_config.StudPanelPopulatorConfig
 

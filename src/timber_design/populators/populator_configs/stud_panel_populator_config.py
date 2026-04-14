@@ -11,7 +11,6 @@ from compas_timber.panel_features import Opening
 from timber_design.workflow import CategoryRule
 
 from .panel_populator_config import PanelPopulatorConfig
-from .panel_populator_config import get_frame_panel
 
 if TYPE_CHECKING:
     from timber_design.populators import PopulatorAgent
@@ -51,9 +50,9 @@ class StudPanelPopulatorConfig(PanelPopulatorConfig):
         Per-category width overrides.
     joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
         Rules that replace matching entries in any agent's ``RULES`` list.
-    default_feature_configs : dict[type, PopulatorAgentConfig], optional
+    default_feature_configs : dict or list, optional
         Mapping from panel feature class to a :class:`~timber_design.populators.PopulatorAgentConfig`
-        instance (without ``feature`` set).
+        instance (without ``feature`` set), or a list of config instances with ``FEATURE_TYPE`` set.
     """
 
     def __init__(
@@ -66,40 +65,51 @@ class StudPanelPopulatorConfig(PanelPopulatorConfig):
         stud_direction: Optional[Vector] = None,
         sheeting_outside: float = 0,
         sheeting_inside: float = 0,
+        lintel_posts: bool = False,
+        split_bottom_plate_beam: bool = False,
         beam_width_overrides: Optional[dict] = None,
         joint_rule_overrides: Optional[List[CategoryRule]] = None,
         default_feature_configs=None,
     ):
-        super(StudPanelPopulatorConfig, self).__init__(panel=panel, default_feature_configs=default_feature_configs)
+        super(StudPanelPopulatorConfig, self).__init__(
+            panel=panel,
+            sheeting_inside=sheeting_inside,
+            sheeting_outside=sheeting_outside,
+            default_feature_configs=default_feature_configs,
+        )
         self.standard_beam_width = standard_beam_width or (panel.thickness/2 if panel else None)
         self.stud_spacing = stud_spacing or (panel.thickness * 2 if panel else None)
         self.standard_beam_width_increment = standard_beam_width_increment
         self.edge_beam_min_width = edge_beam_min_width
         self.stud_direction = stud_direction
-        self.sheeting_outside = sheeting_outside
-        self.sheeting_inside = sheeting_inside
+        self.lintel_posts = lintel_posts
+        self.split_bottom_plate_beam = split_bottom_plate_beam
         self.beam_width_overrides = beam_width_overrides
         self.joint_rule_overrides = joint_rule_overrides
 
-    def create_populator_agents(self, populator_panel: Panel) -> tuple:
+    def create_populator_agents(self, layers) -> list:
         """Create stud panel populator agents.
 
         Parameters
         ----------
-        populator_panel : :class:`compas_timber.elements.Panel`
-            The local (populator-space) panel.
+        layers : dict[str, :class:`~timber_design.populators.Layer`]
+            All layers for the panel.  Always contains ``"local"`` and
+            ``"frame"``; ``"interior"`` and ``"exterior"`` are present only
+            when the corresponding sheeting thickness is non-zero.
 
         Returns
         -------
-        tuple[list[:class:`~timber_design.populators.PopulatorAgent`], :class:`compas_timber.elements.Panel`]
-            Agents and the frame panel; ``resolve_beam_dimensions`` is called by
-            :meth:`~PanelPopulatorConfig.create_populator` after all agents are assembled.
+        list[:class:`~timber_design.populators.PopulatorAgent`]
+            Agents ready for ``resolve_beam_dimensions``, which is called by
+            :meth:`~PanelPopulatorConfig.create_populator_from_panel` after all
+            agents are assembled.
         """
         # local imports to avoid circular imports at module import time
         from timber_design.populators import EdgePopulatorAgent
         from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
 
-        frame_panel = get_frame_panel(populator_panel, self)
+        frame_layer = layers["frame"]
+        frame_panel = frame_layer.panel
         agents: List["PopulatorAgent"] = []
 
         agents.append(
@@ -110,6 +120,7 @@ class StudPanelPopulatorConfig(PanelPopulatorConfig):
                     edge_beam_min_width=self.edge_beam_min_width or self.standard_beam_width,
                     beam_width_overrides=self.beam_width_overrides,
                     joint_rule_overrides=self.joint_rule_overrides,
+                    layer=frame_layer,
                 ),
             )
         )
@@ -125,25 +136,28 @@ class StudPanelPopulatorConfig(PanelPopulatorConfig):
                         stud_spacing=self.stud_spacing,
                         beam_width_overrides=self.beam_width_overrides,
                         joint_rule_overrides=self.joint_rule_overrides,
+                        layer=frame_layer,
                     ),
                 )
             )
 
-        if self.sheeting_inside or self.sheeting_outside:
+        if "interior" in layers or "exterior" in layers:
             from timber_design.populators import PlatePopulatorAgent
             from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
 
-            agents.append(
-                PlatePopulatorAgent(
-                    populator_panel,
-                    frame_panel,
-                    PlatePopulatorAgentConfig(
-                        sheeting_inside=self.sheeting_inside,
-                        sheeting_outside=self.sheeting_outside,
-                    ),
+            if "interior" in layers:
+                agents.append(
+                    PlatePopulatorAgent(
+                        layers["interior"],
+                        PlatePopulatorAgentConfig(thickness=self.sheeting_inside),
+                    )
                 )
-            )
+            if "exterior" in layers:
+                agents.append(
+                    PlatePopulatorAgent(
+                        layers["exterior"],
+                        PlatePopulatorAgentConfig(thickness=self.sheeting_outside),
+                    )
+                )
 
-
-
-        return agents, frame_panel
+        return agents

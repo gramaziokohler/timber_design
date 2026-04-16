@@ -1,5 +1,6 @@
 try:
     import Grasshopper  # type: ignore
+    import Rhino  # type: ignore
     import RhinoCodePluginGH.Parameters  # type: ignore
 except (ImportError, SyntaxError):
     pass
@@ -490,3 +491,17 @@ def manage_cpython_dynamic_params(input_names, ghenv, rename_count=0, permanent_
                     else:
                         add_cpython_gh_param(name, "Input", ghenv, index=i + permanent_param_count)
     ghenv.Component.VariableParameterMaintenance()
+
+
+def get_guid_and_geometry(obj):
+    """
+    Try to get the GUID of a referenced Rhino object, otherwise just return the geometry.
+    Simpler logic: treat input as possible GUID, try FindId, else return geometry as is.
+    """
+    guid = None
+    geometry = obj
+    rhino_obj = Rhino.RhinoDoc.ActiveDoc.Objects.FindId(obj)
+    if rhino_obj:
+        guid = obj
+        geometry = rhino_obj.Geometry
+    return guid, geometry

@@ -1,36 +1,18 @@
 {
-    "name": "Beam From LineCurve",
-    "nickname": "BeamFromLineCurve",
+    "name": "Beam From Box",
+    "nickname": "BeamFromBox",
     "category": "Timber Design",
     "subcategory": "01 Timber elements",
-    "description": "Creates a Beam from a LineCurve.",
+    "description": "Creates a Beam from a Box.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
             {
-                "name": "centerline",
-                "description": "Referenced curve or line, Guid of curve or line in the active Rhino document.",
+                "name": "box_brep",
+                "description": "Referenced box brep, Guid of box brep in the active Rhino document.",
                 "typeHintID": "ghdoc",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "z_vector",
-                "description": "Vector defining the orientation of the cross-section (corresponds to the height dimension). If None, a default will be taken.",
-                "typeHintID": "vector",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "width",
-                "description": "Width of the cross-section (usually the smaller dimension).",
-                "typeHintID": "float",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "height",
-                "description": "Height of the cross-section (usually the larger dimension).",
-                "typeHintID": "float",
                 "scriptParamAccess": 1
             },
             {

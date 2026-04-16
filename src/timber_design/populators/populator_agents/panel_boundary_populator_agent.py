@@ -4,7 +4,6 @@ from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
-from compas_timber.elements import Panel
 
 try:
     from compas_timber.utils import extend_line_segments
@@ -69,10 +68,10 @@ class PanelBoundaryPopulatorAgent(PopulatorAgent):
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The panel whose outline drives edge-beam placement.
-    params : :class:`EdgePopulatorAgentParams`
-        Controls optional standard-width rounding and minimum beam width.
+    layer : :class:`~timber_design.populators.Layer`
+        The layer whose panel outline drives boundary generation.
+    params : :class:`PanelBoundaryPopulatorAgentConfig`
+        Agent configuration.
 
     Attributes
     ----------
@@ -97,6 +96,8 @@ class PanelBoundaryPopulatorAgent(PopulatorAgent):
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
+    def generate_elements(self):
+        pass
 
     def generate_boundaries(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""
@@ -130,7 +131,6 @@ class PanelBoundaryPopulatorAgent(PopulatorAgent):
         if not self.outline:
             self.generate_boundaries()
         aabb2d = AABB2D.from_points(self.outline.points)
-        print("aabb2d", aabb2d)
         return aabb2d
 
 

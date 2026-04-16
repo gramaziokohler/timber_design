@@ -10,29 +10,20 @@ from timber_design.populators.layer import Layer
 @dataclass
 class PlatePopulatorAgentConfig(PopulatorAgentConfig):
     """Configuration for a single sheathing plate agent.
-
-    Parameters
-    ----------
-    thickness : float, optional
-        Thickness of the sheathing layer in model units.  Informational — the
-        plate geometry is fully defined by the :class:`~timber_design.populators.Layer`
-        passed to :class:`PlatePopulatorAgent`.
     """
-
-    thickness: float = 0.0
 
     @property
     def __data__(self):
         data = super().__data__
-        data["thickness"] = self.thickness
         return data
+
 
 class PlatePopulatorAgent(PopulatorAgent):
     """Generates a flat sheathing plate for one cross-section layer of a panel.
 
     The agent operates on a single :class:`~timber_design.populators.Layer`.
     The layer's panel already has its ``outline_a`` and ``outline_b`` set to the
-    exact boundaries of that layer, so element creation is symmetric regardless
+    exact boundaries of that layer, so element creation is identical regardless
     of which layer is used:
 
     - ``"interior"`` layer: ``outline_a`` = innermost panel face,
@@ -41,7 +32,7 @@ class PlatePopulatorAgent(PopulatorAgent):
       ``outline_b`` = outermost panel face.
 
     The beam category is derived from the layer name as
-    ``f"{layer.name}_plate"`` (e.g. ``"interior_plate"`` or
+    ``"{layer.name}_plate"`` (e.g. ``"interior_plate"`` or
     ``"exterior_plate"``).
 
     No :attr:`~PopulatorAgent.outline` is set; this agent does not participate
@@ -72,6 +63,7 @@ class PlatePopulatorAgent(PopulatorAgent):
             name=category,
             category=category,
         )
+        plate.layer_index = self.layer_index
         self.elements.append(plate)
 
 

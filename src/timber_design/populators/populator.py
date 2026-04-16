@@ -19,10 +19,21 @@ class PanelPopulator(object):
 
     1. **generate_elements** — each agent creates its beams and plates.
     2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
-    3. **trim_elements** — beams that cross an agent boundary are split; segments inside an *exclusive* zone or outside an *inclusive* zone are discarded.
+    3. **trim_elements** — two sub-passes:
+
+       a. **trim_within_layer_elements** — agents on the same layer trim each other
+          (edge frame clips studs; openings clip studs).
+       b. **trim_cross_layer_elements** — agents on different layers apply targeted
+          trimming governed by :meth:`~timber_design.populators.PopulatorAgent.affects_layer`
+          (recess frame cuts sheeting plates; openings cut all layers).
+
     4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
-    5. **join_elements** — within-agent joint candidates are resolved, then cross-agent candidates are collected, clustered, and matched against the joint-rule lists of
-    both agents.
+    5. **join_elements** — two sub-passes mirroring stage 3:
+
+       a. **create_agent_joints** — within-agent joint candidates are resolved.
+       b. **create_cross_agent_joints** — cross-agent candidates are collected,
+          clustered, and matched against the joint-rule lists of both agents.
+
     6. **process_joinery** — fabrication features (BTLx processings) are computed and applied to each element.
     7. **merge_with_model** — elements are transformed back to world space and attached as children of the source panel in the caller's model.
 
@@ -113,15 +124,67 @@ class PanelPopulator(object):
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
 
-        Uses :class:`~timber_design.populators.ConnectionSolver2D` to find
-        pairs of agents whose axis-aligned bounding boxes overlap, then
-        calls :meth:`~timber_design.populators.PopulatorAgent.trim_elements_with_agent`
-        on both agents of each pair.
+        Runs two passes in sequence:
+
+        1. :meth:`trim_within_layer_elements` — agents on the **same** layer
+           trim each other (e.g. edge frame clips studs; openings clip studs).
+        2. :meth:`trim_cross_layer_elements` — agents on **different** layers
+           apply targeted trimming where
+           :meth:`~timber_design.populators.PopulatorAgent.affects_layer`
+           returns ``True`` (e.g. a recess frame cuts sheeting plates on lower
+           layers; openings cut through all layers).
+
+        This mirrors the ``create_agent_joints`` / ``create_cross_agent_joints``
+        pattern in :meth:`join_elements`, making the topology of inter-agent
+        interactions explicit at the orchestration level.
+        """
+        self.trim_within_layer_elements()
+        self.trim_cross_layer_elements()
+
+    def trim_within_layer_elements(self):
+        """Trim elements between agents that share the same layer index (stage 3a).
+
+        Iterates all overlapping agent pairs.  For those whose
+        :attr:`~timber_design.populators.PopulatorAgent.layer_index` matches,
+        :meth:`~timber_design.populators.PopulatorAgent.trim_elements_with_agent`
+        is called symmetrically on both agents.
+
+        Typical interactions handled here:
+
+        - Edge frame clips studs and opening elements to the panel boundary.
+        - Opening surround clips studs that pass through a door or window.
         """
         solver = ConnectionSolver2D()
         for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
+            if agent_a.layer_index != agent_b.layer_index:
+                continue
             agent_a.trim_elements_with_agent(agent_b)
             agent_b.trim_elements_with_agent(agent_a)
+
+    def trim_cross_layer_elements(self):
+        """Apply trimming between agents on different layers (stage 3b).
+
+        Iterates all overlapping agent pairs where the two agents have
+        *different* :attr:`~timber_design.populators.PopulatorAgent.layer_index`
+        values.  Each agent's
+        :meth:`~timber_design.populators.PopulatorAgent.affects_layer` method
+        independently decides whether it should trim the other agent's elements.
+
+        Typical cross-layer interactions:
+
+        - :class:`~timber_design.populators.RecessPopulatorAgent` cuts sheeting
+          plates on lower (inside) layers.
+        - :class:`~timber_design.populators.OpeningPopulatorAgent` cuts openings
+          through sheathing plates on all layers.
+        """
+        solver = ConnectionSolver2D()
+        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
+            if agent_a.layer_index == agent_b.layer_index:
+                continue
+            if agent_b.affects_layer(agent_a.layer_index):
+                agent_a.trim_elements_with_agent(agent_b)
+            if agent_a.affects_layer(agent_b.layer_index):
+                agent_b.trim_elements_with_agent(agent_a)
 
     def add_elements_to_model(self):
         """Add all surviving elements to the internal model (stage 4)."""
@@ -154,12 +217,13 @@ class PanelPopulator(object):
     def create_cross_agent_joints(self):
         """Create joints between elements that belong to different agents.
 
-        For each overlapping agent pair the solver enumerates all
+        For each overlapping same-layer agent pair the solver enumerates all
         cross-product element pairs, detects topology, collects
         :class:`~compas_timber.connections.JointCandidate` objects, clusters
         them by proximity, and hands the clusters to a
         :class:`~timber_design.workflow.JointRuleSolver` built from the
-        combined rule lists of both agents.
+        combined :attr:`~timber_design.populators.PopulatorAgent.external_rules`
+        of both agents.
         """
         solver = ConnectionSolver2D()
         for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
@@ -173,7 +237,7 @@ class PanelPopulator(object):
                     self.model.add_joint_candidate(candidate)
                     candidates.append(candidate)
             clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-            jrs = JointRuleSolver(agent_a.EXTERNAL_RULES + agent_b.EXTERNAL_RULES)
+            jrs = JointRuleSolver(agent_a.external_rules + agent_b.external_rules)
             jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 from typing import TYPE_CHECKING
-from typing import List
 
 from compas.geometry import Box
 from compas.geometry import Frame
@@ -102,9 +101,11 @@ class PanelPopulatorConfig:
         :class:`~timber_design.populators.PopulatorAgentConfig` (without
         ``feature`` set).  Applied to every framing layer via MRO-based
         lookup.
-    instance_feature_configs : list, optional
-        Per-feature config overrides.  Each entry must have ``feature`` set.
-        These take precedence over ``default_feature_configs``.
+    instance_feature_configs : list[tuple[PanelFeature, PopulatorAgentConfig]], optional
+        Per-instance feature overrides.  Each entry is a
+        ``(feature, agent_config)`` tuple binding a specific feature instance
+        to a config.  These take precedence over ``default_feature_configs``
+        for that feature instance.
     """
 
     def __init__(
@@ -237,7 +238,7 @@ class PanelPopulatorConfig:
             return agents
 
         framing_layers = [l for l in layers.values() if l.is_framing_layer]
-        explicitly_defined = {fc.feature for fc in self.instance_feature_configs}
+        explicitly_defined = {feature for feature, _ in self.instance_feature_configs}
 
         # Default feature agents applied to all framing layers
         for feature in self.panel.features:
@@ -250,9 +251,9 @@ class PanelPopulatorConfig:
             for layer in framing_layers:
                 agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
 
-        # Instance feature agents applied to all framing layers
-        for agent_config in self.instance_feature_configs:
-            transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
+        # Instance feature agents — each (feature, config) pair applied to all framing layers
+        for feature, agent_config in self.instance_feature_configs:
+            transformed_feature = feature.transformed(self.transformation_to_populator)
             for layer in framing_layers:
                 agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
 
@@ -365,10 +366,10 @@ class PanelPopulatorConfig:
 
         layer_defs = []
         if sheeting_inside:
-            layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig(thickness=sheeting_inside)]))
+            layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
         layer_defs.append(LayerDefinition(None, name="frame", is_framing_layer=True, agent_configs=frame_agent_configs))
         if sheeting_outside:
-            layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig(thickness=sheeting_outside)]))
+            layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
 
         config = cls(panel=panel, layer_defs=layer_defs, default_feature_configs=default_feature_configs, orientation=orientation)
         config.standard_beam_width = standard_beam_width
@@ -575,7 +576,20 @@ def _recess_agents_factory(config, layers):
 
     Instantiates an :class:`~timber_design.populators.EdgePopulatorAgent` and
     passes it directly to :class:`~timber_design.populators.RecessPopulatorAgent`
-    so the recess beams share the same outline as the edge beams.
+    so the recess beams share the same :attr:`~timber_design.populators.PopulatorAgent.outline`
+    as the edge beams without requiring a second outline-generation pass.
+
+    Parameters
+    ----------
+    config : :class:`~timber_design.populators.PanelPopulatorConfig`
+        The calling config, used to read recess/sheeting parameters.
+    layers : dict[str, :class:`~timber_design.populators.Layer`]
+        Layer dict as returned by
+        :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers`.
+
+    Returns
+    -------
+    list[:class:`~timber_design.populators.PopulatorAgent`]
     """
     from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
     from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
@@ -583,21 +597,19 @@ def _recess_agents_factory(config, layers):
     from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
 
     frame_layer = layers["frame"]
-    frame_panel = frame_layer.panel
     edge_agent = EdgePopulatorAgent(
-        frame_panel,
+        frame_layer,
         EdgePopulatorAgentConfig(
             standard_beam_width_increment=config.standard_beam_width_increment,
             edge_beam_min_width=config.edge_beam_min_width or config.standard_beam_width,
             beam_width_overrides=config.beam_width_overrides,
             joint_rule_overrides=config.joint_rule_overrides,
-            layer=frame_layer,
         ),
     )
-    agents: List["PopulatorAgent"] = [edge_agent]
+    agents = [edge_agent]
     agents.append(
         RecessPopulatorAgent(
-            frame_panel,
+            frame_layer,
             edge_agent,
             RecessPopulatorAgentConfig(
                 recess_beam_width=config.recess_beam_width,
@@ -605,7 +617,6 @@ def _recess_agents_factory(config, layers):
                 sheeting_recess=config.sheeting_inside,
                 beam_width_overrides=config.beam_width_overrides,
                 joint_rule_overrides=config.joint_rule_overrides,
-                layer=frame_layer,
             ),
         )
     )
@@ -615,8 +626,8 @@ def _recess_agents_factory(config, layers):
         from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
 
         if "interior" in layers:
-            agents.append(PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig(thickness=config.sheeting_inside)))
+            agents.append(PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig()))
         if "exterior" in layers:
-            agents.append(PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig(thickness=config.sheeting_outside)))
+            agents.append(PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig()))
 
     return agents

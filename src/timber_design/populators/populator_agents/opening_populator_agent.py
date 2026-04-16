@@ -74,21 +74,33 @@ class OpeningPopulatorAgent(PopulatorAgent):
 
     The agent computes its :attr:`~PopulatorAgent.outline` from the
     outer edges of the king (and jack) studs and the header/sill, so that
-    peer agents (studs) can trim their elements at the opening boundary.
+    peer agents (studs) can trim their elements at the opening boundary during
+    :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`.
 
     Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
     fall inside the outline are discarded by :meth:`~PopulatorAgent.trim_beam`.
 
+    The opening geometry is supplied via ``params.feature`` (set automatically
+    by :meth:`~timber_design.populators.PopulatorAgentConfig.get_agent_from_feature`).
+    Access it via :attr:`opening`.
+
     Parameters
     ----------
-    opening : :class:`compas_timber.panel_features.Opening`
-        The opening feature that drives element placement.
-    params : :class:`OpeningPopulatorAgentParams`
+    layer : :class:`~timber_design.populators.Layer`
+        The framing layer in which the opening surround is placed.
+    params : :class:`OpeningPopulatorAgentConfig`
         Beam dimension and joint-rule settings.
+    feature : :class:`compas_timber.panel_features.Opening`
+        The (possibly transformed) opening feature that drives element
+        placement.  Stored as ``self.feature`` and accessible via the
+        :attr:`opening` alias.
 
     Attributes
     ----------
+    opening : :class:`compas_timber.panel_features.Opening`
+        The opening feature that drives element placement.
+        Alias for ``self.feature``.
     opening_type : str
         ``"door"`` or ``"window"``, read from the opening feature.
     lintel_posts : bool
@@ -134,15 +146,17 @@ class OpeningPopulatorAgent(PopulatorAgent):
 
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
-        ]
+    ]
     BOUNDARY_TYPE = FeatureBoundaryType.EXCLUSIVE
 
     def __init__(
         self,
         layer: Layer,
         params: OpeningPopulatorAgentConfig,
+        feature: Opening,
     ):
         super().__init__(layer, params)
+        self.feature = feature
         self.lintel_posts = params.lintel_posts
         self.split_bottom_plate_beam = params.split_bottom_plate_beam
         self.opening_type = self.opening.opening_type
@@ -171,6 +185,11 @@ class OpeningPopulatorAgent(PopulatorAgent):
 
     @property
     def opening(self):
+        """The opening feature that drives element placement.
+
+        Returns ``self.feature``, which is set from ``params.feature`` by the
+        base :class:`~timber_design.populators.PopulatorAgent` constructor.
+        """
         return self.feature
 
     def cull_beam_segment(self, beam: Beam) -> bool:
@@ -303,8 +322,15 @@ class OpeningPopulatorAgent(PopulatorAgent):
     # ==========================================================================
     # Opening element culling functions
     # ==========================================================================
+
     def affects_layer(self, layer_index: int) -> bool:
-        """Determines whether this agent trims and culls elements on the given layer."""
+        """Return ``True`` for all layers.
+
+        Openings cut through the entire panel cross-section, so the opening
+        agent participates in both same-layer trimming (removing studs that
+        pass through the opening) and cross-layer trimming (cutting openings
+        into sheathing plates on other layers).
+        """
         return True
 
     def _cull_stud(self, stud: Beam2D) -> bool:

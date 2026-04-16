@@ -689,10 +689,12 @@ class TestTrimBeam:
         """BOUNDARY_TYPE=NONE: trim_beam always returns the original beam."""
         from timber_design.populators import StudPopulatorAgent
         from timber_design.populators import StudPopulatorAgentConfig
+        from timber_design.populators.layer import Layer
 
         panel = make_panel()
+        layer = Layer(panel, "frame", layer_index=0)
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
-        gen = StudPopulatorAgent(panel, params)
+        gen = StudPopulatorAgent(layer, params)
         gen.resolve_beam_dimensions(60.0, 160.0)
         beam = self._make_beam_2d(0, 1350, 4000, 1350)
         result = gen.trim_beam(beam)
@@ -893,32 +895,58 @@ class TestFeatureDefinitionsOnParams:
 class TestInstanceFeatureDefinitions:
     """Custom agents can be injected via instance-level feature_configs."""
 
+    @requires_opening
     def test_injected_agent_elements_appear_in_model(self):
-        """An agent injected via feature_configs must contribute elements."""
-        from timber_design.populators import EdgePopulatorAgentConfig
+        """An Opening injected via instance_feature_configs must produce opening elements.
+
+        ``instance_feature_configs`` is a list of ``(feature, agent_config)`` tuples.
+        Each tuple binds a specific feature instance to a config without going through
+        the ``default_feature_configs`` lookup.  The resulting agents must contribute
+        elements just like agents registered via ``default_feature_configs``.
+        """
+        from timber_design.populators import OpeningPopulatorAgent
+        from timber_design.populators import OpeningPopulatorAgentConfig
 
         panel = make_panel()
-        model = TimberModel()
-        model.add_element(panel)
+        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
 
-        # Inject an extra EdgePopulatorAgent using the panel itself as the feature
         config = stud_config()
         config.panel = panel
-        config.instance_feature_configs = [EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)]
+        # Bind the opening directly to a config; no need to add it to panel.features
+        config.instance_feature_configs = [(opening, OpeningPopulatorAgentConfig(lintel_posts=False))]
         populator = config.create_populator()
         populator.populate_elements()
 
-        # The injected agent should have added elements
-        assert len(populator.agents) > 2  # edge + stud + injected
+        opening_agents = [a for a in populator.agents if isinstance(a, OpeningPopulatorAgent)]
+        assert len(opening_agents) == 1, "One injected opening should produce exactly one OpeningPopulatorAgent"
+        assert any(len(a.elements) > 0 for a in opening_agents), "Opening agent must produce at least one element"
 
+    @requires_opening
     def test_feature_definition_feature_is_transformed(self):
-        """Feature geometry in feature_configs is transformed to populator space."""
-        from timber_design.populators import EdgePopulatorAgentConfig
+        """Feature geometry in instance_feature_configs is transformed to populator space.
+
+        The opening outline is defined in world space; ``create_populator_agents`` must
+        call ``feature.transformed(self.transformation_to_populator)`` before passing it
+        to the agent.  If the transformation is skipped the agent receives world-space
+        geometry and would fail to intersect correctly with the panel frame.
+        """
+        from timber_design.populators import OpeningPopulatorAgent
+        from timber_design.populators import OpeningPopulatorAgentConfig
 
         panel = make_panel()
+        # Opening defined in world/panel space
+        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
+
         config = stud_config()
-        # Should not raise during transformation or agent instantiation
         config.panel = panel
-        config.instance_feature_configs = [EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)]
+        config.instance_feature_configs = [(opening, OpeningPopulatorAgentConfig(lintel_posts=False))]
+        # Should not raise during transformation or agent instantiation
         populator = config.create_populator()
         assert populator is not None
+
+        # The opening agent's feature should be in populator space (z near 0)
+        opening_agents = [a for a in populator.agents if isinstance(a, OpeningPopulatorAgent)]
+        assert len(opening_agents) == 1
+        # ``create_populator_agents`` must call feature.transformed(...) before passing
+        # it to the agent, so the agent holds a *new* object — not the original reference.
+        assert opening_agents[0].feature is not opening, "Agent must hold the transformed feature copy, not the original"

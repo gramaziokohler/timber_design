@@ -2,15 +2,23 @@ from dataclasses import dataclass
 
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import Panel
 
 from timber_design.populators import PopulatorAgent
 from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
 class StudPopulatorAgentConfig(PopulatorAgentConfig):
+    """Configuration for a stud-framing agent.
+
+    Parameters
+    ----------
+    stud_spacing : float
+        On-centre spacing between studs in model units.
+    """
+
     stud_spacing: float = 0.0
 
     @property
@@ -25,18 +33,21 @@ class StudPopulatorAgent(PopulatorAgent):
 
     Studs are placed at fixed ``stud_spacing`` intervals along the panel X
     axis, starting at ``stud_spacing`` from the left edge and stopping before
-    the right edge.  Each stud runs the full panel height (Y axis).
+    the right edge.  Each stud runs the full panel height (Y axis) at the
+    Z-centre of the layer.
 
     Stud segments that intersect with an :class:`~timber_design.populators.OpeningPopulatorAgent`
-    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_elements`
+    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`
     phase; overlapping king or jack studs are culled by
     :meth:`~OpeningPopulatorAgent._cull_stud`.
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The panel to fill with studs.
-    params : :class:`StudPopulatorAgentParams`
+    layer : :class:`~timber_design.populators.Layer`
+        The framing layer to fill with studs.  ``layer.panel`` provides the
+        length and width; ``layer.layer_index`` is used for cross-layer
+        trimming decisions.
+    params : :class:`StudPopulatorAgentConfig`
         Must include ``stud_spacing`` and optionally beam width overrides.
 
     Attributes
@@ -58,14 +69,14 @@ class StudPopulatorAgent(PopulatorAgent):
 
     def __init__(
         self,
-        panel: Panel,
+        layer: Layer,
         params: StudPopulatorAgentConfig,
     ):
-        super(StudPopulatorAgent, self).__init__(panel, params)
+        super(StudPopulatorAgent, self).__init__(layer, params)
         self.stud_spacing = params.stud_spacing
 
     def generate_elements(self):
-        """Populates the panel with stud beams."""
+        """Populate the layer with stud beams at ``stud_spacing`` intervals."""
         self._create_studs()
 
     def _create_studs(self):

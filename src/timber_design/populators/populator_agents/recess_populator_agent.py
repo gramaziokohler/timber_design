@@ -5,7 +5,6 @@ from compas.geometry import Translation
 from compas.geometry import Vector
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 
 try:
@@ -19,19 +18,34 @@ try:
 except ImportError:
     def extend_line_segments(*args, **kwargs):
         raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
+
     def get_polyline_segment_perpendicular_vector(*args, **kwargs):
         raise NotImplementedError("get_polyline_segment_perpendicular_vector is not available in this version of compas_timber")
+
     def join_polyline_segments(*args, **kwargs):
         raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
 
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import PopulatorAgent
 from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
 class RecessPopulatorAgentConfig(PopulatorAgentConfig):
+    """Configuration for a recess-frame agent.
+
+    Parameters
+    ----------
+    recess_beam_width : float
+        Width of the recess beam in model units.
+    recess_beam_height : float, optional
+        Height of the recess beam.  When ``None`` the full frame thickness is used.
+    sheeting_recess : float, optional
+        Thickness of the sheeting plate inserted into the recess.
+    """
+
     recess_beam_width: float = 0.0
     recess_beam_height: Optional[float] = None
     sheeting_recess: Optional[float] = None
@@ -54,22 +68,32 @@ class RecessPopulatorAgent(PopulatorAgent):
     required Z level.  Also creates a thin :class:`~compas_timber.elements.Plate`
     (the sheeting plate) whose outline matches the inward-offset edge outline.
 
-    The agent shares the same :attr:`~PopulatorAgent.outline` as the
+    The agent copies the :attr:`~PopulatorAgent.outline` from the
     :class:`EdgePopulatorAgent` it wraps (it does not define an independent
-    boundary).
+    boundary).  Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~FeatureBoundaryType.INCLUSIVE`.
+
+    Cross-layer behaviour
+    ---------------------
+    :meth:`affects_layer` returns ``True`` for any layer whose index is less
+    than or equal to this agent's own :attr:`~PopulatorAgent.layer_index`.
+    This allows the recess frame to cut sheeting plates on lower (inside)
+    layers during :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`.
 
     Parameters
     ----------
-    frame_panel : :class:`compas_timber.elements.Panel`
-        The structural frame panel whose edge agent provides the reference outline.
+    layer : :class:`~timber_design.populators.Layer`
+        The structural frame layer this agent operates within.
     edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        The edge agent whose :attr:`~PopulatorAgent.outline` is used as
-        the baseline for the recess beam centrelines.
-    params : :class:`RecessPopulatorAgentParams`
+        The edge agent whose :attr:`~PopulatorAgent.outline` is used as the
+        baseline for the recess beam centrelines.
+    params : :class:`RecessPopulatorAgentConfig`
         Recess beam dimensions and optional sheeting recess offset.
 
     Attributes
     ----------
+    edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
+        Reference to the companion edge agent.
     recess_beam_width : float
         Width of the recess beam in model units.
     recess_beam_height : float or None
@@ -92,11 +116,11 @@ class RecessPopulatorAgent(PopulatorAgent):
 
     def __init__(
         self,
-        frame_panel: Panel,
+        layer: Layer,
         edge_agent: PopulatorAgent,
         params: RecessPopulatorAgentConfig,
     ):
-        super(RecessPopulatorAgent, self).__init__(frame_panel, params)
+        super(RecessPopulatorAgent, self).__init__(layer, params)
         self.edge_agent = edge_agent
         self.recess_beam_width = params.recess_beam_width
         self.recess_beam_height = params.recess_beam_height
@@ -104,11 +128,12 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     def apply_to_plate(self, plate):
-        if self.affects_layer(plate.layer_index):
+        """Cut the recess outline into *plate* if it belongs to an affected layer."""
+        if self.affects_layer(getattr(plate, "layer_index", None)):
             return self._cut_out_of_plate(plate)
 
     def generate_elements(self) -> None:
-        """Get the edge beam definitions for the outer polyline of the panel."""
+        """Generate recess beams and the sheeting plate for the panel outline."""
         plate_edges = []
         new_centerlines = []
         for i, edge in enumerate(self.edge_agent.outline.lines):
@@ -129,21 +154,42 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.outline = self.edge_agent.outline.copy() if self.edge_agent.outline else None
 
     # ==========================================================================
-    # methods for joints
+    # Cross-layer boundary behaviour
     # ==========================================================================
 
-    def _cut_out_of_plate(self, plate: Plate):
-        """Apply the opening contour to the given plate.
+    def affects_layer(self, layer_index):
+        """Return ``True`` for any layer at or below this agent's own layer index.
+
+        This makes the recess agent cut sheathing plates on lower (inside)
+        layers during
+        :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`.
 
         Parameters
         ----------
-        panel : :class:`compas_timber.elements.Panel`
-            The panel to which the opening will be applied.
+        layer_index : int or None
+            Layer index to check.  ``None`` is treated as matching any layer.
+        """
+        if layer_index is None or self.layer_index is None:
+            return True
+        return layer_index <= self.layer_index
+
+    # ==========================================================================
+    # Private helpers
+    # ==========================================================================
+
+    def _cut_out_of_plate(self, plate: Plate):
+        """Apply the recess outline as a ``FreeContour`` cut to *plate*.
+
+        Parameters
+        ----------
+        plate : :class:`compas_timber.elements.Plate`
+            The sheathing plate to cut.
 
         Raises
         ------
-        :class:`compas_timber.errors.FeatureApplicationError`
-            If the opening cannot be applied to the panel.
+        ValueError
+            If :attr:`outline` has not been set (i.e. :meth:`generate_elements`
+            has not been called yet).
         """
         if not self.outline:
             raise ValueError("No outline defined for recess populator agent.")
@@ -151,10 +197,6 @@ class RecessPopulatorAgent(PopulatorAgent):
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
-    def affects_layer(self, layer_index):
-        if layer_index is None or self.layer_index is None:
-            return True
-        return layer_index <= self.layer_index
 
 # Set after both classes are defined so forward reference is resolved
 RecessPopulatorAgentConfig.AGENT_TYPE = RecessPopulatorAgent

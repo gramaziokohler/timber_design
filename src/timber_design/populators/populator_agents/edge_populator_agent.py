@@ -65,10 +65,11 @@ class EdgePopulatorAgent(PopulatorAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
     Creates one :class:`~timber_design.populators.Beam2D` per segment of the
-    panel outline.  Each beam's width is derived from the depth of the panel
-    chamfer at that edge (the distance between ``outline_a`` and ``outline_b``
-    projected onto the outward normal).  An optional *minimum width* and
-    *width increment* allow widths to be snapped to standard lumber sizes.
+    panel outline (``layer.panel.outline_a``).  Each beam's width is derived
+    from the depth of the panel chamfer at that edge (the distance between
+    ``outline_a`` and ``outline_b`` projected onto the outward normal).  An
+    optional *minimum width* and *width increment* allow widths to be snapped
+    to standard lumber sizes.
 
     Beam categories are assigned automatically:
 
@@ -82,12 +83,15 @@ class EdgePopulatorAgent(PopulatorAgent):
     formed by all edge-beam inner faces.  Its
     :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
-    agents that fall outside this outline are discarded.
+    agents that fall outside this outline are discarded during
+    :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`.
 
     Parameters
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The layer whose panel outline drives edge-beam placement.
+        ``layer.panel`` provides the outline geometry; ``layer.layer_index``
+        governs cross-layer trimming.
     params : :class:`EdgePopulatorAgentConfig`
         Controls optional standard-width rounding and minimum beam width.
 

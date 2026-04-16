@@ -66,7 +66,9 @@
       "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/test_populators.py --tb=short -p no:randomly)",
       "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/ --tb=short -p no:randomly -q)",
       "Bash(grep -n \"Agent\\\\\\(frame_panel\\\\|Agent\\\\\\(panel\\\\|Agent\\\\\\(layer\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)",
-      "Bash(grep -n \"Agent\\(\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)"
+      "Bash(grep -n \"Agent\\(\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)",
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest /c/Users/obucklin/repos/timber_design/tests/test_panel_populator_workflow.py -x -q)",
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest /c/Users/obucklin/repos/timber_design/tests/test_panel_populator_workflow.py -q)"
     ]
   }
 }

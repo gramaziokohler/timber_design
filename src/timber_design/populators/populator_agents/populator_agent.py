@@ -1,3 +1,4 @@
+import dataclasses
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -7,6 +8,8 @@ from typing import Optional
 from typing import Union
 
 if TYPE_CHECKING:
+    from compas_timber.panel_features import PanelFeature
+
     from timber_design.populators.layer import Layer
 
 from compas.geometry import Line
@@ -66,16 +69,20 @@ class PopulatorAgentConfig:
 
     Parameters
     ----------
+    layer : :class:`~timber_design.populators.Layer`, optional
+        The layer the agent operates on.  Set by
+        :meth:`get_agent_from_layer` / :meth:`get_agent_from_feature`.
     beam_width_overrides : dict, optional
         Per-category beam width overrides.  Keys are category name strings
         (e.g. ``"stud"``, ``"header"``); values are floats in model units.
         Overrides are applied by :meth:`~PopulatorAgent.resolve_beam_dimensions`.
     joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Rules that replace matching entries in the agent's ``RULES`` list.
+        Rules that replace matching entries in the agent's ``INTERNAL_RULES`` list.
         Non-matching overrides are appended.
     feature : object, optional
-        The specific feature instance this config is bound to.  ``None`` when
-        used as a type-level default (not yet bound to a feature).
+        The specific panel-feature instance this config is bound to (e.g. an
+        :class:`~compas_timber.panel_features.Opening`).  ``None`` for
+        panel-level agents that operate on the layer's panel directly.
 
     Class Attributes
     ----------------
@@ -85,11 +92,10 @@ class PopulatorAgentConfig:
     """
 
     AGENT_TYPE = None
-
     beam_width_overrides: Optional[dict] = None
     joint_rule_overrides: Optional[List[CategoryRule]] = None
     feature: Optional[object] = None
-    layer_index: Optional[int] = None
+
 
     @property
     def __data__(self):
@@ -98,14 +104,16 @@ class PopulatorAgentConfig:
             "joint_rule_overrides": self.joint_rule_overrides,
         }
 
-    
-    def get_agent_from_feature(self, feature):
-        """Instantiate the agent for the given feature.
+    def get_agent_from_layer(self, layer):
+        """Instantiate the agent for the given layer.
+
+        Creates a copy of this config with ``layer`` set and passes the
+        layer to the agent constructor.
 
         Parameters
         ----------
-        feature : object
-            The (possibly transformed) feature to pass to the agent constructor.
+        layer : :class:`~timber_design.populators.Layer`
+            The layer to create the agent for.
 
         Returns
         -------
@@ -118,16 +126,22 @@ class PopulatorAgentConfig:
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        return self.AGENT_TYPE(feature, self)
+        config = dataclasses.replace(self)
+        return self.AGENT_TYPE(layer, self)
 
-    
-    def get_agent_from_panel(self, panel):
-        """Instantiate the agent for the given feature.
+    def get_agent_from_feature(self, feature, layer):
+        """Instantiate a feature-bound agent for the given layer.
+
+        Sets ``feature`` and ``layer`` on a copy of this config, then
+        instantiates the agent with the layer.  The agent reads the feature
+        from ``params.feature`` during its own ``__init__``.
 
         Parameters
         ----------
         feature : object
-            The (possibly transformed) feature to pass to the agent constructor.
+            The (possibly transformed) panel feature to bind to this agent.
+        layer : :class:`~timber_design.populators.Layer`
+            The layer the agent operates on.
 
         Returns
         -------
@@ -135,12 +149,17 @@ class PopulatorAgentConfig:
 
         Raises
         ------
+        ValueError
+            If ``layer`` is ``None``.
         NotImplementedError
             If ``AGENT_TYPE`` has not been set on this config class.
         """
+        if layer is None:
+            raise ValueError("Layer is required to instantiate a feature-bound agent.")
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        return self.AGENT_TYPE(panel, self)
+        config = dataclasses.replace(self, feature=feature)
+        return self.AGENT_TYPE(layer, config)
 
 class PopulatorAgent(ABC):
     """Abstract base class for all panel populator agents.
@@ -173,7 +192,7 @@ class PopulatorAgent(ABC):
     BEAM_CATEGORY_NAMES : list[str]
         The beam categories this agent can create.  Used by
         :meth:`resolve_beam_dimensions`.
-    RULES : list[:class:`~timber_design.workflow.CategoryRule`]
+    INTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules.  May be overridden per instance via
         :class:`PopulatorAgentConfig`.
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
@@ -182,16 +201,24 @@ class PopulatorAgent(ABC):
 
     Parameters
     ----------
-    feature : :class:`compas_timber.elements.Panel` or :class:`compas_timber.panel_features.PanelFeature`
-        The panel or feature whose geometry drives element creation.
-    params : :class:`PopulatorAgentParams`
+    layer : :class:`~timber_design.populators.Layer`
+        The layer this agent operates on.  Every agent is bound to exactly
+        one layer; its panel is available as :attr:`panel`.
+    params : :class:`PopulatorAgentConfig`
         Parameters including beam width overrides and joint rule overrides.
+        ``params.feature`` carries the bound panel-feature for feature-level
+        agents (e.g. :class:`~timber_design.populators.OpeningPopulatorAgent`).
 
     Attributes
     ----------
-    feature : :class:`compas_timber.elements.Panel` or :class:`compas_timber.panel_features.PanelFeature`
+    layer : :class:`~timber_design.populators.Layer`
+    feature : object
+        For panel-level agents: the layer's panel.  For feature-level agents
+        (e.g. opening agents): the bound :class:`~compas_timber.panel_features.PanelFeature`.
     panel : :class:`compas_timber.elements.Panel`
-        Alias for :attr:`feature` (convenience property available on all agents).
+        Shortcut for ``self.layer.panel``.
+    layer_index : int or None
+        Shortcut for ``self.layer.layer_index``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
         and mutated by :meth:`trim_elements_with_agent`.
@@ -210,25 +237,41 @@ class PopulatorAgent(ABC):
 
     FEATURE_TYPE = None
     BEAM_CATEGORY_NAMES = []
-    RULES = []
+    INTERNAL_RULES = []
+    EXTERNAL_RULES = []
     BOUNDARY_TYPE = FeatureBoundaryType.NONE
 
     def __init__(
         self,
-        feature,
+        layer: "Layer",
         params: "PopulatorAgentConfig",
     ):
-        self.feature = feature
-        self.layer_index = params.layer_index
+        if layer is None:
+            raise ValueError("{} requires a layer".format(type(self).__name__))
+        self.layer = layer
+        # feature-level agents pass the bound feature via params.feature;
+        # panel-level agents default to the layer's panel so self.feature is
+        # always a usable reference.
+        self.feature = params.feature if params.feature else None
         self.beam_width_overrides = params.beam_width_overrides or {}
         if params.joint_rule_overrides:
-            self.rules = self.update_rules(params.joint_rule_overrides)
+            self.internal_rules = self.update_rules(params.joint_rule_overrides)
         else:
-            self.rules = self.RULES
+            self.internal_rules = self.INTERNAL_RULES
         self.beam_dimensions: dict[str, tuple[float, float]] = {}
         self.joint_defs = []
         self.elements = []
         self.outline = None
+
+    @property
+    def layer_index(self):
+        """Ordinal index of :attr:`layer` in the panel's layer stack."""
+        return self.layer.layer_index
+
+    @property
+    def layer_center_height(self):
+        """Z coordinate of the layer's mid-thickness in populator space."""
+        return self.layer.center_height
 
     @property
     def aabb(self):
@@ -249,17 +292,12 @@ class PopulatorAgent(ABC):
 
     @property
     def panel(self):
-        """The panel (or feature) associated with this agent.
-
-        For agents whose ``feature`` is the panel itself (edge, plate,
-        stud, recess) this is a direct alias.  Subclasses that use a different
-        feature type (e.g. ``OpeningPopulatorAgent``) can override this.
-        """
-        return self.feature
+        """The panel geometry of this agent's :attr:`layer`."""
+        return self.layer.panel
 
     def update_rules(self, joint_rule_overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Update the rules with any overrides provided."""
-        rules = [r for r in self.RULES]
+        rules = [r for r in self.INTERNAL_RULES]
 
         for override in joint_rule_overrides:
             # NOTE: this is a bit of a breach of encapsulation, but necessary to allow for rule overrides
@@ -281,7 +319,7 @@ class PopulatorAgent(ABC):
                 rules.append(override)
         return rules
 
-    def resolve_beam_dimensions(self, frame_thickness: float, standard_beam_width: float = 0.0) -> None:
+    def resolve_beam_dimensions(self, standard_beam_width: float, frame_thickness: float) -> None:
         """Populate ``beam_dimensions`` from *frame_thickness*, *standard_beam_width*, and any per-category overrides."""
         for category in self.BEAM_CATEGORY_NAMES:
             if category in self.beam_width_overrides:
@@ -320,7 +358,7 @@ class PopulatorAgent(ABC):
 
     def get_direct_rule_from_elements(self, element_a: TimberElement, element_b: TimberElement, **kwargs) -> Union[DirectRule, None]:
         """Get the joint type for the given elements."""
-        matching_rules = [r for r in self.rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
+        matching_rules = [r for r in self.internal_rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
         if not matching_rules:
             return
         # raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
@@ -337,8 +375,10 @@ class PopulatorAgent(ABC):
             rule_kwargs.update(kwargs)
             return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
-    def affects_layer(self, layer_index: int) -> bool:
+    def affects_layer(self, layer_index) -> bool:
         """Determines whether this agent trims and culls elements on the given layer."""
+        if layer_index is None or self.layer_index is None:
+            return False
         return self.layer_index == layer_index
 
     
@@ -441,12 +481,11 @@ class PopulatorAgent(ABC):
             elif element.is_plate:
                 agent.apply_to_plate(element)
                 new_elements.append(element)
-        self.elements = new_elements
+        self.elements = new_elements    
 
-    @abstractmethod
     def generate_elements(self):
         """Generates elements for the panel based on the panel populator and optional feature definition."""
-        raise NotImplementedError("generate_elements method must be implemented in subclasses of PopulatorAgent")
+        pass
 
     def extend_elements(self, other_agents: list["PopulatorAgent"]) -> None:
         pass
@@ -457,3 +496,5 @@ class PopulatorAgent(ABC):
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
+
+

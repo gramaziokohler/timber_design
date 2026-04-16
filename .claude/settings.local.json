@@ -43,7 +43,30 @@
       "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/ -q)",
       "Bash(python -c ':*)",
       "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_panel_populator_workflow.py::TestInstanceFeatureDefinitions::test_injected_agent_elements_appear_in_model -q --tb=short)",
-      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_populators.py -q)"
+      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_populators.py -q)",
+      "Bash(python -m pytest tests/test_populators.py -x -q)",
+      "Bash(python -m pytest tests/test_populators.py -x --tb=short)",
+      "Bash(where pytest:*)",
+      "Bash(where python:*)",
+      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/Scripts/pytest.exe tests/test_populators.py -x --tb=short)",
+      "Bash(.venv/Scripts/pytest.exe tests/test_populators.py -x --tb=short)",
+      "Bash(C:/Users/obucklin/repos/timber_design/.venv/Scripts/python.exe -m pytest --version)",
+      "Bash(C:/Users/obucklin/repos/timber_design/.venv/Scripts/python.exe -c \"import timber_design; print\\('ok'\\)\")",
+      "Bash(C:/Users/obucklin/repos/timber_design/.venv/Scripts/python.exe -c \"from timber_design.populators import PanelPopulatorConfig, StudPanelPopulatorConfig, get_layers, get_frame_panel, Layer; print\\('imports ok'\\)\")",
+      "Bash(C:/Users/obucklin/repos/timber_design/.venv/Scripts/python.exe -c ':*)",
+      "Bash(.venv/Scripts/python.exe -c ':*)",
+      "Bash(.venv/Scripts/python.exe -c \"from compas_timber.panel_features import Opening\")",
+      "Bash(.venv/Scripts/python.exe -c \"import compas_timber.panel_features; print\\(dir\\(compas_timber.panel_features\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_populators.py -x --tb=short)",
+      "Bash(.venv/Scripts/python.exe -m pip install pytest -q)",
+      "Bash(C:/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/Scripts/python.exe -c \"import timber_design; print\\('ok'\\)\")",
+      "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -c \"import timber_design; print\\('ok'\\)\")",
+      "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/test_populators.py -x --tb=short)",
+      "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/test_populators.py -x --tb=short -p no:randomly)",
+      "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/test_populators.py --tb=short -p no:randomly)",
+      "Bash(\"/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe\" -m pytest tests/ --tb=short -p no:randomly -q)",
+      "Bash(grep -n \"Agent\\\\\\(frame_panel\\\\|Agent\\\\\\(panel\\\\|Agent\\\\\\(layer\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)",
+      "Bash(grep -n \"Agent\\(\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)"
     ]
   }
 }

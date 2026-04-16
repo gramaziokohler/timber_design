@@ -47,7 +47,8 @@ class StudPopulatorAgent(PopulatorAgent):
 
     BEAM_CATEGORY_NAMES = ["stud"]
     NAME = "StudPopulatorAgent"
-    RULES = [
+    INTERNAL_RULES = []
+    EXTERNAL_RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
@@ -72,7 +73,7 @@ class StudPopulatorAgent(PopulatorAgent):
         x_position = self.stud_spacing
         studs = []
         while x_position < self.panel.length - self.beam_dimensions["stud"][0]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, 0), (0, self.panel.width, 0)), "stud"))
+            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.panel.width, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs
 

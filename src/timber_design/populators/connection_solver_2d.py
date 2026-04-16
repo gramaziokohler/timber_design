@@ -40,6 +40,8 @@ def aabb_overlap(a, b, tolerance=0.0):
         so that beams whose blanks merely *touch* are still considered
         overlapping.
     """
+    print("a", a, a.aabb)
+    print("b", b, b.aabb)
     if not (a.aabb and b.aabb):
         return False
     return (

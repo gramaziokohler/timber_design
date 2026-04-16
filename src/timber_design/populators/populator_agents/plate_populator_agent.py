@@ -27,7 +27,6 @@ class PlatePopulatorAgentConfig(PopulatorAgentConfig):
         data["thickness"] = self.thickness
         return data
 
-
 class PlatePopulatorAgent(PopulatorAgent):
     """Generates a flat sheathing plate for one cross-section layer of a panel.
 
@@ -59,24 +58,17 @@ class PlatePopulatorAgent(PopulatorAgent):
 
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
     NAME = "PanelPlatePopulatorAgent"
-    RULES = []
 
     def __init__(self, layer: Layer, params: PlatePopulatorAgentConfig) -> None:
-        super(PlatePopulatorAgent, self).__init__(layer.panel, params)
-        # Override the layer set by the base class (params.layer is None for plate agents;
-        # the layer is passed explicitly as the first constructor argument instead).
-        self.layer = layer
-        self.thickness = params.thickness
-        # Category is driven by the layer name.  Set BEAM_CATEGORY_NAMES as an
-        # instance attribute so resolve_beam_dimensions registers it correctly.
+        super(PlatePopulatorAgent, self).__init__(layer, params)
         self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 
     def generate_elements(self) -> None:
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer."""
         category = "{}_plate".format(self.layer.name)
         plate = Plate.from_outlines(
-            self.panel.outline_a,
-            self.panel.outline_b,
+            self.layer.panel.outline_a,
+            self.layer.panel.outline_b,
             name=category,
             category=category,
         )

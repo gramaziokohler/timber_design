@@ -7,10 +7,22 @@ from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
-from compas_timber.fabrication import FreeContour
-from compas_timber.utils import extend_line_segments
-from compas_timber.utils import get_polyline_segment_perpendicular_vector
-from compas_timber.utils import join_polyline_segments
+
+try:
+    from compas_timber.fabrication import FreeContour
+except ImportError:
+    FreeContour = None
+try:
+    from compas_timber.utils import extend_line_segments
+    from compas_timber.utils import get_polyline_segment_perpendicular_vector
+    from compas_timber.utils import join_polyline_segments
+except ImportError:
+    def extend_line_segments(*args, **kwargs):
+        raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
+    def get_polyline_segment_perpendicular_vector(*args, **kwargs):
+        raise NotImplementedError("get_polyline_segment_perpendicular_vector is not available in this version of compas_timber")
+    def join_polyline_segments(*args, **kwargs):
+        raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
 
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import PopulatorAgent
@@ -69,8 +81,10 @@ class RecessPopulatorAgent(PopulatorAgent):
     BEAM_CATEGORY_NAMES = ["recess"]
     NAME = "RecessPopulatorAgent"
     BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
-    RULES = [
+    INTERNAL_RULES = [
         CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
+    ]
+    EXTERNAL_RULES = [
         CategoryRule(TButtJoint, "recess", "top_plate_beam", max_distance=1.0),
         CategoryRule(TButtJoint, "recess", "bottom_plate_beam", max_distance=1.0),
         CategoryRule(TButtJoint, "recess", "edge_stud", max_distance=1.0),
@@ -137,8 +151,9 @@ class RecessPopulatorAgent(PopulatorAgent):
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
-    @property
     def affects_layer(self, layer_index):
+        if layer_index is None or self.layer_index is None:
+            return True
         return layer_index <= self.layer_index
 
 # Set after both classes are defined so forward reference is resolved

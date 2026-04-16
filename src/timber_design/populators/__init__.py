@@ -24,15 +24,16 @@ from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
 from .populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
 from .populator_agents.recess_populator_agent import RecessPopulatorAgent
 from .populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
+from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
+from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgentConfig
 
 
 from .layer import Layer
+from .layer import LayerDefinition
 
 from .populator_configs.panel_populator_config import PanelPopulatorConfig
 from .populator_configs.panel_populator_config import get_frame_panel
 from .populator_configs.panel_populator_config import get_layers
-from .populator_configs.stud_panel_populator_config import StudPanelPopulatorConfig
-from .populator_configs.recess_panel_populator_config import RecessPanelPopulatorConfig
 
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "AABB2D",
     "Beam2D",
     "Layer",
+    "LayerDefinition",
     "PopulatorAgent",
     "FeatureBoundaryType",
     "PopulatorAgentConfig",
@@ -53,6 +55,8 @@ __all__ = [
     "OpeningPopulatorAgentConfig",
     "RecessPopulatorAgent",
     "RecessPopulatorAgentConfig",
+    "PanelBoundaryPopulatorAgent",
+    "PanelBoundaryPopulatorAgentConfig",
     "BeamOutlineIntersectionData",
     "ConnectionSolver2D",
     "aabb_overlap_x",
@@ -62,6 +66,4 @@ __all__ = [
     "PanelPopulatorConfig",
     "get_frame_panel",
     "get_layers",
-    "StudPanelPopulatorConfig",
-    "RecessPanelPopulatorConfig",
 ]

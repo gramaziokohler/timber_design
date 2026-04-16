@@ -13,10 +13,10 @@ from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
-from compas_timber.elements import Panel
 from compas_timber.fabrication import LongitudinalCutProxy
 
 from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.layer import Layer
 
 try:
     from compas_timber.utils import extend_line_segments
@@ -26,9 +26,20 @@ except ImportError:
         raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
 
 
-from compas_timber.utils import get_interior_corner_indices
-from compas_timber.utils import get_polyline_segment_perpendicular_vector
-from compas_timber.utils import join_polyline_segments
+try:
+    from compas_timber.utils import get_interior_corner_indices
+    from compas_timber.utils import get_polyline_segment_perpendicular_vector
+    from compas_timber.utils import join_polyline_segments
+except ImportError:
+
+    def get_interior_corner_indices(*args, **kwargs):
+        raise NotImplementedError("get_interior_corner_indices is not available in this version of compas_timber")
+
+    def get_polyline_segment_perpendicular_vector(*args, **kwargs):
+        raise NotImplementedError("get_polyline_segment_perpendicular_vector is not available in this version of compas_timber")
+
+    def join_polyline_segments(*args, **kwargs):
+        raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
 
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import PopulatorAgent
@@ -75,9 +86,9 @@ class EdgePopulatorAgent(PopulatorAgent):
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The panel whose outline drives edge-beam placement.
-    params : :class:`EdgePopulatorAgentParams`
+    layer : :class:`~timber_design.populators.Layer`
+        The layer whose panel outline drives edge-beam placement.
+    params : :class:`EdgePopulatorAgentConfig`
         Controls optional standard-width rounding and minimum beam width.
 
     Attributes
@@ -90,8 +101,8 @@ class EdgePopulatorAgent(PopulatorAgent):
     """
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    NAME = "PanelEdgePopulatorAgent"
-    RULES = [
+    NAME = "EdgePopulatorAgent"
+    INTERNAL_RULES = [
         CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -103,10 +114,10 @@ class EdgePopulatorAgent(PopulatorAgent):
 
     def __init__(
         self,
-        panel: Panel,
+        layer: Layer,
         params: EdgePopulatorAgentConfig,
     ) -> None:
-        super(EdgePopulatorAgent, self).__init__(panel, params)
+        super(EdgePopulatorAgent, self).__init__(layer, params)
         self.standard_beam_width_increment = params.standard_beam_width_increment
         self.edge_beam_min_width = params.edge_beam_min_width or 0.0
 
@@ -138,15 +149,16 @@ class EdgePopulatorAgent(PopulatorAgent):
         seg_a = self.panel.outline_a.lines[segment_index]
         seg_b = self.panel.outline_b.lines[segment_index]
         dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
+        z = self.layer_center_height
         if TOL.is_zero(dot):  # edges are perpendicular to panel
-            outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
+            outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], z), Point(seg_a.end[0], seg_a.end[1], z))
             width = min_width
             offset = width / 2
         else:
             if dot < 0:  # seg_b is closer to the middle
-                outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
+                outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], z), Point(seg_a.end[0], seg_a.end[1], z))
             else:  # seg_a is closer to the middle
-                outer_segment = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
+                outer_segment = Line(Point(seg_b.start[0], seg_b.start[1], z), Point(seg_b.end[0], seg_b.end[1], z))
             if not edge_beam_dim_increment:
                 width = abs(dot) + min_width
                 offset = width / 2

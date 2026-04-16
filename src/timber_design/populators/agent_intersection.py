@@ -102,13 +102,23 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
     # ------------------------------------------------------------------
     # Step 1: collect all dot-position intersection hits per outline segment
     # ------------------------------------------------------------------
+    # Intersections that coincide with an outline edge's own endpoints are
+    # excluded: when an outline corner lies exactly on a blank boundary the
+    # same geometric point is detected once as the *end* of one edge and
+    # again as the *start* of the next, causing spurious double-counting.
+    # Legitimate interior crossings never sit at segment endpoints.
+    _endpoint_tol = 1e-6
     dots_by_outline = {}
     for i, agent_edge in enumerate(outline.lines):
         dots_by_outline[i] = []
         for j in range(4):
             pt = _intersect_with_blank_edge(agent_edge, j)
-            if pt is not None:
-                dots_by_outline[i].append(_beam_dot(pt))
+            if pt is None:
+                continue
+            if (agent_edge.start.distance_to_point(pt) < _endpoint_tol or
+                    agent_edge.end.distance_to_point(pt) < _endpoint_tol):
+                continue
+            dots_by_outline[i].append(_beam_dot(pt))
 
     if not any(dots_by_outline.values()):
         return []
@@ -143,7 +153,10 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
                 current_entry = None
 
         elif len(hit_dots) == 2:
-            # outline edge traverses the full beam width in one step (SINGLE)
+            # Outline edge enters and exits the beam blank in one step.
+            # Endpoint coincidences are filtered in Step 1, so this branch is
+            # only reached for genuine interior crossings — always from outside
+            # for a convex (rectangular) blank.
             crossings_as_dots.append(
                 BeamOutlineIntersectionData(
                     start_dot=min(hit_dots),
@@ -151,6 +164,8 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
                 )
             )
             current_entry = None
+            # inside is unchanged: was False, remains False.
+                # inside is unchanged: was False, remains False.
 
     # ------------------------------------------------------------------
     # Wrap-around: outline started inside the beam.

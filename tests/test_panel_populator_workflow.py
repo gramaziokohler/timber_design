@@ -25,8 +25,7 @@ from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
-from timber_design.populators import RecessPanelPopulatorConfig
-from timber_design.populators import StudPanelPopulatorConfig
+from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators.beam2d import Beam2D
 
 # ---------------------------------------------------------------------------
@@ -74,10 +73,10 @@ def make_panel(width=W, height=H, thickness=T):
 
 
 def stud_config(**overrides):
-    """``StudPanelPopulatorConfig`` with sensible mm defaults."""
+    """``PanelPopulatorConfig.stud_panel`` with sensible mm defaults."""
     kw = dict(standard_beam_width=60.0, stud_spacing=625.0)
     kw.update(overrides)
-    return StudPanelPopulatorConfig(**kw)
+    return PanelPopulatorConfig.stud_panel(**kw)
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +88,10 @@ def run_workflow(panel, config, feature_defs=None):
     """Run the full population pipeline; return ``(populator, model)``."""
     model = TimberModel()
     model.add_element(panel)
-    populator = config.create_populator_from_panel(panel, feature_configs=feature_defs)
+    config.panel = panel
+    if feature_defs:
+        config.instance_feature_configs = feature_defs
+    populator = config.create_populator()
     populator.populate_elements()
     populator.join_elements()
     populator.process_joinery()
@@ -378,7 +380,7 @@ class TestRecessPanel:
     @pytest.fixture(scope="class")
     def result(self):
         panel = make_panel()
-        config = RecessPanelPopulatorConfig(
+        config = PanelPopulatorConfig.recess_panel(
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,
@@ -428,7 +430,8 @@ class TestMultiPanelWorkflow:
             model.add_element(panel)
             panels.append(panel)
         for panel in panels:
-            populator = config.create_populator_from_panel(panel)
+            config.panel = panel
+            populator = config.create_populator()
             populator.populate_elements()
             populator.join_elements()
             populator.process_joinery()
@@ -466,7 +469,8 @@ class TestClearPanel:
         ref_panel = make_panel()
         ref_model = TimberModel()
         ref_model.add_element(ref_panel)
-        pop = config.create_populator_from_panel(ref_panel)
+        config.panel = ref_panel
+        pop = config.create_populator()
         pop.populate_elements()
         pop.join_elements()
         pop.process_joinery()
@@ -478,7 +482,8 @@ class TestClearPanel:
         model = TimberModel()
         model.add_element(panel)
         for _ in range(2):
-            pop = config.create_populator_from_panel(panel)
+            config.panel = panel
+            pop = config.create_populator()
             pop.populate_elements()
             pop.join_elements()
             pop.process_joinery()
@@ -494,26 +499,29 @@ class TestClearPanel:
 
 
 class TestStudOrientation:
-    """stud_direction parameter is accepted and stored on StudPanelPopulatorConfig."""
+    """orientation parameter is accepted and stored on PanelPopulatorConfig."""
 
     def test_default_orientation_set(self):
         panel = make_panel()
         config = stud_config()
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         assert populator is not None
 
     def test_custom_orientation_accepted(self):
         panel = make_panel()
-        config = stud_config(stud_direction=Vector(1, 0, 0))
-        populator = config.create_populator_from_panel(panel)
+        config = stud_config(orientation=Vector(1, 0, 0))
+        config.panel = panel
+        populator = config.create_populator()
         assert populator is not None
 
     def test_normal_parallel_orientation_falls_back(self):
         """A vector parallel to the panel normal must not raise — falls back to default."""
         panel = make_panel()
         normal = panel.normal
-        config = stud_config(stud_direction=normal)
-        populator = config.create_populator_from_panel(panel)
+        config = stud_config(orientation=normal)
+        config.panel = panel
+        populator = config.create_populator()
         assert populator is not None
 
 
@@ -553,7 +561,8 @@ class TestRobustness:
         """Calling only populate_elements (no join / process) is safe."""
         panel = make_panel()
         config = stud_config()
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         populator.populate_elements()
         assert len(populator.agents) > 0
 
@@ -561,7 +570,8 @@ class TestRobustness:
         """After populate_elements the populator's own model has framing."""
         panel = make_panel()
         config = stud_config()
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         populator.populate_elements()
         internal_cats = {e.attributes.get("category") for e in populator.model.elements() if hasattr(e, "attributes")}
         assert "stud" in internal_cats
@@ -570,7 +580,8 @@ class TestRobustness:
         """No zero-length beams must survive the trim stage."""
         panel = make_panel()
         config = stud_config()
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         populator.populate_elements()
         for e in populator.model.elements():
             if isinstance(e, Beam2D):
@@ -682,7 +693,7 @@ class TestTrimBeam:
         panel = make_panel()
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
         gen = StudPopulatorAgent(panel, params)
-        gen.resolve_beam_dimensions(160.0, 60.0)
+        gen.resolve_beam_dimensions(60.0, 160.0)
         beam = self._make_beam_2d(0, 1350, 4000, 1350)
         result = gen.trim_beam(beam)
         assert len(result) == 1
@@ -725,7 +736,8 @@ class TestJointCreation:
     def test_joints_created_for_stud_wall(self):
         panel = make_panel()
         config = stud_config()
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         populator.populate_elements()
         populator.join_elements()
         joints = list(populator.model.joints)
@@ -741,7 +753,8 @@ class TestJointCreation:
 
         def count_joints(spacing):
             config = stud_config(stud_spacing=spacing)
-            pop = config.create_populator_from_panel(panel)
+            config.panel = panel
+            pop = config.create_populator()
             pop.populate_elements()
             pop.join_elements()
             from compas_timber.connections import JointCandidate
@@ -784,7 +797,8 @@ class TestFeatureDefinitionsOnParams:
         panel.add_feature(opening)
 
         config = stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)})
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
 
         opening_agents = [a for a in populator.agents if isinstance(a, OpeningPopulatorAgent)]
         assert len(opening_agents) == 1
@@ -800,7 +814,8 @@ class TestFeatureDefinitionsOnParams:
         panel.add_feature(Opening.from_outline_panel(make_outline(1500, 900, 2200, 2000), panel, opening_type=OpeningType.WINDOW))
 
         config = stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig()})
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
 
         opening_agents = [a for a in populator.agents if isinstance(a, OpeningPopulatorAgent)]
         assert len(opening_agents) == 2
@@ -815,7 +830,8 @@ class TestFeatureDefinitionsOnParams:
         panel.add_feature(Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW))
 
         config = stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)})
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
         populator.populate_elements()
         populator.join_elements()
 
@@ -831,8 +847,10 @@ class TestFeatureDefinitionsOnParams:
         config_with = stud_config(default_feature_configs={})
         config_without = stud_config()
         panel = make_panel()
-        populator_with = config_with.create_populator_from_panel(panel)
-        populator_without = config_without.create_populator_from_panel(panel)
+        config_with.panel = panel
+        populator_with = config_with.create_populator()
+        config_without.panel = panel
+        populator_without = config_without.create_populator()
         assert len(populator_with.agents) == len(populator_without.agents)
 
     def test_unmatched_definition_adds_no_agents(self):
@@ -846,8 +864,10 @@ class TestFeatureDefinitionsOnParams:
         panel = make_panel()
         config_plain = stud_config()
         config_with_defn = stud_config(default_feature_configs={_Sentinel: EdgePopulatorAgentConfig(edge_beam_min_width=60.0)})
-        populator_plain = config_plain.create_populator_from_panel(panel)
-        populator_with_defn = config_with_defn.create_populator_from_panel(panel)
+        config_plain.panel = panel
+        populator_plain = config_plain.create_populator()
+        config_with_defn.panel = panel
+        populator_with_defn = config_with_defn.create_populator()
         assert len(populator_with_defn.agents) == len(populator_plain.agents)
 
     def test_beam_dimensions_resolved_on_definition_agents(self):
@@ -857,7 +877,8 @@ class TestFeatureDefinitionsOnParams:
 
         panel = make_panel()
         config = stud_config(default_feature_configs={Panel: EdgePopulatorAgentConfig(edge_beam_min_width=60.0)})
-        populator = config.create_populator_from_panel(panel)
+        config.panel = panel
+        populator = config.create_populator()
 
         for agent in populator.agents:
             if isinstance(agent, EdgePopulatorAgent):
@@ -882,10 +903,9 @@ class TestInstanceFeatureDefinitions:
 
         # Inject an extra EdgePopulatorAgent using the panel itself as the feature
         config = stud_config()
-        populator = config.create_populator_from_panel(
-            panel,
-            feature_configs=[EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)],
-        )
+        config.panel = panel
+        config.instance_feature_configs = [EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)]
+        populator = config.create_populator()
         populator.populate_elements()
 
         # The injected agent should have added elements
@@ -898,8 +918,7 @@ class TestInstanceFeatureDefinitions:
         panel = make_panel()
         config = stud_config()
         # Should not raise during transformation or agent instantiation
-        populator = config.create_populator_from_panel(
-            panel,
-            feature_configs=[EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)],
-        )
+        config.panel = panel
+        config.instance_feature_configs = [EdgePopulatorAgentConfig(feature=panel, edge_beam_min_width=60.0)]
+        populator = config.create_populator()
         assert populator is not None

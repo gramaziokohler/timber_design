@@ -129,7 +129,7 @@ classDiagram
         <<abstract>>
         +FEATURE_TYPE : type$
         +BEAM_CATEGORY_NAMES : list[str]$
-        +RULES : list[CategoryRule]$
+        +INTERNAL_RULES : list[CategoryRule]$
         +BOUNDARY_TYPE : FeatureBoundaryType$
         +feature : Panel | PanelFeature
         +panel : Panel

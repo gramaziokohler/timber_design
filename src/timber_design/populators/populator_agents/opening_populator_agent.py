@@ -12,10 +12,27 @@ from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
-from compas_timber.fabrication.free_contour import FreeContour
-from compas_timber.panel_features import Opening
-from compas_timber.utils import extend_line_segments
-from compas_timber.utils import join_polyline_segments
+
+try:
+    from compas_timber.fabrication.free_contour import FreeContour
+except ImportError:
+    FreeContour = None
+try:
+    from compas_timber.panel_features import Opening
+except ImportError:
+    Opening = None
+try:
+    from timber_design.populators import Layer
+except ImportError:
+    Layer = None
+try:
+    from compas_timber.utils import extend_line_segments
+    from compas_timber.utils import join_polyline_segments
+except ImportError:
+    def extend_line_segments(*args, **kwargs):
+        raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
+    def join_polyline_segments(*args, **kwargs):
+        raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
 
 from timber_design.populators import Beam2D
 from timber_design.populators import FeatureBoundaryType
@@ -96,39 +113,46 @@ class OpeningPopulatorAgent(PopulatorAgent):
     FEATURE_TYPE = Opening
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
     NAME = "OpeningPopulatorAgent"
-    RULES = [
+    INTERNAL_RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
+        CategoryRule(TButtJoint, "sill", "king_stud"),
         CategoryRule(TButtJoint, "sill", "jack_stud"),
         CategoryRule(LButtJoint, "jack_stud", "header", mill_depth=5.0),
+    ]
+    EXTERNAL_RULES = [
         CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "top_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "edge_stud"),
+        CategoryRule(TButtJoint, "jack_stud", "header", mill_depth=5.0),
+        CategoryRule(TButtJoint, "jack_stud", "sill", mill_depth=5.0),
+
         CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth=5.0),
+        CategoryRule(TButtJoint, "king_stud", "edge_stud"),
         CategoryRule(TButtJoint, "king_stud", "header", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "sill", mill_depth=5.0),
-        CategoryRule(TButtJoint, "king_stud", "edge_stud"),
+
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
-    ]
+        ]
     BOUNDARY_TYPE = FeatureBoundaryType.EXCLUSIVE
 
     def __init__(
         self,
-        opening: Opening,
+        layer: Layer,
         params: OpeningPopulatorAgentConfig,
     ):
-        super().__init__(opening, params)
+        super().__init__(layer, params)
         self.lintel_posts = params.lintel_posts
         self.split_bottom_plate_beam = params.split_bottom_plate_beam
-        self.opening_type = opening.opening_type
+        self.opening_type = self.opening.opening_type
         self.sill_angle = 0.0
         self.header_angle = 0.0
         # explicit beam attributes — populated by generate_elements()
         if self.opening_type == "door" and self.split_bottom_plate_beam:
             if self.lintel_posts:
-                self.rules = [r for r in self.rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
-                self.rules.append(
+                self.internal_rules = [r for r in self.internal_rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
+                self.internal_rules.append(
                     CategoryRule(
                         LButtJoint,
                         "jack_stud",
@@ -136,8 +160,8 @@ class OpeningPopulatorAgent(PopulatorAgent):
                     )
                 )
             else:
-                self.rules = [r for r in self.rules if not (r.category_a == "king_stud" and r.category_b == "bottom_plate_beam")]
-                self.rules.append(
+                self.internal_rules = [r for r in self.internal_rules if not (r.category_a == "king_stud" and r.category_b == "bottom_plate_beam")]
+                self.internal_rules.append(
                     CategoryRule(
                         LButtJoint,
                         "king_stud",
@@ -145,18 +169,22 @@ class OpeningPopulatorAgent(PopulatorAgent):
                     )
                 )
 
+    @property
+    def opening(self):
+        return self.feature
+
     def cull_beam_segment(self, beam: Beam) -> bool:
         """determines whether a beam segment should be culled. Typically checks for feature inclusion."""
         if super().cull_beam_segment(beam):
             return True
-        if beam.attributes.get("category", None) == "stud":
-            return self._cull_stud(beam)
+        # if beam.attributes.get("category", None) == "stud":
+        #     return self._cull_stud(beam)
         return False
 
     def generate_elements(self) -> None:
         """Generate the beams for a opening."""
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature)
-        frame_polyline = OpeningPopulatorAgent._create_frame_polyline(frame_polyline_a, frame_polyline_b)
+        frame_polyline = self._create_frame_polyline(frame_polyline_a, frame_polyline_b)
 
         if self.opening_type == "door":
             frame_polyline.points[0].y -= 100  # offset to avoid z-fighting
@@ -177,18 +205,18 @@ class OpeningPopulatorAgent(PopulatorAgent):
         king_offset = self.beam_dimensions["king_stud"][0] / 2
         self.elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", name="left_king_stud"))
         self.elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", name="right_king_stud"))
-        edge_segs.append(segments[0].translated([-(king_offset + jack_offset) * 2, 0, 0]))
+        #edge_segs.append(segments[0].translated([-(king_offset + jack_offset) * 2, 0, 0]))
 
         header_offset = self.beam_dimensions["header"][0] / 2
         self.elements.append(self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", name="header"))
-        edge_segs.append(segments[1].translated([0, header_offset * 2, 0]))
+        #edge_segs.append(segments[1].translated([0, header_offset * 2, 0]))
 
-        edge_segs.append(segments[2].translated([(king_offset + jack_offset) * 2, 0, 0]))
+        #edge_segs.append(segments[2].translated([(king_offset + jack_offset) * 2, 0, 0]))
 
         if self.opening_type == "window":
             sill_offset = self.beam_dimensions["sill"][0] / 2
             self.elements.append(self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", name="sill"))
-            edge_segs.append(segments[3].translated([0, -sill_offset * 2, 0]))
+            #edge_segs.append(segments[3].translated([0, -sill_offset * 2, 0]))
 
         if self.sill is not None and not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):  # angled sill
             plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
@@ -200,8 +228,8 @@ class OpeningPopulatorAgent(PopulatorAgent):
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, self.header, is_joinery=False)
             self.header.add_features(long_cut)
 
-        extend_line_segments(edge_segs, close_loop=True)
-        self.outline = join_polyline_segments(edge_segs, close_loop=True)[0][0]
+        extend_line_segments(segments, close_loop=True)
+        self.outline = join_polyline_segments(segments, close_loop=True)[0][0]
 
     @property
     def header(self):
@@ -243,24 +271,23 @@ class OpeningPopulatorAgent(PopulatorAgent):
         frame_polyline_b = Polyline([box_b.corner(0), box_b.corner(1), box_b.corner(2), box_b.corner(3), box_b.corner(0)])
         return frame_polyline_a, frame_polyline_b
 
-    @staticmethod
-    def _create_frame_polyline(frame_polyline_a: Polyline, frame_polyline_b: Polyline) -> Polyline:
-        """Bounding rectangle aligned orthogonal to the panel_populator.stud_direction."""
+    def _create_frame_polyline(self, frame_polyline_a: Polyline, frame_polyline_b: Polyline) -> Polyline:
+        """Bounding rectangle aligned orthogonal to the panel_populator.orientation."""
         return Polyline(
             [
-                Point(frame_polyline_a.points[0][0], max(frame_polyline_a.points[0][1], frame_polyline_b.points[0][1]), 0),
-                Point(frame_polyline_a.points[1][0], min(frame_polyline_a.points[1][1], frame_polyline_b.points[1][1]), 0),
-                Point(frame_polyline_a.points[2][0], min(frame_polyline_a.points[2][1], frame_polyline_b.points[2][1]), 0),
-                Point(frame_polyline_a.points[3][0], max(frame_polyline_a.points[3][1], frame_polyline_b.points[3][1]), 0),
-                Point(frame_polyline_a.points[4][0], max(frame_polyline_a.points[4][1], frame_polyline_b.points[4][1]), 0),
+                Point(frame_polyline_a.points[0][0], max(frame_polyline_a.points[0][1], frame_polyline_b.points[0][1]), self.layer_center_height),
+                Point(frame_polyline_a.points[1][0], min(frame_polyline_a.points[1][1], frame_polyline_b.points[1][1]), self.layer_center_height),
+                Point(frame_polyline_a.points[2][0], min(frame_polyline_a.points[2][1], frame_polyline_b.points[2][1]), self.layer_center_height),
+                Point(frame_polyline_a.points[3][0], max(frame_polyline_a.points[3][1], frame_polyline_b.points[3][1]), self.layer_center_height),
+                Point(frame_polyline_a.points[4][0], max(frame_polyline_a.points[4][1], frame_polyline_b.points[4][1]), self.layer_center_height),
             ]
         )
 
     def extend_elements(self, other_agents):
         intersecting_agents = []
-        for g in other_agents:
-            if g is not self and aabb_overlap_x(self, g):
-                intersecting_agents.append(g)
+        for a in other_agents:
+            if aabb_overlap_x(self, a):
+                intersecting_agents.append(a)
         if not intersecting_agents:
             return
         self._extend_studs(intersecting_agents)
@@ -276,14 +303,16 @@ class OpeningPopulatorAgent(PopulatorAgent):
     # ==========================================================================
     # Opening element culling functions
     # ==========================================================================
-
-    def
+    def affects_layer(self, layer_index: int) -> bool:
+        """Determines whether this agent trims and culls elements on the given layer."""
+        return True
 
     def _cull_stud(self, stud: Beam2D) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
-        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
+        return True
+#        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
-    def  apply_to_plate(self, plate: Plate) -> None:
+    def apply_to_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.
 
         Parameters

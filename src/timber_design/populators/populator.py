@@ -63,9 +63,9 @@ class PanelPopulator(object):
     --------
     Typical usage::
 
-        from timber_design.populators import StudPanelPopulatorConfig
+        from timber_design.populators import PanelPopulatorConfig
 
-        config = StudPanelPopulatorConfig(
+        config = PanelPopulatorConfig.stud_panel(
             standard_beam_width=60.0,
             stud_spacing=625.0,
             sheeting_inside=15.0,
@@ -107,7 +107,8 @@ class PanelPopulator(object):
     def extend_elements(self):
         """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
         for g in self.agents:
-            g.extend_elements(self.agents)
+            other_agents = [a for a in self.agents if a != g and a.layer_index == g.layer_index]
+            g.extend_elements(other_agents)
 
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
@@ -162,6 +163,8 @@ class PanelPopulator(object):
         """
         solver = ConnectionSolver2D()
         for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
+            if agent_a.layer_index != agent_b.layer_index:
+                continue
             candidates = []
             for element_a, element_b in product(agent_a.elements, agent_b.elements):
                 topo_result = solver.find_topology(element_a, element_b)
@@ -170,7 +173,7 @@ class PanelPopulator(object):
                     self.model.add_joint_candidate(candidate)
                     candidates.append(candidate)
             clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-            jrs = JointRuleSolver(agent_a.rules + agent_b.rules)
+            jrs = JointRuleSolver(agent_a.EXTERNAL_RULES + agent_b.EXTERNAL_RULES)
             jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):

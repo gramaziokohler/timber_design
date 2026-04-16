@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import List
 from typing import Optional
-from typing import Union
 
 from compas_timber.elements import Panel
 
+from timber_design.populators.layer import LayerDefinition
 from timber_design.workflow import CategoryRule
 
 from .panel_populator_config import PanelPopulatorConfig
@@ -17,9 +17,6 @@ if TYPE_CHECKING:
 
 class RecessPanelPopulatorConfig(PanelPopulatorConfig):
     """Config for creating a recess panel populator.
-
-    Combines the configuration data (previously ``RecessPanelPopulatorFactoryParams``)
-    and factory behaviour (previously ``RecessPanelPopulatorFactory``) into a single class.
 
     Parameters
     ----------
@@ -62,18 +59,30 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
         joint_rule_overrides: Optional[List[CategoryRule]] = None,
         default_feature_configs=None,
     ):
+        # Build the ordered layer-definition stack.
+        # The frame layer has no agent_configs here because create_populator_agents
+        # is overridden and handles agent construction directly.
+        layer_defs = []
+        if sheeting_inside:
+            layer_defs.append(LayerDefinition(sheeting_inside, name="interior"))
+        layer_defs.append(LayerDefinition(None, name="frame", is_framing_layer=True))
+        if sheeting_outside:
+            layer_defs.append(LayerDefinition(sheeting_outside, name="exterior"))
+
         super(RecessPanelPopulatorConfig, self).__init__(
             panel=panel,
-            sheeting_inside=sheeting_inside,
-            sheeting_outside=sheeting_outside,
+            layer_defs=layer_defs,
             default_feature_configs=default_feature_configs,
         )
-        self.standard_beam_width = standard_beam_width or (panel.thickness /2 if panel else None)
+
+        self.standard_beam_width = standard_beam_width or (panel.thickness / 2 if panel else None)
         self.recess_beam_width = recess_beam_width or standard_beam_width
         self.recess_beam_height = recess_beam_height or standard_beam_width
         self.edge_beam_min_width = edge_beam_min_width
         self.standard_beam_width_increment = standard_beam_width_increment
         self.sheeting_recess = sheeting_recess
+        self.sheeting_inside = sheeting_inside
+        self.sheeting_outside = sheeting_outside
         self.beam_width_overrides = beam_width_overrides or {}
         self.joint_rule_overrides = joint_rule_overrides or []
 
@@ -91,7 +100,7 @@ class RecessPanelPopulatorConfig(PanelPopulatorConfig):
         -------
         list[:class:`~timber_design.populators.PopulatorAgent`]
             Agents ready for ``resolve_beam_dimensions``, which is called by
-            :meth:`~PanelPopulatorConfig.create_populator_from_panel` after all
+            :meth:`~PanelPopulatorConfig.create_populator` after all
             agents are assembled.
         """
         # local imports to avoid circular imports at module import time

@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 
+## [0.2.0] 2026-04-01
+
+### Added
+
+### Changed
+
+* Fixed import of `Cluster` since analyzers module got replaced.
+* Use `get_clusters_from_joint_candidates` instead of the removed `MaxNCompositeAnalyzer` to get the clusters from the joint candidates.
+
+### Removed
+
+
 ## [0.1.0] 2026-03-25
 
 ### Added

@@ -133,6 +133,7 @@ data/
 
 .vscode
 .vs
+.claude
 
 docs/api/generated/
 

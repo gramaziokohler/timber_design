@@ -19,7 +19,7 @@ from compas_timber.connections import PlateLButtJoint
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import PlateJointCandidate
-from compas_timber.analyzers import Cluster
+from compas_timber.connections import Cluster
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from timber_design.workflow import DirectRule
@@ -153,8 +153,7 @@ def test_joints_from_beams_and_rules_with_no_max_distance(separated_beams):
     model = TimberModel()
     model.add_elements(separated_beams)
     solver = JointRuleSolver(rules)
-    with pytest.raises(ValueError):
-        errors, unjoined_clusters = solver.apply_rules_to_model(model)
+    errors, unjoined_clusters = solver.apply_rules_to_model(model)
     assert len(model.joints) == 0
 
 
@@ -331,8 +330,7 @@ def test_different_rules_max_distance(L_beams_separated):
     model = TimberModel()
     model.add_elements(L_beams_separated)
     solver = JointRuleSolver(rules)
-    with pytest.raises(ValueError):
-        errors, unjoined_clusters = solver.apply_rules_to_model(model)
+    errors, unjoined_clusters = solver.apply_rules_to_model(model)
     assert len([j for j in model.joints if not isinstance(j, JointCandidate)]) == 0
 
 

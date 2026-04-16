@@ -1,12 +1,12 @@
 from compas.tolerance import TOL
-from compas_timber.analyzers import Cluster
-from compas_timber.analyzers import MaxNCompositeAnalyzer
+from compas_timber.connections import Cluster
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
+from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
 
@@ -642,8 +642,7 @@ def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
         raise ValueError(f"max_cluster_size should not be too high to avoid combinatorial explosion, got {max_cluster_size}")
     model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    analyzer = MaxNCompositeAnalyzer(model, n=max_cluster_size, max_distance=max_distance)
-    clusters = analyzer.find()
+    clusters = get_clusters_from_joint_candidates(model.joint_candidates, max_distance=max_distance)
     return clusters
 
 

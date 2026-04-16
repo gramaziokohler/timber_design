@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
+
 ### Changed
+
+* Renamed `CT: Beam` to `CT: BeamFromLineCurve`.
 
 ### Removed
 

@@ -1,4 +1,4 @@
-# r: compas_timber>=1.0.0
+# r: timber_design>=0.1.0
 # flake8: noqa
 import Grasshopper
 import System

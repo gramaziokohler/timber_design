@@ -1,5 +1,4 @@
 # r: timber_design>=0.1.0
-# venv: td_migration
 # flake8: noqa
 import inspect
 

@@ -1,5 +1,3 @@
-# r: timber_design>=0.1.0
-# venv: td_migration
 """Creates a Beam from a LineCurve."""
 
 # flake8: noqa

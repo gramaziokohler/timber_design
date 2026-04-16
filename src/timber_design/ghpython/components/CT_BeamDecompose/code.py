@@ -1,5 +1,3 @@
-# r: timber_design>=0.1.0
-# venv: td_migration
 """Extracts main geometric characteristics of a Beam."""
 
 # flake8: noqa

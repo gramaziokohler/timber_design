@@ -1,5 +1,3 @@
-# r: timber_design>=0.1.0
-# venv: td_migration
 """Defines which Joint type will be applied in the Automatic Joints component for connecting Beams with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
 
 # flake8: noqa

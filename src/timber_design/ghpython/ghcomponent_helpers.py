@@ -1,7 +1,6 @@
 try:
     import Grasshopper  # type: ignore
     import Rhino  # type: ignore
-    import numpy as np  # type: ignore
     import RhinoCodePluginGH.Parameters  # type: ignore
 except (ImportError, SyntaxError):
     pass

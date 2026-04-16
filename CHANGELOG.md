@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `InstallDependencies` GH component for consistent packages versions in the GHPython env.
+
 ### Changed
+
+* Removed `venv` and `r` from GH components since this will be run once with `InstallDependencies`.
 
 ### Removed
 

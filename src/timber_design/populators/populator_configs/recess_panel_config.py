@@ -12,14 +12,85 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators import EdgePopulatorAgent
 from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
+from timber_design.populators import LayerDefinition
+from timber_design.populators import PanelPopulatorConfig
+
+from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
+from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
+from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
+
+
+
+def recess_panel(
+    panel=None,
+    standard_beam_width=None,
+    recess_beam_width=None,
+    recess_beam_height=None,
+    edge_beam_min_width=None,
+    standard_beam_width_increment=None,
+    sheeting_outside=0,
+    sheeting_inside=0,
+    sheeting_recess=0,
+    beam_width_overrides=None,
+    joint_rule_overrides=None,
+    default_feature_configs=None,
+):
+    """Create a config for a recess panel populator.
+
+    Parameters
+    ----------
+    panel : :class:`compas_timber.elements.Panel`, optional
+        The panel to populate.
+    standard_beam_width : float, optional
+        Default beam width.
+    recess_beam_width : float, optional
+        Width of the recess beam.
+    recess_beam_height : float, optional
+        Height of the recess beam.
+    edge_beam_min_width : float, optional
+        Minimum width for edge beams.
+    standard_beam_width_increment : float, optional
+        Rounding increment for edge-beam widths.
+    sheeting_outside : float, optional
+        Thickness of external sheathing plate.
+    sheeting_inside : float, optional
+        Thickness of internal sheathing plate.
+    sheeting_recess : float, optional
+        Thickness of the sheeting plate in the recess.
+    beam_width_overrides : dict, optional
+        Per-category width overrides passed to every agent config.
+    joint_rule_overrides : list, optional
+        Rules that replace matching entries in any agent's ``INTERNAL_RULES`` list.
+    default_feature_configs : dict, optional
+        Mapping from panel feature class to a ``PopulatorAgentConfig`` instance.
+    """
+
+    recess_agent_config = RecessPopulatorAgentConfig(
+        standard_beam_width_increment=standard_beam_width_increment,
+        edge_beam_min_width=edge_beam_min_width or standard_beam_width,        
+        recess_beam_width=recess_beam_width or standard_beam_width,
+        recess_beam_height=recess_beam_height or standard_beam_width,
+        sheeting_recess=sheeting_recess,
+        beam_width_overrides=beam_width_overrides,
+        joint_rule_overrides=joint_rule_overrides,
+    )
+    layer_defs = []
+    if sheeting_inside:
+        layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
+    layer_defs.append(LayerDefinition(None, name="frame", is_framing_layer=True, agent_configs=[recess_agent_config]))
+    if sheeting_outside:
+        layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+
+
+    config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs, default_feature_configs=default_feature_configs)
+    return config
 
 
 @dataclass
-class RecessPopulatorAgentConfig(PopulatorAgentConfig):
+class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
     """Configuration for a recess-frame agent.
 
     Parameters
@@ -31,7 +102,6 @@ class RecessPopulatorAgentConfig(PopulatorAgentConfig):
     sheeting_recess : float, optional
         Thickness of the sheeting plate inserted into the recess.
     """
-
     recess_beam_width: float = 0.0
     recess_beam_height: Optional[float] = None
     sheeting_recess: Optional[float] = None
@@ -45,7 +115,7 @@ class RecessPopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class RecessPopulatorAgent(PopulatorAgent):
+class RecessPopulatorAgent(EdgePopulatorAgent):
     """Generates a recessed frame and sheathing plate along the panel outline.
 
     Creates one ``"recess"`` :class:`~timber_design.populators.Beam2D` per
@@ -70,16 +140,11 @@ class RecessPopulatorAgent(PopulatorAgent):
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The structural frame layer this agent operates within.
-    edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        The edge agent whose :attr:`~PopulatorAgent.outline` is used as the
-        baseline for the recess beam centrelines.
     params : :class:`RecessPopulatorAgentConfig`
         Recess beam dimensions and optional sheeting recess offset.
 
     Attributes
     ----------
-    edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        Reference to the companion edge agent.
     recess_beam_width : float
         Width of the recess beam in model units.
     recess_beam_height : float or None
@@ -103,11 +168,9 @@ class RecessPopulatorAgent(PopulatorAgent):
     def __init__(
         self,
         layer: Layer,
-        edge_agent: PopulatorAgent,
         params: RecessPopulatorAgentConfig,
     ):
         super(RecessPopulatorAgent, self).__init__(layer, params)
-        self.edge_agent = edge_agent
         self.recess_beam_width = params.recess_beam_width
         self.recess_beam_height = params.recess_beam_height
         self.sheeting_recess = params.sheeting_recess
@@ -120,10 +183,11 @@ class RecessPopulatorAgent(PopulatorAgent):
 
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
+        super().generate_elements(self)
         plate_edges = []
         new_centerlines = []
-        for i, edge in enumerate(self.edge_agent.outline.lines):
-            vector = -get_polyline_segment_perpendicular_vector(self.edge_agent.outline, i)
+        for i, edge in enumerate(self.outline.lines):
+            vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
                 edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.panel.thickness - self.beam_dimensions["recess"][1]) * 0.5))
@@ -137,7 +201,7 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
-        self.outline = self.edge_agent.outline.copy() if self.edge_agent.outline else None
+        self.outline = self.outline.copy() if self.outline else None
 
     # ==========================================================================
     # Cross-layer boundary behaviour

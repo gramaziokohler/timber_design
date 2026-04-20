@@ -12,28 +12,12 @@ from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
+from compas_timber.utils import extend_line_segments
+from compas_timber.utils import join_polyline_segments
+from compas_timber.fabrication.free_contour import FreeContour
+from compas_timber.panel_features import Opening
 
-try:
-    from compas_timber.fabrication.free_contour import FreeContour
-except ImportError:
-    FreeContour = None
-try:
-    from compas_timber.panel_features import Opening
-except ImportError:
-    Opening = None
-try:
-    from timber_design.populators import Layer
-except ImportError:
-    Layer = None
-try:
-    from compas_timber.utils import extend_line_segments
-    from compas_timber.utils import join_polyline_segments
-except ImportError:
-    def extend_line_segments(*args, **kwargs):
-        raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
-    def join_polyline_segments(*args, **kwargs):
-        raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
-
+from timber_design.populators import Layer
 from timber_design.populators import Beam2D
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import PopulatorAgent
@@ -334,9 +318,8 @@ class OpeningPopulatorAgent(PopulatorAgent):
         return True
 
     def _cull_stud(self, stud: Beam2D) -> bool:
-        """Determine whether a stud coincides with a king or jack stud and should be culled."""
-        return True
-#        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
+        """Determine whether a stud coincides with a king or jack stud and should be culled."""        
+        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
     def apply_to_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.

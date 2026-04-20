@@ -4,29 +4,9 @@ from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import dot_vectors
-
-try:
-    from compas_timber.utils import extend_line_segments
-except ImportError:
-
-    def extend_line_segments(segments, close_loop=False):
-        raise NotImplementedError("extend_line_segments is not available in this version of compas_timber")
-
-
-try:
-    from compas_timber.utils import get_interior_corner_indices
-    from compas_timber.utils import get_polyline_segment_perpendicular_vector
-    from compas_timber.utils import join_polyline_segments
-except ImportError:
-
-    def get_interior_corner_indices(*args, **kwargs):
-        raise NotImplementedError("get_interior_corner_indices is not available in this version of compas_timber")
-
-    def get_polyline_segment_perpendicular_vector(*args, **kwargs):
-        raise NotImplementedError("get_polyline_segment_perpendicular_vector is not available in this version of compas_timber")
-
-    def join_polyline_segments(*args, **kwargs):
-        raise NotImplementedError("join_polyline_segments is not available in this version of compas_timber")
+from compas_timber.utils import extend_line_segments
+from compas_timber.utils import get_polyline_segment_perpendicular_vector
+from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import FeatureBoundaryType
 from timber_design.populators import PopulatorAgent

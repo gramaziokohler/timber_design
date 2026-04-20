@@ -48,7 +48,7 @@ class PlatePopulatorAgent(PopulatorAgent):
     """
 
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
-    NAME = "PanelPlatePopulatorAgent"
+    NAME = "PlatePopulatorAgent"
 
     def __init__(self, layer: Layer, params: PlatePopulatorAgentConfig) -> None:
         super(PlatePopulatorAgent, self).__init__(layer, params)

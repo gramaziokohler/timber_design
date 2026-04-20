@@ -23,27 +23,29 @@ from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.connection_solver_2d import aabb_overlap_x
 from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+from timber_design.populators.populator_agents.populator_agent import FeaturePopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import FeaturePopulatorAgentConfig
 from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class OpeningPopulatorAgentConfig(PopulatorAgentConfig):
+class OpeningPopulatorAgentConfig(FeaturePopulatorAgentConfig):
     FEATURE_TYPE = Opening
-
+    feature: Opening = None
     lintel_posts: bool = False
     split_bottom_plate_beam: bool = False
 
     @property
     def __data__(self):
         data = super().__data__
+        data["feature"] = self.feature
         data["lintel_posts"] = self.lintel_posts
         data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
         return data
 
 
-class OpeningPopulatorAgent(PopulatorAgent):
+class OpeningPopulatorAgent(FeaturePopulatorAgent):
     """Generates the structural surround for a door or window opening.
 
     Creates the following beam categories (depending on opening type and
@@ -135,8 +137,7 @@ class OpeningPopulatorAgent(PopulatorAgent):
 
     def __init__(self, layer, params, feature):
         # type: (Layer, OpeningPopulatorAgentConfig, Opening) -> None
-        super().__init__(layer, params)
-        self.feature = feature
+        super().__init__(layer, params, feature)
         self.lintel_posts = params.lintel_posts
         self.split_bottom_plate_beam = params.split_bottom_plate_beam
         self.opening_type = self.opening.opening_type
@@ -182,8 +183,11 @@ class OpeningPopulatorAgent(PopulatorAgent):
 
     def generate_elements(self) -> None:
         """Generate the beams for a opening."""
+        print(self.feature.outline_a.points)
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature)
+        print("frame_polyline_a", frame_polyline_a)
         frame_polyline = self._create_frame_polyline(frame_polyline_a, frame_polyline_b)
+        print("frame_polyline", frame_polyline)
 
         if self.opening_type == "door":
             frame_polyline.points[0].y -= 100  # offset to avoid z-fighting
@@ -204,6 +208,8 @@ class OpeningPopulatorAgent(PopulatorAgent):
         king_offset = self.beam_dimensions["king_stud"][0] / 2
         self.elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", name="left_king_stud"))
         self.elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", name="right_king_stud"))
+        print([e.attributes["category"] for e in self.elements])
+        
         #edge_segs.append(segments[0].translated([-(king_offset + jack_offset) * 2, 0, 0]))
 
         header_offset = self.beam_dimensions["header"][0] / 2

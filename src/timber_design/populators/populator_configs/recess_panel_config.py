@@ -68,6 +68,9 @@ def recess_panel(
         Mapping from panel feature class to a ``PopulatorAgentConfig`` instance.
     """
 
+    beam_width_overrides = beam_width_overrides or {}
+    beam_width_overrides["recess"] = recess_beam_width or standard_beam_width
+
     recess_agent_config = RecessPopulatorAgentConfig(
         standard_beam_width_increment=standard_beam_width_increment,
         edge_beam_min_width=edge_beam_min_width or standard_beam_width,        
@@ -183,7 +186,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
-        super().generate_elements(self)
+        super(RecessPopulatorAgent, self).generate_elements()
         plate_edges = []
         new_centerlines = []
         for i, edge in enumerate(self.outline.lines):
@@ -206,6 +209,15 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     # ==========================================================================
     # Cross-layer boundary behaviour
     # ==========================================================================
+
+    def create_internal_joint_defs(self, model):
+        """Generate the joint definitions for the panel edges."""
+        for candidate in self.create_joint_candidates(model):
+            if candidate.element_a.attributes.get("edge_index") is None or candidate.element_b.attributes.get("edge_index") is None:
+                continue
+            rule = self.create_edge_beam_joint_rule(*candidate.elements)
+            if rule is not None:
+                self.joint_defs.append(rule)
 
     def affects_layer(self, layer_index):
         """Return ``True`` for any layer at or below this agent's own layer index.

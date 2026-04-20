@@ -26,6 +26,7 @@ from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
 from timber_design.populators import PanelPopulatorConfig
+from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.populators.beam2d import Beam2D
 
@@ -265,9 +266,7 @@ class TestCustomBeamDimensions:
 
 
 @requires_opening
-@pytest.mark.xfail(
-    reason="PanelPopulator works on a localized panel copy that does not carry features from the original panel; Opening agents are therefore never created. Source fix required."
-)
+
 class TestWindowOpening:
     """Opening with opening_type=WINDOW → header + sill + king/jack studs."""
 
@@ -319,7 +318,6 @@ class TestWindowOpening:
 
 
 @requires_opening
-@pytest.mark.xfail(reason="Same as TestWindowOpening: localized panel copy does not carry features; Opening agents are therefore never created.")
 class TestDoorOpening:
     """Door opening: no sill, optional split bottom plate."""
 
@@ -336,6 +334,7 @@ class TestDoorOpening:
         assert "header" in categories(result)
 
     def test_two_king_studs(self, result):
+        assert len([e for e in result.elements()]) == 2 
         assert len(by_category(result, "king_stud")) == 2
 
 
@@ -358,7 +357,6 @@ def test_no_sill_for_door():
 
 
 @requires_opening
-@pytest.mark.xfail(reason="Same as TestWindowOpening: localized panel copy does not carry features; Opening agents are therefore never created.")
 def test_door_with_split_bottom_plate_runs_without_error():
     """split_bottom_plate_beam=True must not raise during population."""
     panel = make_panel()
@@ -381,7 +379,7 @@ class TestRecessPanel:
     @pytest.fixture(scope="class")
     def result(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.recess_panel(
+        config = recess_panel(
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,
@@ -460,7 +458,6 @@ class TestMultiPanelWorkflow:
 class TestClearPanel:
     """clear_panel=True removes previous children before re-merging."""
 
-    @pytest.mark.xfail(reason="merge_with_model(clear_panel=True) triggers 'dictionary changed size during iteration' in model.joints; source bug to be fixed")
     def test_repopulation_does_not_duplicate_framing(self):
         """Running the workflow twice with clear_panel=True must yield the same
         element count as a single run."""
@@ -914,7 +911,7 @@ class TestInstanceFeatureDefinitions:
         config = stud_config()
         config.panel = panel
         # Bind the opening directly to a config; no need to add it to panel.features
-        config.instance_feature_configs = [(opening, OpeningPopulatorAgentConfig(lintel_posts=False))]
+        config.instance_feature_configs = [OpeningPopulatorAgentConfig(feature=opening, lintel_posts=False)]
         populator = config.create_populator()
         populator.populate_elements()
 
@@ -940,7 +937,7 @@ class TestInstanceFeatureDefinitions:
 
         config = stud_config()
         config.panel = panel
-        config.instance_feature_configs = [(opening, OpeningPopulatorAgentConfig(lintel_posts=False))]
+        config.instance_feature_configs = [OpeningPopulatorAgentConfig(feature=opening, lintel_posts=False)]
         # Should not raise during transformation or agent instantiation
         populator = config.create_populator()
         assert populator is not None

@@ -111,36 +111,6 @@ class PopulatorAgentConfig:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
         return self.AGENT_TYPE(layer, self)
 
-    def get_agent_from_feature(self, feature, layer):
-        """Instantiate a feature-based agent for the given layer.
-
-        The *feature* (e.g. a transformed
-        :class:`~compas_timber.panel_features.Opening`) is passed directly to
-        the agent constructor as its third positional argument.  Only agents
-        that declare a :attr:`FEATURE_TYPE` — currently
-        :class:`~timber_design.populators.OpeningPopulatorAgent` — accept this
-        argument.
-
-        Parameters
-        ----------
-        feature : :class:`~compas_timber.panel_features.PanelFeature`
-            The (possibly transformed) feature instance.
-        layer : :class:`~timber_design.populators.Layer`
-            The framing layer the agent operates within.
-
-        Returns
-        -------
-        :class:`PopulatorAgent`
-
-        Raises
-        ------
-        NotImplementedError
-            If ``AGENT_TYPE`` has not been set on this config class.
-        """
-        if self.AGENT_TYPE is None:
-            raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        return self.AGENT_TYPE(layer, self, feature)
-
 
 class PopulatorAgent(ABC):
     """Abstract base class for all panel populator agents.
@@ -545,3 +515,65 @@ class PopulatorAgent(ABC):
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
+
+
+@dataclass
+class FeaturePopulatorAgentConfig(PopulatorAgentConfig):
+    """Config base class for feature-based populator agents.
+
+    Extends :class:`PopulatorAgentConfig` with :meth:`get_agent_from_feature`,
+    which passes a :class:`~compas_timber.panel_features.PanelFeature` to the
+    agent constructor as its third positional argument.
+
+    All concrete feature-agent config classes (e.g.
+    :class:`~timber_design.populators.OpeningPopulatorAgentConfig`) should
+    extend this class.
+    """
+
+    def get_agent_from_feature(self, feature, layer):
+        """Instantiate a feature-based agent for the given layer.
+
+        Parameters
+        ----------
+        feature : :class:`~compas_timber.panel_features.PanelFeature`
+            The (possibly transformed) feature instance.
+        layer : :class:`~timber_design.populators.Layer`
+            The framing layer the agent operates within.
+
+        Returns
+        -------
+        :class:`FeaturePopulatorAgent`
+
+        Raises
+        ------
+        NotImplementedError
+            If ``AGENT_TYPE`` has not been set on this config class.
+        """
+        if self.AGENT_TYPE is None:
+            raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
+        return self.AGENT_TYPE(layer, self, feature)
+
+
+class FeaturePopulatorAgent(PopulatorAgent, ABC):
+    """Abstract base class for feature-driven populator agents.
+
+    Extends :class:`PopulatorAgent` by accepting a
+    :class:`~compas_timber.panel_features.PanelFeature` and storing it as
+    :attr:`feature`.  Subclasses handle specific feature types (e.g.
+    :class:`~timber_design.populators.OpeningPopulatorAgent` for
+    :class:`~compas_timber.panel_features.Opening`).
+
+    Parameters
+    ----------
+    layer : :class:`~timber_design.populators.Layer`
+        The layer this agent operates within.
+    params : :class:`FeaturePopulatorAgentConfig`
+        Configuration for this agent.
+    feature : :class:`~compas_timber.panel_features.PanelFeature`
+        The (possibly transformed) feature instance driving element placement.
+    """
+
+    def __init__(self, layer, params, feature):
+        # type: (Layer, FeaturePopulatorAgentConfig, object) -> None
+        super().__init__(layer, params)
+        self.feature = feature

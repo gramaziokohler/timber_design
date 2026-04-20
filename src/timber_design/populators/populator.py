@@ -257,10 +257,7 @@ class PanelPopulator(object):
             re-populate a panel that has already been processed.
         """
         if clear_panel:
-            for element in self.original_panel.children:
-                for joint in model.joints:
-                    if element in joint.elements:
-                        model.remove_joint(joint)
+            for element in self.original_panel.children[:]:
                 model.remove_element(element)
         for element in self.model.elements():
             element.transform(self.transformation_to_populator.inverse())

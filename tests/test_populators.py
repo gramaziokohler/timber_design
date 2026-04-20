@@ -26,6 +26,8 @@ from timber_design.populators import StudPopulatorAgentConfig
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators import get_frame_panel
 from timber_design.populators import get_layers
+from timber_design.populators.populator_configs.recess_panel_config import recess_panel
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 
 
 # =============================================================================
@@ -67,10 +69,10 @@ class TestEdgePopulatorAgent:
     @pytest.fixture
     def gen(self):
         panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
-        frame_panel = get_frame_panel(panel, _SheetingParams())
+        frame_layer = get_layers(panel, _SheetingParams())["frame"]
         params = EdgePopulatorAgentConfig(edge_beam_min_width=60.0)
-        g = EdgePopulatorAgent(frame_panel, params)
-        g.resolve_beam_dimensions(60.0, frame_panel.thickness)
+        g = EdgePopulatorAgent(frame_layer, params)
+        g.resolve_beam_dimensions(60.0, frame_layer.thickness)
         g.generate_elements()
         return g
 
@@ -107,10 +109,10 @@ class TestEdgePopulatorAgent:
     def test_standard_width_increment_rounds_up(self):
         """With an increment, edge-beam widths snap to the next multiple."""
         panel = make_panel()
-        frame_panel = get_frame_panel(panel, _SheetingParams())
+        frame_layer = get_layers(panel, _SheetingParams())["frame"]
         params = EdgePopulatorAgentConfig(edge_beam_min_width=0.0, standard_beam_width_increment=20.0)
-        g = EdgePopulatorAgent(frame_panel, params)
-        g.resolve_beam_dimensions(60.0, frame_panel.thickness)
+        g = EdgePopulatorAgent(frame_layer, params)
+        g.resolve_beam_dimensions(60.0, frame_layer.thickness)
         g.generate_elements()
         for e in g.elements:
             # width must be a multiple of 20 (or ≥ the increment)
@@ -126,10 +128,10 @@ class TestStudPopulatorAgent:
     @pytest.fixture
     def gen(self):
         panel = make_panel(width=4000.0, height=2700.0, thickness=160.0)
-        frame_panel = get_frame_panel(panel, _SheetingParams())
+        frame_layer = get_layers(panel, _SheetingParams())["frame"]
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
-        g = StudPopulatorAgent(frame_panel, params)
-        g.resolve_beam_dimensions(60.0, frame_panel.thickness)
+        g = StudPopulatorAgent(frame_layer, params)
+        g.resolve_beam_dimensions(60.0, frame_layer.thickness)
         g.generate_elements()
         return g
 
@@ -160,14 +162,14 @@ class TestStudPopulatorAgent:
 
     def test_fewer_studs_with_wider_spacing(self):
         panel = make_panel(width=4000.0, height=2700.0)
-        frame_panel = get_frame_panel(panel, _SheetingParams())
+        frame_layer = get_layers(panel, _SheetingParams())["frame"]
 
-        g_narrow = StudPopulatorAgent(frame_panel, StudPopulatorAgentConfig(stud_spacing=300.0))
-        g_narrow.resolve_beam_dimensions(60.0, 160.0)
+        g_narrow = StudPopulatorAgent(frame_layer, StudPopulatorAgentConfig(stud_spacing=300.0))
+        g_narrow.resolve_beam_dimensions(60.0, frame_layer.thickness)
         g_narrow.generate_elements()
 
-        g_wide = StudPopulatorAgent(frame_panel, StudPopulatorAgentConfig(stud_spacing=900.0))
-        g_wide.resolve_beam_dimensions(60.0, 160.0)
+        g_wide = StudPopulatorAgent(frame_layer, StudPopulatorAgentConfig(stud_spacing=900.0))
+        g_wide.resolve_beam_dimensions(60.0, frame_layer.thickness)
         g_wide.generate_elements()
 
         assert len(g_narrow.elements) > len(g_wide.elements)
@@ -182,7 +184,7 @@ class TestPlatePopulatorAgent:
     def test_interior_plate_produced(self):
         panel = make_panel(thickness=160.0)
         layers = get_layers(panel, _SheetingParams(si=15.0))
-        params = PlatePopulatorAgentConfig(thickness=15.0)
+        params = PlatePopulatorAgentConfig()
         g = PlatePopulatorAgent(layers["interior"], params)
         g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g.generate_elements()
@@ -191,7 +193,7 @@ class TestPlatePopulatorAgent:
     def test_exterior_plate_produced(self):
         panel = make_panel(thickness=160.0)
         layers = get_layers(panel, _SheetingParams(so=22.0))
-        params = PlatePopulatorAgentConfig(thickness=22.0)
+        params = PlatePopulatorAgentConfig()
         g = PlatePopulatorAgent(layers["exterior"], params)
         g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g.generate_elements()
@@ -200,10 +202,10 @@ class TestPlatePopulatorAgent:
     def test_both_plates_produced(self):
         panel = make_panel(thickness=160.0)
         layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        g_interior = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig(thickness=15.0))
+        g_interior = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig())
         g_interior.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g_interior.generate_elements()
-        g_exterior = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig(thickness=22.0))
+        g_exterior = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig())
         g_exterior.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g_exterior.generate_elements()
         plates = [e for e in g_interior.elements + g_exterior.elements if isinstance(e, Plate)]
@@ -220,7 +222,7 @@ class TestPlatePopulatorAgent:
         """Plate element carries the layer-derived category name."""
         panel = make_panel(thickness=160.0)
         layers = get_layers(panel, _SheetingParams(si=15.0))
-        g = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig(thickness=15.0))
+        g = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig())
         g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g.generate_elements()
         plates = [e for e in g.elements if isinstance(e, Plate)]
@@ -229,7 +231,7 @@ class TestPlatePopulatorAgent:
     def test_exterior_plate_category(self):
         panel = make_panel(thickness=160.0)
         layers = get_layers(panel, _SheetingParams(so=22.0))
-        g = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig(thickness=22.0))
+        g = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig())
         g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
         g.generate_elements()
         plates = [e for e in g.elements if isinstance(e, Plate)]
@@ -320,16 +322,16 @@ class TestGetFramePanel:
 
 
 # =============================================================================
-# PanelPopulatorConfig.stud_panel / create_populator_agents
+# stud_panel / create_populator_agents
 # =============================================================================
 
 
 class TestStudPanelPopulatorConfig:
-    """PanelPopulatorConfig.stud_panel creates the expected agent types for standard params."""
+    """stud_panel creates the expected agent types for standard params."""
 
     def test_returns_non_empty_list(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -339,7 +341,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_edge_agent_present(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -348,7 +350,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_stud_agent_present_when_spacing_set(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -357,7 +359,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_no_stud_agent_when_spacing_none(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=None)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=None)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -366,7 +368,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_plate_agent_present_when_sheeting_set(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -375,7 +377,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_no_plate_agent_without_sheeting(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -385,7 +387,7 @@ class TestStudPanelPopulatorConfig:
     def test_beam_dimensions_resolved_on_agents(self):
         """get_populator_panel + create_layers provide a frame layer suitable for resolving beam dimensions."""
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -396,19 +398,9 @@ class TestStudPanelPopulatorConfig:
         for g in agents:
             assert g.beam_dimensions, f"{type(g).__name__}.beam_dimensions is empty after resolve"
 
-    def test_all_agents_have_feature(self):
-        panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
-        for g in agents:
-            assert g.feature is not None
-
     def test_create_layers_returns_interior_layer_when_sheeting_set(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
@@ -417,7 +409,7 @@ class TestStudPanelPopulatorConfig:
 
     def test_create_layers_returns_both_layers_when_both_sheeting_set(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.stud_panel(
+        config = stud_panel(
             standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0, sheeting_outside=22.0
         )
         config.panel = panel
@@ -435,7 +427,7 @@ class TestStudPanelPopulatorConfig:
 class TestRecessPanelPopulatorConfig:
     def test_returns_non_empty_list(self):
         panel = make_panel()
-        config = PanelPopulatorConfig.recess_panel(
+        config = recess_panel(
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,
@@ -451,7 +443,7 @@ class TestRecessPanelPopulatorConfig:
     def test_beam_dimensions_resolved(self):
         """resolve_beam_dimensions is called by create_populator; simulate it here."""
         panel = make_panel()
-        config = PanelPopulatorConfig.recess_panel(
+        config = recess_panel(
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,

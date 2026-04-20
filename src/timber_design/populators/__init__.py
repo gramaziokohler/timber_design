@@ -14,6 +14,8 @@ from .connection_solver_2d import aabb_overlap
 from .populator_agents.populator_agent import PopulatorAgent
 from .populator_agents.populator_agent import FeatureBoundaryType
 from .populator_agents.populator_agent import PopulatorAgentConfig
+from .populator_agents.populator_agent import FeaturePopulatorAgent
+from .populator_agents.populator_agent import FeaturePopulatorAgentConfig
 from .populator_agents.stud_populator_agent import StudPopulatorAgent
 from .populator_agents.stud_populator_agent import StudPopulatorAgentConfig
 from .populator_agents.plate_populator_agent import PlatePopulatorAgent
@@ -45,6 +47,8 @@ __all__ = [
     "PopulatorAgent",
     "FeatureBoundaryType",
     "PopulatorAgentConfig",
+    "FeaturePopulatorAgent",
+    "FeaturePopulatorAgentConfig",
     "EdgePopulatorAgent",
     "EdgePopulatorAgentConfig",
     "StudPopulatorAgent",

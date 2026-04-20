@@ -238,7 +238,7 @@ class PanelPopulatorConfig:
             return agents
 
         framing_layers = [l for l in layers.values() if l.is_framing_layer]
-        explicitly_defined = {feature for feature, _ in self.instance_feature_configs}
+        explicitly_defined = {c.feature for c in self.instance_feature_configs}
 
         # Default feature agents applied to all framing layers
         for feature in self.panel.features:
@@ -251,9 +251,9 @@ class PanelPopulatorConfig:
             for layer in framing_layers:
                 agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
 
-        # Instance feature agents — each (feature, config) pair applied to all framing layers
-        for feature, agent_config in self.instance_feature_configs:
-            transformed_feature = feature.transformed(self.transformation_to_populator)
+        # Instance feature agents — each config applied to all framing layers
+        for agent_config in self.instance_feature_configs:
+            transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
             for layer in framing_layers:
                 agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
 

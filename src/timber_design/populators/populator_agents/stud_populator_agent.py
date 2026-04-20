@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
 from timber_design.populators.layer import Layer
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
@@ -67,11 +67,8 @@ class StudPopulatorAgent(PopulatorAgent):
         CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
     ]
 
-    def __init__(
-        self,
-        layer: Layer,
-        params: StudPopulatorAgentConfig,
-    ):
+    def __init__(self, layer, params):
+        # type: (Layer, StudPopulatorAgentConfig) -> None
         super(StudPopulatorAgent, self).__init__(layer, params)
         self.stud_spacing = params.stud_spacing
 

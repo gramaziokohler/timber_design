@@ -19,11 +19,11 @@ from compas_timber.utils import get_interior_corner_indices
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators import Beam2D
-from timber_design.populators import Layer
-from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.layer import Layer
+from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -96,11 +96,8 @@ class EdgePopulatorAgent(PopulatorAgent):
     ]
     BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
 
-    def __init__(
-        self,
-        layer: Layer,
-        params: EdgePopulatorAgentConfig,
-    ) -> None:
+    def __init__(self, layer, params):
+        # type: (Layer, EdgePopulatorAgentConfig) -> None
         super(EdgePopulatorAgent, self).__init__(layer, params)
         self.standard_beam_width_increment = params.standard_beam_width_increment
         self.edge_beam_min_width = params.edge_beam_min_width or 0.0

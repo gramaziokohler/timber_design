@@ -17,14 +17,14 @@ from compas_timber.utils import join_polyline_segments
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.panel_features import Opening
 
-from timber_design.populators import Layer
-from timber_design.populators import Beam2D
-from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
-from timber_design.populators import aabb_overlap
-from timber_design.populators import aabb_overlap_x
-from timber_design.populators import extend_beam_to_closest_agents
+from timber_design.populators.agent_intersection import extend_beam_to_closest_agents
+from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.populators.connection_solver_2d import aabb_overlap_x
+from timber_design.populators.layer import Layer
+from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
@@ -133,12 +133,8 @@ class OpeningPopulatorAgent(PopulatorAgent):
     ]
     BOUNDARY_TYPE = FeatureBoundaryType.EXCLUSIVE
 
-    def __init__(
-        self,
-        layer: Layer,
-        params: OpeningPopulatorAgentConfig,
-        feature: Opening,
-    ):
+    def __init__(self, layer, params, feature):
+        # type: (Layer, OpeningPopulatorAgentConfig, Opening) -> None
         super().__init__(layer, params)
         self.feature = feature
         self.lintel_posts = params.lintel_posts

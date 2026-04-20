@@ -2,13 +2,9 @@ import dataclasses
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 from typing import List
 from typing import Optional
 from typing import Union
-
-if TYPE_CHECKING:
-    from timber_design.populators.layer import Layer
 
 from compas.geometry import Line
 from compas.geometry import Vector
@@ -19,11 +15,12 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
-from timber_design.populators import Beam2D
-from timber_design.populators import BeamOutlineIntersectionData
-from timber_design.populators import find_beam_outline_crossings
+from timber_design.populators.agent_intersection import BeamOutlineIntersectionData
+from timber_design.populators.agent_intersection import find_beam_outline_crossings
 from timber_design.populators.beam2d import AABB2D
+from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -247,11 +244,8 @@ class PopulatorAgent(ABC):
     EXTERNAL_RULES = []
     BOUNDARY_TYPE = FeatureBoundaryType.NONE
 
-    def __init__(
-        self,
-        layer: "Layer",
-        params: "PopulatorAgentConfig",
-    ):
+    def __init__(self, layer, params):
+        # type: (Layer, PopulatorAgentConfig) -> None
         self.layer = layer
         self.layer_index = layer.layer_index if layer is not None else None
         self.beam_width_overrides = params.beam_width_overrides or {}

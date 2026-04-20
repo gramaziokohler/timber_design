@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from typing import Optional
 
 from compas.geometry import Polyline
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
-
-if TYPE_CHECKING:
-    from timber_design.populators.populator_agents.populator_agent import PopulatorAgent  # noqa: F401
 
 
 class LayerDefinition:
@@ -84,32 +80,42 @@ class LayerDefinition:
                 "A layer cannot have both agent_configs and sublayers. "
                 "Agents should be placed on the leaf sublayers."
             )
-        if sublayers and all([sl.thickness for sl in sublayers]):
-            if thickness:
-               if not TOL.is_close(sum([sl.thickness for sl in sublayers]), thickness):
-                    raise ValueError(
-                        "Total sublayer thickness ({}) must equal layer thickness ({}).".format(
-                            sum([sl.thickness for sl in sublayers]), thickness
-                        )
-                    )
-            else:
-                thickness = sum([sl.thickness for sl in sublayers])
-
-        if thickness is not None and sublayers:
-            known = [sl.thickness for sl in sublayers if sl.thickness is not None]
-            if len(known) == len(sublayers) and 
-                )
-
-
-
 
         self.thickness = thickness
         self.name = name
         self.agent_configs = agent_configs or []
         self.sublayers = sublayers or []
         self.is_framing_layer = is_framing_layer
+        self.parse_thickness()
 
+    def parse_thickness(self) -> Optional[float]:
+        """Calculate the thickness of this layer based on its own thickness and its sublayers."""
 
+        if self.sublayers and all([sl.thickness for sl in self.sublayers]):
+            if self.thickness:
+               if not TOL.is_close(sum([sl.thickness for sl in self.sublayers]), self.thickness):
+                    raise ValueError(
+                        "Total sublayer thickness ({}) must equal layer thickness ({}).".format(
+                            sum([sl.thickness for sl in self.sublayers]), self.thickness
+                        )
+                    )
+            else:
+                self.thickness = sum([sl.thickness for sl in self.sublayers])
+
+        if self.thickness is not None and self.sublayers:
+            known = [sl.thickness for sl in self.sublayers if sl.thickness is not None]
+            if len(known) != len(self.sublayers)-1:
+                raise ValueError(
+                    "If layer thickness is given, all but one sublayer must have known thickness. "
+                    "Known sublayer thicknesses: {}".format(known)
+                )   
+            else:
+                remaining = self.thickness - sum(known)
+                for sl in self.sublayers:
+                    if sl.thickness is None:
+                        sl.thickness = remaining
+                        break
+                        
 class Layer:
     """A resolved cross-section layer within a panel, carrying geometry and agents.
 

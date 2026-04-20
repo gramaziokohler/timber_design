@@ -11,10 +11,10 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators import FeatureBoundaryType
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
 from timber_design.populators.layer import Layer
+from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
@@ -100,12 +100,8 @@ class RecessPopulatorAgent(PopulatorAgent):
         CategoryRule(TButtJoint, "recess", "edge_stud", max_distance=1.0),
     ]
 
-    def __init__(
-        self,
-        layer: Layer,
-        edge_agent: PopulatorAgent,
-        params: RecessPopulatorAgentConfig,
-    ):
+    def __init__(self, layer, edge_agent, params):
+        # type: (Layer, PopulatorAgent, RecessPopulatorAgentConfig) -> None
         super(RecessPopulatorAgent, self).__init__(layer, params)
         self.edge_agent = edge_agent
         self.recess_beam_width = params.recess_beam_width

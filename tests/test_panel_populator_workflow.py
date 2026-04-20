@@ -26,6 +26,7 @@ from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
 from timber_design.populators import PanelPopulatorConfig
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.populators.beam2d import Beam2D
 
 # ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ def stud_config(**overrides):
     """``PanelPopulatorConfig.stud_panel`` with sensible mm defaults."""
     kw = dict(standard_beam_width=60.0, stud_spacing=625.0)
     kw.update(overrides)
-    return PanelPopulatorConfig.stud_panel(**kw)
+    return stud_panel(**kw)
 
 
 # ---------------------------------------------------------------------------

@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 from compas_timber.elements import Plate
 
-from timber_design.populators import PopulatorAgent
-from timber_design.populators import PopulatorAgentConfig
 from timber_design.populators.layer import Layer
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
+from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
 
 
 @dataclass
@@ -50,7 +50,8 @@ class PlatePopulatorAgent(PopulatorAgent):
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
     NAME = "PlatePopulatorAgent"
 
-    def __init__(self, layer: Layer, params: PlatePopulatorAgentConfig) -> None:
+    def __init__(self, layer, params):
+        # type: (Layer, PlatePopulatorAgentConfig) -> None
         super(PlatePopulatorAgent, self).__init__(layer, params)
         self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 

@@ -1,9 +1,8 @@
 from compas.tolerance import TOL
-
-from compas_timber.connections import Cluster
+from compas_timber.analyzers import Cluster
+from compas_timber.analyzers import MaxNCompositeAnalyzer
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
-from compas_timber.connections import MaxNCompositeAnalyzer
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint

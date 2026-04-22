@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import dataclasses
 from typing import TYPE_CHECKING
 
 from compas.geometry import Box
@@ -9,7 +8,6 @@ from compas.geometry import Frame
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Transformation
-from compas.geometry import Translation
 from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
@@ -70,7 +68,6 @@ class PanelPopulatorConfig:
         self.instance_feature_configs = instance_feature_configs or []
         self.orientation = orientation
         self.standard_beam_width = standard_beam_width
-
 
         # Set by _prepare_panels / create_populator
         self.transformation_to_populator = None
@@ -172,9 +169,7 @@ class PanelPopulatorConfig:
                 continue
             cumulative += thickness
             t = cumulative / total_thickness
-            outline_b = Polyline(
-                [pt_a * (1.0 - t) + pt_b * t for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)]
-            )
+            outline_b = Polyline([pt_a * (1.0 - t) + pt_b * t for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)])
             layer_panel = Panel.from_outlines(outline_a, outline_b)
             layer = Layer(
                 layer_panel,
@@ -277,44 +272,21 @@ class PanelPopulatorConfig:
 
         if layer_def.thickness is None:
             fill_names = [repr(sl.name) for sl in fill]
-            raise ValueError(
-                "Cannot resolve fill-remaining sublayer(s) [{}] of layer {!r} "
-                "because its own thickness is unknown.".format(
-                    ", ".join(fill_names), layer_def.name
-                )
-            )
+            raise ValueError("Cannot resolve fill-remaining sublayer(s) [{}] of layer {!r} because its own thickness is unknown.".format(", ".join(fill_names), layer_def.name))
 
         if not fill:
             if not TOL.is_close(known_sum, layer_def.thickness):
-                breakdown = ", ".join(
-                    "{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers
-                )
-                raise ValueError(
-                    "Sublayers of layer {!r} sum to {} but layer thickness is {}. "
-                    "Sublayers: [{}].".format(
-                        layer_def.name, known_sum, layer_def.thickness, breakdown
-                    )
-                )
+                breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers)
+                raise ValueError("Sublayers of layer {!r} sum to {} but layer thickness is {}. Sublayers: [{}].".format(layer_def.name, known_sum, layer_def.thickness, breakdown))
         else:
             if len(fill) > 1:
                 fill_names = [repr(sl.name) for sl in fill]
-                raise ValueError(
-                    "At most one sublayer of layer {!r} may have thickness=None; "
-                    "got {} ({}).".format(
-                        layer_def.name, len(fill), ", ".join(fill_names)
-                    )
-                )
+                raise ValueError("At most one sublayer of layer {!r} may have thickness=None; got {} ({}).".format(layer_def.name, len(fill), ", ".join(fill_names)))
             remaining = layer_def.thickness - known_sum
             if remaining < 0 and not TOL.is_zero(remaining):
-                breakdown = ", ".join(
-                    "{!r}={}".format(sl.name, sl.thickness)
-                    for sl in layer_def.sublayers
-                    if sl.thickness is not None
-                )
+                breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers if sl.thickness is not None)
                 raise ValueError(
-                    "Fixed sublayers of layer {!r} ({}) exceed its thickness ({}); "
-                    "no room left for fill-remaining sublayer {!r}. "
-                    "Fixed sublayers: [{}].".format(
+                    "Fixed sublayers of layer {!r} ({}) exceed its thickness ({}); no room left for fill-remaining sublayer {!r}. Fixed sublayers: [{}].".format(
                         layer_def.name, known_sum, layer_def.thickness, fill[0].name, breakdown
                     )
                 )
@@ -394,7 +366,6 @@ class PanelPopulatorConfig:
             transformation_to_populator=self.transformation_to_populator,
         )
 
-
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -410,7 +381,6 @@ class PanelPopulatorConfig:
                 yield from self._flat_layer_defs(ld)
             else:
                 yield ld
-
 
     def resolve_beam_dimensions(self, layers, feature_agents):
         """Populate :attr:`~timber_design.populators.LayerAgent.beam_dimensions` on every agent.
@@ -483,7 +453,7 @@ class PanelPopulatorConfig:
     def _get_transformation_to_populator_space(self, panel, orientation):
         """Return the transformation from world/panel space into populator space."""
         transformation_to_populator_panel = self._get_transformation_to_populator_panel(panel, orientation)
-        return  transformation_to_populator_panel
+        return transformation_to_populator_panel
 
     def _get_transformation_to_populator_panel(self, panel, orientation):
         """Return the transformation that aligns *panel* to the XY plane."""

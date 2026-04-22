@@ -30,4 +30,3 @@ class PlateFromBrep(Grasshopper.Kernel.GH_ScriptInstance):
         scene.add(plate.geometry)
         geo = scene.draw()
         return plate, geo
-

@@ -1,10 +1,8 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from .layer_agent import LayerAgent
 from .layer_agent import LayerAgentConfig
-from timber_design.populators.layer import Layer
 
 
 @dataclass

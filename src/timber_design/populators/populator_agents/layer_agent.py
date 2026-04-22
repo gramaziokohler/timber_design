@@ -1,4 +1,3 @@
-import dataclasses
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -588,9 +587,6 @@ class LayerAgent(ABC):
             directly to :meth:`create_joint_candidates`; see its docstring.
         """
         for candidate in self.create_joint_candidates(model, elements=elements):
-            
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
-
-

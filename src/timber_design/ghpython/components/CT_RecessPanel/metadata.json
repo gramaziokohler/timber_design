@@ -1,0 +1,92 @@
+{
+    "name": "Recess Panel Config",
+    "nickname": "RecessPanel",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a recess PanelPopulatorConfig.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel geometry or element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Standard beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "recess_beam_width",
+                "description": "Recess beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "recess_beam_height",
+                "description": "Recess beam height.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_beam_min_width",
+                "description": "Minimum edge beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width_increment",
+                "description": "Beam width increment.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_outside",
+                "description": "Outside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_inside",
+                "description": "Inside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_recess",
+                "description": "Sheeting thickness in recess.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "beam_width_overrides",
+                "description": "List or dict of beam width overrides.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of joint rule overrides.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "Default feature configs mapping.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Config",
+                "description": "PanelPopulatorConfig"
+            }
+        ]
+    }
+}

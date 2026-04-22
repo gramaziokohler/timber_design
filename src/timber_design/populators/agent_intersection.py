@@ -115,8 +115,7 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
             pt = _intersect_with_blank_edge(agent_edge, j)
             if pt is None:
                 continue
-            if (agent_edge.start.distance_to_point(pt) < _endpoint_tol or
-                    agent_edge.end.distance_to_point(pt) < _endpoint_tol):
+            if agent_edge.start.distance_to_point(pt) < _endpoint_tol or agent_edge.end.distance_to_point(pt) < _endpoint_tol:
                 continue
             dots_by_outline[i].append(_beam_dot(pt))
 
@@ -165,7 +164,7 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
             )
             current_entry = None
             # inside is unchanged: was False, remains False.
-                # inside is unchanged: was False, remains False.
+            # inside is unchanged: was False, remains False.
 
     # ------------------------------------------------------------------
     # Wrap-around: outline started inside the beam.

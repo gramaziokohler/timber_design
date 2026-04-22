@@ -1,0 +1,98 @@
+{
+    "name": "Stud Panel Config",
+    "nickname": "StudPanel",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a stud-framed PanelPopulatorConfig.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel geometry or element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Standard beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stud_spacing",
+                "description": "Stud spacing.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width_increment",
+                "description": "Beam width increment.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_beam_min_width",
+                "description": "Minimum edge beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "orientation",
+                "description": "Optional orientation vector.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_outside",
+                "description": "Outside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_inside",
+                "description": "Inside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "lintel_posts",
+                "description": "Whether to create lintel posts.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "split_bottom_plate_beam",
+                "description": "Whether to split bottom plate beam.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of joint rule overrides.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "Default feature configs mapping.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "instance_feature_configs",
+                "description": "List of instance-specific feature configs.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Config",
+                "description": "PanelPopulatorConfig"
+            }
+        ]
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "name": "PopulatorLayer",
+    "nickname": "PopulatorLayer",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a LayerDefinition from inputs.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "thickness",
+                "description": "Layer thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "name",
+                "description": "Layer name.",
+                "typeHintID": "string",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "agents",
+                "description": "List of agent config objects for this layer.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "sublayers",
+                "description": "List of sublayer definitions.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "is_framing",
+                "description": "Whether this layer is framing (boolean).",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Layer",
+                "description": "Created LayerDefinition instance."
+            }
+        ]
+    }
+}

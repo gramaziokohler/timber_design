@@ -222,7 +222,9 @@ class PanelPopulator(object):
                 for element_a, element_b in product(elements_a, elements_b):
                     topo_result = solver.find_topology(element_a, element_b)
                     if topo_result is not None:
-                        candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                        candidate = JointCandidate(
+                            topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location
+                        )
                         self.model.add_joint_candidate(candidate)
                         candidates.append(candidate)
                 clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)

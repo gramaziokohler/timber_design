@@ -56,7 +56,7 @@ class LayerDefinition:
         from timber_design.populators import EdgePopulatorAgentConfig, StudPopulatorAgentConfig
 
         frame = LayerDefinition(
-            thickness=None,          # fill remaining
+            thickness=None,  # fill remaining
             name="frame",
             is_framing_layer=True,
             agent_configs=[
@@ -75,16 +75,13 @@ class LayerDefinition:
         is_framing_layer: bool = False,
     ):
         if agent_configs and sublayers:
-            raise ValueError(
-                "Layer {!r} cannot have both agent_configs and sublayers.".format(name)
-            )
+            raise ValueError("Layer {!r} cannot have both agent_configs and sublayers.".format(name))
 
         self.thickness = thickness
         self.sublayers = sublayers or []
         self.name = name
         self.agent_configs = agent_configs or []
         self.is_framing_layer = is_framing_layer
-
 
 
 class Layer:
@@ -158,7 +155,6 @@ class Layer:
         self.layer_index = layer_index
         self.is_framing_layer = is_framing_layer
 
-
     @property
     def elements(self):
         """All elements placed on this layer, across every registered agent.
@@ -214,16 +210,12 @@ class Layer:
         """
         if range_a:
             offset = range_a / panel.thickness
-            frame_outline_a = Polyline(
-                [pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)]
-            )
+            frame_outline_a = Polyline([pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)])
         else:
             frame_outline_a = panel.outline_a
 
         offset = range_b / panel.thickness
-        frame_outline_b = Polyline(
-            [pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)]
-        )
+        frame_outline_b = Polyline([pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)])
 
         layer_panel = Panel.from_outlines(frame_outline_a, frame_outline_b)
         return cls(layer_panel, name, layer_index=layer_index, is_framing_layer=is_framing_layer)
@@ -237,4 +229,3 @@ class Layer:
     def center_height(self) -> float:
         """Z coordinate of the layer's mid-thickness in populator space."""
         return self.panel.outline_a[0][2] + self.panel.thickness / 2
-

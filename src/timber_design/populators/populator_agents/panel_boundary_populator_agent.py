@@ -9,7 +9,6 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.beam2d import AABB2D
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
@@ -17,7 +16,6 @@ from timber_design.populators.populator_agents.layer_agent import LayerAgentConf
 
 @dataclass
 class PanelBoundaryPopulatorAgentConfig(LayerAgentConfig):
-
     @property
     def __data__(self):
         data = super().__data__
@@ -70,7 +68,6 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         # type: (Layer, PanelBoundaryPopulatorAgentConfig) -> None
         super(PanelBoundaryPopulatorAgent, self).__init__(layer, params)
 
-
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
@@ -110,8 +107,6 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
             self.generate_boundaries()
         aabb2d = AABB2D.from_points(self.outline.points)
         return aabb2d
-
-
 
 
 # Set after both classes are defined so forward reference is resolved

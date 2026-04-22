@@ -20,7 +20,6 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig

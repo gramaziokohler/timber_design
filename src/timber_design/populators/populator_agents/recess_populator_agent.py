@@ -11,15 +11,15 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
+from timber_design.populators import AgentBoundaryType
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
-from timber_design.populators.populator_agents.layer_agent import LayerAgent
-from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
+from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
+from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class RecessPopulatorAgentConfig(LayerAgentConfig):
+class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
     """Configuration for a recess-frame agent.
 
     Parameters
@@ -45,7 +45,7 @@ class RecessPopulatorAgentConfig(LayerAgentConfig):
         return data
 
 
-class RecessPopulatorAgent(LayerAgent):
+class RecessPopulatorAgent(EdgePopulatorAgent):
     """Generates a recessed frame and sheathing plate along the panel outline.
 
     Creates one ``"recess"`` :class:`~timber_design.populators.Beam2D` per
@@ -69,16 +69,11 @@ class RecessPopulatorAgent(LayerAgent):
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The structural frame layer this agent operates within.
-    edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        The edge agent whose :attr:`~LayerAgent.outline` is used as the
-        baseline for the recess beam centrelines.
     params : :class:`RecessPopulatorAgentConfig`
         Recess beam dimensions and optional sheeting recess offset.
 
     Attributes
     ----------
-    edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        Reference to the companion edge agent.
     recess_beam_width : float
         Width of the recess beam in model units.
     recess_beam_height : float or None
@@ -99,10 +94,12 @@ class RecessPopulatorAgent(LayerAgent):
         CategoryRule(TButtJoint, "recess", "edge_stud", max_distance=1.0),
     ]
 
-    def __init__(self, layer, edge_agent, params):
-        # type: (Layer, LayerAgent, RecessPopulatorAgentConfig) -> None
+    def __init__(
+        self,
+        layer: Layer,
+        params: RecessPopulatorAgentConfig,
+    ):
         super(RecessPopulatorAgent, self).__init__(layer, params)
-        self.edge_agent = edge_agent
         self.recess_beam_width = params.recess_beam_width
         self.recess_beam_height = params.recess_beam_height
         self.sheeting_recess = params.sheeting_recess
@@ -114,10 +111,11 @@ class RecessPopulatorAgent(LayerAgent):
 
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
+        super(RecessPopulatorAgent, self).generate_elements()
         plate_edges = []
         new_centerlines = []
-        for i, edge in enumerate(self.edge_agent.outline.lines):
-            vector = -get_polyline_segment_perpendicular_vector(self.edge_agent.outline, i)
+        for i, edge in enumerate(self.outline.lines):
+            vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
                 edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.panel.thickness - self.beam_dimensions["recess"][1]) * 0.5))
@@ -131,18 +129,23 @@ class RecessPopulatorAgent(LayerAgent):
         self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
         vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
-        self.outline = self.edge_agent.outline.copy() if self.edge_agent.outline else None
+        self.outline = self.outline.copy() if self.outline else None
 
     # ==========================================================================
     # Cross-layer trimming
     # ==========================================================================
 
+    def create_internal_joint_defs(self, model, elements=None):
+        """Generate the joint definitions for the panel edges."""
+        for candidate in self.create_joint_candidates(model, elements=elements):
+            if candidate.element_a.attributes.get("edge_index") is None or candidate.element_b.attributes.get("edge_index") is None:
+                continue
+            rule = self.create_edge_beam_joint_rule(*candidate.elements)
+            if rule is not None:
+                self.joint_defs.append(rule)
+
     def trim_cross_layer(self, other_agent):
         """Cut the recess outline into plates on inner (lower-index) layers.
-
-        Only acts when *other_agent*'s :attr:`~LayerAgent.layer_index` is
-        strictly less than this agent's own index, i.e. the other layer sits
-        inside (closer to the interior face) of the recess frame.
 
         Parameters
         ----------

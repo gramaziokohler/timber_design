@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
@@ -77,7 +76,7 @@ class StudPopulatorAgent(LayerAgent):
         x_position = self.stud_spacing
         studs = []
         while x_position < self.panel.length - self.beam_dimensions["stud"][0]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.panel.width, 0)), "stud"))
+            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.panel.aabb.ymax, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs
 

@@ -1,0 +1,56 @@
+{
+    "name": "PanelPopulatorConfigurator",
+    "nickname": "PopulatorConfig",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a PanelPopulatorConfig from inputs.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel geometry or element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "orientation",
+                "description": "Optional orientation vector (Rhino vector).",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Standard beam width for generators.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "layers",
+                "description": "List of layers.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "List of default feature configs.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "instance_feature_configs",
+                "description": "List of instance-specific feature configs.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Config",
+                "description": "Created PanelPopulatorConfig instance."
+            }
+        ]
+    }
+}

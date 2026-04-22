@@ -1,14 +1,12 @@
 from compas_timber.panel_features import Opening
 
-
-
 from timber_design.populators import LayerDefinition
 from timber_design.populators import PanelPopulatorConfig
-
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
+from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
 from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
 from timber_design.populators.populator_agents.stud_populator_agent import StudPopulatorAgentConfig
-from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
+
 
 def stud_panel(
     panel=None,
@@ -24,6 +22,7 @@ def stud_panel(
     beam_width_overrides=None,
     joint_rule_overrides=None,
     default_feature_configs=None,
+    instance_feature_configs=None,
 ):
     """Create a config for a standard stud-framed wall panel.
 
@@ -56,7 +55,6 @@ def stud_panel(
         Mapping from panel feature class to a ``LayerAgentConfig`` instance.
     """
 
-
     standard_beam_width = standard_beam_width or (panel.thickness / 2 if panel else None)
     stud_spacing = stud_spacing or (panel.thickness * 2 if panel else None)
 
@@ -86,10 +84,11 @@ def stud_panel(
     if not default_feature_configs:
         default_feature_configs = {}
     if Opening not in default_feature_configs:
-        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts = lintel_posts, split_bottom_plate_beam = split_bottom_plate_beam)
+        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam)
 
-
-    config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs, default_feature_configs=default_feature_configs, orientation=orientation)
+    config = PanelPopulatorConfig(
+        panel=panel, orientation=orientation, layer_defs=layer_defs, default_feature_configs=default_feature_configs, instance_feature_configs=instance_feature_configs
+    )
     config.standard_beam_width = standard_beam_width
     config.beam_width_overrides = beam_width_overrides
     config.joint_rule_overrides = joint_rule_overrides

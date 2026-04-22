@@ -14,6 +14,7 @@ from compas_timber.elements import Panel as CTPanel
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
+
 class Panel(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(self, outline, thickness: float, vector: Rhino.Geometry.Vector3d, openings: System.Collections.Generic.List[object], category: str, updateRefObj: bool):
         # minimum inputs required

@@ -2,15 +2,13 @@ from dataclasses import dataclass
 
 from compas_timber.elements import Plate
 
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 
 
 @dataclass
 class PlatePopulatorAgentConfig(LayerAgentConfig):
-    """Configuration for a single sheathing plate agent.
-    """
+    """Configuration for a single sheathing plate agent."""
 
     @property
     def __data__(self):

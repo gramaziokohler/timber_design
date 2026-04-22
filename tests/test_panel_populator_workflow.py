@@ -25,7 +25,6 @@ from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
-from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.populators.beam2d import Beam2D
@@ -60,7 +59,7 @@ def make_outline(xmin, ymin, xmax, ymax, z=0.0):
     return Polyline(
         [
             Point(xmin, ymin, z),
-            Point(xmin, ymax, z),            
+            Point(xmin, ymax, z),
             Point(xmax, ymax, z),
             Point(xmax, ymin, z),
             Point(xmin, ymin, z),
@@ -267,7 +266,6 @@ class TestCustomBeamDimensions:
 
 
 @requires_opening
-
 class TestWindowOpening:
     """Opening with opening_type=WINDOW → header + sill + king/jack studs."""
 

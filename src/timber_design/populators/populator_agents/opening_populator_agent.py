@@ -12,19 +12,19 @@ from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
-from compas_timber.utils import extend_line_segments
-from compas_timber.utils import join_polyline_segments
 from compas_timber.fabrication.free_contour import FreeContour
 from compas_timber.panel_features import Opening
+from compas_timber.utils import extend_line_segments
+from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.agent_intersection import extend_beam_to_closest_agents
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.connection_solver_2d import aabb_overlap_x
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.feature_agent import FeatureAgentConfig
+from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
 
@@ -123,13 +123,11 @@ class OpeningPopulatorAgent(FeatureAgent):
         CategoryRule(TButtJoint, "jack_stud", "edge_stud"),
         CategoryRule(TButtJoint, "jack_stud", "header", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "sill", mill_depth=5.0),
-
         CategoryRule(TButtJoint, "king_stud", "bottom_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "edge_stud"),
         CategoryRule(TButtJoint, "king_stud", "header", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "sill", mill_depth=5.0),
-
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
     ]
@@ -259,9 +257,7 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     def _create_frame_polylines(self, opening: Opening, layer: Layer) -> tuple[Polyline, Polyline]:
         king_dims = self.beam_dimensions.get("king_stud")
-        if king_dims:
-            thickness = king_dims[0] / 2  # TODO: use frame_thickness
-        else:
+        if not king_dims:
             raise ValueError("Beam dimensions for 'king_stud' not found.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
         opening_a = Polyline([intersection_line_plane(line, layer.panel.planes[0]) for line in lines])
@@ -323,7 +319,7 @@ class OpeningPopulatorAgent(FeatureAgent):
                 self.apply_to_plate(element)
 
     def _cull_stud(self, stud: Beam2D) -> bool:
-        """Determine whether a stud coincides with a king or jack stud and should be culled."""        
+        """Determine whether a stud coincides with a king or jack stud and should be culled."""
         return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
     def apply_to_plate(self, plate: Plate) -> None:

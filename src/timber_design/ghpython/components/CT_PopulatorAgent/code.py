@@ -1,4 +1,5 @@
 """makes rule to apply joint type to L topology. Defualts to LMiterJoint"""
+
 # r: timber_design>=0.1.0
 # venv: td_migration
 # flake8: noqa
@@ -30,21 +31,21 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
         names.extend(self.beam_width_names())
         for i, val in enumerate(args):
             if val is not None:
-                if i<num_args:
+                if i < num_args:
                     kwargs[names[i]] = val
                 else:
-                    width_overrides[names[i][:-6]]=val
-        kwargs["beam_width_overrides"]=width_overrides
+                    width_overrides[names[i][:-6]] = val
+        kwargs["beam_width_overrides"] = width_overrides
         return self.panel_type(**kwargs)
 
     def arg_names(self):
         names = inspect.getfullargspec(self.panel_type.__init__).args[1:]
-        names = [n for n in names if n !='beam_width_overrides']
+        names = [n for n in names if n != "beam_width_overrides"]
         return names
 
     def beam_width_names(self):
         beam_names = self.panel_type.AGENT_TYPE.BEAM_CATEGORY_NAMES
-        beam_names = [b+"_width" for b in beam_names]
+        beam_names = [b + "_width" for b in beam_names]
         return beam_names
 
     def AppendAdditionalMenuItems(self, menu):
@@ -56,7 +57,7 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
     def on_item_click(self, sender, event_info):
         self.panel_type = self.panel_types[str(sender)]
         rename_cpython_gh_output(self.panel_type.__name__, 0, ghenv)
-        names = self.arg_names()        
+        names = self.arg_names()
         names.extend(self.beam_width_names())
         manage_cpython_dynamic_params(names, ghenv, rename_count=0, permanent_param_count=0)
         ghenv.Component.ExpireSolution(True)

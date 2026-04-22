@@ -1,4 +1,4 @@
-"""Creates a Beam from a LineCurve."""
+"""Creates a Plate from a Polyline and Thickness."""
 
 # flake8: noqa
 import Grasshopper

@@ -1,4 +1,4 @@
-"""Creates a Beam from a LineCurve."""
+"""Creates a Slab from a Brep Surface."""
 
 # flake8: noqa
 import Grasshopper

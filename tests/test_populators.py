@@ -18,14 +18,13 @@ from compas_timber.elements import Plate
 from timber_design.populators import EdgePopulatorAgent
 from timber_design.populators import EdgePopulatorAgentConfig
 from timber_design.populators import Layer
+from timber_design.populators import LayerDefinition
 from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators import PlatePopulatorAgent
 from timber_design.populators import PlatePopulatorAgentConfig
 from timber_design.populators import StudPopulatorAgent
 from timber_design.populators import StudPopulatorAgentConfig
 from timber_design.populators.beam2d import Beam2D
-from timber_design.populators import get_frame_panel
-from timber_design.populators import get_layers
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 
@@ -51,13 +50,29 @@ def make_panel(width=4000.0, height=2700.0, thickness=160.0):
     return Panel.from_outline_thickness(make_outline(0, 0, width, height), thickness)
 
 
-class _SheetingParams:
-    """Minimal stand-in for a config object used by get_frame_panel / get_layers."""
+def build_layers(panel, si=0.0, so=0.0):
+    """Build a layer list matching the old ``get_layers`` helper.
 
-    def __init__(self, si=0.0, so=0.0, thickness=160.0):
-        self.sheeting_inside = si
-        self.sheeting_outside = so
-        self.thickness = thickness
+    Mirrors the cross-section used by the previous test suite:
+    optional interior plate, a framing layer (fill-remaining), optional
+    exterior plate.  Returns the resolved list of :class:`Layer` instances
+    in populator space, as produced by
+    :meth:`PanelPopulatorConfig.create_layers`.
+    """
+    layer_defs = []
+    if si:
+        layer_defs.append(LayerDefinition(si, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
+    layer_defs.append(LayerDefinition(name="frame", is_framing_layer=True))
+    if so:
+        layer_defs.append(LayerDefinition(so, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+    config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs)
+    populator_panel = config.get_populator_panel()
+    return config.create_layers(populator_panel)
+
+
+def frame_panel_of(layers):
+    """Return the framing layer's panel (populator-space)."""
+    return next(l for l in layers if l.is_framing_layer).panel
 
 
 # =============================================================================
@@ -69,7 +84,7 @@ class TestEdgePopulatorAgent:
     @pytest.fixture
     def gen(self):
         panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
-        frame_layer = get_layers(panel, _SheetingParams())["frame"]
+        frame_layer = next(l for l in build_layers(panel) if l.is_framing_layer)
         params = EdgePopulatorAgentConfig(edge_beam_min_width=60.0)
         g = EdgePopulatorAgent(frame_layer, params)
         g.resolve_beam_dimensions(60.0, frame_layer.thickness)
@@ -109,7 +124,7 @@ class TestEdgePopulatorAgent:
     def test_standard_width_increment_rounds_up(self):
         """With an increment, edge-beam widths snap to the next multiple."""
         panel = make_panel()
-        frame_layer = get_layers(panel, _SheetingParams())["frame"]
+        frame_layer = next(l for l in build_layers(panel) if l.is_framing_layer)
         params = EdgePopulatorAgentConfig(edge_beam_min_width=0.0, standard_beam_width_increment=20.0)
         g = EdgePopulatorAgent(frame_layer, params)
         g.resolve_beam_dimensions(60.0, frame_layer.thickness)
@@ -128,7 +143,7 @@ class TestStudPopulatorAgent:
     @pytest.fixture
     def gen(self):
         panel = make_panel(width=4000.0, height=2700.0, thickness=160.0)
-        frame_layer = get_layers(panel, _SheetingParams())["frame"]
+        frame_layer = next(l for l in build_layers(panel) if l.is_framing_layer)
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
         g = StudPopulatorAgent(frame_layer, params)
         g.resolve_beam_dimensions(60.0, frame_layer.thickness)
@@ -162,7 +177,7 @@ class TestStudPopulatorAgent:
 
     def test_fewer_studs_with_wider_spacing(self):
         panel = make_panel(width=4000.0, height=2700.0)
-        frame_layer = get_layers(panel, _SheetingParams())["frame"]
+        frame_layer = next(l for l in build_layers(panel) if l.is_framing_layer)
 
         g_narrow = StudPopulatorAgent(frame_layer, StudPopulatorAgentConfig(stud_spacing=300.0))
         g_narrow.resolve_beam_dimensions(60.0, frame_layer.thickness)
@@ -183,178 +198,199 @@ class TestStudPopulatorAgent:
 class TestPlatePopulatorAgent:
     def test_interior_plate_produced(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0))
-        params = PlatePopulatorAgentConfig()
-        g = PlatePopulatorAgent(layers["interior"], params)
-        g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        layers = build_layers(panel, si=15.0)
+        interior = next(l for l in layers if l.name == "interior")
+        frame = frame_panel_of(layers)
+        g = PlatePopulatorAgent(interior, PlatePopulatorAgentConfig())
+        g.resolve_beam_dimensions(60.0, frame.thickness)
         g.generate_elements()
         assert any(isinstance(e, Plate) for e in g.elements)
 
     def test_exterior_plate_produced(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(so=22.0))
-        params = PlatePopulatorAgentConfig()
-        g = PlatePopulatorAgent(layers["exterior"], params)
-        g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        layers = build_layers(panel, so=22.0)
+        exterior = next(l for l in layers if l.name == "exterior")
+        frame = frame_panel_of(layers)
+        g = PlatePopulatorAgent(exterior, PlatePopulatorAgentConfig())
+        g.resolve_beam_dimensions(60.0, frame.thickness)
         g.generate_elements()
         assert any(isinstance(e, Plate) for e in g.elements)
 
     def test_both_plates_produced(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        g_interior = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig())
-        g_interior.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        layers = build_layers(panel, si=15.0, so=22.0)
+        interior = next(l for l in layers if l.name == "interior")
+        exterior = next(l for l in layers if l.name == "exterior")
+        frame = frame_panel_of(layers)
+        g_interior = PlatePopulatorAgent(interior, PlatePopulatorAgentConfig())
+        g_interior.resolve_beam_dimensions(60.0, frame.thickness)
         g_interior.generate_elements()
-        g_exterior = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig())
-        g_exterior.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        g_exterior = PlatePopulatorAgent(exterior, PlatePopulatorAgentConfig())
+        g_exterior.resolve_beam_dimensions(60.0, frame.thickness)
         g_exterior.generate_elements()
         plates = [e for e in g_interior.elements + g_exterior.elements if isinstance(e, Plate)]
         assert len(plates) == 2
 
     def test_no_plates_without_sheeting(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams())
-        # No interior or exterior layer when there is no sheeting
-        assert "interior" not in layers
-        assert "exterior" not in layers
+        layers = build_layers(panel)
+        assert not any(l.name == "interior" for l in layers)
+        assert not any(l.name == "exterior" for l in layers)
 
     def test_interior_plate_category(self):
         """Plate element carries the layer-derived category name."""
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0))
-        g = PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig())
-        g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        layers = build_layers(panel, si=15.0)
+        interior = next(l for l in layers if l.name == "interior")
+        frame = frame_panel_of(layers)
+        g = PlatePopulatorAgent(interior, PlatePopulatorAgentConfig())
+        g.resolve_beam_dimensions(60.0, frame.thickness)
         g.generate_elements()
         plates = [e for e in g.elements if isinstance(e, Plate)]
         assert all(e.attributes.get("category") == "interior_plate" for e in plates)
 
     def test_exterior_plate_category(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(so=22.0))
-        g = PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig())
-        g.resolve_beam_dimensions(60.0, layers["frame"].panel.thickness)
+        layers = build_layers(panel, so=22.0)
+        exterior = next(l for l in layers if l.name == "exterior")
+        frame = frame_panel_of(layers)
+        g = PlatePopulatorAgent(exterior, PlatePopulatorAgentConfig())
+        g.resolve_beam_dimensions(60.0, frame.thickness)
         g.generate_elements()
         plates = [e for e in g.elements if isinstance(e, Plate)]
         assert all(e.attributes.get("category") == "exterior_plate" for e in plates)
 
 
 # =============================================================================
-# get_layers / get_frame_panel helpers
+# build_layers (LayerDefinition flow through PanelPopulatorConfig)
 # =============================================================================
 
 
-class TestGetLayers:
-    def test_always_has_local_and_frame(self):
+class TestBuildLayers:
+    def test_always_has_frame(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams())
-        assert "local" in layers
-        assert "frame" in layers
+        layers = build_layers(panel)
+        assert any(l.is_framing_layer for l in layers)
 
     def test_no_sheeting_no_interior_exterior(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams())
-        assert "interior" not in layers
-        assert "exterior" not in layers
+        layers = build_layers(panel)
+        assert not any(l.name == "interior" for l in layers)
+        assert not any(l.name == "exterior" for l in layers)
 
     def test_sheeting_inside_creates_interior_layer(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0))
-        assert "interior" in layers
-        assert "exterior" not in layers
+        layers = build_layers(panel, si=15.0)
+        assert any(l.name == "interior" for l in layers)
+        assert not any(l.name == "exterior" for l in layers)
 
     def test_sheeting_outside_creates_exterior_layer(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(so=22.0))
-        assert "exterior" in layers
-        assert "interior" not in layers
+        layers = build_layers(panel, so=22.0)
+        assert any(l.name == "exterior" for l in layers)
+        assert not any(l.name == "interior" for l in layers)
 
     def test_both_sheeting_creates_both_layers(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        assert "interior" in layers
-        assert "exterior" in layers
+        layers = build_layers(panel, si=15.0, so=22.0)
+        assert any(l.name == "interior" for l in layers)
+        assert any(l.name == "exterior" for l in layers)
 
-    def test_layer_values_are_layer_instances(self):
+    def test_layers_are_layer_instances(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        for layer in layers.values():
+        layers = build_layers(panel, si=15.0, so=22.0)
+        for layer in layers:
             assert isinstance(layer, Layer)
 
     def test_interior_layer_thickness(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0))
-        assert abs(layers["interior"].thickness - 15.0) < 1.0
+        layers = build_layers(panel, si=15.0)
+        interior = next(l for l in layers if l.name == "interior")
+        assert abs(interior.thickness - 15.0) < 1.0
 
     def test_exterior_layer_thickness(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(so=22.0))
-        assert abs(layers["exterior"].thickness - 22.0) < 1.0
+        layers = build_layers(panel, so=22.0)
+        exterior = next(l for l in layers if l.name == "exterior")
+        assert abs(exterior.thickness - 22.0) < 1.0
 
     def test_frame_thickness_reduced_by_sheeting(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        assert abs(layers["frame"].thickness - (160.0 - 15.0 - 22.0)) < 1.0
+        layers = build_layers(panel, si=15.0, so=22.0)
+        frame = next(l for l in layers if l.is_framing_layer)
+        assert abs(frame.thickness - (160.0 - 15.0 - 22.0)) < 1.0
 
     def test_layer_names(self):
         panel = make_panel(thickness=160.0)
-        layers = get_layers(panel, _SheetingParams(si=15.0, so=22.0))
-        assert layers["local"].name == "local"
-        assert layers["frame"].name == "frame"
-        assert layers["interior"].name == "interior"
-        assert layers["exterior"].name == "exterior"
+        layers = build_layers(panel, si=15.0, so=22.0)
+        names = [l.name for l in layers]
+        assert "frame" in names
+        assert "interior" in names
+        assert "exterior" in names
 
 
-class TestGetFramePanel:
-    def test_no_sheeting_returns_same_size(self):
-        panel = make_panel(thickness=160.0)
-        frame_panel = get_frame_panel(panel, _SheetingParams())
-        assert abs(frame_panel.thickness - 160.0) < 1.0
-
-    def test_sheeting_reduces_frame_thickness(self):
-        panel = make_panel(thickness=160.0)
-        frame_panel = get_frame_panel(panel, _SheetingParams(si=15.0, so=22.0))
-        assert abs(frame_panel.thickness - (160.0 - 15.0 - 22.0)) < 1.0
+class TestGetPopulatorPanel:
+    """``PanelPopulatorConfig.get_populator_panel`` produces the localized panel."""
 
     def test_returns_panel_instance(self):
         panel = make_panel()
-        frame_panel = get_frame_panel(panel, _SheetingParams())
-        assert isinstance(frame_panel, Panel)
+        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerDefinition(name="frame", is_framing_layer=True)])
+        populator_panel = config.get_populator_panel()
+        assert isinstance(populator_panel, Panel)
+
+    def test_preserves_thickness(self):
+        panel = make_panel(thickness=160.0)
+        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerDefinition(name="frame", is_framing_layer=True)])
+        populator_panel = config.get_populator_panel()
+        assert abs(populator_panel.thickness - 160.0) < 1.0
 
 
 # =============================================================================
-# stud_panel / create_populator_agents
+# stud_panel config: layer.agents composition
 # =============================================================================
+
+
+def _all_layer_agents(layers):
+    """Flat, deduplicated list of every agent on every layer."""
+    seen = []
+    for layer in layers:
+        for agent in layer.agents:
+            if agent not in seen:
+                seen.append(agent)
+    return seen
+
+
+def _resolve_agent_dims(layers, standard_beam_width):
+    """Simulate ``PanelPopulatorConfig.resolve_beam_dimensions`` for raw tests."""
+    for layer in layers:
+        for agent in layer.agents:
+            agent.resolve_beam_dimensions(standard_beam_width, layer.thickness)
 
 
 class TestStudPanelPopulatorConfig:
-    """stud_panel creates the expected agent types for standard params."""
+    """``stud_panel`` creates the expected agent types for standard params."""
 
-    def test_returns_non_empty_list(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
+    def _layers(self, **kwargs):
+        panel = kwargs.pop("panel", None) or make_panel()
+        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0, **kwargs)
         config.panel = panel
         populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        return config, config.create_layers(populator_panel)
+
+    def test_returns_non_empty_list(self):
+        _, layers = self._layers()
+        agents = _all_layer_agents(layers)
         assert isinstance(agents, list)
         assert len(agents) >= 2  # at minimum: edge + stud
 
     def test_edge_agent_present(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        _, layers = self._layers()
+        agents = _all_layer_agents(layers)
         assert any(isinstance(g, EdgePopulatorAgent) for g in agents)
 
     def test_stud_agent_present_when_spacing_set(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        _, layers = self._layers()
+        agents = _all_layer_agents(layers)
         assert any(isinstance(g, StudPopulatorAgent) for g in agents)
 
     def test_no_stud_agent_when_spacing_none(self):
@@ -363,69 +399,44 @@ class TestStudPanelPopulatorConfig:
         config.panel = panel
         populator_panel = config.get_populator_panel()
         layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        agents = _all_layer_agents(layers)
         assert not any(isinstance(g, StudPopulatorAgent) for g in agents)
 
     def test_plate_agent_present_when_sheeting_set(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        _, layers = self._layers(sheeting_inside=15.0)
+        agents = _all_layer_agents(layers)
         assert any(isinstance(g, PlatePopulatorAgent) for g in agents)
 
     def test_no_plate_agent_without_sheeting(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        _, layers = self._layers()
+        agents = _all_layer_agents(layers)
         assert not any(isinstance(g, PlatePopulatorAgent) for g in agents)
 
     def test_beam_dimensions_resolved_on_agents(self):
-        """get_populator_panel + create_layers provide a frame layer suitable for resolving beam dimensions."""
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
-        frame_panel = layers["frame"].panel
-        for g in agents:
-            g.resolve_beam_dimensions(config.standard_beam_width, frame_panel.thickness)
-        for g in agents:
+        """Dimensions resolve per-layer for every agent attached to a layer."""
+        config, layers = self._layers()
+        _resolve_agent_dims(layers, config.standard_beam_width)
+        for g in _all_layer_agents(layers):
             assert g.beam_dimensions, f"{type(g).__name__}.beam_dimensions is empty after resolve"
 
     def test_create_layers_returns_interior_layer_when_sheeting_set(self):
-        panel = make_panel()
-        config = stud_panel(standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0)
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        assert "interior" in layers
-        assert "exterior" not in layers
+        _, layers = self._layers(sheeting_inside=15.0)
+        assert any(l.name == "interior" for l in layers)
+        assert not any(l.name == "exterior" for l in layers)
 
     def test_create_layers_returns_both_layers_when_both_sheeting_set(self):
-        panel = make_panel()
-        config = stud_panel(
-            standard_beam_width=60.0, stud_spacing=625.0, sheeting_inside=15.0, sheeting_outside=22.0
-        )
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        assert "interior" in layers
-        assert "exterior" in layers
+        _, layers = self._layers(sheeting_inside=15.0, sheeting_outside=22.0)
+        assert any(l.name == "interior" for l in layers)
+        assert any(l.name == "exterior" for l in layers)
 
 
 # =============================================================================
-# PanelPopulatorConfig.recess_panel / create_populator_agents
+# PanelPopulatorConfig.recess_panel / layer.agents composition
 # =============================================================================
 
 
 class TestRecessPanelPopulatorConfig:
-    def test_returns_non_empty_list(self):
+    def _layers(self):
         panel = make_panel()
         config = recess_panel(
             standard_beam_width=60.0,
@@ -435,26 +446,17 @@ class TestRecessPanelPopulatorConfig:
         )
         config.panel = panel
         populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
+        return config, config.create_layers(populator_panel)
+
+    def test_returns_non_empty_list(self):
+        _, layers = self._layers()
+        agents = _all_layer_agents(layers)
         assert isinstance(agents, list)
         assert len(agents) >= 1
 
     def test_beam_dimensions_resolved(self):
-        """resolve_beam_dimensions is called by create_populator; simulate it here."""
-        panel = make_panel()
-        config = recess_panel(
-            standard_beam_width=60.0,
-            recess_beam_width=40.0,
-            recess_beam_height=80.0,
-            edge_beam_min_width=60.0,
-        )
-        config.panel = panel
-        populator_panel = config.get_populator_panel()
-        layers = config.create_layers(populator_panel)
-        agents = config.create_populator_agents(layers)
-        frame_panel = layers["frame"].panel
-        for g in agents:
-            g.resolve_beam_dimensions(config.standard_beam_width, frame_panel.thickness)
-        for g in agents:
+        """Simulate ``PanelPopulatorConfig.resolve_beam_dimensions``."""
+        config, layers = self._layers()
+        _resolve_agent_dims(layers, config.standard_beam_width)
+        for g in _all_layer_agents(layers):
             assert g.beam_dimensions

@@ -6,7 +6,7 @@ import inspect
 import ctypes
 import Grasshopper
 
-from timber_design.populators import PopulatorAgentConfig
+from timber_design.populators import LayerAgentConfig
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
@@ -15,7 +15,7 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super().__init__()
         self.panel_types = {}
-        for pt in get_leaf_subclasses(PopulatorAgentConfig):
+        for pt in get_leaf_subclasses(LayerAgentConfig):
             self.panel_types[pt.__name__] = pt
         self.panel_type = self.panel_types.get(ghenv.Component.Params.Output[0].NickName, None)
 
@@ -30,7 +30,7 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
         names.extend(self.beam_width_names())
         for i, val in enumerate(args):
             if val is not None:
-                if i<len(num_args):
+                if i<num_args:
                     kwargs[names[i]] = val
                 else:
                     width_overrides[names[i][:-6]]=val

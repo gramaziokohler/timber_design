@@ -18,7 +18,7 @@ classDiagram
         +original_panel : Panel
         +panel : Panel
         +transformation_to_populator : Transformation
-        +agents : list[PopulatorAgent]
+        +agents : list[LayerAgent]
         +model : TimberModel
         +populate_elements()
         +generate_elements()
@@ -52,7 +52,7 @@ classDiagram
 
     PanelPopulatorConfig --> PanelPopulator : creates
     PanelPopulator --> ConnectionSolver2D : uses
-    PanelPopulator "1" *-- "1..*" PopulatorAgent : orchestrates
+    PanelPopulator "1" *-- "1..*" LayerAgent : orchestrates
 ```
 
 ---
@@ -61,7 +61,7 @@ classDiagram
 
 Each concrete config subclass holds all parameters for one panel type and implements
 `create_populator_agents`.  `default_feature_configs` maps panel-feature types to
-`PopulatorAgentConfig` instances (no `feature` set) for automatic per-feature agent
+`LayerAgentConfig` instances (no `feature` set) for automatic per-feature agent
 creation using MRO-based lookup.
 
 ```mermaid
@@ -70,7 +70,7 @@ classDiagram
     class PanelPopulatorConfig {
         <<abstract>>
         +panel : Panel
-        +default_feature_configs : dict[type, PopulatorAgentConfig]
+        +default_feature_configs : dict[type, LayerAgentConfig]
         +create_populator_from_panel(panel, feature_configs) PanelPopulator
         +create_populator(feature_configs) PanelPopulator
         +create_populator_agents(layers)* list
@@ -110,22 +110,22 @@ classDiagram
     PanelPopulatorConfig <|-- RecessPanelPopulatorConfig
 
     %% Associations
-    PanelPopulatorConfig ..> PopulatorAgent : creates
-    PanelPopulatorConfig ..> PopulatorAgentConfig : reads default_feature_configs
+    PanelPopulatorConfig ..> LayerAgent : creates
+    PanelPopulatorConfig ..> LayerAgentConfig : reads default_feature_configs
 ```
 
 ---
 
 ### Populator Agents
 
-Each `PopulatorAgent` subclass is responsible for one logical group of framing elements.
+Each `LayerAgent` subclass is responsible for one logical group of framing elements.
 The abstract base class defines the trimming, extending, and joint-creation interface.
 Every concrete agent declares the feature class it handles via `FEATURE_TYPE`.
 
 ```mermaid
 classDiagram
 
-    class PopulatorAgent {
+    class LayerAgent {
         <<abstract>>
         +FEATURE_TYPE : type$
         +BEAM_CATEGORY_NAMES : list[str]$
@@ -208,22 +208,22 @@ classDiagram
     }
 
     %% Inheritance
-    PopulatorAgent <|-- EdgePopulatorAgent
-    PopulatorAgent <|-- StudPopulatorAgent
-    PopulatorAgent <|-- PlatePopulatorAgent
-    PopulatorAgent <|-- OpeningPopulatorAgent
-    PopulatorAgent <|-- RecessPopulatorAgent
+    LayerAgent <|-- EdgePopulatorAgent
+    LayerAgent <|-- StudPopulatorAgent
+    LayerAgent <|-- PlatePopulatorAgent
+    LayerAgent <|-- OpeningPopulatorAgent
+    LayerAgent <|-- RecessPopulatorAgent
 
     %% Associations
-    PopulatorAgent --> FeatureBoundaryType : uses
-    PopulatorAgent "1" *-- "0..*" Beam2D : owns
+    LayerAgent --> FeatureBoundaryType : uses
+    LayerAgent "1" *-- "0..*" Beam2D : owns
 ```
 
 ---
 
 ### Agent Configs
 
-Each `PopulatorAgent` subclass has a matching `PopulatorAgentConfig` dataclass.
+Each `LayerAgent` subclass has a matching `LayerAgentConfig` dataclass.
 `AGENT_TYPE` is set after both classes are defined to avoid forward references.
 The `feature` field and `get_agent_from_feature` method allow the config to act
 as a factory for its associated agent.
@@ -231,13 +231,13 @@ as a factory for its associated agent.
 ```mermaid
 classDiagram
 
-    class PopulatorAgentConfig {
+    class LayerAgentConfig {
         +AGENT_TYPE : type$
         +FEATURE_TYPE : type$
         +feature : object
         +beam_width_overrides : dict
         +joint_rule_overrides : list[CategoryRule]
-        +get_agent_from_feature(feature) PopulatorAgent
+        +get_agent_from_feature(feature) LayerAgent
     }
 
     class EdgePopulatorAgentConfig {
@@ -272,11 +272,11 @@ classDiagram
     }
 
     %% Inheritance
-    PopulatorAgentConfig <|-- EdgePopulatorAgentConfig
-    PopulatorAgentConfig <|-- StudPopulatorAgentConfig
-    PopulatorAgentConfig <|-- PlatePopulatorAgentConfig
-    PopulatorAgentConfig <|-- OpeningPopulatorAgentConfig
-    PopulatorAgentConfig <|-- RecessPopulatorAgentConfig
+    LayerAgentConfig <|-- EdgePopulatorAgentConfig
+    LayerAgentConfig <|-- StudPopulatorAgentConfig
+    LayerAgentConfig <|-- PlatePopulatorAgentConfig
+    LayerAgentConfig <|-- OpeningPopulatorAgentConfig
+    LayerAgentConfig <|-- RecessPopulatorAgentConfig
 ```
 
 ---

@@ -44,7 +44,7 @@ def make_beam(x0, y0, x1, y1, width=0.5, height=0.1):
 
 
 class SimpleAgent(object):
-    """Minimal stand-in for PopulatorAgent with an ``elements`` list and ``aabb``."""
+    """Minimal stand-in for LayerAgent with an ``elements`` list and ``aabb``."""
 
     def __init__(self, beams):
         self.elements = list(beams)

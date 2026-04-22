@@ -192,13 +192,13 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 
 
 def extend_beam_to_closest_agents(beam, agents, only_start=False, only_end=False):
-    # type: (Beam2D, list[PopulatorAgent], bool, bool) -> None
+    # type: (Beam2D, list[LayerAgent], bool, bool) -> None
     """Extend *beam* in-place so its ends reach the nearest agent outlines.
 
     Parameters
     ----------
     beam : :class:`~timber_design.populators.Beam2D`
-    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+    agents : list[:class:`~timber_design.populators.LayerAgent`]
     only_start : bool
         Only extend toward the beam start (negative dot direction).
     only_end : bool

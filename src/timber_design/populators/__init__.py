@@ -11,11 +11,11 @@ from .connection_solver_2d import ConnectionSolver2D
 from .connection_solver_2d import aabb_overlap_x
 from .connection_solver_2d import aabb_overlap
 
-from .populator_agents.populator_agent import PopulatorAgent
-from .populator_agents.populator_agent import FeatureBoundaryType
-from .populator_agents.populator_agent import PopulatorAgentConfig
-from .populator_agents.populator_agent import FeaturePopulatorAgent
-from .populator_agents.populator_agent import FeaturePopulatorAgentConfig
+from .populator_agents.layer_agent import LayerAgent
+from .populator_agents.layer_agent import AgentBoundaryType
+from .populator_agents.layer_agent import LayerAgentConfig
+from .populator_agents.feature_agent import FeatureAgent
+from .populator_agents.feature_agent import FeatureAgentConfig
 from .populator_agents.stud_populator_agent import StudPopulatorAgent
 from .populator_agents.stud_populator_agent import StudPopulatorAgentConfig
 from .populator_agents.plate_populator_agent import PlatePopulatorAgent
@@ -34,8 +34,6 @@ from .layer import Layer
 from .layer import LayerDefinition
 
 from .populator_configs.panel_populator_config import PanelPopulatorConfig
-from .populator_configs.panel_populator_config import get_frame_panel
-from .populator_configs.panel_populator_config import get_layers
 
 
 __all__ = [
@@ -44,11 +42,11 @@ __all__ = [
     "Beam2D",
     "Layer",
     "LayerDefinition",
-    "PopulatorAgent",
-    "FeatureBoundaryType",
-    "PopulatorAgentConfig",
-    "FeaturePopulatorAgent",
-    "FeaturePopulatorAgentConfig",
+    "LayerAgent",
+    "AgentBoundaryType",
+    "LayerAgentConfig",
+    "FeatureAgent",
+    "FeatureAgentConfig",
     "EdgePopulatorAgent",
     "EdgePopulatorAgentConfig",
     "StudPopulatorAgent",
@@ -68,6 +66,4 @@ __all__ = [
     "extend_beam_to_closest_agents",
     "find_beam_outline_crossings",
     "PanelPopulatorConfig",
-    "get_frame_panel",
-    "get_layers",
 ]

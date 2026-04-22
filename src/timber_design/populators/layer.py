@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Optional
 
 from compas.geometry import Polyline
-from compas.tolerance import TOL
 from compas_timber.elements import Panel
 
 
@@ -28,7 +27,7 @@ class LayerDefinition:
         Used as the layer key in the dict returned by
         :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers`
         and as a prefix for plate categories (e.g. ``"interior_plate"``).
-    agent_configs : list[:class:`~timber_design.populators.PopulatorAgentConfig`], optional
+    agent_configs : list[:class:`~timber_design.populators.LayerAgentConfig`], optional
         Configuration objects for the agents that should be instantiated on
         this layer.  Mutually exclusive with ``sublayers``.
     sublayers : list[:class:`LayerDefinition`], optional
@@ -77,45 +76,17 @@ class LayerDefinition:
     ):
         if agent_configs and sublayers:
             raise ValueError(
-                "A layer cannot have both agent_configs and sublayers. "
-                "Agents should be placed on the leaf sublayers."
+                "Layer {!r} cannot have both agent_configs and sublayers.".format(name)
             )
 
         self.thickness = thickness
+        self.sublayers = sublayers or []
         self.name = name
         self.agent_configs = agent_configs or []
-        self.sublayers = sublayers or []
         self.is_framing_layer = is_framing_layer
-        self.parse_thickness()
 
-    def parse_thickness(self) -> Optional[float]:
-        """Calculate the thickness of this layer based on its own thickness and its sublayers."""
 
-        if self.sublayers and all([sl.thickness for sl in self.sublayers]):
-            if self.thickness:
-               if not TOL.is_close(sum([sl.thickness for sl in self.sublayers]), self.thickness):
-                    raise ValueError(
-                        "Total sublayer thickness ({}) must equal layer thickness ({}).".format(
-                            sum([sl.thickness for sl in self.sublayers]), self.thickness
-                        )
-                    )
-            else:
-                self.thickness = sum([sl.thickness for sl in self.sublayers])
 
-        if self.thickness is not None and self.sublayers:
-            known = [sl.thickness for sl in self.sublayers if sl.thickness is not None]
-            if len(known) != len(self.sublayers)-1:
-                raise ValueError(
-                    "If layer thickness is given, all but one sublayer must have known thickness. "
-                    "Known sublayer thicknesses: {}".format(known)
-                )   
-            else:
-                remaining = self.thickness - sum(known)
-                for sl in self.sublayers:
-                    if sl.thickness is None:
-                        sl.thickness = remaining
-                        break
-                        
 class Layer:
     """A resolved cross-section layer within a panel, carrying geometry and agents.
 
@@ -125,10 +96,10 @@ class Layer:
     whose ``outline_a`` and ``outline_b`` define the exact geometric boundaries
     of that layer in populator space.
 
-    All :class:`~timber_design.populators.PopulatorAgent` subclasses receive a
+    All :class:`~timber_design.populators.LayerAgent` subclasses receive a
     ``Layer`` as their first constructor argument.  They access the underlying
     panel geometry via the
-    :attr:`~timber_design.populators.PopulatorAgent.panel` property, which
+    :attr:`~timber_design.populators.LayerAgent.panel` property, which
     always returns ``self.layer.panel``.
 
     Parameters
@@ -138,7 +109,7 @@ class Layer:
         span exactly the Z-extent of the layer in populator space.
     name : str, optional
         The layer identifier (e.g. ``"frame"``, ``"interior"``).
-    agents : list[:class:`~timber_design.populators.PopulatorAgent`], optional
+    agents : list[:class:`~timber_design.populators.LayerAgent`], optional
         Agent instances created for this layer.  Populated after construction.
     layer_def : :class:`LayerDefinition`, optional
         The definition object that produced this layer.  Used to read
@@ -146,9 +117,10 @@ class Layer:
         :attr:`~LayerDefinition.is_framing_layer`.
     layer_index : int, optional
         Zero-based ordinal position of this layer in the flat layer stack.
-        Used by agents for cross-layer trimming decisions via
-        :meth:`~timber_design.populators.PopulatorAgent.affects_layer`.
-        ``None`` for the ``"local"`` pseudo-layer that spans the entire panel.
+    is_framing_layer : bool, optional
+        Directly mark this layer as a framing layer.  Takes precedence over
+        the value read from ``layer_def.is_framing_layer`` when ``True``.
+        Useful when creating layers without a :class:`LayerDefinition`.
 
     Attributes
     ----------
@@ -156,7 +128,7 @@ class Layer:
         The panel geometry for this layer.
     name : str or None
         The layer identifier.
-    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+    agents : list[:class:`~timber_design.populators.LayerAgent`]
         Agent instances on this layer.
     layer_def : :class:`LayerDefinition` or None
         The definition that produced this layer.
@@ -167,8 +139,9 @@ class Layer:
     center_height : float
         Z coordinate of the layer's mid-thickness in populator space.
     is_framing_layer : bool
-        Delegated to ``layer_def.is_framing_layer`` when present,
-        otherwise ``False``.
+        ``True`` when this layer carries structural framing agents.
+        Reads from ``layer_def.is_framing_layer`` when present; falls back to
+        the constructor argument (default ``False``).
     """
 
     def __init__(
@@ -176,14 +149,30 @@ class Layer:
         panel: Optional[Panel] = None,
         name: Optional[str] = None,
         agents: Optional[list] = None,
-        layer_def: Optional[LayerDefinition] = None,
         layer_index: Optional[int] = None,
+        is_framing_layer: bool = False,
     ):
         self.panel = panel
         self.name = name
         self.agents = agents if agents is not None else []
-        self.layer_def = layer_def
         self.layer_index = layer_index
+        self.is_framing_layer = is_framing_layer
+
+
+    @property
+    def elements(self):
+        """All elements placed on this layer, across every registered agent.
+
+        Uses :meth:`~timber_design.populators.LayerAgent.elements_for_layer`
+        on every agent so the result is always up-to-date after trimming
+        (both :class:`~timber_design.populators.LayerAgent` and
+        :class:`~timber_design.populators.FeatureAgent` implement the same
+        method).
+        """
+        result = []
+        for agent in self.agents:
+            result.extend(agent.elements_for_layer(self))
+        return result
 
     @classmethod
     def from_panel_and_range(
@@ -192,8 +181,8 @@ class Layer:
         range_a: float,
         range_b: float,
         name: Optional[str] = None,
-        layer_def: Optional[LayerDefinition] = None,
         layer_index: Optional[int] = None,
+        is_framing_layer: bool = False,
     ) -> "Layer":
         """Create a layer by trimming a panel to a given Z range.
 
@@ -213,10 +202,11 @@ class Layer:
             End of the layer in model units, measured from ``outline_a``.
         name : str, optional
             Name for this layer.
-        layer_def : :class:`LayerDefinition`, optional
-            The definition that produced this layer.
         layer_index : int, optional
             Zero-based ordinal index in the layer stack.
+        is_framing_layer : bool, optional
+            When ``True``, marks this layer as a structural framing layer.
+            Takes precedence over ``layer_def.is_framing_layer``.
 
         Returns
         -------
@@ -236,7 +226,7 @@ class Layer:
         )
 
         layer_panel = Panel.from_outlines(frame_outline_a, frame_outline_b)
-        return cls(layer_panel, name, layer_def=layer_def, layer_index=layer_index)
+        return cls(layer_panel, name, layer_index=layer_index, is_framing_layer=is_framing_layer)
 
     @property
     def thickness(self) -> float:
@@ -248,9 +238,3 @@ class Layer:
         """Z coordinate of the layer's mid-thickness in populator space."""
         return self.panel.outline_a[0][2] + self.panel.thickness / 2
 
-    @property
-    def is_framing_layer(self) -> bool:
-        """Whether this layer is a framing layer (from its :class:`LayerDefinition`)."""
-        if self.layer_def is not None:
-            return self.layer_def.is_framing_layer
-        return False

@@ -263,7 +263,7 @@ to the panel normal falls back to the default.
 ## Type-level feature definitions
 
 `default_feature_configs` maps a feature class to a
-:class:`~timber_design.populators.PopulatorAgentConfig` instance (with no
+:class:`~timber_design.populators.LayerAgentConfig` instance (with no
 `feature` set).  When `create_populator_from_panel` iterates over `panel.features` it
 picks the most-specific matching config using MRO-based lookup and calls
 `get_agent_from_feature` for each match.
@@ -296,7 +296,7 @@ default_feature_configs={
 
 ## Injecting per-instance feature agents
 
-Pass a list of :class:`~timber_design.populators.PopulatorAgentConfig` instances —
+Pass a list of :class:`~timber_design.populators.LayerAgentConfig` instances —
 each with its `feature` attribute set — to `create_populator_from_panel` to inject agents
 for specific features.  These always take precedence over `default_feature_configs`.
 

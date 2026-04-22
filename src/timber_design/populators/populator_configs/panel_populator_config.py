@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 from typing import TYPE_CHECKING
 
 from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Point
+from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Translation
 from compas.geometry import Vector
@@ -19,61 +21,6 @@ from timber_design.populators.populator import PanelPopulator
 
 if TYPE_CHECKING:
     pass
-
-
-# =============================================================================
-# Module-level helper functions (backward-compatible API)
-# =============================================================================
-
-
-def get_frame_panel(panel, config):
-    """Return the structural frame panel trimmed by the sheeting layers.
-
-    Parameters
-    ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The source panel (any coordinate space).
-    config : object
-        Must expose ``sheeting_inside`` and ``sheeting_outside`` attributes
-        (floats, zero when no sheeting).
-
-    Returns
-    -------
-    :class:`compas_timber.elements.Panel`
-    """
-    return get_layers(panel, config)["frame"].panel
-
-
-def get_layers(panel, config):
-    """Build the standard layer dict for *panel* from sheeting parameters.
-
-    Always returns ``"local"`` (full panel) and ``"frame"`` (structural frame).
-    Adds ``"interior"`` when ``config.sheeting_inside > 0`` and
-    ``"exterior"`` when ``config.sheeting_outside > 0``.
-
-    Parameters
-    ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The source panel (any coordinate space).
-    config : object
-        Must expose ``sheeting_inside`` and ``sheeting_outside`` float attrs.
-
-    Returns
-    -------
-    dict[str, :class:`~timber_design.populators.Layer`]
-    """
-    si = getattr(config, "sheeting_inside", 0.0) or 0.0
-    so = getattr(config, "sheeting_outside", 0.0) or 0.0
-
-    layers = {}
-    layers["local"] = Layer(panel, "local")
-    layers["frame"] = Layer.from_panel_and_range(panel, si, panel.thickness - so, name="frame")
-    if si:
-        layers["interior"] = Layer.from_panel_and_range(panel, 0.0, si, name="interior")
-    if so:
-        layers["exterior"] = Layer.from_panel_and_range(panel, panel.thickness - so, panel.thickness, name="exterior")
-    return layers
-
 
 # =============================================================================
 # PanelPopulatorConfig
@@ -98,14 +45,14 @@ class PanelPopulatorConfig:
         allocated.
     default_feature_configs : dict, optional
         Mapping from panel-feature *class* to a
-        :class:`~timber_design.populators.PopulatorAgentConfig` (without
+        :class:`~timber_design.populators.LayerAgentConfig` (without
         ``feature`` set).  Applied to every framing layer via MRO-based
         lookup.
-    instance_feature_configs : list[tuple[PanelFeature, PopulatorAgentConfig]], optional
+    instance_feature_configs : list[:class:`~timber_design.populators.FeaturePopulatorAgentConfig`], optional
         Per-instance feature overrides.  Each entry is a
-        ``(feature, agent_config)`` tuple binding a specific feature instance
-        to a config.  These take precedence over ``default_feature_configs``
-        for that feature instance.
+        :class:`~timber_design.populators.FeaturePopulatorAgentConfig` with
+        its ``feature`` attribute set to the specific feature instance.
+        These take precedence over ``default_feature_configs`` for that feature.
     """
 
     def __init__(
@@ -151,94 +98,253 @@ class PanelPopulatorConfig:
         return populator_panel
 
     def create_layers(self, populator_panel):
-        """Build an ordered dict of :class:`~timber_design.populators.Layer` objects.
+        """Build an ordered list of :class:`~timber_design.populators.Layer` objects.
 
-        Iterates the flat leaf-level :class:`~timber_design.populators.LayerDefinition`
-        tree, resolves any fill-remaining (``thickness=None``) entries, and
-        creates each layer via
-        :meth:`~timber_design.populators.Layer.from_panel_and_range`.
+        Resolves fill-remaining thicknesses, then delegates geometry creation
+        to :meth:`layers_from_panel_and_thicknesses`.
 
-        Always includes a ``"local"`` entry covering the full panel.
+        The user-supplied :attr:`layer_defs` are **never mutated**.  A
+        deep copy of the definition tree is made before thickness resolution
+        so that calling :meth:`create_populator` multiple times on the same
+        config instance (e.g. in a Rhino live-update loop) always re-resolves
+        from the original ``None`` values.
 
         Parameters
         ----------
         populator_panel : :class:`compas_timber.elements.Panel`
-            The panel in populator space (used to resolve fill-remaining
-            thicknesses and to compute layer geometry).
+            The panel in populator space.
 
         Returns
         -------
-        dict[str, :class:`~timber_design.populators.Layer`]
+        list[:class:`~timber_design.populators.Layer`]
+            Ordered from the interior face (``outline_a``) to the exterior
+            face (``outline_b``).
         """
-        flat_defs = list(self._flat_layer_defs(self.layer_defs))
+        if not self.layer_defs:
+            # No definitions — single framing layer spanning the full panel.
+            return [Layer(populator_panel, "frame", layer_index=0, is_framing_layer=True)]
 
-        if not flat_defs:
-            # No definitions — create a single framing layer for the full panel.
-            frame_def = LayerDefinition(populator_panel.thickness, name="frame", is_framing_layer=True)
-            return {
-                "local": Layer(populator_panel, "local"),
-                "frame": Layer(populator_panel, "frame", layer_def=frame_def, layer_index=0),
-            }
+        # Deep-copy so _resolve_thicknesses never mutates the user's defs.
+        # A synthetic root node lets the resolver handle fill-remaining at
+        # the top level without special-casing.
+        root = LayerDefinition(populator_panel.thickness, sublayers=[copy.deepcopy(ld) for ld in self.layer_defs])
+        self._resolve_thicknesses(root)
 
-        # Resolve fill-remaining ("thickness=None") entries.
-        fixed_total = sum(ld.thickness for ld in flat_defs if ld.thickness is not None)
-        fill_count = sum(1 for ld in flat_defs if ld.thickness is None)
-        fill_thickness = (populator_panel.thickness - fixed_total) / fill_count if fill_count else 0.0
+        flat_defs = list(self._flat_layer_defs(root))
 
-        layers = {"local": Layer(populator_panel, "local")}
-        range_start = 0.0
-        for i, ld in enumerate(flat_defs):
-            thickness = ld.thickness if ld.thickness is not None else fill_thickness
-            range_end = range_start + thickness
-            name = ld.name or str(i)
-            layer = Layer.from_panel_and_range(
-                populator_panel,
-                range_start,
-                range_end,
-                name=name,
-                layer_def=ld,
-                layer_index=i,
+        return self.layers_from_panel_and_layer_defs(populator_panel, flat_defs)
+
+    @staticmethod
+    def layers_from_panel_and_layer_defs(panel, layer_defs):
+        """Build :class:`~timber_design.populators.Layer` objects from resolved thicknesses.
+
+        Uses *outline chaining*: the ``outline_b`` Polyline produced for each
+        layer panel is reused directly as the ``outline_a`` of the next.  This
+        guarantees that adjacent layers share an identical geometric boundary
+        — no floating-point discrepancy from re-interpolating the same offset
+        twice.
+
+        Parameters
+        ----------
+        panel : :class:`compas_timber.elements.Panel`
+            The source panel whose outline geometry is sliced.
+        thicknesses : list[float]
+            Resolved thickness for each entry in *layer_defs*.  Must have the
+            same length.  Entries that are ``<= 0`` are skipped (but still
+            consume their corresponding *layer_defs* entry).
+        layer_defs : list[:class:`~timber_design.populators.LayerDefinition`]
+            Leaf-level definitions — each without sublayers — providing
+            ``name``, ``is_framing_layer``, and ``agent_configs``.
+
+        Returns
+        -------
+        list[:class:`~timber_design.populators.Layer`]
+        """
+        layers = []
+        outline_a = panel.outline_a
+        total_thickness = panel.thickness
+        cumulative = 0.0
+        layer_index = 0
+        thicknesses = [ld.thickness or 0.0 for ld in layer_defs]
+
+        for ld, thickness in zip(layer_defs, thicknesses):
+            if thickness <= 0:
+                continue
+            cumulative += thickness
+            t = cumulative / total_thickness
+            outline_b = Polyline(
+                [pt_a * (1.0 - t) + pt_b * t for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)]
             )
-            layers[name] = layer
-            range_start = range_end
+            layer_panel = Panel.from_outlines(outline_a, outline_b)
+            layer = Layer(
+                layer_panel,
+                ld.name or str(layer_index),
+                layer_index=layer_index,
+                is_framing_layer=ld.is_framing_layer,
+            )
+            for agent_config in ld.agent_configs:
+                layer.agents.append(agent_config.get_agent_from_layer(layer))
+            layers.append(layer)
+            # Chain: this layer's end boundary is the next layer's start boundary.
+            outline_a = outline_b
+            layer_index += 1
 
         return layers
 
-    def create_populator_agents(self, layers):
-        """Create all populator agents from the layer dict.
+    def _resolve_thicknesses(self, layer_def):
+        """Resolve all ``thickness=None`` entries in the :class:`LayerDefinition` tree.
+
+        .. warning::
+            This method **mutates** ``layer_def`` and its descendants in place.
+            Always pass a deep copy of the user-supplied definitions — never
+            the originals — so that the config object can be reused across
+            multiple :meth:`create_layers` calls.
+
+        Uses a two-pass algorithm so that thicknesses can flow both directions:
+
+        **Pass 1 — bottom-up** (:meth:`_infer_from_children`):
+            Post-order traversal.  When a node's own thickness is ``None`` but
+            every one of its children already has a concrete thickness, the
+            node's thickness is set to the sum of its children.  This allows
+            composite sub-stacks to omit a total, e.g.
+            ``insulation(sublayers=[board_a(30), board_b(20)])`` resolves to
+            ``insulation.thickness = 50``.
+
+        **Pass 2 — top-down** (:meth:`_distribute_to_children`):
+            Pre-order traversal.  When a node has a known thickness and
+            exactly one child with ``thickness=None``, that child receives
+            the remainder (``parent − sum(concrete siblings)``).  Fully-
+            concrete sibling groups are validated to sum to the parent.
+
+        Raises
+        ------
+        ValueError
+            See :meth:`_infer_from_children` and :meth:`_distribute_to_children`.
+        """
+        self._infer_from_children(layer_def)
+        self._distribute_to_children(layer_def)
+
+    def _infer_from_children(self, layer_def):
+        """Post-order pass: infer a node's thickness from its children.
+
+        Recurses into every child first, then — if the current node's
+        thickness is still ``None`` and all children are now concrete —
+        sets ``node.thickness = sum(children)``.  Nodes whose thickness
+        is already set, or that have at least one fill-remaining child
+        after recursion, are left for the top-down pass.
+
+        Parameters
+        ----------
+        layer_def : :class:`~timber_design.populators.LayerDefinition`
+        """
+        for sl in layer_def.sublayers:
+            self._infer_from_children(sl)
+
+        if layer_def.thickness is None and layer_def.sublayers:
+            if all(sl.thickness is not None for sl in layer_def.sublayers):
+                layer_def.thickness = sum(sl.thickness for sl in layer_def.sublayers)
+
+    def _distribute_to_children(self, layer_def):
+        """Pre-order pass: distribute a known parent thickness to fill children.
+
+        Rules applied at each node that has sublayers:
+
+        - **Parent thickness still** ``None``: raises — the bottom-up pass
+          could not infer it (some children remain unresolved).
+        - **All children concrete**: validates ``sum(children) == parent``.
+        - **Exactly one fill child**: assigns it
+          ``parent − sum(concrete siblings)``; raises if that remainder is
+          negative.
+        - **More than one fill child**: raises — at most one ``thickness=None``
+          per sibling group is permitted.
+
+        Recurses into all children after resolving the current level.
+
+        Parameters
+        ----------
+        layer_def : :class:`~timber_design.populators.LayerDefinition`
+
+        Raises
+        ------
+        ValueError
+            On any of the error conditions described above.
+        """
+        if not layer_def.sublayers:
+            return
+
+        fill = [sl for sl in layer_def.sublayers if sl.thickness is None]
+        known_sum = sum(sl.thickness for sl in layer_def.sublayers if sl.thickness is not None)
+
+        if layer_def.thickness is None:
+            fill_names = [repr(sl.name) for sl in fill]
+            raise ValueError(
+                "Cannot resolve fill-remaining sublayer(s) [{}] of layer {!r} "
+                "because its own thickness is unknown.".format(
+                    ", ".join(fill_names), layer_def.name
+                )
+            )
+
+        if not fill:
+            if not TOL.is_close(known_sum, layer_def.thickness):
+                breakdown = ", ".join(
+                    "{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers
+                )
+                raise ValueError(
+                    "Sublayers of layer {!r} sum to {} but layer thickness is {}. "
+                    "Sublayers: [{}].".format(
+                        layer_def.name, known_sum, layer_def.thickness, breakdown
+                    )
+                )
+        else:
+            if len(fill) > 1:
+                fill_names = [repr(sl.name) for sl in fill]
+                raise ValueError(
+                    "At most one sublayer of layer {!r} may have thickness=None; "
+                    "got {} ({}).".format(
+                        layer_def.name, len(fill), ", ".join(fill_names)
+                    )
+                )
+            remaining = layer_def.thickness - known_sum
+            if remaining < 0 and not TOL.is_zero(remaining):
+                breakdown = ", ".join(
+                    "{!r}={}".format(sl.name, sl.thickness)
+                    for sl in layer_def.sublayers
+                    if sl.thickness is not None
+                )
+                raise ValueError(
+                    "Fixed sublayers of layer {!r} ({}) exceed its thickness ({}); "
+                    "no room left for fill-remaining sublayer {!r}. "
+                    "Fixed sublayers: [{}].".format(
+                        layer_def.name, known_sum, layer_def.thickness, fill[0].name, breakdown
+                    )
+                )
+            fill[0].thickness = remaining
+
+        for sl in layer_def.sublayers:
+            self._distribute_to_children(sl)
+
+    def create_feature_agents(self, layers):
+        """Create all populator agents from the layer list.
 
         Iterates every layer, calling
-        :meth:`~timber_design.populators.PopulatorAgentConfig.get_agent_from_layer`
+        :meth:`~timber_design.populators.LayerAgentConfig.get_agent_from_layer`
         for each config stored in ``layer.layer_def.agent_configs``.
         Then applies ``default_feature_configs`` and ``instance_feature_configs``
         to all framing layers.
 
         Parameters
         ----------
-        layers : dict[str, :class:`~timber_design.populators.Layer`]
+        layers : list[:class:`~timber_design.populators.Layer`]
             As returned by :meth:`create_layers`.
 
         Returns
         -------
-        list[:class:`~timber_design.populators.PopulatorAgent`]
+        list[:class:`~timber_design.populators.LayerAgent`]
         """
-        if self._agents_factory is not None:
-            return self._agents_factory(self, layers)
 
         agents = []
 
-        # Agents defined on each layer via LayerDefinition.agent_configs
-        for layer in layers.values():
-            if layer.layer_def is None:
-                continue
-            for agent_config in layer.layer_def.agent_configs:
-                agents.append(agent_config.get_agent_from_layer(layer))
-
-        if not self.panel:
-            return agents
-
-        framing_layers = [l for l in layers.values() if l.is_framing_layer]
-        explicitly_defined = {c.feature for c in self.instance_feature_configs}
+        explicitly_defined = {agent_config.feature for agent_config in self.instance_feature_configs}
 
         # Default feature agents applied to all framing layers
         for feature in self.panel.features:
@@ -248,14 +354,12 @@ class PanelPopulatorConfig:
             if agent_config is None:
                 continue
             transformed_feature = feature.transformed(self.transformation_to_populator)
-            for layer in framing_layers:
-                agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
+            agents.append(agent_config.get_agent_from_feature(transformed_feature))
 
-        # Instance feature agents — each config applied to all framing layers
+        # Instance feature agents — each config carries its own .feature reference
         for agent_config in self.instance_feature_configs:
             transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
-            for layer in framing_layers:
-                agents.append(agent_config.get_agent_from_feature(transformed_feature, layer))
+            agents.append(agent_config.get_agent_from_feature(transformed_feature))
 
         return agents
 
@@ -279,12 +383,13 @@ class PanelPopulatorConfig:
 
         self.populator_panel = self.get_populator_panel()
         layers = self.create_layers(self.populator_panel)
-        agents = self.create_populator_agents(layers)
-        self.resolve_beam_dimensions(agents)
+        feature_agents = self.create_feature_agents(layers)
+        self.resolve_beam_dimensions(layers, feature_agents)
 
         return PanelPopulator(
             self.populator_panel,
-            agents,
+            layers,
+            feature_agents,
             original_panel=self.panel,
             transformation_to_populator=self.transformation_to_populator,
         )
@@ -294,51 +399,50 @@ class PanelPopulatorConfig:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _flat_layer_defs(self, layer_defs):
-        """Yield leaf-level :class:`LayerDefinition` objects (depth-first)."""
-        for ld in layer_defs:
+    def _flat_layer_defs(self, layer_def):
+        """Yield leaf-level :class:`LayerDefinition` objects (depth-first).
+
+        Assumes thicknesses have already been resolved by
+        :meth:`_resolve_thicknesses`.
+        """
+        for ld in layer_def.sublayers:
             if ld.sublayers:
-                yield from self._flat_layer_defs(ld.sublayers)
+                yield from self._flat_layer_defs(ld)
             else:
                 yield ld
 
-    def _get_inside_sheeting_thickness(self):
-        """Return the total thickness of non-framing layers before the first framing layer."""
-        si = 0.0
-        for ld in self._flat_layer_defs(self.layer_defs):
-            if ld.is_framing_layer:
-                break
-            if ld.thickness is not None:
-                si += ld.thickness
-        return si
 
-    def _get_outside_sheeting_thickness(self):
-        """Return the total thickness of non-framing layers after the last framing layer."""
-        so = 0.0
-        in_frame = False
-        for ld in self._flat_layer_defs(self.layer_defs):
-            if ld.is_framing_layer:
-                in_frame = True
-                so = 0.0  # reset; layers after the frame zone count as outside
-            elif in_frame:
-                if ld.thickness is not None:
-                    so += ld.thickness
-        return so
+    def resolve_beam_dimensions(self, layers, feature_agents):
+        """Populate :attr:`~timber_design.populators.LayerAgent.beam_dimensions` on every agent.
 
-    def resolve_beam_dimensions(self, agents):
-        """Populate :attr:`~timber_design.populators.PopulatorAgent.beam_dimensions` on every agent.
+        For :class:`~timber_design.populators.LayerAgent` instances bound to a
+        specific layer, the beam height is taken from ``layer.thickness``.
+        For :class:`~timber_design.populators.FeatureAgent` instances (which
+        may act across multiple layers), a sentinel height of ``0.0`` is
+        stored — the per-layer height is supplied when needed via the
+        ``layer`` kwarg of
+        :meth:`~timber_design.populators.LayerAgent.beam_from_category`.
 
-        Uses ``agent.layer.thickness`` as the beam height when available,
-        falling back to ``agent.panel.thickness``.
+        Parameters
+        ----------
+        layers : list[:class:`~timber_design.populators.Layer`]
+            All resolved layers (as returned by :meth:`create_layers`).
+        feature_agents : list[:class:`~timber_design.populators.FeatureAgent`]
+            Feature agents produced by :meth:`create_feature_agents`.
         """
-        for agent in agents:
-            if agent.layer is not None:
-                thickness = agent.layer.thickness
-            elif agent.panel is not None:
-                thickness = agent.panel.thickness
-            else:
-                thickness = 0.0
-            agent.resolve_beam_dimensions(self.standard_beam_width, thickness)
+        seen = set()
+        for layer in layers:
+            for agent in layer.agents:
+                if id(agent) in seen:
+                    continue
+                seen.add(id(agent))
+                thickness = agent.layer.thickness if agent.layer is not None else 0.0
+                agent.resolve_beam_dimensions(self.standard_beam_width, thickness)
+        for agent in feature_agents:
+            if id(agent) in seen:
+                continue
+            seen.add(id(agent))
+            agent.resolve_beam_dimensions(self.standard_beam_width, 0.0)
 
     @staticmethod
     def _find_definition_for_feature(feature, definitions):
@@ -350,11 +454,11 @@ class PanelPopulatorConfig:
         Parameters
         ----------
         feature : object
-        definitions : dict[type, PopulatorAgentConfig]
+        definitions : dict[type, LayerAgentConfig]
 
         Returns
         -------
-        PopulatorAgentConfig or None
+        LayerAgentConfig or None
         """
         for t in type(feature).__mro__:
             if t in definitions:
@@ -379,7 +483,6 @@ class PanelPopulatorConfig:
     def _get_transformation_to_populator_space(self, panel, orientation):
         """Return the transformation from world/panel space into populator space."""
         transformation_to_populator_panel = self._get_transformation_to_populator_panel(panel, orientation)
-        # translation_to_frame_center = self._get_translation_to_frame_center(panel)
         return  transformation_to_populator_panel
 
     def _get_transformation_to_populator_panel(self, panel, orientation):
@@ -390,86 +493,3 @@ class PanelPopulatorConfig:
         min_pt = Box.from_points(pts).points[0]
         obb_frame = Frame(min_pt, Vector(1, 0, 0), Vector(0, 1, 0)).transformed(transform_to_stud_dir_frame.inverse())
         return Transformation.from_frame(obb_frame).inverse()
-
-    def _get_translation_to_frame_center(self, panel):
-        """Return a Z-translation that centers the coordinate origin on the frame layer.
-
-        Reads ``layer_defs`` to determine the inside/outside sheeting thicknesses.
-        Falls back to ``sheeting_inside`` / ``sheeting_outside`` attrs when
-        ``layer_defs`` is empty (backward-compat path for plain configs).
-        """
-        if self.layer_defs:
-            si = self._get_inside_sheeting_thickness()
-            so = self._get_outside_sheeting_thickness()
-        else:
-            si = getattr(self, "sheeting_inside", 0.0) or 0.0
-            so = getattr(self, "sheeting_outside", 0.0) or 0.0
-        frame_thickness = panel.thickness - si - so
-        return Translation.from_vector(-Vector(0, 0, si + frame_thickness / 2))
-
-
-# =============================================================================
-# Agent factories for alternate constructors
-# =============================================================================
-
-
-def _recess_agents_factory(config, layers):
-    """Agent factory used by :meth:`PanelPopulatorConfig.recess_panel`.
-
-    Instantiates an :class:`~timber_design.populators.EdgePopulatorAgent` and
-    passes it directly to :class:`~timber_design.populators.RecessPopulatorAgent`
-    so the recess beams share the same :attr:`~timber_design.populators.PopulatorAgent.outline`
-    as the edge beams without requiring a second outline-generation pass.
-
-    Parameters
-    ----------
-    config : :class:`~timber_design.populators.PanelPopulatorConfig`
-        The calling config, used to read recess/sheeting parameters.
-    layers : dict[str, :class:`~timber_design.populators.Layer`]
-        Layer dict as returned by
-        :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers`.
-
-    Returns
-    -------
-    list[:class:`~timber_design.populators.PopulatorAgent`]
-    """
-    from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
-    from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
-    from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgent
-    from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
-
-    frame_layer = layers["frame"]
-    edge_agent = EdgePopulatorAgent(
-        frame_layer,
-        EdgePopulatorAgentConfig(
-            standard_beam_width_increment=config.standard_beam_width_increment,
-            edge_beam_min_width=config.edge_beam_min_width or config.standard_beam_width,
-            beam_width_overrides=config.beam_width_overrides,
-            joint_rule_overrides=config.joint_rule_overrides,
-        ),
-    )
-    agents = [edge_agent]
-    agents.append(
-        RecessPopulatorAgent(
-            frame_layer,
-            edge_agent,
-            RecessPopulatorAgentConfig(
-                recess_beam_width=config.recess_beam_width,
-                recess_beam_height=config.recess_beam_height,
-                sheeting_recess=config.sheeting_inside,
-                beam_width_overrides=config.beam_width_overrides,
-                joint_rule_overrides=config.joint_rule_overrides,
-            ),
-        )
-    )
-
-    if "interior" in layers or "exterior" in layers:
-        from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgent
-        from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
-
-        if "interior" in layers:
-            agents.append(PlatePopulatorAgent(layers["interior"], PlatePopulatorAgentConfig()))
-        if "exterior" in layers:
-            agents.append(PlatePopulatorAgent(layers["exterior"], PlatePopulatorAgentConfig()))
-
-    return agents

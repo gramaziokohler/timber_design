@@ -12,14 +12,14 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
+from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
+from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class RecessPopulatorAgentConfig(PopulatorAgentConfig):
+class RecessPopulatorAgentConfig(LayerAgentConfig):
     """Configuration for a recess-frame agent.
 
     Parameters
@@ -45,7 +45,7 @@ class RecessPopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class RecessPopulatorAgent(PopulatorAgent):
+class RecessPopulatorAgent(LayerAgent):
     """Generates a recessed frame and sheathing plate along the panel outline.
 
     Creates one ``"recess"`` :class:`~timber_design.populators.Beam2D` per
@@ -54,24 +54,23 @@ class RecessPopulatorAgent(PopulatorAgent):
     required Z level.  Also creates a thin :class:`~compas_timber.elements.Plate`
     (the sheeting plate) whose outline matches the inward-offset edge outline.
 
-    The agent copies the :attr:`~PopulatorAgent.outline` from the
+    The agent copies the :attr:`~LayerAgent.outline` from the
     :class:`EdgePopulatorAgent` it wraps (it does not define an independent
-    boundary).  Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    boundary).  Its :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`.
 
     Cross-layer behaviour
     ---------------------
-    :meth:`affects_layer` returns ``True`` for any layer whose index is less
-    than or equal to this agent's own :attr:`~PopulatorAgent.layer_index`.
-    This allows the recess frame to cut sheeting plates on lower (inside)
-    layers during :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`.
+    :meth:`trim_cross_layer` cuts sheathing plates on any layer whose index is
+    strictly less than this agent's own :attr:`~LayerAgent.layer_index`
+    (i.e. layers that sit inside the recess frame).
 
     Parameters
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The structural frame layer this agent operates within.
     edge_agent : :class:`~timber_design.populators.EdgePopulatorAgent`
-        The edge agent whose :attr:`~PopulatorAgent.outline` is used as the
+        The edge agent whose :attr:`~LayerAgent.outline` is used as the
         baseline for the recess beam centrelines.
     params : :class:`RecessPopulatorAgentConfig`
         Recess beam dimensions and optional sheeting recess offset.
@@ -90,7 +89,7 @@ class RecessPopulatorAgent(PopulatorAgent):
 
     BEAM_CATEGORY_NAMES = ["recess"]
     NAME = "RecessPopulatorAgent"
-    BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
+    BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
     INTERNAL_RULES = [
         CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
     ]
@@ -101,7 +100,7 @@ class RecessPopulatorAgent(PopulatorAgent):
     ]
 
     def __init__(self, layer, edge_agent, params):
-        # type: (Layer, PopulatorAgent, RecessPopulatorAgentConfig) -> None
+        # type: (Layer, LayerAgent, RecessPopulatorAgentConfig) -> None
         super(RecessPopulatorAgent, self).__init__(layer, params)
         self.edge_agent = edge_agent
         self.recess_beam_width = params.recess_beam_width
@@ -110,9 +109,8 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     def apply_to_plate(self, plate):
-        """Cut the recess outline into *plate* if it belongs to an affected layer."""
-        if self.affects_layer(getattr(plate, "layer_index", None)):
-            return self._cut_out_of_plate(plate)
+        """Cut the recess outline into *plate*."""
+        self._cut_out_of_plate(plate)
 
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
@@ -136,24 +134,28 @@ class RecessPopulatorAgent(PopulatorAgent):
         self.outline = self.edge_agent.outline.copy() if self.edge_agent.outline else None
 
     # ==========================================================================
-    # Cross-layer boundary behaviour
+    # Cross-layer trimming
     # ==========================================================================
 
-    def affects_layer(self, layer_index):
-        """Return ``True`` for any layer at or below this agent's own layer index.
+    def trim_cross_layer(self, other_agent):
+        """Cut the recess outline into plates on inner (lower-index) layers.
 
-        This makes the recess agent cut sheathing plates on lower (inside)
-        layers during
-        :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`.
+        Only acts when *other_agent*'s :attr:`~LayerAgent.layer_index` is
+        strictly less than this agent's own index, i.e. the other layer sits
+        inside (closer to the interior face) of the recess frame.
 
         Parameters
         ----------
-        layer_index : int or None
-            Layer index to check.  ``None`` is treated as matching any layer.
+        other_agent : :class:`~timber_design.populators.LayerAgent`
+            The agent whose plate elements may receive the recess contour cut.
         """
-        if layer_index is None or self.layer_index is None:
-            return True
-        return layer_index <= self.layer_index
+        if self.layer_index is None or other_agent.layer_index is None:
+            return
+        if other_agent.layer_index >= self.layer_index:
+            return
+        for element in other_agent.elements:
+            if element.is_plate:
+                self._cut_out_of_plate(element)
 
     # ==========================================================================
     # Private helpers

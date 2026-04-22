@@ -4,13 +4,13 @@ from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
+from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
 
 
 @dataclass
-class StudPopulatorAgentConfig(PopulatorAgentConfig):
+class StudPopulatorAgentConfig(LayerAgentConfig):
     """Configuration for a stud-framing agent.
 
     Parameters
@@ -28,7 +28,7 @@ class StudPopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class StudPopulatorAgent(PopulatorAgent):
+class StudPopulatorAgent(LayerAgent):
     """Generates evenly-spaced vertical studs for a stud-framed wall panel.
 
     Studs are placed at fixed ``stud_spacing`` intervals along the panel X
@@ -74,10 +74,6 @@ class StudPopulatorAgent(PopulatorAgent):
 
     def generate_elements(self):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""
-        self._create_studs()
-
-    def _create_studs(self):
-        """Generates the stud beams."""
         x_position = self.stud_spacing
         studs = []
         while x_position < self.panel.length - self.beam_dimensions["stud"][0]:

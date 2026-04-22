@@ -10,13 +10,13 @@ from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
+from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
+from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 
 
 @dataclass
-class PanelBoundaryPopulatorAgentConfig(PopulatorAgentConfig):
+class PanelBoundaryPopulatorAgentConfig(LayerAgentConfig):
 
     @property
     def __data__(self):
@@ -24,7 +24,7 @@ class PanelBoundaryPopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class PanelBoundaryPopulatorAgent(PopulatorAgent):
+class PanelBoundaryPopulatorAgent(LayerAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
     Creates one :class:`~timber_design.populators.Beam2D` per segment of the
@@ -41,9 +41,9 @@ class PanelBoundaryPopulatorAgent(PopulatorAgent):
       in the ``-Y`` direction.
     - ``"edge_stud"`` — vertical edges.
 
-    The agent's :attr:`~PopulatorAgent.outline` is the innermost boundary
+    The agent's :attr:`~LayerAgent.outline` is the innermost boundary
     formed by all edge-beam inner faces.  Its
-    :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded.
 
@@ -64,7 +64,7 @@ class PanelBoundaryPopulatorAgent(PopulatorAgent):
     """
 
     NAME = "PanelBoundaryPopulatorAgent"
-    BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
+    BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
     def __init__(self, layer, params):
         # type: (Layer, PanelBoundaryPopulatorAgentConfig) -> None

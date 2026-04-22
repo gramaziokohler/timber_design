@@ -68,7 +68,16 @@
       "Bash(grep -n \"Agent\\\\\\(frame_panel\\\\|Agent\\\\\\(panel\\\\|Agent\\\\\\(layer\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)",
       "Bash(grep -n \"Agent\\(\" /c/Users/obucklin/repos/timber_design/src/timber_design/populators/populator_configs/*.py)",
       "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest /c/Users/obucklin/repos/timber_design/tests/test_panel_populator_workflow.py -x -q)",
-      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest /c/Users/obucklin/repos/timber_design/tests/test_panel_populator_workflow.py -q)"
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest /c/Users/obucklin/repos/timber_design/tests/test_panel_populator_workflow.py -q)",
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/ -q)",
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -m pytest tests/test_populators.py::TestStudPanelPopulatorConfig::test_stud_agent_present_when_spacing_set -v)",
+      "Bash(/c/Users/obucklin/AppData/Local/miniforge3/envs/ct-dev/python.exe -c ' *)",
+      "Bash(python -m pytest tests/test_panel_populator_workflow.py -x)",
+      "Bash(python -c \"import timber_design.populators; print\\('OK'\\)\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, 'src'\\); import timber_design.populators; from timber_design.populators import PanelPopulatorConfig, PanelPopulator, LayerDefinition, OpeningPopulatorAgentConfig, FeatureAgent, LayerAgent; print\\('OK'\\)\")",
+      "Bash(python -m py_compile tests/test_populators.py)",
+      "Bash(python -m py_compile tests/test_panel_populator_workflow.py tests/test_populators.py)",
+      "Bash(python -m py_compile src/timber_design/populators/populator_configs/panel_populator_config.py)"
     ]
   }
 }

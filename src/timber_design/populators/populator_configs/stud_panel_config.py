@@ -53,7 +53,7 @@ def stud_panel(
     joint_rule_overrides : list, optional
         Rules that replace matching entries in any agent's ``INTERNAL_RULES`` list.
     default_feature_configs : dict, optional
-        Mapping from panel feature class to a ``PopulatorAgentConfig`` instance.
+        Mapping from panel feature class to a ``LayerAgentConfig`` instance.
     """
 
 
@@ -80,7 +80,7 @@ def stud_panel(
     layer_defs = []
     if sheeting_inside:
         layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    layer_defs.append(LayerDefinition(None, name="frame", is_framing_layer=True, agent_configs=frame_agent_configs))
+    layer_defs.append(LayerDefinition(name="frame", is_framing_layer=True, agent_configs=frame_agent_configs))
     if sheeting_outside:
         layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
     if not default_feature_configs:

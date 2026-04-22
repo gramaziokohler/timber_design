@@ -8,7 +8,7 @@ It is built around three layers:
    factory behaviour into a single object.  Call
    :meth:`~timber_design.populators.PanelPopulatorConfig.create_populator_from_panel`
    to get a fully-configured populator for a given panel.
-2. **PopulatorAgent** subclasses — each responsible for one logical group of
+2. **LayerAgent** subclasses — each responsible for one logical group of
    elements (edge beams, studs, plates, opening surround, …).
 3. **ConnectionSolver2D** — 2D blank-outline topology solver used for trimming
    and joint detection.
@@ -26,7 +26,7 @@ populator = config.create_populator_from_panel(panel)
   │     "frame"    – structural frame (sheeting removed)
   │     "interior" – inside sheathing layer  (if sheeting_inside > 0)
   │     "exterior" – outside sheathing layer (if sheeting_outside > 0)
-  └─ PanelPopulatorConfig.create_populator_agents(layers) → list[PopulatorAgent]
+  └─ PanelPopulatorConfig.create_populator_agents(layers) → list[LayerAgent]
 
 PanelPopulator.populate_elements()
   ├─ generate_elements()   each agent creates its Beam2D / Plate objects
@@ -57,10 +57,6 @@ PanelPopulator.merge_with_model()   elements transformed back to world space
 
 ::: timber_design.populators.layer.Layer
 
-::: timber_design.populators.populator_configs.panel_populator_config.get_layers
-
-::: timber_design.populators.populator_configs.panel_populator_config.get_frame_panel
-
 ---
 
 ## Populator configs
@@ -75,11 +71,11 @@ PanelPopulator.merge_with_model()   elements transformed back to world space
 
 ## Populator agents
 
-::: timber_design.populators.populator_agents.populator_agent.PopulatorAgent
+::: timber_design.populators.populator_agents.layer_agent.LayerAgent
 
-::: timber_design.populators.populator_agents.populator_agent.FeatureBoundaryType
+::: timber_design.populators.populator_agents.layer_agent.FeatureBoundaryType
 
-::: timber_design.populators.populator_agents.populator_agent.PopulatorAgentConfig
+::: timber_design.populators.populator_agents.layer_agent.LayerAgentConfig
 
 ::: timber_design.populators.populator_agents.edge_populator_agent.EdgePopulatorAgent
 

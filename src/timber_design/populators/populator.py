@@ -12,20 +12,18 @@ class PanelPopulator(object):
     """Orchestrates the full population of a timber panel with framing elements.
 
     ``PanelPopulator`` is the top-level coordinator for the panel-population
-    workflow.  It holds a list of :class:`~timber_design.populators.PopulatorAgent`
+    workflow.  It holds a list of :class:`~timber_design.populators.LayerAgent`
     instances — each responsible for one logical group of elements (edge beams,
     studs, plates, openings, …) — and drives them through a fixed sequence of
     stages:
 
     1. **generate_elements** — each agent creates its beams and plates.
     2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
-    3. **trim_elements** — two sub-passes:
-
-       a. **trim_within_layer_elements** — agents on the same layer trim each other
-          (edge frame clips studs; openings clip studs).
-       b. **trim_cross_layer_elements** — agents on different layers apply targeted
-          trimming governed by :meth:`~timber_design.populators.PopulatorAgent.affects_layer`
-          (recess frame cuts sheeting plates; openings cut all layers).
+    3. **trim_elements** — for each overlapping agent pair, dispatches to
+       :meth:`~timber_design.populators.LayerAgent.trim_within_layer`
+       (same layer) or
+       :meth:`~timber_design.populators.LayerAgent.trim_cross_layer`
+       (different layers).  Each agent's implementation decides what to do.
 
     4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
     5. **join_elements** — two sub-passes mirroring stage 3:
@@ -46,7 +44,7 @@ class PanelPopulator(object):
     ----------
     panel : :class:`compas_timber.elements.Panel`
         The local (populator-space) panel.
-    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+    agents : list[:class:`~timber_design.populators.LayerAgent`]
         Ordered list of agents.  Ordering matters for trimming: agents
         earlier in the list are trimmed against later ones, so the edge
         agent should come first.
@@ -60,7 +58,7 @@ class PanelPopulator(object):
     ----------
     panel : :class:`compas_timber.elements.Panel`
         A localized copy of the panel in populator (2D) space.
-    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+    agents : list[:class:`~timber_design.populators.LayerAgent`]
         Ordered list of agents.
     original_panel : :class:`compas_timber.elements.Panel`
         Reference to the source panel in the caller's model space.
@@ -88,13 +86,33 @@ class PanelPopulator(object):
         populator.merge_with_model(model)
     """
 
-    def __init__(self, panel, agents, original_panel=None, transformation_to_populator=None):
+    def __init__(self, panel, layers, feature_agents, original_panel=None, transformation_to_populator=None):
         super(PanelPopulator, self).__init__()
         self.panel = panel
-        self.agents = agents
+        self.layers = layers
+        self.feature_agents = feature_agents
         self.original_panel = original_panel
         self.transformation_to_populator = transformation_to_populator
         self.model = TimberModel()
+
+    @property
+    def agents(self):
+        """Deduplicated list of every :class:`LayerAgent` across all layers + feature agents.
+
+        :class:`FeatureAgent` instances register themselves on multiple layers
+        during :meth:`generate_elements`, so a plain flatten of ``layer.agents``
+        would contain duplicates.  This property preserves first-seen order
+        and appends any feature agents that never registered on a layer.
+        """
+        seen = []
+        for layer in self.layers:
+            for agent in layer.agents:
+                if agent not in seen:
+                    seen.append(agent)
+        for agent in self.feature_agents:
+            if agent not in seen:
+                seen.append(agent)
+        return seen
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
@@ -112,79 +130,40 @@ class PanelPopulator(object):
 
     def generate_elements(self):
         """Ask each agent to create its beams and plates (stage 1)."""
-        for g in self.agents:
-            g.generate_elements()
+        for layer in self.layers:
+            for agent in layer.agents:
+                agent.generate_elements()
+        for agent in self.feature_agents:
+            agent.generate_elements(self.layers)
 
     def extend_elements(self):
         """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
-        for g in self.agents:
-            other_agents = [a for a in self.agents if a != g and a.layer_index == g.layer_index]
-            g.extend_elements(other_agents)
+        for layer in self.layers:
+            for g in layer.agents:
+                other_agents = [a for a in layer.agents if a is not g]
+                g.extend_elements(other_agents)
 
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
 
-        Runs two passes in sequence:
+        Two passes are performed:
 
-        1. :meth:`trim_within_layer_elements` — agents on the **same** layer
-           trim each other (e.g. edge frame clips studs; openings clip studs).
-        2. :meth:`trim_cross_layer_elements` — agents on **different** layers
-           apply targeted trimming where
-           :meth:`~timber_design.populators.PopulatorAgent.affects_layer`
-           returns ``True`` (e.g. a recess frame cuts sheeting plates on lower
-           layers; openings cut through all layers).
-
-        This mirrors the ``create_agent_joints`` / ``create_cross_agent_joints``
-        pattern in :meth:`join_elements`, making the topology of inter-agent
-        interactions explicit at the orchestration level.
-        """
-        self.trim_within_layer_elements()
-        self.trim_cross_layer_elements()
-
-    def trim_within_layer_elements(self):
-        """Trim elements between agents that share the same layer index (stage 3a).
-
-        Iterates all overlapping agent pairs.  For those whose
-        :attr:`~timber_design.populators.PopulatorAgent.layer_index` matches,
-        :meth:`~timber_design.populators.PopulatorAgent.trim_elements_with_agent`
-        is called symmetrically on both agents.
-
-        Typical interactions handled here:
-
-        - Edge frame clips studs and opening elements to the panel boundary.
-        - Opening surround clips studs that pass through a door or window.
+        1. **Within-layer** — for each overlapping agent pair on the same layer,
+           both agents get a chance to trim the other's layer-elements via
+           :meth:`~timber_design.populators.LayerAgent.trim_within_layer`.
+        2. **Cross-layer** — every agent calls
+           :meth:`~timber_design.populators.LayerAgent.trim_other_layers` to
+           apply any cross-layer modifications (e.g. a recess agent cutting
+           sheathing plates on the interior layer, or an opening agent
+           punching through plates on non-framing layers).
         """
         solver = ConnectionSolver2D()
-        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
-            if agent_a.layer_index != agent_b.layer_index:
-                continue
-            agent_a.trim_elements_with_agent(agent_b)
-            agent_b.trim_elements_with_agent(agent_a)
-
-    def trim_cross_layer_elements(self):
-        """Apply trimming between agents on different layers (stage 3b).
-
-        Iterates all overlapping agent pairs where the two agents have
-        *different* :attr:`~timber_design.populators.PopulatorAgent.layer_index`
-        values.  Each agent's
-        :meth:`~timber_design.populators.PopulatorAgent.affects_layer` method
-        independently decides whether it should trim the other agent's elements.
-
-        Typical cross-layer interactions:
-
-        - :class:`~timber_design.populators.RecessPopulatorAgent` cuts sheeting
-          plates on lower (inside) layers.
-        - :class:`~timber_design.populators.OpeningPopulatorAgent` cuts openings
-          through sheathing plates on all layers.
-        """
-        solver = ConnectionSolver2D()
-        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
-            if agent_a.layer_index == agent_b.layer_index:
-                continue
-            if agent_b.affects_layer(agent_a.layer_index):
-                agent_a.trim_elements_with_agent(agent_b)
-            if agent_a.affects_layer(agent_b.layer_index):
-                agent_b.trim_elements_with_agent(agent_a)
+        for layer in self.layers:
+            for agent_a, agent_b in solver.find_intersecting_agent_pairs(layer.agents):
+                agent_a.trim_within_layer(agent_b, layer)
+                agent_b.trim_within_layer(agent_a, layer)
+        for agent in self.agents:
+            agent.trim_other_layers(self.layers)
 
     def add_elements_to_model(self):
         """Add all surviving elements to the internal model (stage 4)."""
@@ -202,43 +181,53 @@ class PanelPopulator(object):
         self.create_cross_agent_joints()
 
     def create_agent_joints(self):
-        """Create joints between elements that belong to the same agent.
+        """Create joints between elements that belong to the same agent (stage 5a).
 
-        Each agent collects its own joint candidates via
-        :meth:`~timber_design.populators.PopulatorAgent.create_internal_joint_defs`,
-        then each :class:`~timber_design.workflow.DirectRule` in
-        ``agent.joint_defs`` is immediately applied to the model.
+        Iterates every layer and, for each agent registered on that layer,
+        detects internal joint candidates using only the elements that agent
+        placed on *that* layer via
+        :meth:`~timber_design.populators.LayerAgent.elements_for_layer`.
+        This prevents a :class:`~timber_design.populators.FeatureAgent`
+        (which registers on multiple layers) from creating joints between
+        elements that live on different layers.
+
+        ``agent.joint_defs`` is cleared after each layer pass so that a
+        multi-layer agent is not double-applied on subsequent layers.
         """
-        for agent in self.agents:
-            agent.create_internal_joint_defs(self.model)
-            for j_def in agent.joint_defs:
-                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+        for layer in self.layers:
+            for agent in layer.agents:
+                layer_elements = agent.elements_for_layer(layer)
+                agent.create_internal_joint_defs(self.model, elements=layer_elements)
+                for j_def in agent.joint_defs:
+                    j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+                agent.joint_defs.clear()
 
     def create_cross_agent_joints(self):
-        """Create joints between elements that belong to different agents.
+        """Create joints between elements of different agents on the same layer (stage 5b).
 
-        For each overlapping same-layer agent pair the solver enumerates all
-        cross-product element pairs, detects topology, collects
-        :class:`~compas_timber.connections.JointCandidate` objects, clusters
-        them by proximity, and hands the clusters to a
-        :class:`~timber_design.workflow.JointRuleSolver` built from the
-        combined :attr:`~timber_design.populators.PopulatorAgent.external_rules`
-        of both agents.
+        For each overlapping agent pair the solver enumerates cross-product
+        element pairs, restricting each agent's contribution to the elements
+        it placed on *this* layer via
+        :meth:`~timber_design.populators.LayerAgent.elements_for_layer`.
+        This keeps joints from being created between, say, king studs generated
+        by a :class:`~timber_design.populators.FeatureAgent` on one layer and
+        plate beams on a different layer.
         """
         solver = ConnectionSolver2D()
-        for agent_a, agent_b in solver.find_intersecting_agent_pairs(self.agents):
-            if agent_a.layer_index != agent_b.layer_index:
-                continue
-            candidates = []
-            for element_a, element_b in product(agent_a.elements, agent_b.elements):
-                topo_result = solver.find_topology(element_a, element_b)
-                if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                    self.model.add_joint_candidate(candidate)
-                    candidates.append(candidate)
-            clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-            jrs = JointRuleSolver(agent_a.external_rules + agent_b.external_rules)
-            jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
+        for layer in self.layers:
+            for agent_a, agent_b in solver.find_intersecting_agent_pairs(layer.agents):
+                elements_a = agent_a.elements_for_layer(layer)
+                elements_b = agent_b.elements_for_layer(layer)
+                candidates = []
+                for element_a, element_b in product(elements_a, elements_b):
+                    topo_result = solver.find_topology(element_a, element_b)
+                    if topo_result is not None:
+                        candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                        self.model.add_joint_candidate(candidate)
+                        candidates.append(candidate)
+                clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
+                jrs = JointRuleSolver(agent_a.external_rules + agent_b.external_rules)
+                jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""

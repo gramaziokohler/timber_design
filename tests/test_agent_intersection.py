@@ -47,7 +47,7 @@ def rect_outline(xmin, ymin, xmax, ymax):
 
 
 class MockAgent(object):
-    """Minimal PopulatorAgent stand-in for extend tests."""
+    """Minimal LayerAgent stand-in for extend tests."""
 
     def __init__(self, outline):
         self.outline = outline

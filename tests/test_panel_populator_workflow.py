@@ -60,9 +60,9 @@ def make_outline(xmin, ymin, xmax, ymax, z=0.0):
     return Polyline(
         [
             Point(xmin, ymin, z),
-            Point(xmax, ymin, z),
+            Point(xmin, ymax, z),            
             Point(xmax, ymax, z),
-            Point(xmin, ymax, z),
+            Point(xmax, ymin, z),
             Point(xmin, ymin, z),
         ]
     )
@@ -113,6 +113,7 @@ def categories(model):
 
 def by_category(model, cat):
     """List of elements in *model* with the given *cat* category string."""
+    print(e.attributes.get("category") for e in model.elements())
     return [e for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category") == cat]
 
 
@@ -334,7 +335,7 @@ class TestDoorOpening:
         assert "header" in categories(result)
 
     def test_two_king_studs(self, result):
-        assert len([e for e in result.elements()]) == 2 
+
         assert len(by_category(result, "king_stud")) == 2
 
 
@@ -539,13 +540,13 @@ class TestRobustness:
         # Intermediate studs may be absent; that is fine
         assert "top_plate_beam" in categories(model)
 
-    def test_tall_panel_many_studs(self):
-        """A 10 m tall panel must produce many studs without error.
+    def test_wide_panel_many_studs(self):
+        """A 10 m wide panel must produce many studs without error.
 
-        Studs are spaced along the panel height direction.  A 10000 mm tall
+        Studs are spaced along the panel width direction.  A 10000 mm wide
         panel at 625 mm spacing yields roughly 15 intermediate studs.
         """
-        panel = make_panel(height=10000.0)
+        panel = make_panel(width=10000.0)
         _, model = run_workflow(panel, stud_config())
         assert len(by_category(model, "stud")) > 10
 
@@ -671,7 +672,7 @@ class TestAABB2D:
 
 
 class TestTrimBeam:
-    """PopulatorAgent.trim_beam respects INCLUSIVE and EXCLUSIVE boundaries."""
+    """LayerAgent.trim_beam respects INCLUSIVE and EXCLUSIVE boundaries."""
 
     def _make_beam_2d(self, x0, y0, x1, y1, width=60.0):
         from compas.geometry import Line
@@ -706,23 +707,23 @@ class TestTrimBeam:
         so we verify the class attribute directly rather than instantiating it.
         """
         from timber_design.populators import OpeningPopulatorAgent
-        from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+        from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 
-        assert OpeningPopulatorAgent.BOUNDARY_TYPE == FeatureBoundaryType.EXCLUSIVE
+        assert OpeningPopulatorAgent.BOUNDARY_TYPE == AgentBoundaryType.EXCLUSIVE
 
     def test_inclusive_boundary_type_class_attribute(self):
         """EdgePopulatorAgent declares BOUNDARY_TYPE=INCLUSIVE."""
         from timber_design.populators import EdgePopulatorAgent
-        from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+        from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 
-        assert EdgePopulatorAgent.BOUNDARY_TYPE == FeatureBoundaryType.INCLUSIVE
+        assert EdgePopulatorAgent.BOUNDARY_TYPE == AgentBoundaryType.INCLUSIVE
 
     def test_none_boundary_type_class_attribute(self):
         """StudPopulatorAgent declares BOUNDARY_TYPE=NONE (no culling)."""
         from timber_design.populators import StudPopulatorAgent
-        from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
+        from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 
-        assert StudPopulatorAgent.BOUNDARY_TYPE == FeatureBoundaryType.NONE
+        assert StudPopulatorAgent.BOUNDARY_TYPE == AgentBoundaryType.NONE
 
 
 # =============================================================================

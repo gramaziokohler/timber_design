@@ -25,13 +25,13 @@ from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
-class FeatureBoundaryType(object):
+class AgentBoundaryType(object):
     """Controls how an agent's outline is used to include or exclude beam segments.
 
-    Each concrete :class:`PopulatorAgent` declares a ``BOUNDARY_TYPE`` class
-    attribute that governs what :meth:`~PopulatorAgent.trim_beam` does with
+    Each concrete :class:`LayerAgent` declares a ``BOUNDARY_TYPE`` class
+    attribute that governs what :meth:`~LayerAgent.trim_beam` does with
     segments whose midpoints fall inside or outside the agent's
-    :attr:`~PopulatorAgent.outline` polyline.
+    :attr:`~LayerAgent.outline` polyline.
 
     Attributes
     ----------
@@ -55,7 +55,7 @@ class FeatureBoundaryType(object):
 
 
 @dataclass
-class PopulatorAgentConfig:
+class LayerAgentConfig:
     """Base dataclass for populator agent configuration.
 
     All concrete config classes (e.g. :class:`~timber_design.populators.StudPopulatorAgentConfig`,
@@ -67,7 +67,7 @@ class PopulatorAgentConfig:
     beam_width_overrides : dict, optional
         Per-category beam width overrides.  Keys are category name strings
         (e.g. ``"stud"``, ``"header"``); values are floats in model units.
-        Overrides are applied by :meth:`~PopulatorAgent.resolve_beam_dimensions`.
+        Overrides are applied by :meth:`~LayerAgent.resolve_beam_dimensions`.
     joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
         Rules that replace matching entries in the agent's ``RULES`` list.
         Non-matching overrides are appended.
@@ -75,7 +75,7 @@ class PopulatorAgentConfig:
     Class Attributes
     ----------------
     AGENT_TYPE : type or None
-        The :class:`PopulatorAgent` subclass this config instantiates.
+        The :class:`LayerAgent` subclass this config instantiates.
         Set on each concrete subclass after both classes are defined.
     """
 
@@ -100,7 +100,7 @@ class PopulatorAgentConfig:
 
         Returns
         -------
-        :class:`PopulatorAgent`
+        :class:`LayerAgent`
 
         Raises
         ------
@@ -112,10 +112,10 @@ class PopulatorAgentConfig:
         return self.AGENT_TYPE(layer, self)
 
 
-class PopulatorAgent(ABC):
+class LayerAgent(ABC):
     """Abstract base class for all panel populator agents.
 
-    A ``PopulatorAgent`` is responsible for one logical group of framing
+    A ``LayerAgent`` is responsible for one logical group of framing
     elements within a panel (edge beams, studs, plates, opening surround,
     recess frame, …).  Subclasses implement :meth:`generate_elements` and
     optionally override :meth:`extend_elements` and :meth:`cull_beam_segment`.
@@ -125,9 +125,6 @@ class PopulatorAgent(ABC):
     - :attr:`layer` — the :class:`~timber_design.populators.Layer` it belongs
       to, which carries the panel geometry (``layer.panel``) and the layer's
       position in the cross-section stack (``layer.layer_index``).
-    - :attr:`feature` — the specific :class:`~compas_timber.panel_features.PanelFeature`
-      for feature-based agents (e.g. :class:`~timber_design.populators.OpeningPopulatorAgent`);
-      not present on layer-level agents.
     - :attr:`elements` — the flat list of :class:`~timber_design.populators.Beam2D`
       and :class:`~compas_timber.elements.Plate` objects it has created.
     - :attr:`outline` — a closed :class:`~compas.geometry.Polyline` that marks
@@ -139,13 +136,6 @@ class PopulatorAgent(ABC):
 
     Class-level attributes
     ----------------------
-    FEATURE_TYPE : type or None
-        The :class:`~compas_timber.panel_features.PanelFeature` subclass this
-        agent is designed to handle.  Set on feature-specific agents (e.g.
-        :attr:`OpeningPopulatorAgent.FEATURE_TYPE` ``= Opening``); ``None`` for
-        panel-level agents.  Used by
-        :class:`~timber_design.populators.FeaturePopulatorAgentDefinition` to
-        infer the feature type when not supplied explicitly.
     BEAM_CATEGORY_NAMES : list[str]
         The beam categories this agent can create.  Used by
         :meth:`resolve_beam_dimensions`.
@@ -153,12 +143,12 @@ class PopulatorAgent(ABC):
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
         :meth:`create_internal_joint_defs` / :meth:`get_direct_rule_from_elements`.
-        Overridable per-instance via :attr:`PopulatorAgentConfig.joint_rule_overrides`.
+        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
     EXTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.  Used by
         :meth:`~timber_design.populators.PanelPopulator.create_cross_agent_joints`.
-        Overridable per-instance via :attr:`PopulatorAgentConfig.joint_rule_overrides`.
+        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`~FeatureBoundaryType.NONE`.
@@ -168,7 +158,7 @@ class PopulatorAgent(ABC):
     layer : :class:`~timber_design.populators.Layer`
         The layer this agent operates within.  Provides the panel geometry
         (``layer.panel``) and cross-section position (``layer.layer_index``).
-    params : :class:`PopulatorAgentConfig`
+    params : :class:`LayerAgentConfig`
         Configuration including beam width overrides, joint rule overrides,
         and (for feature agents) the bound feature.
 
@@ -187,15 +177,15 @@ class PopulatorAgent(ABC):
         The panel geometry for this layer.  Shortcut for ``self.layer.panel``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
-        and mutated by :meth:`trim_elements_with_agent`.
+        and mutated by :meth:`trim_within_layer` / :meth:`trim_cross_layer`.
     outline : :class:`~compas.geometry.Polyline` or None
         Closed boundary polyline in populator space.  Set by :meth:`generate_elements`.
     internal_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active within-agent joint rules (``INTERNAL_RULES`` merged with any
-        matching :attr:`PopulatorAgentConfig.joint_rule_overrides`).
+        matching :attr:`LayerAgentConfig.joint_rule_overrides`).
     external_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active cross-agent joint rules (``EXTERNAL_RULES`` merged with any
-        matching :attr:`PopulatorAgentConfig.joint_rule_overrides`).
+        matching :attr:`LayerAgentConfig.joint_rule_overrides`).
     beam_dimensions : dict[str, tuple[float, float]]
         ``{category: (width, height)}`` mapping resolved by
         :meth:`resolve_beam_dimensions`.
@@ -208,14 +198,13 @@ class PopulatorAgent(ABC):
         centrelines at the correct height in populator space.
     """
 
-    FEATURE_TYPE = None
     BEAM_CATEGORY_NAMES = []
     INTERNAL_RULES = []
     EXTERNAL_RULES = []
-    BOUNDARY_TYPE = FeatureBoundaryType.NONE
+    BOUNDARY_TYPE = AgentBoundaryType.NONE
 
     def __init__(self, layer, params):
-        # type: (Layer, PopulatorAgentConfig) -> None
+        # type: (Layer, LayerAgentConfig) -> None
         self.layer = layer
         self.layer_index = layer.layer_index if layer is not None else None
         self.beam_width_overrides = params.beam_width_overrides or {}
@@ -229,7 +218,10 @@ class PopulatorAgent(ABC):
         self.joint_defs = []
         self.elements = []
         self.outline = None
-        self.layer_center_height = layer.panel.outline_a[0][2] + layer.panel.thickness / 2
+        if layer is not None:
+            self.layer_center_height = layer.panel.outline_a[0][2] + layer.panel.thickness / 2
+        else:
+            self.layer_center_height = None
 
     @property
     def aabb(self):
@@ -252,11 +244,43 @@ class PopulatorAgent(ABC):
     def panel(self):
         """The panel geometry for this agent's layer.
 
-        Always returns ``self.layer.panel``.  Use this wherever the
-        underlying :class:`~compas_timber.elements.Panel` geometry is needed
-        (outlines, thickness, length, width, edge planes, …).
+        Returns ``self.layer.panel`` when this agent is bound to a single
+        layer, and ``None`` for :class:`FeatureAgent` instances that have
+        not been bound.
         """
-        return self.layer.panel
+        return self.layer.panel if self.layer is not None else None
+
+    def elements_for_layer(self, layer):
+        """Return the elements this agent has placed on *layer*.
+
+        A :class:`LayerAgent` is always bound to exactly one layer, so this
+        returns ``self.elements`` regardless of which layer is passed.  The
+        caller is responsible for only passing layers this agent is registered
+        on.
+
+        Parameters
+        ----------
+        layer : :class:`~timber_design.populators.Layer`
+
+        Returns
+        -------
+        list
+        """
+        return self.elements
+
+    def set_elements_for_layer(self, layer, elements):
+        """Replace this agent's element list for *layer*.
+
+        For a single-layer :class:`LayerAgent`, replaces ``self.elements``
+        entirely.  Called by :meth:`trim_within_layer` after trimming so the
+        agent's element list reflects surviving post-trim segments.
+
+        Parameters
+        ----------
+        layer : :class:`~timber_design.populators.Layer`
+        elements : list
+        """
+        self.elements = elements
 
     def _apply_rule_overrides(self, base_rules: list[CategoryRule], overrides: list[CategoryRule]) -> list[CategoryRule]:
         """Return a copy of *base_rules* with matching *overrides* applied.
@@ -274,7 +298,7 @@ class PopulatorAgent(ABC):
             Either :attr:`INTERNAL_RULES` or :attr:`EXTERNAL_RULES`.
         overrides : list[:class:`~timber_design.workflow.CategoryRule`]
             The per-instance overrides from
-            :attr:`PopulatorAgentConfig.joint_rule_overrides`.
+            :attr:`LayerAgentConfig.joint_rule_overrides`.
 
         Returns
         -------
@@ -308,7 +332,7 @@ class PopulatorAgent(ABC):
             else:
                 self.beam_dimensions[category] = (standard_beam_width, frame_thickness)
 
-    def beam_from_category(self, centerline: Line, category: str, **kwargs) -> Beam2D:
+    def beam_from_category(self, centerline: Line, category: str, layer: Optional[Layer] = None, **kwargs) -> Beam2D:
         """Creates a :class:`~timber_design.populators.Beam2D` from a centerline and a category.
 
         Parameters
@@ -317,6 +341,12 @@ class PopulatorAgent(ABC):
             The centerline to create the beam from.
         category : str
             The category of the beam, which determines its dimensions.
+        layer : :class:`~timber_design.populators.Layer`, optional
+            When provided, the beam height is taken from ``layer.thickness``
+            instead of ``self.beam_dimensions[category][1]``.  Useful for
+            :class:`FeatureAgent` instances that create beams in other layers
+            whose thicknesses are not known when :meth:`resolve_beam_dimensions`
+            is called.
         kwargs : dict, optional
             Additional attributes to set on the beam.
 
@@ -328,7 +358,7 @@ class PopulatorAgent(ABC):
         if category not in self.beam_dimensions:
             raise ValueError("Unknown beam category: {}".format(category))
         width = self.beam_dimensions[category][0]
-        height = self.beam_dimensions[category][1]
+        height = layer.thickness if layer is not None else self.beam_dimensions[category][1]
         beam = Beam2D.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
             beam.attributes[key] = value
@@ -361,53 +391,24 @@ class PopulatorAgent(ABC):
             rule_kwargs.update(kwargs)
             return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
-    def affects_layer(self, layer_index: int) -> bool:
-        """Return ``True`` if this agent participates in cross-layer trimming for *layer_index*.
-
-        The default implementation returns ``True`` only when *layer_index*
-        matches this agent's own :attr:`layer_index` (i.e. same layer, which
-        is used as a no-op guard for same-layer pairs passed to
-        :meth:`trim_elements_with_agent`).
-
-        Subclasses that trim elements across layer boundaries — such as
-        :class:`~timber_design.populators.RecessPopulatorAgent`, which cuts
-        sheathing plates on lower layers — override this to return ``True``
-        for a broader range of indices.
-
-        Called exclusively by
-        :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`
-        to decide whether a cross-layer trimming pass should be executed.
-
-        Parameters
-        ----------
-        layer_index : int or None
-            The :attr:`layer_index` of the *other* agent whose elements may
-            be trimmed.
-
-        Returns
-        -------
-        bool
-        """
-        return self.layer_index == layer_index
-
     def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
 
     def cull_element_at_point(self, point) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.NONE:
+        if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return False
         if self.outline is None:
             return False
         is_inside = is_point_in_polyline(point, self.outline, in_plane=False)
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.EXCLUSIVE and is_inside:
+        if self.BOUNDARY_TYPE == AgentBoundaryType.EXCLUSIVE and is_inside:
             return True
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.INCLUSIVE and not is_inside:
+        if self.BOUNDARY_TYPE == AgentBoundaryType.INCLUSIVE and not is_inside:
             return True
 
     def apply_to_plate(self, plate: Plate) -> None:
-        """Apply the element group's feature definition to the plate based on the populator agent."""
+        """Apply the agent to the plate based on the populator agent."""
         pass
 
     def trim_beam(
@@ -417,7 +418,7 @@ class PopulatorAgent(ABC):
         skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
         """Splits the beam based on the populator agent's feature definition and returns the resulting beam segments."""
-        if self.BOUNDARY_TYPE == FeatureBoundaryType.NONE:
+        if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return [beam]
         if self.outline is None:
             return [beam]
@@ -453,10 +454,21 @@ class PopulatorAgent(ABC):
 
         return beam_segs
 
-    def create_joint_candidates(self, model):
-        """Yield ``(beam_a, beam_b)`` pairs within this agent whose blank AABBs overlap."""
+    def create_joint_candidates(self, model, elements=None):
+        """Return joint candidates for overlapping beam pairs.
+
+        Parameters
+        ----------
+        model : :class:`~compas_timber.model.TimberModel`
+        elements : list, optional
+            Restrict the search to this subset of elements.  When ``None``
+            all of ``self.elements`` are used.  Pass a per-layer filtered
+            list to avoid cross-layer joint candidates for agents that span
+            multiple layers (e.g. :class:`~timber_design.populators.FeatureAgent`).
+        """
         solver = ConnectionSolver2D()
-        beam_elements = [e for e in self.elements if isinstance(e, Beam2D)]
+        source = elements if elements is not None else self.elements
+        beam_elements = [e for e in source if isinstance(e, Beam2D)]
         pairs = solver.find_intersecting_pairs(beam_elements)
         candidates = []
         for element_a, element_b in pairs:
@@ -467,113 +479,118 @@ class PopulatorAgent(ABC):
                 candidates.append(candidate)
         return candidates
 
-    def trim_elements_with_agent(self, agent, skip_notches=False, skip_laps=False):
-        # type: (PopulatorAgent, bool, bool) -> None
-        """Split and cull this agent's elements using *agent*'s outline and boundary type.
+    def _trim_element_list(self, elements):
+        """Apply this agent's boundary logic to *elements* and return survivors.
 
-        Called by :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`
-        (for agents on the same layer) and by
-        :meth:`~timber_design.populators.PanelPopulator.trim_cross_layer_elements`
-        (for agents on different layers, after :meth:`affects_layer` has already
-        confirmed the interaction is valid).
+        Splits each :class:`~timber_design.populators.Beam2D` at the agent's
+        outline crossings, keeping or discarding segments according to
+        :attr:`BOUNDARY_TYPE`.  Plates are passed to :meth:`apply_to_plate`
+        (for in-place feature application) and always kept.
 
-        Beams are split at outline crossings; segments outside an
-        :attr:`~FeatureBoundaryType.INCLUSIVE` zone or inside an
-        :attr:`~FeatureBoundaryType.EXCLUSIVE` zone are discarded.  Plates are
-        passed to :meth:`~PopulatorAgent.apply_to_plate` for feature application
-        (e.g. contour cuts) and are always retained.
+        This is the core trimming primitive; callers that need to update an
+        agent's element list should use :meth:`trim_within_layer` instead.
 
         Parameters
         ----------
-        agent : :class:`PopulatorAgent`
-            The agent whose outline drives trimming/culling.
-        skip_notches : bool
-            Forwarded to :func:`~timber_design.populators.find_beam_outline_crossings`.
-        skip_laps : bool
-            Forwarded to :func:`~timber_design.populators.find_beam_outline_crossings`.
+        elements : list
+            Elements to process (mixed beams and plates).
+
+        Returns
+        -------
+        list
         """
         new_elements = []
-        for element in self.elements:
+        for element in elements:
             if element.is_beam:
-                new_elements.extend(agent.trim_beam(element))
+                new_elements.extend(self.trim_beam(element))
             elif element.is_plate:
-                agent.apply_to_plate(element)
+                self.apply_to_plate(element)
                 new_elements.append(element)
-        self.elements = new_elements
+        return new_elements
+
+    def trim_within_layer(self, other_agent, layer):
+        """Trim *other_agent*'s elements on *layer* using this agent's boundary.
+
+        Retrieves the elements *other_agent* placed on *layer* via
+        :meth:`~LayerAgent.elements_for_layer`, applies
+        :meth:`_trim_element_list`, and writes the surviving segments back via
+        :meth:`~LayerAgent.set_elements_for_layer`.
+
+        Called by :meth:`~timber_design.populators.PanelPopulator.trim_elements`
+        for every overlapping agent pair on the same layer.
+
+        Parameters
+        ----------
+        other_agent : :class:`LayerAgent`
+            The agent whose elements are trimmed.
+        layer : :class:`~timber_design.populators.Layer`
+            The layer both agents share.
+        """
+        layer_elements = other_agent.elements_for_layer(layer)
+        trimmed = self._trim_element_list(layer_elements)
+        other_agent.set_elements_for_layer(layer, trimmed)
+
+    def trim_cross_layer(self, other_agent):
+        """Apply cross-layer modifications to *other_agent*'s elements.
+
+        Default implementation is a no-op — most agents only interact within
+        their own layer.  Subclasses such as
+        :class:`~timber_design.populators.RecessPopulatorAgent` and
+        :class:`~timber_design.populators.OpeningPopulatorAgent` override this
+        to apply contour cuts to plates on other layers.
+
+        Parameters
+        ----------
+        other_agent : :class:`LayerAgent`
+            The agent whose elements may be modified.
+        """
+        pass
+
+    def trim_other_layers(self, layers):
+        """Apply :meth:`trim_cross_layer` to agents on every layer except this agent's own.
+
+        Called by :meth:`~timber_design.populators.PanelPopulator.trim_elements`
+        after all within-layer passes are complete.  The default implementation
+        skips ``self.layer`` and calls :meth:`trim_cross_layer` on every other
+        agent it finds.  Subclasses that span multiple layers (e.g.
+        :class:`~timber_design.populators.FeatureAgent`) override this method
+        to skip their registered layers instead.
+
+        Parameters
+        ----------
+        layers : list[:class:`~timber_design.populators.Layer`]
+            All layers in the populator.
+        """
+        for layer in layers:
+            if layer is self.layer:
+                continue
+            for other_agent in layer.agents:
+                if other_agent is self:
+                    continue
+                self.trim_cross_layer(other_agent)
 
     @abstractmethod
     def generate_elements(self):
         """Generates elements for the panel based on the panel populator and optional feature definition."""
-        raise NotImplementedError("generate_elements method must be implemented in subclasses of PopulatorAgent")
+        raise NotImplementedError("generate_elements method must be implemented in subclasses of LayerAgent")
 
-    def extend_elements(self, other_agents: list["PopulatorAgent"]) -> None:
+    def extend_elements(self, other_agents: list["LayerAgent"]) -> None:
         pass
 
-    def create_internal_joint_defs(self, model) -> list[DirectRule]:
-        """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this agent."""
-        for candidate in self.create_joint_candidates(model):
+    def create_internal_joint_defs(self, model, elements=None) -> list[DirectRule]:
+        """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this agent.
+
+        Parameters
+        ----------
+        model : :class:`~compas_timber.model.TimberModel`
+        elements : list, optional
+            Restrict joint detection to this element subset.  Forwarded
+            directly to :meth:`create_joint_candidates`; see its docstring.
+        """
+        for candidate in self.create_joint_candidates(model, elements=elements):
+            
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
 
 
-@dataclass
-class FeaturePopulatorAgentConfig(PopulatorAgentConfig):
-    """Config base class for feature-based populator agents.
-
-    Extends :class:`PopulatorAgentConfig` with :meth:`get_agent_from_feature`,
-    which passes a :class:`~compas_timber.panel_features.PanelFeature` to the
-    agent constructor as its third positional argument.
-
-    All concrete feature-agent config classes (e.g.
-    :class:`~timber_design.populators.OpeningPopulatorAgentConfig`) should
-    extend this class.
-    """
-
-    def get_agent_from_feature(self, feature, layer):
-        """Instantiate a feature-based agent for the given layer.
-
-        Parameters
-        ----------
-        feature : :class:`~compas_timber.panel_features.PanelFeature`
-            The (possibly transformed) feature instance.
-        layer : :class:`~timber_design.populators.Layer`
-            The framing layer the agent operates within.
-
-        Returns
-        -------
-        :class:`FeaturePopulatorAgent`
-
-        Raises
-        ------
-        NotImplementedError
-            If ``AGENT_TYPE`` has not been set on this config class.
-        """
-        if self.AGENT_TYPE is None:
-            raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        return self.AGENT_TYPE(layer, self, feature)
-
-
-class FeaturePopulatorAgent(PopulatorAgent, ABC):
-    """Abstract base class for feature-driven populator agents.
-
-    Extends :class:`PopulatorAgent` by accepting a
-    :class:`~compas_timber.panel_features.PanelFeature` and storing it as
-    :attr:`feature`.  Subclasses handle specific feature types (e.g.
-    :class:`~timber_design.populators.OpeningPopulatorAgent` for
-    :class:`~compas_timber.panel_features.Opening`).
-
-    Parameters
-    ----------
-    layer : :class:`~timber_design.populators.Layer`
-        The layer this agent operates within.
-    params : :class:`FeaturePopulatorAgentConfig`
-        Configuration for this agent.
-    feature : :class:`~compas_timber.panel_features.PanelFeature`
-        The (possibly transformed) feature instance driving element placement.
-    """
-
-    def __init__(self, layer, params, feature):
-        # type: (Layer, FeaturePopulatorAgentConfig, object) -> None
-        super().__init__(layer, params)
-        self.feature = feature

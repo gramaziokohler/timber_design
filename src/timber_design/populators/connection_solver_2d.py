@@ -28,12 +28,12 @@ def _average_point(points):
 
 
 def aabb_overlap(a, b, tolerance=0.0):
-    # type: (Union[Beam2D, PopulatorAgent], Union[Beam2D, PopulatorAgent], float) -> bool
+    # type: (Union[Beam2D, LayerAgent], Union[Beam2D, LayerAgent], float) -> bool
     """Return ``True`` if the axis-aligned bounding boxes of the two beam blanks overlap in XY.
 
     Parameters
     ----------
-    a, b : :class:`~timber_design.populators.Beam2D` or PopulatorAgent
+    a, b : :class:`~timber_design.populators.Beam2D` or LayerAgent
     tolerance : float
         Each AABB is expanded by this amount in every direction before the
         overlap test.  Use a small positive value (e.g. the model tolerance)
@@ -51,7 +51,7 @@ def aabb_overlap(a, b, tolerance=0.0):
 
 
 def aabb_overlap_x(a, b, tolerance=0.0):
-    # type: (Union[Beam2D, PopulatorAgent], Union[Beam2D, PopulatorAgent], float) -> bool
+    # type: (Union[Beam2D, LayerAgent], Union[Beam2D, LayerAgent], float) -> bool
     """Return ``True`` if the element AABBs of two agents overlap in X.
 
     Parameters
@@ -134,11 +134,11 @@ class ConnectionSolver2D(object):
 
         Parameters
         ----------
-        agents : list[:class:`~timber_design.populators.populator_agents.PopulatorAgent`]
+        agents : list[:class:`~timber_design.populators.populator_agents.LayerAgent`]
 
         Yields
         ------
-        tuple[:class:`~timber_design.populators.PopulatorAgent`, :class:`~timber_design.populators.PopulatorAgent`]
+        tuple[:class:`~timber_design.populators.LayerAgent`, :class:`~timber_design.populators.LayerAgent`]
         """
         for agent_a, agent_b in combinations(agents, 2):
             if aabb_overlap(agent_a, agent_b, tolerance=self.max_distance):

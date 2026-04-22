@@ -21,15 +21,15 @@ from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.populator_agent import FeatureBoundaryType
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
+from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
+from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
 @dataclass
-class EdgePopulatorAgentConfig(PopulatorAgentConfig):
+class EdgePopulatorAgentConfig(LayerAgentConfig):
     standard_beam_width_increment: Optional[float] = None
     edge_beam_min_width: Optional[float] = None
 
@@ -41,7 +41,7 @@ class EdgePopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class EdgePopulatorAgent(PopulatorAgent):
+class EdgePopulatorAgent(LayerAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
     Creates one :class:`~timber_design.populators.Beam2D` per segment of the
@@ -59,9 +59,9 @@ class EdgePopulatorAgent(PopulatorAgent):
       in the ``-Y`` direction.
     - ``"edge_stud"`` — vertical edges.
 
-    The agent's :attr:`~PopulatorAgent.outline` is the innermost boundary
+    The agent's :attr:`~LayerAgent.outline` is the innermost boundary
     formed by all edge-beam inner faces.  Its
-    :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded during
     :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`.
@@ -94,7 +94,7 @@ class EdgePopulatorAgent(PopulatorAgent):
         CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
     ]
-    BOUNDARY_TYPE = FeatureBoundaryType.INCLUSIVE
+    BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
     def __init__(self, layer, params):
         # type: (Layer, EdgePopulatorAgentConfig) -> None
@@ -168,9 +168,9 @@ class EdgePopulatorAgent(PopulatorAgent):
     # methods for creating beam joints
     # ==========================================================================
 
-    def create_internal_joint_defs(self, model) -> list[DirectRule]:
+    def create_internal_joint_defs(self, model, elements=None) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges."""
-        for candidate in self.create_joint_candidates(model):
+        for candidate in self.create_joint_candidates(model, elements=elements):
             rule = self.create_edge_beam_joint_rule(*candidate.elements)
             if rule is not None:
                 self.joint_defs.append(rule)

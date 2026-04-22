@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from compas_timber.elements import Plate
 
 from timber_design.populators.layer import Layer
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgent
-from timber_design.populators.populator_agents.populator_agent import PopulatorAgentConfig
+from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 
 
 @dataclass
-class PlatePopulatorAgentConfig(PopulatorAgentConfig):
+class PlatePopulatorAgentConfig(LayerAgentConfig):
     """Configuration for a single sheathing plate agent.
     """
 
@@ -18,7 +18,7 @@ class PlatePopulatorAgentConfig(PopulatorAgentConfig):
         return data
 
 
-class PlatePopulatorAgent(PopulatorAgent):
+class PlatePopulatorAgent(LayerAgent):
     """Generates a flat sheathing plate for one cross-section layer of a panel.
 
     The agent operates on a single :class:`~timber_design.populators.Layer`.
@@ -35,7 +35,7 @@ class PlatePopulatorAgent(PopulatorAgent):
     ``"{layer.name}_plate"`` (e.g. ``"interior_plate"`` or
     ``"exterior_plate"``).
 
-    No :attr:`~PopulatorAgent.outline` is set; this agent does not participate
+    No :attr:`~LayerAgent.outline` is set; this agent does not participate
     in boundary trimming.
 
     Parameters
@@ -64,7 +64,6 @@ class PlatePopulatorAgent(PopulatorAgent):
             name=category,
             category=category,
         )
-        plate.layer_index = self.layer_index
         self.elements.append(plate)
 
 

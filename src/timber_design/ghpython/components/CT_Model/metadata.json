@@ -17,8 +17,8 @@
                 "flatten": true
             },
             {
-                "name": "Containers",
-                "description": "Container elements, such as walls, floors, roofs, etc.",
+                "name": "PanelConfigs",
+                "description": "PanelConfigs settings for panel population",
                 "typeHintID": "none",
                 "scriptParamAccess": 1,
                 "flatten": true

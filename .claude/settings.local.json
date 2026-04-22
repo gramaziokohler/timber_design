@@ -77,7 +77,9 @@
       "Bash(python -c \"import sys; sys.path.insert\\(0, 'src'\\); import timber_design.populators; from timber_design.populators import PanelPopulatorConfig, PanelPopulator, LayerDefinition, OpeningPopulatorAgentConfig, FeatureAgent, LayerAgent; print\\('OK'\\)\")",
       "Bash(python -m py_compile tests/test_populators.py)",
       "Bash(python -m py_compile tests/test_panel_populator_workflow.py tests/test_populators.py)",
-      "Bash(python -m py_compile src/timber_design/populators/populator_configs/panel_populator_config.py)"
+      "Bash(python -m py_compile src/timber_design/populators/populator_configs/panel_populator_config.py)",
+      "Bash(xargs ls *)",
+      "Bash(awk '{print $9, $5}')"
     ]
   }
 }

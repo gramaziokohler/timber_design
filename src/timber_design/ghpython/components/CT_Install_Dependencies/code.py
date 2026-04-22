@@ -15,6 +15,11 @@ try:
 except ImportError:
     import importlib_metadata
 
+try:
+    from packaging.version import InvalidVersion, Version
+except ImportError:
+    from pip._vendor.packaging.version import InvalidVersion, Version
+
 
 REQUIRED = [
     "timber_design>=0.2.0",
@@ -157,7 +162,7 @@ class InstallDependencies(Grasshopper.Kernel.GH_ScriptInstance):
             for version in versions:
                 if version not in unique_versions:
                     unique_versions.append(version)
-            unique_versions.sort(key=self._version_key)
+            unique_versions.sort(key=self._version_sort_key)
             out[name] = unique_versions
         return out
 
@@ -233,7 +238,7 @@ class InstallDependencies(Grasshopper.Kernel.GH_ScriptInstance):
         if not constraint:
             return True
         if constraint.startswith("=="):
-            return installed == constraint[2:].strip()
+            return self._compare(installed, constraint[2:].strip()) == 0
         if constraint.startswith(">="):
             return self._compare(installed, constraint[2:].strip()) >= 0
         return False
@@ -247,16 +252,30 @@ class InstallDependencies(Grasshopper.Kernel.GH_ScriptInstance):
         return (m.group(1), m.group(2).strip()) if m else (spec, "")
 
     def _compare(self, left, right):
-        a = self._version_key(left)
-        b = self._version_key(right)
-        for x, y in zip(a, b):
-            if x == y:
-                continue
-            if isinstance(x, int) and isinstance(y, int):
-                return -1 if x < y else 1
-            return -1 if str(x) < str(y) else 1
-        return 0 if len(a) == len(b) else (-1 if len(a) < len(b) else 1)
+        left_version = self._to_version(left)
+        right_version = self._to_version(right)
+        if left_version is None or right_version is None:
+            left_text = str(left)
+            right_text = str(right)
+            if left_text == right_text:
+                return 0
+            return -1 if left_text < right_text else 1
+        if left_version == right_version:
+            return 0
+        return -1 if left_version < right_version else 1
 
-    def _version_key(self, version):
-        return [int(p) if p.isdigit() else p for p in re.findall(r"\d+|[A-Za-z]+", version)]
+    def _normalize_version_text(self, version):
+        # Accept common non-PEP440 spellings like "2.1.1-rc1" by normalizing to "2.1.1rc1".
+        return re.sub(r"-(?=(?:a|b|rc|post|dev)\d*)", "", str(version), flags=re.IGNORECASE)
+
+    def _to_version(self, version):
+        normalized = self._normalize_version_text(version)
+        try:
+            return Version(normalized)
+        except InvalidVersion:
+            return None
+
+    def _version_sort_key(self, version):
+        parsed = self._to_version(version)
+        return (0, parsed) if parsed is not None else (1, str(version))
 

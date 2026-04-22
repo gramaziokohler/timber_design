@@ -59,7 +59,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         self.add_elements_to_model(Model, Elements, Containers)
 
         ##### Wall populating #####
-        # handled_pairs, wall_joints = self.handle_populators(Model, Containers, MaxDistance)
+        handled_pairs, wall_joints = self.handle_populators(Model, Containers, MaxDistance)
 
         ##### Handle joinery #####
         # checks elements compatibility and generates Joints
@@ -116,26 +116,26 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             slab = c_def.slab
             model.add_group_element(slab, name=slab.name + str(index))
 
-    # def handle_populators(self, model, containers, max_distance):
-    #     # Handle wall populators
-    #     model.connect_adjacent_walls()
-    #     config_sets = [c_def.config_set for c_def in containers]
-    #     populators = []
-    #     if any(config_sets):
-    #         populators = WallPopulator.from_model(model, config_sets)
+    def handle_populators(self, model, containers, max_distance):
+        # Handle wall populators
+        model.connect_adjacent_walls()
+        config_sets = [c_def.config_set for c_def in containers]
+        populators = []
+        if any(config_sets):
+            populators = WallPopulator.from_model(model, config_sets)
 
-    #     handled_pairs = []
-    #     wall_joints = []
-    #     for populator, slab in zip(populators, list(model.slabs)):
-    #         elements = populator.create_elements()
-    #         model.add_elements(elements, parent=slab.name)
-    #         joint_definitions = populator.create_joints(elements, max_distance)
-    #         wall_joints.extend(joint_definitions)
-    #         for j_def in joint_definitions:
-    #             element_a, element_b = j_def.elements
-    #             handled_pairs.append({element_a, element_b})
+        handled_pairs = []
+        wall_joints = []
+        for populator, slab in zip(populators, list(model.slabs)):
+            elements = populator.create_elements()
+            model.add_elements(elements, parent=slab.name)
+            joint_definitions = populator.create_joints(elements, max_distance)
+            wall_joints.extend(joint_definitions)
+            for j_def in joint_definitions:
+                element_a, element_b = j_def.elements
+                handled_pairs.append({element_a, element_b})
 
-    #     return handled_pairs, wall_joints
+        return handled_pairs, wall_joints
 
     def handle_features(self, features):
         feature_errors = []

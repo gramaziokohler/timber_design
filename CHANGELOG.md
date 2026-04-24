@@ -9,13 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-* Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
+#### Panel Populator subsystem (`timber_design.populators`)
+
+A new `timber_design.populators` package replaces the old wall-populator module with a general, layer-based panel framing system.
+
+* **`LayerDefinition` / `Layer`** — `LayerDefinition` is a pure-data blueprint (thickness, name, `is_framing_layer`, `agent_configs`, optional `sublayers`).  `Layer` is the resolved runtime object that holds a sliced panel geometry and the agents registered on it.  `PanelPopulatorConfig` resolves fill-remaining (`thickness=None`) thicknesses with a two-pass bottom-up / top-down algorithm and never mutates the original definitions, making configs safe to reuse in Rhino live-update loops.
+* **`PanelPopulatorConfig`** — concrete (non-abstract) base config that accepts an explicit `layer_defs` list and `default_feature_configs` dict.  Produces a `PanelPopulator` via `create_populator_from_panel(panel)` or `create_populator()`.  `layers_from_panel_and_thicknesses` builds `Layer` objects using *outline chaining* — each layer's far boundary is the next layer's near boundary, eliminating floating-point discrepancies at shared faces.
+* **`StudPanelPopulatorConfig`** — convenience subclass for standard stud-wall framing.  Parameters: `standard_beam_width`, `stud_spacing`, `sheeting_inside`, `sheeting_outside`, `stud_direction`, `edge_beam_min_width`, `standard_beam_width_increment`, `lintel_posts`, `split_bottom_plate_beam`, `beam_width_overrides`, `joint_rule_overrides`.
+* **`RecessPanelPopulatorConfig`** — convenience subclass for recessed-frame panels.  Parameters: `recess_beam_width`, `recess_beam_height`, `sheeting_recess`, plus the common edge and sheeting parameters.
+* **`PanelPopulator`** — orchestrates the full population sequence: generate → extend → trim → add to internal model → within-agent joints → cross-agent joints → process joinery → merge to world model.
+* **`LayerAgent`** (abstract) — bound to one layer; generates elements, trims against neighbours, and creates joint definitions.  Subclasses: `EdgePopulatorAgent`, `StudPopulatorAgent`, `PlatePopulatorAgent`, `RecessPopulatorAgent`.
+* **`FeatureAgent`** (abstract) — extends `LayerAgent` for agents that span multiple layers (e.g. openings).  Tracks per-layer elements in `_elements_by_layer` and exposes them via the unified `elements_for_layer` / `set_elements_for_layer` API.  Subclass: `OpeningPopulatorAgent`.
+* **Unified element API** — `LayerAgent.elements_for_layer(layer)` and `set_elements_for_layer(layer, elements)` give both `LayerAgent` and `FeatureAgent` a consistent interface.  `Layer.elements` is a computed property backed by this API, removing all stale `id()`-set comparisons.
+* **Trim API** — three named methods: `trim_within_layer(other_agent, layer)`, `trim_cross_layer(other_agent)` (no-op default, overridden in `RecessPopulatorAgent` and `OpeningPopulatorAgent`), and `trim_other_layers(layers)`.  `_trim_element_list(elements)` is the internal trimming primitive.
+* **`Beam2D`** — `Beam` subclass with lazy 2-D blank outline, polygon, and AABB used for all intersection and topology operations.
+* **`ConnectionSolver2D`** — classifies beam pairs into L / T / X / face-to-face topologies using blank-outline endpoint containment.
+* **`OpeningPopulatorAgent`** — creates header, sill (windows only), king studs, and optional jack studs (lintel posts) for `Opening` panel features.  Punches through sheathing plates on non-framing layers.
+
+#### New GH components
+
+* `CT: Panel` — creates a `Panel` from a closed polyline outline, thickness, optional normal vector, and optional `Opening` features.
+* `CT: PlateFromBrep` — creates a `Plate` from an arbitrary Brep.
+* `CT: BeamFromBox` — creates a `Beam` from a box-shaped Brep using an oriented bounding box.
+* `CT: StudPanel` — wraps `StudPanelPopulatorConfig` with all parameters exposed as GH inputs; returns a config object ready to pass to `CT: Model`.
+* `CT: RecessPanel` — wraps `RecessPanelPopulatorConfig`; computes `recess_beam_height` from panel thickness and sheeting thicknesses.
+* `CT: PopulatorConfig` — wraps `PanelPopulatorConfig` directly for fully custom layer stacks.
+* `CT: PopulatorAgent` — dynamic component that introspects `LayerAgentConfig` subclasses; output nickname selects the agent type at runtime.
+* `CT: PopulatorLayer` — wraps `LayerDefinition` (thickness, name, agent configs, sublayers, framing flag).
+
+#### Other additions
+
+* `JointRuleSolver.max_rule_distance` property — returns the maximum of all per-rule `max_distance` values, used by `CT: Model` to call `connect_adjacent_*` with the right tolerance.
+* `get_guid_and_geometry` helper in `ghcomponent_helpers` — tries to resolve a Rhino object reference by GUID before falling back to raw geometry, enabling stable reference tracking across GH recomputes.
+* New tests: `test_agent_intersection`, `test_connection_solver_2d`, `test_panel_populator_workflow`, `test_populators`.
 
 ### Changed
 
-* Renamed `CT: Beam` to `CT: BeamFromLineCurve`.
+* **`CT: Model`** — `Containers` input replaced by `PanelConfigs`; the component now calls `create_populator()`, `populate_elements()`, `join_elements()`, and `merge_with_model()` for each config directly.  `connect_adjacent_beams/plates/panels` are called with `solver.max_rule_distance` rather than a fixed tolerance.  The old slab/wall wiring is removed.
+* **`CT: BeamFromLineCurve`** (was `CT: Beam`) — renamed for clarity.
+* **`JointRuleSolver._joints_from_rules_and_clusters`** — made public as `joints_from_rules_and_clusters`; `rules` argument removed (always uses `self.rules`).
+* **`get_clusters_from_model`** — `max_cluster_size` parameter removed; new `ignore_joints` flag (default `True`) filters to `unpromoted_joint_candidates` only, avoiding double-processing of already-joined pairs.
 
 ### Removed
+
+* `CT: Slab`, `CT: Wall`, `CT: WallConfigSet` GH components.
+* `wall_populator.py`, `wall_from_surface.py`, `wall_details.py` source modules.
 
 
 ## [0.2.0] 2026-04-01

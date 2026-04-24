@@ -13,6 +13,34 @@ The workflow has three phases:
 3. **Merge** — transform elements back to world space and attach them to the
    original model.
 
+### Workflow overview
+
+```mermaid
+flowchart TD
+    A([Panel in world model]) --> B[PanelPopulatorConfig\nwith layer_defs]
+    B --> C[transform panel\nto populator space]
+    C --> D[resolve thicknesses\nfrom LayerDefinitions]
+    D --> E[layers_from_panel_and_thicknesses\n— outline chaining]
+    E --> F[Layer stack\nLayer 0 · Layer 1 · …]
+    F --> G[create_feature_agents\nfor each Panel.feature]
+    G --> H{PanelPopulator}
+
+    H --> H1[generate_elements\nper agent per layer]
+    H1 --> H2[extend_elements\nboundary reaching]
+    H2 --> H3[trim_within_layer\nfor each overlapping pair]
+    H3 --> H4[trim_other_layers\ncross-layer cuts]
+    H4 --> H5[add_elements_to_model]
+    H5 --> H6[create_agent_joints\nwithin-agent per layer]
+    H6 --> H7[create_cross_agent_joints\nbetween agents per layer]
+    H7 --> H8[process_joinery\nBTLx fabrication features]
+    H8 --> I[merge_with_model\ntransform back to world space]
+    I --> J([Populated TimberModel])
+
+    style H fill:#e8f4e8,stroke:#4a904a
+    style F fill:#e8eef8,stroke:#4a6aa0
+    style J fill:#f8e8e8,stroke:#a04a4a
+```
+
 ---
 
 ## Prerequisites
@@ -310,6 +338,90 @@ populator = config.create_populator_from_panel(panel, feature_configs=[agent_cfg
 
 The feature geometry is automatically transformed into populator space before
 the agent is instantiated.
+
+---
+
+## Understanding the layer system
+
+The panel cross-section is described by an ordered list of
+:class:`~timber_design.populators.LayerDefinition` objects — one per layer from
+the interior face (`outline_a`) to the exterior face (`outline_b`).
+
+Each `LayerDefinition` is a pure data blueprint.  It carries:
+
+- `thickness` — the layer's depth in model units.  Pass ``None`` to let the
+  layer claim the remaining panel thickness after all fixed-thickness siblings
+  have been allocated (at most one ``None`` per sibling group).
+- `name` — a human-readable identifier used in the resolved `Layer` object.
+- `is_framing_layer` — when ``True``, feature agents (openings, etc.) are
+  applied to this layer.
+- `agent_configs` — the :class:`~timber_design.populators.LayerAgentConfig`
+  instances that will be instantiated on this layer.
+
+At runtime, `PanelPopulatorConfig.create_layers` deep-copies the definition
+tree (so the originals are never mutated), resolves all thicknesses, and then
+calls `layers_from_panel_and_thicknesses` to produce
+:class:`~timber_design.populators.Layer` objects whose panels are sliced from
+the source panel using *outline chaining* — each layer's far boundary is reused
+as the next layer's near boundary with no floating-point re-interpolation.
+
+### Custom cross-section with LayerDefinition
+
+Use `PanelPopulatorConfig` directly when you need full control over the layer
+stack:
+
+```python
+from timber_design.populators import (
+    PanelPopulatorConfig,
+    LayerDefinition,
+    EdgePopulatorAgentConfig,
+    StudPopulatorAgentConfig,
+    PlatePopulatorAgentConfig,
+)
+
+layer_defs = [
+    LayerDefinition(15,   name="interior", agent_configs=[PlatePopulatorAgentConfig()]),
+    LayerDefinition(None, name="frame",    is_framing_layer=True,
+                    agent_configs=[EdgePopulatorAgentConfig(), StudPopulatorAgentConfig(stud_spacing=625)]),
+    LayerDefinition(22,   name="exterior", agent_configs=[PlatePopulatorAgentConfig()]),
+]
+
+config = PanelPopulatorConfig(
+    panel=panel,
+    standard_beam_width=60,
+    layer_defs=layer_defs,
+    default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)},
+)
+populator = config.create_populator()
+```
+
+The ``None`` thickness on the frame layer receives whatever is left after the
+15 mm and 22 mm sheeting layers are subtracted from the total panel thickness.
+
+### Nested sublayers
+
+A `LayerDefinition` can contain `sublayers` instead of `agent_configs` to
+group related layers under a shared parent thickness.  Sublayers inherit the
+parent's remaining thickness the same way:
+
+```python
+from timber_design.populators import LayerDefinition, PlatePopulatorAgentConfig
+
+insulation = LayerDefinition(
+    thickness=120,
+    name="insulation",
+    sublayers=[
+        LayerDefinition(60, name="insulation_a", agent_configs=[PlatePopulatorAgentConfig()]),
+        LayerDefinition(60, name="insulation_b", agent_configs=[PlatePopulatorAgentConfig()]),
+    ],
+)
+```
+
+!!! note
+    A `LayerDefinition` may have either `agent_configs` or `sublayers`, never
+    both.  The outermost list passed to `PanelPopulatorConfig` may freely mix
+    leaf definitions (with `agent_configs`) and composite definitions (with
+    `sublayers`).
 
 ---
 

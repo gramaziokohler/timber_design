@@ -59,9 +59,6 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         ##### Adding elements #####
         self.add_elements_to_model(Model, Elements)
 
-        ##### Wall populating #####
-        handled_pairs, wall_joints = self.handle_populators(Model, MaxDistance)
-
         ##### Handle joinery #####
         # checks elements compatibility and generates Joints
         JointRules = [j for j in JointRules if j is not None]
@@ -69,13 +66,12 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         if JointRules:
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
             # ensure that the model is connected before analyzing
-            Model.connect_adjacent_beams(max_distance=solver.max_distance)  
-            Model.connect_adjacent_plates(max_distance=solver.max_distance) 
-            Model.connect_adjacent_panels(max_distance=solver.max_distance) 
+            Model.connect_adjacent_beams(max_distance=solver.max_distance)
+            Model.connect_adjacent_plates(max_distance=solver.max_distance)
+            Model.connect_adjacent_panels(max_distance=solver.max_distance)
             joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
             for je in joint_errors:
                 debug_info.add_joint_error(je)
-
 
         if PanelConfigs:
             self.handle_populators(PanelConfigs, Model)

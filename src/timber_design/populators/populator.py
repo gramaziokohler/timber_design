@@ -247,6 +247,7 @@ class PanelPopulator(object):
             (and their joints) from *model* before merging.  Use this to
             re-populate a panel that has already been processed.
         """
+        # TODO: use @chenkasirer s merge_model functionality when added to CT
         if clear_panel:
             for element in self.original_panel.children[:]:
                 model.remove_element(element)

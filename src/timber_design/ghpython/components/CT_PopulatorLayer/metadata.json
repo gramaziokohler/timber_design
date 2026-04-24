@@ -18,7 +18,7 @@
             {
                 "name": "name",
                 "description": "Layer name.",
-                "typeHintID": "string",
+                "typeHintID": "str",
                 "scriptParamAccess": 0
             },
             {

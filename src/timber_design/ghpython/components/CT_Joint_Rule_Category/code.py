@@ -62,14 +62,14 @@ class CategoryJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             return CategoryRule(self.joint_type, cat_a, cat_b, topos, **kwargs)
 
     def arg_names(self):
-        raw = vars(self.joint_type).get('create')
-    
+        raw = vars(self.joint_type).get("create")
+
         if raw is not None:
             method = raw.__func__  # unwrap the classmethod
-            names= list(inspect.signature(method).parameters.keys())[2:]
+            names = list(inspect.signature(method).parameters.keys())[2:]
         else:
             method = self.joint_type.__init__
-            names= list(inspect.signature(method).parameters.keys())[1:]
+            names = list(inspect.signature(method).parameters.keys())[1:]
         for i in range(2):
             names[i] += "_category"
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]

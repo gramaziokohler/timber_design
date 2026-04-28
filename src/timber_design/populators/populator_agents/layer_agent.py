@@ -159,7 +159,7 @@ class LayerAgent(ABC):
         (``layer.panel``) and cross-section position (``layer.layer_index``).
     params : :class:`LayerAgentConfig`
         Configuration including beam width overrides, joint rule overrides,
-        and (for feature agents) the bound feature.
+        agent parameters and rule overrides.
 
     Attributes
     ----------
@@ -168,10 +168,6 @@ class LayerAgent(ABC):
     layer_index : int or None
         Index of this agent's layer in the cross-section stack.
         Taken directly from ``layer.layer_index``.
-    feature : :class:`~compas_timber.panel_features.PanelFeature` or None
-        The panel feature for feature-based agents (e.g. an ``Opening``
-        on :class:`~timber_design.populators.OpeningPopulatorAgent`).
-        Not set on layer-level agents.
     panel : :class:`compas_timber.elements.Panel`
         The panel geometry for this layer.  Shortcut for ``self.layer.panel``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
@@ -416,7 +412,7 @@ class LayerAgent(ABC):
         skip_notches: Optional[bool] = True,
         skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
-        """Splits the beam based on the populator agent's feature definition and returns the resulting beam segments."""
+        """Splits the beam at the agent's boundary outline and returns the resulting segments."""
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return [beam]
         if self.outline is None:
@@ -484,7 +480,7 @@ class LayerAgent(ABC):
         Splits each :class:`~timber_design.populators.Beam2D` at the agent's
         outline crossings, keeping or discarding segments according to
         :attr:`BOUNDARY_TYPE`.  Plates are passed to :meth:`apply_to_plate`
-        (for in-place feature application) and always kept.
+        (passed to :meth:`apply_to_plate`) and always kept.
 
         This is the core trimming primitive; callers that need to update an
         agent's element list should use :meth:`trim_within_layer` instead.
@@ -570,7 +566,7 @@ class LayerAgent(ABC):
 
     @abstractmethod
     def generate_elements(self):
-        """Generates elements for the panel based on the panel populator and optional feature definition."""
+        """Generate all elements for this agent's layer."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of LayerAgent")
 
     def extend_elements(self, other_agents: list["LayerAgent"]) -> None:

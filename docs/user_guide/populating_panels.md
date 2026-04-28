@@ -6,8 +6,10 @@ This guide walks through the full workflow for automatically framing a
 
 The workflow has three phases:
 
-1. **Configure** — create a config object that carries all parameters.
-2. **Populate** — call `config.create_populator_from_panel(panel)` to get a
+1. **Configure** — assemble `LayerDefinition` objects and agent configs, then
+   pass them to `PanelPopulatorConfig` (or use the `stud_panel()` /
+   `recess_panel()` shortcut functions).
+2. **Populate** — call `config.create_populator()` to get a
    :class:`~timber_design.populators.PanelPopulator`, then generate elements,
    trim, join, and apply fabrication features.
 3. **Merge** — transform elements back to world space and attach them to the
@@ -15,30 +17,87 @@ The workflow has three phases:
 
 ### Workflow overview
 
+The diagram below mirrors a Grasshopper canvas: data objects flow left-to-right
+into each component.  The nested sublayers block (`'insulation'`) is an optional
+pattern — most panels use flat `layer_defs` lists.
+
 ```mermaid
-flowchart TD
-    A([Panel in world model]) --> B[PanelPopulatorConfig\nwith layer_defs]
-    B --> C[transform panel\nto populator space]
-    C --> D[resolve thicknesses\nfrom LayerDefinitions]
-    D --> E[layers_from_panel_and_thicknesses\n— outline chaining]
-    E --> F[Layer stack\nLayer 0 · Layer 1 · …]
-    F --> G[create_feature_agents\nfor each Panel.feature]
-    G --> H{PanelPopulator}
+flowchart LR
+    classDef element fill:#d4edda,stroke:#28a745,color:#000
+    classDef agentcfg fill:#cce5ff,stroke:#004085,color:#000
+    classDef layerdef fill:#fff3cd,stroke:#856404,color:#000
+    classDef config   fill:#e2d9f3,stroke:#6f42c1,color:#000
+    classDef stage    fill:#f8f9fa,stroke:#6c757d,color:#000
+    classDef model    fill:#f8d7da,stroke:#721c24,color:#000
+    classDef shortcut fill:#d1ecf1,stroke:#0c5460,color:#000,stroke-dasharray:4 2
 
-    H --> H1[generate_elements\nper agent per layer]
-    H1 --> H2[extend_elements\nboundary reaching]
-    H2 --> H3[trim_within_layer\nfor each overlapping pair]
-    H3 --> H4[trim_other_layers\ncross-layer cuts]
-    H4 --> H5[add_elements_to_model]
-    H5 --> H6[create_agent_joints\nwithin-agent per layer]
-    H6 --> H7[create_cross_agent_joints\nbetween agents per layer]
-    H7 --> H8[process_joinery\nBTLx fabrication features]
-    H8 --> I[merge_with_model\ntransform back to world space]
-    I --> J([Populated TimberModel])
+    %% ── Panel & features ────────────────────────────────────────────────
+    panel(["Panel"]):::element
+    opening(["Opening  feature"]):::element
+    opening -->|"panel.add_feature()"| panel
 
-    style H fill:#e8f4e8,stroke:#4a904a
-    style F fill:#e8eef8,stroke:#4a6aa0
-    style J fill:#f8e8e8,stroke:#a04a4a
+    %% ── Agent configs ────────────────────────────────────────────────────
+    plateCfgExt(["PlatePopulatorAgentConfig"]):::agentcfg
+    edgeCfg(["EdgePopulatorAgentConfig"]):::agentcfg
+    studCfg(["StudPopulatorAgentConfig <br> stud_spacing=625"]):::agentcfg
+    plateCfgSubA(["PlatePopulatorAgentConfig"]):::agentcfg
+    plateCfgSubB(["PlatePopulatorAgentConfig"]):::agentcfg
+    plateCfgInt(["PlatePopulatorAgentConfig"]):::agentcfg
+    openingCfg(["OpeningPopulatorAgentConfig <br> lintel_posts=True"]):::agentcfg
+    openingCfgF(["OpeningPopulatorAgentConfig <br> lintel_posts=True"]):::agentcfg
+
+    opening  -->|feature| openingCfgF
+
+
+    %% ── Layer definitions ────────────────────────────────────────────────
+subgraph layer definitions:
+        direction TB
+        ldExt["LayerDefinition <br> 'exterior' · 22 mm"]:::layerdef
+        ldFrame["LayerDefinition <br> 'frame' · fill <br> is_framing_layer=True"]:::layerdef
+        ldParent["LayerDefinition <br> 'insulation' · 120 mm"]:::layerdef
+        ldSubA["LayerDefinition <br> 'insulation_a' · 60 mm"]:::layerdef
+        ldSubB["LayerDefinition <br> 'insulation_b' · 60 mm"]:::layerdef
+        ldInt["LayerDefinition <br> 'interior' · 15 mm"]:::layerdef
+        ldSubA -->|sublayers| ldParent
+        ldSubB -->|sublayers| ldParent 
+
+    plateCfgExt  -->|agent_configs| ldExt
+    edgeCfg      -->|agent_configs| ldFrame
+    studCfg      -->|agent_configs| ldFrame
+    plateCfgSubA -->|agent_configs| ldSubA
+    plateCfgSubB -->|agent_configs| ldSubB
+    plateCfgInt  -->|agent_configs| ldInt
+end
+
+    %% ── PanelPopulatorConfig ─────────────────────────────────────────────
+    config["PanelPopulatorConfig <br> standard_beam_width=60"]:::config
+
+    panel      --> |panel| config
+    ldExt      --> |layer_defs| config
+    ldFrame    --> |layer_defs| config
+    ldParent   --> |layer_defs| config
+    ldInt      --> |layer_defs| config
+    openingCfg -->|"default_feature_configs"| config
+    openingCfgF  -->|"instance_feature_configs"| config
+
+
+    %% ── PanelPopulator ───────────────────────────────────────────────────
+    subgraph pop["  PanelPopulator  "]
+        direction TB
+        gen["generate_elements()"]:::stage
+        ext["extend_elements()"]:::stage
+        trim["trim_elements()"]:::stage
+        add["add_elements_to_model()"]:::stage
+        join["join_elements()"]:::stage
+        proc["process_joinery()"]:::stage
+        gen --> ext --> trim --> add --> join --> proc
+    end
+
+    config -->|"create_populator()"| gen
+
+    %% ── Model ────────────────────────────────────────────────────────────
+    model[("TimberModel")]:::model
+    proc -->|"merge_with_model()"| model
 ```
 
 ---

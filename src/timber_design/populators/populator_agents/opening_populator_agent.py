@@ -39,7 +39,6 @@ class OpeningPopulatorAgentConfig(FeatureAgentConfig):
     @property
     def __data__(self):
         data = super().__data__
-        data["feature"] = self.feature
         data["lintel_posts"] = self.lintel_posts
         data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
         return data

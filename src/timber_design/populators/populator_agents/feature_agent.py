@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import Optional
 
 from .layer_agent import LayerAgent
 from .layer_agent import LayerAgentConfig
@@ -9,14 +10,56 @@ from .layer_agent import LayerAgentConfig
 class FeatureAgentConfig(LayerAgentConfig):
     """Config base class for feature-based populator agents.
 
-    Extends :class:`LayerAgentConfig` with :meth:`get_agent_from_feature`,
-    which passes a :class:`~compas_timber.panel_features.PanelFeature` to the
-    agent constructor as its third positional argument.
+    Extends :class:`LayerAgentConfig` with an optional :attr:`feature` field
+    and two factory methods:
+
+    - :meth:`get_agent` — creates the agent from :attr:`feature` (must be set).
+    - :meth:`get_agent_from_feature` — creates the agent from an explicitly
+      supplied feature, ignoring :attr:`feature`.
 
     All concrete feature-agent config classes (e.g.
     :class:`~timber_design.populators.OpeningPopulatorAgentConfig`) should
-    extend this class.
+    extend this class and may narrow the :attr:`feature` type annotation.
+
+    Parameters
+    ----------
+    feature : :class:`~compas_timber.panel_features.PanelFeature`, optional
+        The panel feature instance driving element placement.  When set,
+        :meth:`get_agent` can be called without any additional arguments.
+        Concrete subclasses typically override this field with a more specific
+        type annotation (e.g. ``feature: Opening = None``).
     """
+
+    feature: Optional[object] = None
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["feature"] = self.feature
+        return data
+
+    def get_agent(self):
+        """Instantiate a feature-based agent using the stored :attr:`feature`.
+
+        A convenience wrapper around :meth:`get_agent_from_feature` that reads
+        the feature from ``self.feature`` so callers do not need to supply it
+        again.
+
+        Returns
+        -------
+        :class:`FeatureAgent`
+
+        Raises
+        ------
+        ValueError
+            If :attr:`feature` is ``None``.  In that case call
+            :meth:`get_agent_from_feature` and pass the feature explicitly.
+        NotImplementedError
+            If ``AGENT_TYPE`` has not been set on this config class.
+        """
+        if self.feature is None:
+            raise ValueError("{} has no feature set. Pass it to the constructor or call get_agent_from_feature(feature) instead.".format(type(self).__name__))
+        return self.get_agent_from_feature(self.feature)
 
     def get_agent_from_feature(self, feature):
         """Instantiate a feature-based agent.

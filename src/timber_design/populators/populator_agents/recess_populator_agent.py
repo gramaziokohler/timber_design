@@ -103,7 +103,6 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         self.recess_beam_width = params.recess_beam_width
         self.recess_beam_height = params.recess_beam_height
         self.sheeting_recess = params.sheeting_recess
-        self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
 
     def apply_to_plate(self, plate):
         """Cut the recess outline into *plate*."""
@@ -112,6 +111,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
         super(RecessPopulatorAgent, self).generate_elements()
+        self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
         plate_edges = []
         new_centerlines = []
         for i, edge in enumerate(self.outline.lines):
@@ -136,11 +136,23 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     # ==========================================================================
 
     def create_internal_joint_defs(self, model, elements=None):
-        """Generate the joint definitions for the panel edges."""
+        """Generate joint definitions for both edge beams and recess beams.
+
+        Edge-beam pairs (both elements have ``edge_index``) are handled by the
+        geometric :meth:`~EdgePopulatorAgent.create_edge_beam_joint_rule`
+        inherited from :class:`EdgePopulatorAgent`.  All other pairs — in
+        practice ``"recess"``–``"recess"`` pairs — fall through to
+        :meth:`~LayerAgent.get_direct_rule_from_elements`, which looks up
+        :attr:`~LayerAgent.INTERNAL_RULES` by category name and finds the
+        ``CategoryRule(LMiterJoint, "recess", "recess")`` entry.
+        """
         for candidate in self.create_joint_candidates(model, elements=elements):
-            if candidate.element_a.attributes.get("edge_index") is None or candidate.element_b.attributes.get("edge_index") is None:
-                continue
-            rule = self.create_edge_beam_joint_rule(*candidate.elements)
+            edge_a = candidate.element_a.attributes.get("edge_index")
+            edge_b = candidate.element_b.attributes.get("edge_index")
+            if edge_a is not None and edge_b is not None:
+                rule = self.create_edge_beam_joint_rule(*candidate.elements)
+            else:
+                rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
 
@@ -180,7 +192,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         """
         if not self.outline:
             raise ValueError("No outline defined for recess populator agent.")
-        outline = self.outline.transformed(Translation.from_vector(Vector(0, 0, plate.outline_a[0].z)))
+        outline = self.outline.transformed(Translation.from_vector(Vector(0, 0, plate.outline_a[0].z - self.outline[0].z)))
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 

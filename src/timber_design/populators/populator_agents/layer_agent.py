@@ -419,6 +419,7 @@ class LayerAgent(ABC):
             return [beam]
 
         crossings = find_beam_outline_crossings(beam, self.outline, skip_notches=skip_notches, skip_laps=skip_laps)
+        print("num crossings = ", len(crossings))
         if not crossings:
             # No outline crossings — keep or cull the whole beam, preserving object identity.
             return [] if self.cull_element_at_point(beam.centerline.midpoint) else [beam]
@@ -523,6 +524,7 @@ class LayerAgent(ABC):
         """
         layer_elements = other_agent.elements_for_layer(layer)
         trimmed = self._trim_element_list(layer_elements)
+        print(f"{type(self).__name__} trimmed {len(layer_elements)} elements from {type(other_agent).__name__} into {len(trimmed)} elements")
         other_agent.set_elements_for_layer(layer, trimmed)
 
     def trim_cross_layer(self, other_agent):

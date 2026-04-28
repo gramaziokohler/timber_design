@@ -171,11 +171,16 @@ class OpeningPopulatorAgent(FeatureAgent):
         return self.feature
 
     def cull_beam_segment(self, beam: Beam) -> bool:
-        """Return ``True`` if *beam* overlaps a king or jack stud and should be culled.
+        """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
 
-        Only called from :meth:`trim_within_layer`, which guarantees *beam*
-        belongs to an agent on the same layer as this opening agent.
+        Only called from :meth:`trim_within_layer` on segments that already
+        survived the midpoint / outline-crossing cull.  The check is restricted
+        to ``"stud"`` category beams so that plate-beam segments (``"top_plate_beam"``,
+        ``"bottom_plate_beam"``, ``"edge_stud"``, …) flanking the opening are
+        never accidentally culled by AABB overlap with the king/jack studs.
         """
+        if beam.attributes.get("category") != "stud":
+            return False
         return self._cull_stud(beam)
 
     def generate_elements_for_layer(self, layer):

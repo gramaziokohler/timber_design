@@ -10,6 +10,7 @@ from compas.tolerance import Tolerance
 
 # from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
+from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
@@ -111,7 +112,11 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         """Adds elements to the model and groups them by slab."""
         elements = [e for e in elements if e is not None]
         for element in elements:
-            element.reset()
+            if not isinstance(element, Panel):
+                # Panels carry user-defined features (openings, etc.) that must
+                # survive into create_populator().  Resetting them would wipe
+                # _features before the populator has a chance to read them.
+                element.reset()
             model.add_element(element)
 
     def handle_populators(self, panel_configs, model, max_distance=None):

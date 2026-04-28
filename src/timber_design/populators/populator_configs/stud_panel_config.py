@@ -54,7 +54,6 @@ def stud_panel(
     default_feature_configs : dict, optional
         Mapping from panel feature class to a ``LayerAgentConfig`` instance.
     """
-
     standard_beam_width = standard_beam_width or (panel.thickness / 2 if panel else None)
     stud_spacing = stud_spacing or (panel.thickness * 2 if panel else None)
 
@@ -85,7 +84,6 @@ def stud_panel(
         default_feature_configs = {}
     if Opening not in default_feature_configs:
         default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam)
-
     config = PanelPopulatorConfig(
         panel=panel, orientation=orientation, layer_defs=layer_defs, default_feature_configs=default_feature_configs, instance_feature_configs=instance_feature_configs
     )

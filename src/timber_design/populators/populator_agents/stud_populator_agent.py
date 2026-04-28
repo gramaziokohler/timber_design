@@ -75,7 +75,7 @@ class StudPopulatorAgent(LayerAgent):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""
         x_position = self.stud_spacing
         studs = []
-        while x_position < self.panel.length - self.beam_dimensions["stud"][0]:
+        while x_position < self.panel.aabb.xmax - self.beam_dimensions["stud"][0]:
             studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.panel.aabb.ymax, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs

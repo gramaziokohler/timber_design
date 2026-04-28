@@ -13,6 +13,7 @@ from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
 
+from timber_design.populators import populator
 from timber_design.populators.layer import Layer
 from timber_design.populators.layer import LayerDefinition
 from timber_design.populators.populator import PanelPopulator
@@ -63,6 +64,7 @@ class PanelPopulatorConfig:
         instance_feature_configs=None,
     ):
         self.panel = panel
+
         self.layer_defs = layer_defs or []
         self.default_feature_configs = default_feature_configs or {}
         self.instance_feature_configs = instance_feature_configs or []
@@ -73,6 +75,7 @@ class PanelPopulatorConfig:
         self.transformation_to_populator = None
         # Set by alternate constructors that need a custom agent-creation strategy
         self._agents_factory = None
+
 
     # ------------------------------------------------------------------
     # Public pipeline methods
@@ -88,10 +91,10 @@ class PanelPopulatorConfig:
         orientation = self._get_projected_orientation()
         self.transformation_to_populator = self._get_transformation_to_populator_space(self.panel, orientation)
 
-        polylines = self.panel.plate_geometry.outline_a, self.panel.plate_geometry.outline_b
+        #this needs the mutated outlines to properly handle panel joints
+        polylines = self.panel.plate_geometry.outline_a, self.panel.plate_geometry.outline_b 
         local_polylines = [pl.transformed(self.transformation_to_populator) for pl in polylines]
         populator_panel = Panel.from_outlines(*local_polylines)
-
         return populator_panel
 
     def create_layers(self, populator_panel):

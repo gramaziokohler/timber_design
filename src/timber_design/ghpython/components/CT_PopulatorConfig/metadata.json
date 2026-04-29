@@ -18,7 +18,7 @@
             {
                 "name": "orientation",
                 "description": "Optional orientation vector (Rhino vector).",
-                "typeHintID": "none",
+                "typeHintID": "vector",
                 "scriptParamAccess": 0
             },
             {

@@ -17,6 +17,7 @@ class StudPopulatorAgentConfig(LayerAgentConfig):
     stud_spacing : float
         On-centre spacing between studs in model units.
     """
+    IS_ABSTRACT = False
 
     stud_spacing: float = 0.0
 

@@ -1,3 +1,4 @@
+from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Optional
@@ -7,7 +8,7 @@ from .layer_agent import LayerAgentConfig
 
 
 @dataclass
-class FeatureAgentConfig(LayerAgentConfig):
+class FeatureAgentConfig(LayerAgentConfig, ABC):
     """Config base class for feature-based populator agents.
 
     Extends :class:`LayerAgentConfig` with an optional :attr:`feature` field
@@ -29,6 +30,7 @@ class FeatureAgentConfig(LayerAgentConfig):
         Concrete subclasses typically override this field with a more specific
         type annotation (e.g. ``feature: Opening = None``).
     """
+    IS_ABSTRACT = True
 
     feature: Optional[object] = None
 

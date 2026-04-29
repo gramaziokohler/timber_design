@@ -29,6 +29,8 @@ from timber_design.workflow import DirectRule
 
 @dataclass
 class EdgePopulatorAgentConfig(LayerAgentConfig):
+    IS_ABSTRACT = False
+
     standard_beam_width_increment: Optional[float] = None
     edge_beam_min_width: Optional[float] = None
 

@@ -31,7 +31,9 @@ from timber_design.workflow import CategoryRule
 
 @dataclass
 class OpeningPopulatorAgentConfig(FeatureAgentConfig):
+    IS_ABSTRACT = False
     FEATURE_TYPE = Opening
+
     feature: Opening = None
     lintel_posts: bool = False
     split_bottom_plate_beam: bool = False

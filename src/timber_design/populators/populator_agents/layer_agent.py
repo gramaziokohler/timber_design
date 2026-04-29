@@ -54,7 +54,7 @@ class AgentBoundaryType(object):
 
 
 @dataclass
-class LayerAgentConfig:
+class LayerAgentConfig(ABC):
     """Base dataclass for populator agent configuration.
 
     All concrete config classes (e.g. :class:`~timber_design.populators.StudPopulatorAgentConfig`,
@@ -77,10 +77,12 @@ class LayerAgentConfig:
         The :class:`LayerAgent` subclass this config instantiates.
         Set on each concrete subclass after both classes are defined.
     """
-
+    IS_ABSTRACT = True
     AGENT_TYPE = None
+
     beam_width_overrides: Optional[dict] = None
     joint_rule_overrides: Optional[List[CategoryRule]] = None
+    beam_dimensions = {}
 
     @property
     def __data__(self):
@@ -88,6 +90,15 @@ class LayerAgentConfig:
             "beam_width_overrides": self.beam_width_overrides,
             "joint_rule_overrides": self.joint_rule_overrides,
         }
+    
+    def resolve_beam_dimensions(self, standard_beam_width: float, frame_thickness: float) -> None:
+        """Populate ``beam_dimensions`` from *frame_thickness*, *standard_beam_width*, and any per-category overrides."""
+        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
+            if category in self.beam_width_overrides:
+                self.beam_dimensions[category] = (self.beam_width_overrides[category], frame_thickness)
+            else:
+                self.beam_dimensions[category] = (standard_beam_width, frame_thickness)
+
 
     def get_agent_from_layer(self, layer):
         """Instantiate the agent for the given layer.
@@ -209,7 +220,7 @@ class LayerAgent(ABC):
         else:
             self.internal_rules = list(self.INTERNAL_RULES)
             self.external_rules = list(self.EXTERNAL_RULES)
-        self.beam_dimensions: dict[str, tuple[float, float]] = {}
+        self.beam_dimensions: dict[str, tuple[float, float]] = params.beam_dimensions
         self.joint_defs = []
         self.elements = []
         self.outline = None
@@ -319,13 +330,6 @@ class LayerAgent(ABC):
                 rules.append(override)
         return rules
 
-    def resolve_beam_dimensions(self, standard_beam_width: float, frame_thickness: float) -> None:
-        """Populate ``beam_dimensions`` from *frame_thickness*, *standard_beam_width*, and any per-category overrides."""
-        for category in self.BEAM_CATEGORY_NAMES:
-            if category in self.beam_width_overrides:
-                self.beam_dimensions[category] = (self.beam_width_overrides[category], frame_thickness)
-            else:
-                self.beam_dimensions[category] = (standard_beam_width, frame_thickness)
 
     def beam_from_category(self, centerline: Line, category: str, layer: Optional[Layer] = None, **kwargs) -> Beam2D:
         """Creates a :class:`~timber_design.populators.Beam2D` from a centerline and a category.

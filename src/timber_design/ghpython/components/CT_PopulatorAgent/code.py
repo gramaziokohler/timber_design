@@ -63,10 +63,17 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
         ghenv.Component.ExpireSolution(True)
 
 
-def get_leaf_subclasses(cls):
+def get_nonabstract_subclasses(cls):
+    """Return all non-abstract subclasses of ``cls`` (recursively).
+
+    Collect concrete implementations (classes that are not abstract)
+    and return them as a flat list.
+    """
     subclasses = []
     for subclass in cls.__subclasses__():
-        if not get_leaf_subclasses(subclass):
+        # include subclass only if it's not abstract
+        if not inspect.isabstract(subclass):
             subclasses.append(subclass)
-        subclasses.extend(get_leaf_subclasses(subclass))
+        # recurse to collect non-abstract subclasses of the subclass
+        subclasses.extend(get_nonabstract_subclasses(subclass))
     return subclasses

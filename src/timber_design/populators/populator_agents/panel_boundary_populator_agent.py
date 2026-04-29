@@ -16,6 +16,8 @@ from timber_design.populators.populator_agents.layer_agent import LayerAgentConf
 
 @dataclass
 class PanelBoundaryPopulatorAgentConfig(LayerAgentConfig):
+    IS_ABSTRACT = False
+
     @property
     def __data__(self):
         data = super().__data__

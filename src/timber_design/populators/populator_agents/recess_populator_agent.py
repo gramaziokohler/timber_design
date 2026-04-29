@@ -31,6 +31,7 @@ class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
     sheeting_recess : float, optional
         Thickness of the sheeting plate inserted into the recess.
     """
+    IS_ABSTRACT = False
 
     recess_beam_width: float = 0.0
     recess_beam_height: Optional[float] = None

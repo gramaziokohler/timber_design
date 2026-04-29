@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from compas.geometry import Polyline
+from compas.tolerance import TOL
 from compas_timber.elements import Panel
 
 
@@ -82,6 +83,126 @@ class LayerDefinition:
         self.name = name
         self.agent_configs = agent_configs or []
         self.is_framing_layer = is_framing_layer
+
+    def get_leaf_layer_defs(self):
+        """Yield leaf-level :class:`LayerDefinition` objects (depth-first).
+        """
+        self._resolve_thicknesses()
+        for ld in self.sublayers:
+            if ld.sublayers:
+                yield from self._flat_layer_defs(ld)
+            else:
+                yield ld
+
+
+    def _resolve_thicknesses(self):
+        """Resolve all ``thickness=None`` entries in the :class:`LayerDefinition` tree.
+
+        .. warning::
+            This method **mutates** ``layer_def`` and its descendants in place.
+            Always pass a deep copy of the user-supplied definitions — never
+            the originals — so that the config object can be reused across
+            multiple :meth:`create_layers` calls.
+
+        Uses a two-pass algorithm so that thicknesses can flow both directions:
+
+        **Pass 1 — bottom-up** (:meth:`_infer_from_children`):
+            Post-order traversal.  When a node's own thickness is ``None`` but
+            every one of its children already has a concrete thickness, the
+            node's thickness is set to the sum of its children.  This allows
+            composite sub-stacks to omit a total, e.g.
+            ``insulation(sublayers=[board_a(30), board_b(20)])`` resolves to
+            ``insulation.thickness = 50``.
+
+        **Pass 2 — top-down** (:meth:`_distribute_to_children`):
+            Pre-order traversal.  When a node has a known thickness and
+            exactly one child with ``thickness=None``, that child receives
+            the remainder (``parent − sum(concrete siblings)``).  Fully-
+            concrete sibling groups are validated to sum to the parent.
+
+        Raises
+        ------
+        ValueError
+            See :meth:`_infer_from_children` and :meth:`_distribute_to_children`.
+        """
+        self._infer_from_children(self)
+        self._distribute_to_children(self)
+
+    def _infer_from_children(self, layer_def):
+        """Post-order pass: infer a node's thickness from its children.
+
+        Recurses into every child first, then — if the current node's
+        thickness is still ``None`` and all children are now concrete —
+        sets ``node.thickness = sum(children)``.  Nodes whose thickness
+        is already set, or that have at least one fill-remaining child
+        after recursion, are left for the top-down pass.
+
+        Parameters
+        ----------
+        layer_def : :class:`~timber_design.populators.LayerDefinition`
+        """
+        for sl in layer_def.sublayers:
+            self._infer_from_children(sl)
+
+        if layer_def.thickness is None and layer_def.sublayers:
+            if all(sl.thickness is not None for sl in layer_def.sublayers):
+                layer_def.thickness = sum(sl.thickness for sl in layer_def.sublayers)
+
+    def _distribute_to_children(self, layer_def):
+        """Pre-order pass: distribute a known parent thickness to fill children.
+
+        Rules applied at each node that has sublayers:
+
+        - **Parent thickness still** ``None``: raises — the bottom-up pass
+          could not infer it (some children remain unresolved).
+        - **All children concrete**: validates ``sum(children) == parent``.
+        - **Exactly one fill child**: assigns it
+          ``parent − sum(concrete siblings)``; raises if that remainder is
+          negative.
+        - **More than one fill child**: raises — at most one ``thickness=None``
+          per sibling group is permitted.
+
+        Recurses into all children after resolving the current level.
+
+        Parameters
+        ----------
+        layer_def : :class:`~timber_design.populators.LayerDefinition`
+
+        Raises
+        ------
+        ValueError
+            On any of the error conditions described above.
+        """
+        if not layer_def.sublayers:
+            return
+
+        fill = [sl for sl in layer_def.sublayers if sl.thickness is None]
+        known_sum = sum(sl.thickness for sl in layer_def.sublayers if sl.thickness is not None)
+
+        if layer_def.thickness is None:
+            fill_names = [repr(sl.name) for sl in fill]
+            raise ValueError("Cannot resolve fill-remaining sublayer(s) [{}] of layer {!r} because its own thickness is unknown.".format(", ".join(fill_names), layer_def.name))
+
+        if not fill:
+            if not TOL.is_close(known_sum, layer_def.thickness):
+                breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers)
+                raise ValueError("Sublayers of layer {!r} sum to {} but layer thickness is {}. Sublayers: [{}].".format(layer_def.name, known_sum, layer_def.thickness, breakdown))
+        else:
+            if len(fill) > 1:
+                fill_names = [repr(sl.name) for sl in fill]
+                raise ValueError("At most one sublayer of layer {!r} may have thickness=None; got {} ({}).".format(layer_def.name, len(fill), ", ".join(fill_names)))
+            remaining = layer_def.thickness - known_sum
+            if remaining < 0 and not TOL.is_zero(remaining):
+                breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers if sl.thickness is not None)
+                raise ValueError(
+                    "Fixed sublayers of layer {!r} ({}) exceed its thickness ({}); no room left for fill-remaining sublayer {!r}. Fixed sublayers: [{}].".format(
+                        layer_def.name, known_sum, layer_def.thickness, fill[0].name, breakdown
+                    )
+                )
+            fill[0].thickness = remaining
+
+        for sl in layer_def.sublayers:
+            self._distribute_to_children(sl)
 
 
 class Layer:

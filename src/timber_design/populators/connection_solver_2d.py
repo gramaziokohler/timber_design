@@ -233,18 +233,14 @@ class ConnectionSolver2D(object):
                 distance=0.0,
                 topology=JointTopology.TOPO_X,
                 location=location,
-                test=pts
-                + [beam_a.edge_a.start, beam_a.edge_a.end, beam_a.edge_b.start, beam_a.edge_b.end]
-                + [beam_b.edge_a.start, beam_b.edge_a.end, beam_b.edge_b.start, beam_b.edge_b.end],
             )
         return None
 
 
 class Beam2DSolverResult:
-    def __init__(self, beam_a, beam_b, distance, topology, location, test=None):
+    def __init__(self, beam_a, beam_b, distance, topology, location):
         self.beam_a = beam_a
         self.beam_b = beam_b
         self.distance = distance
         self.topology = topology
         self.location = location
-        self.test = test

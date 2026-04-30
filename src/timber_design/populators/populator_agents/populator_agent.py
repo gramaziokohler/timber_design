@@ -444,15 +444,16 @@ class PopulatorAgent(ABC):
             list to avoid cross-layer joint candidates for agents that span
             multiple layers (e.g. :class:`~timber_design.populators.FeatureAgent`).
         """
-        solver = ConnectionSolver2D()
-        beam_elements = [e for e in self.elements if isinstance(e, Beam2D)]
-        pairs = solver.find_intersecting_pairs(beam_elements)
         candidates = []
-        for element_a, element_b in pairs:
-            topo_result = solver.find_topology(element_a, element_b)
-            if topo_result is not None:
-                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                candidates.append(candidate)
+        solver = ConnectionSolver2D()
+        for layer, elements in self._elements_by_layer.items():
+            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
+            pairs = solver.find_intersecting_pairs(beam_elements)
+            for element_a, element_b in pairs:
+                topo_result = solver.find_topology(element_a, element_b)
+                if topo_result is not None:
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                    candidates.append(candidate)
         return candidates
 
     
@@ -492,7 +493,7 @@ class PopulatorAgent(ABC):
     def extend_elements(self, other_agents: list["LayerAgent"]) -> None:
         pass
 
-    def create_joint_defs(self, model, elements=None) -> list[DirectRule]:
+    def create_joint_defs(self) -> list[DirectRule]:
         """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this agent.
 
         Parameters
@@ -502,7 +503,7 @@ class PopulatorAgent(ABC):
             Restrict joint detection to this element subset.  Forwarded
             directly to :meth:`create_joint_candidates`; see its docstring.
         """
-        for candidate in self.create_joint_candidates(model, elements=elements):
+        for candidate in self.create_joint_candidates():
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)

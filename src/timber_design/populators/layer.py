@@ -35,11 +35,6 @@ class LayerDefinition:
         Nested child layer definitions for composite layers (e.g. multiple
         insulation sheets that share a parent thickness).  Mutually exclusive
         with ``agent_configs``.
-    is_framing_layer : bool, optional
-        When ``True``, the default feature agents (from
-        :attr:`~timber_design.populators.PanelPopulatorConfig.default_feature_configs`)
-        and instance feature agents are applied to this layer.  Defaults to
-        ``False``.
 
     Raises
     ------
@@ -73,16 +68,11 @@ class LayerDefinition:
         name: Optional[str] = None,
         agent_configs: Optional[list] = None,
         sublayers: Optional[list] = None,
-        is_framing_layer: bool = False,
     ):
-        if agent_configs and sublayers:
-            raise ValueError("Layer {!r} cannot have both agent_configs and sublayers.".format(name))
-
         self.thickness = thickness
         self.sublayers = sublayers or []
         self.name = name
         self.agent_configs = agent_configs or []
-        self.is_framing_layer = is_framing_layer
 
     def get_leaf_layer_defs(self):
         """Return a list of leaf-level :class:`LayerDefinition` objects (depth-first).
@@ -247,13 +237,9 @@ class Layer:
     layer_def : :class:`LayerDefinition`, optional
         The definition object that produced this layer.  Used to read
         :attr:`~LayerDefinition.agent_configs` and
-        :attr:`~LayerDefinition.is_framing_layer`.
     layer_index : int, optional
         Zero-based ordinal position of this layer in the flat layer stack.
-    is_framing_layer : bool, optional
-        Directly mark this layer as a framing layer.  Takes precedence over
-        the value read from ``layer_def.is_framing_layer`` when ``True``.
-        Useful when creating layers without a :class:`LayerDefinition`.
+
 
     Attributes
     ----------
@@ -271,10 +257,7 @@ class Layer:
         Convenience shortcut to ``layer.panel.thickness``.
     center_height : float
         Z coordinate of the layer's mid-thickness in populator space.
-    is_framing_layer : bool
-        ``True`` when this layer carries structural framing agents.
-        Reads from ``layer_def.is_framing_layer`` when present; falls back to
-        the constructor argument (default ``False``).
+
     """
 
     def __init__(
@@ -283,14 +266,12 @@ class Layer:
         name: Optional[str] = None,
         agents: Optional[list] = None,
         layer_index: Optional[int] = None,
-        is_framing_layer: bool = False,
         layer_def: Optional["LayerDefinition"] = None,
     ):
         self.panel = panel
         self.name = name
         self.agents = agents if agents is not None else []
         self.layer_index = layer_index
-        self.is_framing_layer = is_framing_layer
         self.layer_def = layer_def
 
     @property
@@ -316,7 +297,6 @@ class Layer:
         range_b: float,
         name: Optional[str] = None,
         layer_index: Optional[int] = None,
-        is_framing_layer: bool = False,
     ) -> "Layer":
         """Create a layer by trimming a panel to a given Z range.
 
@@ -338,10 +318,6 @@ class Layer:
             Name for this layer.
         layer_index : int, optional
             Zero-based ordinal index in the layer stack.
-        is_framing_layer : bool, optional
-            When ``True``, marks this layer as a structural framing layer.
-            Takes precedence over ``layer_def.is_framing_layer``.
-
         Returns
         -------
         :class:`Layer`
@@ -356,7 +332,7 @@ class Layer:
         frame_outline_b = Polyline([pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)])
 
         layer_panel = Panel.from_outlines(frame_outline_a, frame_outline_b)
-        return cls(layer_panel, name, layer_index=layer_index, is_framing_layer=is_framing_layer)
+        return cls(layer_panel, name, layer_index=layer_index)
 
     @property
     def thickness(self) -> float:

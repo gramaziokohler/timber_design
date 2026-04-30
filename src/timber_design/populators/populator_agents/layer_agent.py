@@ -29,33 +29,6 @@ from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
 
-class AgentBoundaryType(object):
-    """Controls how an agent's outline is used to include or exclude beam segments.
-
-    Each concrete :class:`LayerAgent` declares a ``BOUNDARY_TYPE`` class
-    attribute that governs what :meth:`~LayerAgent.trim_beam` does with
-    segments whose midpoints fall inside or outside the agent's
-    :attr:`~LayerAgent.outline` polyline.
-
-    Attributes
-    ----------
-    NONE : str
-        No boundary culling — all segments are kept regardless of the outline.
-        Used by agents whose elements span the full panel (studs, edge beams).
-    EXCLUSIVE : str
-        The outline defines a *no-go zone*.  Segments whose midpoints are inside
-        the outline are discarded.  Used by :class:`~timber_design.populators.OpeningPopulatorAgent`
-        so that studs passing through a door or window opening are removed.
-    INCLUSIVE : str
-        The outline defines an *allowed zone*.  Segments whose midpoints fall
-        *outside* the outline are discarded.  Used by
-        :class:`~timber_design.populators.EdgePopulatorAgent` and
-        :class:`~timber_design.populators.RecessPopulatorAgent`.
-    """
-
-    EXCLUSIVE = "exclusive"
-    INCLUSIVE = "inclusive"
-    NONE = "none"
 
 
 @dataclass

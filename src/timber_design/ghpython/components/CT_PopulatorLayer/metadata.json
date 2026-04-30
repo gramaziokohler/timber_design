@@ -32,12 +32,6 @@
                 "description": "List of sublayer definitions.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
-            },
-            {
-                "name": "is_framing",
-                "description": "Whether this layer is framing (boolean).",
-                "typeHintID": "bool",
-                "scriptParamAccess": 0
             }
         ],
         "outputParameters": [

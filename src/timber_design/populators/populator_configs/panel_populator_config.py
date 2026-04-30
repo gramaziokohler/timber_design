@@ -12,6 +12,7 @@ from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
+from compas_model.models import ElementTree
 
 from timber_design.populators.layer import Layer
 from timber_design.populators.layer import LayerDefinition
@@ -73,6 +74,7 @@ class PanelPopulatorConfig:
         # Maps id(original LayerDefinition) → resolved Layer.
         # Built in create_layers(); consumed by _resolve_layer_defs().
         self._original_ld_to_layer = {}
+        self._layer_tree = None
 
     @property
     def layer_def_stack(self):
@@ -99,6 +101,33 @@ class PanelPopulatorConfig:
                 root = LayerDefinition(self.panel.thickness, sublayers=[copy.deepcopy(ld) for ld in self.layer_defs])
                 self._layer_def_stack = root.get_leaf_layer_defs()  # returns a list
         return self._layer_def_stack
+
+
+
+    def get_layer_def_tree(self):
+        def add_layer_def_to_tree(tree, layer_def, parent=None):
+            tree.add_element(layer_def, parent=parent)
+            if layer_def.sublayers:
+                for sublayer in layer_def.sublayers:
+                    add_layer_def_to_tree(tree, sublayer, parent=layer_def)
+
+
+        if not self.panel:
+            raise AttributeError("layer_def_stack requires a panel to be set first")
+        tree=ElementTree()
+        if not self.layer_defs:
+            # Single framing layer spanning the full panel thickness.
+            root = LayerDefinition(self.panel.thickness, name="frame", is_framing_layer=True)
+        else:
+            # Wrap user-supplied defs in a synthetic root to let
+            # _resolve_thicknesses handle fill-remaining at the top level.
+            root = LayerDefinition(self.panel.thickness, sublayers=[copy.deepcopy(ld) for ld in self.layer_defs])
+            root._resolve_thicknesses()
+            add_layer_def_to_tree(tree, root)
+        return tree
+
+
+
 
     # ------------------------------------------------------------------
     # Public pipeline methods

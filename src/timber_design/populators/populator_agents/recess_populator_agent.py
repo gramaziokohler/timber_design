@@ -62,7 +62,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     Cross-layer behaviour
     ---------------------
-    :meth:`trim_cross_layer` cuts sheathing plates on any layer whose index is
+    :meth:`trim_agent_elements` cuts sheathing plates on any layer whose index is
     strictly less than this agent's own :attr:`~LayerAgent.layer_index`
     (i.e. layers that sit inside the recess frame).
 
@@ -105,9 +105,26 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         self.recess_beam_height = params.recess_beam_height
         self.sheeting_recess = params.sheeting_recess
 
-    def apply_to_plate(self, plate):
-        """Cut the recess outline into *plate*."""
-        self._cut_out_of_plate(plate)
+    def trim_plate(self, plate):
+        """Apply the recess outline as a ``FreeContour`` cut to *plate*.
+
+        Parameters
+        ----------
+        plate : :class:`compas_timber.elements.Plate`
+            The sheathing plate to cut.
+
+        Raises
+        ------
+        ValueError
+            If :attr:`outline` has not been set (i.e. :meth:`generate_elements`
+            has not been called yet).
+        """
+        if not self.outline:
+            raise ValueError("No outline defined for recess populator agent.")
+        outline = self.outline.transformed(Translation.from_vector(Vector(0, 0, plate.outline_a[0].z - self.outline[0].z)))
+        free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
+        plate.add_feature(free_contour)
+
 
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
@@ -136,7 +153,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-    def create_internal_joint_defs(self, model, elements=None):
+    def create_joint_defs(self, model, elements=None):
         """Generate joint definitions for both edge beams and recess beams.
 
         Edge-beam pairs (both elements have ``edge_index``) are handled by the
@@ -156,46 +173,6 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
                 rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
-
-    def trim_cross_layer(self, other_agent):
-        """Cut the recess outline into plates on inner (lower-index) layers.
-
-        Parameters
-        ----------
-        other_agent : :class:`~timber_design.populators.LayerAgent`
-            The agent whose plate elements may receive the recess contour cut.
-        """
-        if self.layer_index is None or other_agent.layer_index is None:
-            return
-        if other_agent.layer_index >= self.layer_index:
-            return
-        for element in other_agent.elements:
-            if element.is_plate:
-                self._cut_out_of_plate(element)
-
-    # ==========================================================================
-    # Private helpers
-    # ==========================================================================
-
-    def _cut_out_of_plate(self, plate: Plate):
-        """Apply the recess outline as a ``FreeContour`` cut to *plate*.
-
-        Parameters
-        ----------
-        plate : :class:`compas_timber.elements.Plate`
-            The sheathing plate to cut.
-
-        Raises
-        ------
-        ValueError
-            If :attr:`outline` has not been set (i.e. :meth:`generate_elements`
-            has not been called yet).
-        """
-        if not self.outline:
-            raise ValueError("No outline defined for recess populator agent.")
-        outline = self.outline.transformed(Translation.from_vector(Vector(0, 0, plate.outline_a[0].z - self.outline[0].z)))
-        free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
-        plate.add_feature(free_contour)
 
 
 # Set after both classes are defined so forward reference is resolved

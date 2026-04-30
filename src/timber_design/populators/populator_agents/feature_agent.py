@@ -3,49 +3,56 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from .layer_agent import LayerAgent
-from .layer_agent import LayerAgentConfig
+from timber_design.populators import aabb_overlap
+from .populator_agent import PopulatorAgent
+from .populator_agent import PopulatorAgentConfig
 
 
 @dataclass
-class FeatureAgentConfig(LayerAgentConfig, ABC):
+class FeatureAgentConfig(PopulatorAgentConfig, ABC):
     """Config base class for feature-based populator agents.
 
-    Extends :class:`LayerAgentConfig` with an optional :attr:`feature` field
-    and two factory methods:
+    Extends :class:`LayerAgentConfig` with an optional :attr:`feature` field,
+    explicit layer lists for framing and trimming, and two factory methods:
 
     - :meth:`get_agent` — creates the agent from :attr:`feature` (must be set).
     - :meth:`get_agent_from_feature` — creates the agent from an explicitly
       supplied feature, ignoring :attr:`feature`.
-
-    All concrete feature-agent config classes (e.g.
-    :class:`~timber_design.populators.OpeningPopulatorAgentConfig`) should
-    extend this class and may narrow the :attr:`feature` type annotation.
 
     Parameters
     ----------
     feature : :class:`~compas_timber.panel_features.PanelFeature`, optional
         The panel feature instance driving element placement.  When set,
         :meth:`get_agent` can be called without any additional arguments.
-        Concrete subclasses typically override this field with a more specific
-        type annotation (e.g. ``feature: Opening = None``).
+    framing_layer_defs : list[:class:`~timber_design.populators.LayerDefinition`], optional
+        The layers on which this feature agent generates framing elements.
+        Pass the same :class:`LayerDefinition` objects given to
+        :class:`~timber_design.populators.PanelPopulatorConfig` as
+        ``layer_defs``; the config resolves them to :class:`Layer` objects.
+        When ``None`` the agent falls back to populating every layer whose
+        :attr:`~timber_design.populators.Layer.is_framing_layer` flag is
+        ``True``.
+    trimming_layer_defs : list[:class:`~timber_design.populators.LayerDefinition`], optional
+        The layers whose plate elements this feature agent modifies in the
+        cross-layer trim pass (e.g. punching an opening through sheathing).
+        When ``None`` the agent falls back to its subclass default behaviour.
     """
+
     IS_ABSTRACT = True
 
     feature: Optional[object] = None
+    framing_layer_defs: Optional[list] = None
+    trimming_layer_defs: Optional[list] = None
 
     @property
     def __data__(self):
         data = super().__data__
         data["feature"] = self.feature
+        # LayerDefinition objects are resolved at runtime; not round-tripped here.
         return data
 
     def get_agent(self):
         """Instantiate a feature-based agent using the stored :attr:`feature`.
-
-        A convenience wrapper around :meth:`get_agent_from_feature` that reads
-        the feature from ``self.feature`` so callers do not need to supply it
-        again.
 
         Returns
         -------
@@ -54,27 +61,35 @@ class FeatureAgentConfig(LayerAgentConfig, ABC):
         Raises
         ------
         ValueError
-            If :attr:`feature` is ``None``.  In that case call
-            :meth:`get_agent_from_feature` and pass the feature explicitly.
+            If :attr:`feature` is ``None``.
         NotImplementedError
             If ``AGENT_TYPE`` has not been set on this config class.
         """
         if self.feature is None:
-            raise ValueError("{} has no feature set. Pass it to the constructor or call get_agent_from_feature(feature) instead.".format(type(self).__name__))
+            raise ValueError(
+                "{} has no feature set. Pass it to the constructor or call "
+                "get_agent_from_feature(feature) instead.".format(type(self).__name__)
+            )
         return self.get_agent_from_feature(self.feature)
 
-    def get_agent_from_feature(self, feature):
+    def get_agent_from_feature(self, feature, framing_layers=None, trimming_layers=None):
         """Instantiate a feature-based agent.
 
         A :class:`FeatureAgent` is not bound to a single layer at construction
-        time — it discovers the layers it operates on from the ``layers``
-        argument of :meth:`FeatureAgent.generate_elements`.  The agent is
-        therefore created with ``layer=None``.
+        time — layers are discovered from the ``layers`` argument of
+        :meth:`FeatureAgent.generate_elements`.  The agent is therefore
+        created with ``layer=None``.
 
         Parameters
         ----------
         feature : :class:`~compas_timber.panel_features.PanelFeature`
             The (possibly transformed) feature instance.
+        framing_layers : list[:class:`~timber_design.populators.Layer`], optional
+            Resolved :class:`Layer` objects for element generation.  Supplied
+            by :meth:`~PanelPopulatorConfig.create_feature_agents` after it
+            maps :attr:`framing_layer_defs` to ``Layer`` instances.
+        trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
+            Resolved :class:`Layer` objects for cross-layer plate trimming.
 
         Returns
         -------
@@ -87,10 +102,10 @@ class FeatureAgentConfig(LayerAgentConfig, ABC):
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        return self.AGENT_TYPE(None, self, feature)
+        return self.AGENT_TYPE(None, self, feature, framing_layers, trimming_layers)
 
 
-class FeatureAgent(LayerAgent):
+class FeatureAgent(PopulatorAgent):
     """Abstract base class for feature-driven populator agents.
 
     Extends :class:`LayerAgent` by accepting a
@@ -99,53 +114,53 @@ class FeatureAgent(LayerAgent):
     :class:`~timber_design.populators.OpeningPopulatorAgent` for
     :class:`~compas_timber.panel_features.Opening`).
 
-    A :class:`FeatureAgent` differs from a plain :class:`LayerAgent` in two
-    important ways:
+    Layer selection
+    ---------------
+    Which layers receive generated elements (*framing*) and which have plates
+    cut (*trimming*) is controlled by two explicit lists:
 
-    1. A single agent instance may act on *multiple* layers.  Its
-       :meth:`generate_elements` receives the full layer list and is responsible
-       for selecting which layers to operate on.
-    2. During generation the agent registers itself on each affected layer via
-       :meth:`register_on_layer`, so peer :class:`LayerAgent` instances
-       encounter it naturally during the within-layer trim and join passes.
+    - :attr:`framing_layers` — if non-empty, only these layers are passed to
+      :meth:`generate_elements_for_layer`.  Falls back to
+      ``layer.is_framing_layer`` when empty.
+    - :attr:`trimming_layers` — if non-empty, :meth:`trim_agent_elements`
+      restricts itself to agents whose layer is in this list.  When empty the
+      subclass's own default logic applies.
+
+    Both lists are resolved from :attr:`FeatureAgentConfig.framing_layer_defs`
+    and :attr:`FeatureAgentConfig.trimming_layer_defs` by
+    :meth:`~PanelPopulatorConfig.create_feature_agents`.
 
     Element tracking
     ----------------
-    Elements are stored in two complementary structures:
-
     - ``self.elements`` — flat list of **all** elements across all layers.
-      Used by properties like :attr:`~OpeningPopulatorAgent.header` that
-      search elements by category.
-    - ``self._elements_by_layer`` — ``{layer_index: [elements]}`` dict.
-      Used by :meth:`elements_for_layer` / :meth:`set_elements_for_layer`
-      so that per-layer passes (trim, joints) see only the right subset.
-
-    Both structures are kept in sync: :meth:`generate_elements` populates
-    both, and :meth:`set_elements_for_layer` rebuilds ``self.elements`` from
-    ``_elements_by_layer`` whenever a layer's list is replaced (e.g. after
-    trimming).
+    - ``self._elements_by_layer`` — ``{layer_index: [elements]}`` dict for
+      per-layer trim and joint passes.
 
     Parameters
     ----------
-    layer : :class:`~timber_design.populators.Layer` or None
-        Ignored; kept for :class:`LayerAgent` compatibility.  Callers pass
-        ``None`` and layers are discovered via ``generate_elements(layers)``.
     params : :class:`FeatureAgentConfig`
         Configuration for this agent.
     feature : :class:`~compas_timber.panel_features.PanelFeature`
         The (possibly transformed) feature instance driving element placement.
+    framing_layers : list[:class:`~timber_design.populators.Layer`], optional
+        Explicit framing layers; overrides ``is_framing_layer`` fallback.
+    trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
+        Explicit trimming layers; restricts cross-layer plate cutting.
     """
 
     FEATURE_TYPE = None
 
-    def __init__(self, layer, params, feature):
-        # type: (Layer, FeatureAgentConfig, object) -> None
-        super().__init__(layer, params)
+    def __init__(self, params, feature, framing_layers=None, trimming_layers=None):
+        # type: (FeatureAgentConfig, object, list, list) -> None
+        super().__init__(params)
         self.feature = feature
+        self.framing_layers = framing_layers or []
+        self.trimming_layers = trimming_layers or []
         # Per-layer element tracking.  Populated during generate_elements.
         self._elements_by_layer = {}
         # Layers this agent has registered itself on during generate_elements.
         self.registered_layers = []
+
 
     # ------------------------------------------------------------------
     # Unified element API (overrides LayerAgent defaults)
@@ -207,31 +222,34 @@ class FeatureAgent(LayerAgent):
     # Generation
     # ------------------------------------------------------------------
 
-    def generate_elements(self, layers):
+    def generate_elements(self):
         """Generate elements across all relevant layers.
 
-        For each layer, calls :meth:`generate_elements_for_layer`, stores the
-        returned elements in both ``_elements_by_layer`` and ``self.elements``,
-        then registers this agent on the layer so subsequent passes treat it as
-        a peer.
+        Calls :meth:`generate_elements_for_layer` for every layer.  When
+        elements are returned the agent registers itself on that layer so
+        subsequent within-layer trim and join passes treat it as a peer.
+        Layers where no elements are generated are not registered — cross-layer
+        trimming on those layers is handled via :meth:`trim_other_layers`.
 
         Parameters
         ----------
         layers : list[:class:`~timber_design.populators.Layer`]
             All layers in the populator.
         """
-        for layer in layers:
+        for layer in self.framing_layers:
             layer_elements = self.generate_elements_for_layer(layer)
-            self._elements_by_layer[layer.layer_index] = layer_elements
-            self.elements.extend(layer_elements)
-            self.register_on_layer(layer)
+            self._elements_by_layer[layer.layer_index] = layer_elements # add to per-layer dict
+            self.elements.extend(layer_elements) # add to general elements list
+            # Register only on layers where elements were placed.
+            if layer_elements:
+                self.register_on_layer(layer)
 
     @abstractmethod
     def generate_elements_for_layer(self, layer):
         """Generate and return elements for a single *layer*.
 
-        Subclasses decide which layers to act on (typically framing layers)
-        and return an empty list for layers they skip.
+        Subclasses should call :meth:`_is_framing_layer` to decide whether to
+        act on *layer* and return an empty list for layers they skip.
 
         Parameters
         ----------
@@ -247,22 +265,20 @@ class FeatureAgent(LayerAgent):
     # Cross-layer trimming
     # ------------------------------------------------------------------
 
-    def trim_other_layers(self, layers):
-        """Apply :meth:`trim_cross_layer` to agents on layers this agent did not register on.
+    def trim_elements(self):
+        """Apply :meth:`trim_agent_elements` to agents on layers this agent is not registered on.
 
         Overrides :meth:`LayerAgent.trim_other_layers` to skip registered
-        layers (where within-layer trimming already handled peer interaction)
-        rather than skipping a single ``self.layer``.
+        layers (where within-layer trimming already handled peer interaction).
 
         Parameters
         ----------
         layers : list[:class:`~timber_design.populators.Layer`]
             All layers in the populator.
         """
-        for layer in layers:
-            if layer in self.registered_layers:
-                continue
+        for layer in self.framing_layers + self.trimming_layers:
             for other_agent in layer.agents:
                 if other_agent is self:
                     continue
-                self.trim_cross_layer(other_agent)
+                if aabb_overlap(self, other_agent):
+                    self.trim_agent_elements(other_agent, layer)

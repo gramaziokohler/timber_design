@@ -508,7 +508,6 @@ def manage_cpython_dynamic_output_params(output_names, ghenv, permanent_param_co
         The number of leading output parameters that should not be modified. Default is 0.
 
     """
-    print("output_names", output_names)
     to_remove = []
     for i in range(permanent_param_count, len(ghenv.Component.Params.Output)):
         if ghenv.Component.Params.Output[i].Name not in output_names:

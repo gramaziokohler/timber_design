@@ -22,7 +22,7 @@ class PanelPopulator(object):
     3. **trim_elements** — for each overlapping agent pair, dispatches to
        :meth:`~timber_design.populators.LayerAgent.trim_within_layer`
        (same layer) or
-       :meth:`~timber_design.populators.LayerAgent.trim_cross_layer`
+       :meth:`~timber_design.populators.LayerAgent.trim_agent_elements`
        (different layers).  Each agent's implementation decides what to do.
 
     4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
@@ -130,40 +130,19 @@ class PanelPopulator(object):
 
     def generate_elements(self):
         """Ask each agent to create its beams and plates (stage 1)."""
-        for layer in self.layers:
-            for agent in layer.agents:
-                agent.generate_elements()
-        for agent in self.feature_agents:
-            agent.generate_elements(self.layers)
+        for agent in self.agents:
+            agent.generate_elements()
 
     def extend_elements(self):
         """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
-        for layer in self.layers:
-            for g in layer.agents:
-                other_agents = [a for a in layer.agents if a is not g]
-                g.extend_elements(other_agents)
+        for agent in self.agents:
+            agent.extend_elements()
 
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
-
-        Two passes are performed:
-
-        1. **Within-layer** — for each overlapping agent pair on the same layer,
-           both agents get a chance to trim the other's layer-elements via
-           :meth:`~timber_design.populators.LayerAgent.trim_within_layer`.
-        2. **Cross-layer** — every agent calls
-           :meth:`~timber_design.populators.LayerAgent.trim_other_layers` to
-           apply any cross-layer modifications (e.g. a recess agent cutting
-           sheathing plates on the interior layer, or an opening agent
-           punching through plates on non-framing layers).
         """
-        solver = ConnectionSolver2D()
-        for layer in self.layers:
-            for agent_a, agent_b in solver.find_intersecting_agent_pairs(layer.agents):
-                agent_a.trim_within_layer(agent_b, layer)
-                agent_b.trim_within_layer(agent_a, layer)
         for agent in self.agents:
-            agent.trim_other_layers(self.layers)
+            agent.trim_elements()
 
     def add_elements_to_model(self):
         """Add all surviving elements to the internal model (stage 4)."""
@@ -194,13 +173,10 @@ class PanelPopulator(object):
         ``agent.joint_defs`` is cleared after each layer pass so that a
         multi-layer agent is not double-applied on subsequent layers.
         """
-        for layer in self.layers:
-            for agent in layer.agents:
-                layer_elements = agent.elements_for_layer(layer)
-                agent.create_internal_joint_defs(self.model, elements=layer_elements)
-                for j_def in agent.joint_defs:
-                    j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
-                agent.joint_defs.clear()
+        for agent in self.agents:
+            agent.create_joint_defs()
+            for j_def in agent.joint_defs:
+                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
 
     def create_cross_agent_joints(self):
         """Create joints between elements of different agents on the same layer (stage 5b).

@@ -85,14 +85,29 @@ class LayerDefinition:
         self.is_framing_layer = is_framing_layer
 
     def get_leaf_layer_defs(self):
-        """Yield leaf-level :class:`LayerDefinition` objects (depth-first).
+        """Return a list of leaf-level :class:`LayerDefinition` objects (depth-first).
+
+        Resolves all ``thickness=None`` entries before collecting the leaves,
+        so every returned definition carries a concrete thickness.
+
+        Returns
+        -------
+        list[:class:`LayerDefinition`]
         """
         self._resolve_thicknesses()
-        for ld in self.sublayers:
-            if ld.sublayers:
-                yield from self._flat_layer_defs(ld)
-            else:
-                yield ld
+        return list(self._iter_leaves())
+
+    def _iter_leaves(self):
+        """Yield leaf-level :class:`LayerDefinition` objects (depth-first).
+
+        A *leaf* is a node with no sublayers.  Nodes that have sublayers are
+        traversed recursively without being yielded themselves.
+        """
+        if not self.sublayers:
+            yield self
+        else:
+            for sl in self.sublayers:
+                yield from sl._iter_leaves()
 
 
     def _resolve_thicknesses(self):
@@ -269,12 +284,14 @@ class Layer:
         agents: Optional[list] = None,
         layer_index: Optional[int] = None,
         is_framing_layer: bool = False,
+        layer_def: Optional["LayerDefinition"] = None,
     ):
         self.panel = panel
         self.name = name
         self.agents = agents if agents is not None else []
         self.layer_index = layer_index
         self.is_framing_layer = is_framing_layer
+        self.layer_def = layer_def
 
     @property
     def elements(self):

@@ -30,7 +30,6 @@ from timber_design.workflow import DirectRule
 @dataclass
 class EdgePopulatorAgentConfig(LayerAgentConfig):
     IS_ABSTRACT = False
-
     standard_beam_width_increment: Optional[float] = None
     edge_beam_min_width: Optional[float] = None
 
@@ -169,8 +168,9 @@ class EdgePopulatorAgent(LayerAgent):
     # methods for creating beam joints
     # ==========================================================================
 
-    def create_internal_joint_defs(self, model, elements=None) -> list[DirectRule]:
+    def create_joint_defs(self) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges."""
+        for _, elements in self.elements_for_layer.values()
         for candidate in self.create_joint_candidates(model, elements=elements):
             rule = self.create_edge_beam_joint_rule(*candidate.elements)
             if rule is not None:

@@ -70,7 +70,7 @@ class StudPopulatorAgent(LayerAgent):
     def __init__(self, layer, params):
         # type: (Layer, StudPopulatorAgentConfig) -> None
         super(StudPopulatorAgent, self).__init__(layer, params)
-        self.stud_spacing = params.stud_spacing
+        self.stud_spacing = params.stud_spacing or self.layer.panel.aabb.xmax / 8.0
 
     def generate_elements(self):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""

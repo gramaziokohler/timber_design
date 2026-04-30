@@ -134,9 +134,9 @@ class OpeningPopulatorAgent(FeatureAgent):
     ]
     BOUNDARY_TYPE = AgentBoundaryType.EXCLUSIVE
 
-    def __init__(self, layer, params, feature):
-        # type: (Layer, OpeningPopulatorAgentConfig, Opening) -> None
-        super().__init__(layer, params, feature)
+    def __init__(self, layer, params, feature, framing_layers=None, trimming_layers=None):
+        # type: (Layer, OpeningPopulatorAgentConfig, Opening, list, list) -> None
+        super().__init__(layer, params, feature, framing_layers, trimming_layers)
         self.lintel_posts = params.lintel_posts
         self.split_bottom_plate_beam = params.split_bottom_plate_beam
         self.opening_type = self.opening.opening_type
@@ -186,8 +186,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         return self._cull_stud(beam)
 
     def generate_elements_for_layer(self, layer):
-        if not layer.is_framing_layer:
-            return []
+
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature, layer)
         frame_polyline = self._create_frame_polyline(frame_polyline_a, frame_polyline_b, layer)
         if self.opening_type == "door":
@@ -308,27 +307,13 @@ class OpeningPopulatorAgent(FeatureAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-    def trim_cross_layer(self, other_agent):
-        """Punch the opening contour through all plates on *other_agent*'s layer.
 
-        Openings cut through the full panel cross-section, so this override
-        applies :meth:`apply_to_plate` to every plate element in *other_agent*
-        regardless of layer index.
-
-        Parameters
-        ----------
-        other_agent : :class:`~timber_design.populators.LayerAgent`
-            The agent whose plate elements receive the opening contour cut.
-        """
-        for element in other_agent.elements:
-            if element.is_plate:
-                self.apply_to_plate(element)
 
     def _cull_stud(self, stud: Beam2D) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
         return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
 
-    def apply_to_plate(self, plate: Plate) -> None:
+    def trim_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.
 
         Parameters
@@ -343,7 +328,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         outline_b_projected = Polyline([intersection_line_plane(line, plate.planes[1]) for line in lines])
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
-
+        return [plate]
 
 # Set after both classes are defined so forward reference is resolved
 OpeningPopulatorAgentConfig.AGENT_TYPE = OpeningPopulatorAgent

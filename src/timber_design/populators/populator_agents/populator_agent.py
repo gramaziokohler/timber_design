@@ -133,7 +133,7 @@ class PopulatorAgent(ABC):
     Every agent holds:
 
     - :attr:`layer` — the :class:`~timber_design.populators.Layer` it belongs
-      to, which carries the panel geometry (``layer.panel``) and the layer's
+      to, which carries the panel geometry (``layer``) and the layer's
       position in the cross-section stack (``layer.layer_index``).
     - :attr:`elements` — the flat list of :class:`~timber_design.populators.Beam2D`
       and :class:`~compas_timber.elements.Plate` objects it has created.
@@ -167,7 +167,7 @@ class PopulatorAgent(ABC):
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The layer this agent operates within.  Provides the panel geometry
-        (``layer.panel``) and cross-section position (``layer.layer_index``).
+        (``layer``) and cross-section position (``layer.layer_index``).
     params : :class:`LayerAgentConfig`
         Configuration including beam width overrides, joint rule overrides,
         agent parameters and rule overrides.
@@ -180,7 +180,7 @@ class PopulatorAgent(ABC):
         Index of this agent's layer in the cross-section stack.
         Taken directly from ``layer.layer_index``.
     panel : :class:`compas_timber.elements.Panel`
-        The panel geometry for this layer.  Shortcut for ``self.layer.panel``.
+        The panel geometry for this layer.  Shortcut for ``self.layer``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
         and mutated by :meth:`trim_within_layer` / :meth:`trim_agent_elements`.

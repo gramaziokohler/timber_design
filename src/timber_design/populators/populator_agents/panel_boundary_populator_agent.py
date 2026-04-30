@@ -80,7 +80,7 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         """Get the edge beams for the outer polyline of the panel."""
         inner_segs = []
         outer_segs = []
-        for i in range(len(self.panel.outline_a) - 1):
+        for i in range(len(self.layer.outline_a) - 1):
             inner_seg, outer_seg = self._get_inner_and_outer_segments(i)
             inner_segs.append(inner_seg)
             outer_segs.append(outer_seg)
@@ -89,9 +89,9 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         self.outline = join_polyline_segments(inner_segs, close_loop=True)[0][0]
 
     def _get_inner_and_outer_segments(self, segment_index) -> tuple[Line, float]:
-        perp_vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, segment_index)
-        seg_a = Line(self.panel.outline_a[segment_index], self.panel.outline_a[segment_index + 1])
-        seg_b = Line(self.panel.outline_b[segment_index], self.panel.outline_b[segment_index + 1])
+        perp_vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, segment_index)
+        seg_a = Line(self.layer.outline_a[segment_index], self.layer.outline_a[segment_index + 1])
+        seg_b = Line(self.layer.outline_b[segment_index], self.layer.outline_b[segment_index + 1])
 
         projected_a = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
         projected_b = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))

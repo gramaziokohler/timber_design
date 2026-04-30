@@ -12,8 +12,10 @@ from .connection_solver_2d import aabb_overlap_x
 from .connection_solver_2d import aabb_overlap
 
 from .populator_agents.layer_agent import LayerAgent
-from .populator_agents.layer_agent import AgentBoundaryType
 from .populator_agents.layer_agent import LayerAgentConfig
+from .populator_agents.populator_agent import AgentBoundaryType
+from .populator_agents.populator_agent import PopulatorAgent
+from .populator_agents.populator_agent import PopulatorAgentConfig
 from .populator_agents.feature_agent import FeatureAgent
 from .populator_agents.feature_agent import FeatureAgentConfig
 from .populator_agents.stud_populator_agent import StudPopulatorAgent

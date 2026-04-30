@@ -24,6 +24,7 @@ from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.populators.layer import Layer
 from .populator_agent import PopulatorAgentConfig
 from .populator_agent import PopulatorAgent
+from .populator_agent import AgentBoundaryType
 
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -128,7 +129,7 @@ class LayerAgent(PopulatorAgent, ABC):
     Every agent holds:
 
     - :attr:`layer` — the :class:`~timber_design.populators.Layer` it belongs
-      to, which carries the panel geometry (``layer.panel``) and the layer's
+      to, which carries the panel geometry (``layer``) and the layer's
       position in the cross-section stack (``layer.layer_index``).
     - :attr:`elements` — the flat list of :class:`~timber_design.populators.Beam2D`
       and :class:`~compas_timber.elements.Plate` objects it has created.
@@ -162,7 +163,7 @@ class LayerAgent(PopulatorAgent, ABC):
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The layer this agent operates within.  Provides the panel geometry
-        (``layer.panel``) and cross-section position (``layer.layer_index``).
+        (``layer``) and cross-section position (``layer.layer_index``).
     params : :class:`LayerAgentConfig`
         Configuration including beam width overrides, joint rule overrides,
         agent parameters and rule overrides.
@@ -175,7 +176,7 @@ class LayerAgent(PopulatorAgent, ABC):
         Index of this agent's layer in the cross-section stack.
         Taken directly from ``layer.layer_index``.
     panel : :class:`compas_timber.elements.Panel`
-        The panel geometry for this layer.  Shortcut for ``self.layer.panel``.
+        The panel geometry for this layer.  Shortcut for ``self.layer``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
         and mutated by :meth:`trim_within_layer` / :meth:`trim_agent_elements`.
@@ -209,7 +210,7 @@ class LayerAgent(PopulatorAgent, ABC):
         super(LayerAgent, self).__init__(params)    
         self.layer = layer
         self.layer_index = layer.layer_index if layer is not None else None
-        self.layer_center_height = layer.panel.outline_a[0][2] + layer.panel.thickness / 2
+        self.layer_center_height = layer.outline_a[0][2] + layer.thickness / 2
 
 
 

@@ -13,6 +13,7 @@ from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
 from compas_model.models import ElementTree
+from compas_timber.model import TimberModel
 
 from timber_design.populators.layer import Layer
 from timber_design.populators.layer import LayerDefinition
@@ -63,71 +64,13 @@ class PanelPopulatorConfig:
         instance_feature_configs=None,
     ):
         self.panel = panel
-        self.layer_defs = layer_defs or []
+        self.layer_def = LayerDefinition(panel.thickness if panel else None, sublayers=[copy.deepcopy(ld) for ld in layer_defs] if layer_defs else None)   
         self.default_feature_configs = default_feature_configs or {}
         self.instance_feature_configs = instance_feature_configs or []
         self.orientation = orientation
         self.standard_beam_width = standard_beam_width
         # Set by _prepare_panels / create_populator
         self.transformation_to_populator = None
-        self._layer_def_stack = None
-        # Maps id(original LayerDefinition) → resolved Layer.
-        # Built in create_layers(); consumed by _resolve_layer_defs().
-        self._original_ld_to_layer = {}
-        self._layer_tree = None
-
-    @property
-    def layer_def_stack(self):
-        """Ordered list of leaf-level :class:`~timber_design.populators.LayerDefinition` objects.
-
-        Built lazily from :attr:`layer_defs` the first time it is accessed after
-        :attr:`panel` is available.  The list is cached until
-        :meth:`create_populator` resets it (``self._layer_def_stack = None``) so
-        that each call gets a freshly resolved copy and does not accumulate
-        mutations from previous runs.
-
-        When :attr:`layer_defs` is empty a single framing layer spanning the
-        full panel thickness is returned.
-        """
-        if self._layer_def_stack is None:
-            if not self.panel:
-                raise AttributeError("layer_def_stack requires a panel to be set first")
-            if not self.layer_defs:
-                # Single framing layer spanning the full panel thickness.
-                self._layer_def_stack = [LayerDefinition(self.panel.thickness, name="frame", is_framing_layer=True)]
-            else:
-                # Wrap user-supplied defs in a synthetic root to let
-                # _resolve_thicknesses handle fill-remaining at the top level.
-                root = LayerDefinition(self.panel.thickness, sublayers=[copy.deepcopy(ld) for ld in self.layer_defs])
-                self._layer_def_stack = root.get_leaf_layer_defs()  # returns a list
-        return self._layer_def_stack
-
-
-
-    def get_layer_def_tree(self):
-        def add_layer_def_to_tree(tree, layer_def, parent=None):
-            tree.add_element(layer_def, parent=parent)
-            if layer_def.sublayers:
-                for sublayer in layer_def.sublayers:
-                    add_layer_def_to_tree(tree, sublayer, parent=layer_def)
-
-
-        if not self.panel:
-            raise AttributeError("layer_def_stack requires a panel to be set first")
-        tree=ElementTree()
-        if not self.layer_defs:
-            # Single framing layer spanning the full panel thickness.
-            root = LayerDefinition(self.panel.thickness, name="frame", is_framing_layer=True)
-        else:
-            # Wrap user-supplied defs in a synthetic root to let
-            # _resolve_thicknesses handle fill-remaining at the top level.
-            root = LayerDefinition(self.panel.thickness, sublayers=[copy.deepcopy(ld) for ld in self.layer_defs])
-            root._resolve_thicknesses()
-            add_layer_def_to_tree(tree, root)
-        return tree
-
-
-
 
     # ------------------------------------------------------------------
     # Public pipeline methods
@@ -149,7 +92,7 @@ class PanelPopulatorConfig:
         populator_panel = Panel.from_outlines(*local_polylines)
         return populator_panel
 
-    def create_layers(self):
+    def create_populator_model(self):
         """Build :class:`~timber_design.populators.Layer` objects from resolved thicknesses.
 
         Uses *outline chaining*: the ``outline_b`` produced for each layer
@@ -169,46 +112,10 @@ class PanelPopulatorConfig:
         -------
         list[:class:`~timber_design.populators.Layer`]
         """
-        layers = []
-        outline_a = self.populator_panel.outline_a
-        total_thickness = self.populator_panel.thickness
-        cumulative = 0.0
-        layer_index = 0
+        layer_model = self.layer_def.model_from_panel(self.panel)
+        return layer_model
 
-        for ld in self.layer_def_stack:
-            if ld.thickness <= 0:
-                continue
-            cumulative += ld.thickness
-            t = cumulative / total_thickness
-            outline_b = Polyline([pt_a * (1.0 - t) + pt_b * t for pt_a, pt_b in zip(self.populator_panel.outline_a.points, self.populator_panel.outline_b.points)])
-            layer_panel = Panel.from_outlines(outline_a, outline_b)
-            layer = Layer(
-                layer_panel,
-                ld.name or str(layer_index),
-                layer_index=layer_index,
-                is_framing_layer=ld.is_framing_layer,
-                layer_def=ld,
-            )
-            for agent_config in ld.agent_configs:
-                layer.agents.append(agent_config.get_agent_from_layer(layer))
-            layers.append(layer)
-            # Chain: this layer's end boundary is the next layer's start boundary.
-            outline_a = outline_b
-            layer_index += 1
-
-        # Build id(original LayerDefinition) → Layer mapping.
-        # Original leaves and layer_def_stack copies are in the same
-        # depth-first order, so we can zip them directly.
-        if self.layer_defs:
-            original_leaves = [ld for top_ld in self.layer_defs for ld in top_ld._iter_leaves()]
-            self._original_ld_to_layer = {id(orig): layer for orig, layer in zip(original_leaves, layers)}
-        else:
-            # Single implicit framing layer — no user-supplied defs to map.
-            self._original_ld_to_layer = {}
-
-        return layers
-
-    def create_feature_agents(self, layers):
+    def create_feature_agents(self):
         """Create all feature populator agents.
 
         Iterates panel features and applies ``default_feature_configs`` via
@@ -241,15 +148,15 @@ class PanelPopulatorConfig:
             if agent_config is None:
                 continue
             transformed_feature = feature.transformed(self.transformation_to_populator)
-            framing_layers = self._resolve_layer_defs(agent_config.framing_layer_defs)
-            trimming_layers = self._resolve_layer_defs(agent_config.trimming_layer_defs)
+            framing_layers = [ld.resulting_layer for ld in agent_config.framing_layer_defs]
+            trimming_layers = [ld.resulting_layer for ld in agent_config.trimming_layer_defs]
             agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         # Instance feature agents — each config carries its own .feature reference.
         for agent_config in self.instance_feature_configs:
             transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
-            framing_layers = self._resolve_layer_defs(agent_config.framing_layer_defs)
-            trimming_layers = self._resolve_layer_defs(agent_config.trimming_layer_defs)
+            framing_layers = [ld.resulting_layer for ld in agent_config.framing_layer_defs]
+            trimming_layers = [ld.resulting_layer for ld in agent_config.trimming_layer_defs]
             agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         return agents
@@ -279,12 +186,12 @@ class PanelPopulatorConfig:
 
         self.populator_panel = self.get_populator_panel()
         self.resolve_beam_dimensions()
-        layers = self.create_layers()  # agents are constructed with pre-resolved beam_dimensions
-        feature_agents = self.create_feature_agents(layers)
+        layer_model=self.create_populator_model()
+        feature_agents = self.create_feature_agents()
 
         return PanelPopulator(
             self.populator_panel,
-            layers,
+            layer_model,
             feature_agents,
             original_panel=self.panel,
             transformation_to_populator=self.transformation_to_populator,
@@ -293,42 +200,6 @@ class PanelPopulatorConfig:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
-
-    def _resolve_layer_defs(self, layer_defs):
-        """Resolve a list of :class:`LayerDefinition` objects to :class:`Layer` objects.
-
-        Looks up each definition by identity (``id()``) in the
-        :attr:`_original_ld_to_layer` mapping built by :meth:`create_layers`.
-
-        Parameters
-        ----------
-        layer_defs : list[:class:`LayerDefinition`] or None
-
-        Returns
-        -------
-        list[:class:`Layer`]
-            Empty list when *layer_defs* is ``None`` or empty.
-
-        Raises
-        ------
-        ValueError
-            If any definition is not found in the mapping — i.e. it was not
-            one of the :class:`LayerDefinition` objects passed to
-            ``PanelPopulatorConfig.layer_defs``.
-        """
-        if not layer_defs:
-            return []
-        resolved = []
-        for ld in layer_defs:
-            layer = self._original_ld_to_layer.get(id(ld))
-            if layer is None:
-                raise ValueError(
-                    "LayerDefinition {!r} was not found in the populator's layer stack. "
-                    "Make sure it is one of the LayerDefinition objects passed to "
-                    "PanelPopulatorConfig.layer_defs (not a copy).".format(ld.name)
-                )
-            resolved.append(layer)
-        return resolved
 
     def resolve_beam_dimensions(self):
         """Populate :attr:`~timber_design.populators.LayerAgentConfig.beam_dimensions` on every config.
@@ -344,16 +215,8 @@ class PanelPopulatorConfig:
                 raise AttributeError("cannot resolve standard_beam_width without panel")
             self.standard_beam_width = self.panel.thickness / 2.0
         seen = set()
-        for ld in self.layer_def_stack:
-            for ad in ld.agent_configs:
-                if id(ad) in seen:
-                    continue
-                seen.add(id(ad))
-                ad.resolve_beam_dimensions(self.standard_beam_width, ld.thickness)
+        self.layer_def.resolve_beam_dimensions(self.standard_beam_width)
         for ad in self.instance_feature_configs + list(self.default_feature_configs.values()):
-            if id(ad) in seen:
-                continue
-            seen.add(id(ad))
             ad.resolve_beam_dimensions(self.standard_beam_width, 0.0)
 
     @staticmethod

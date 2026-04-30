@@ -44,7 +44,7 @@ class StudPopulatorAgent(LayerAgent):
     Parameters
     ----------
     layer : :class:`~timber_design.populators.Layer`
-        The framing layer to fill with studs.  ``layer.panel`` provides the
+        The framing layer to fill with studs.  ``layer`` provides the
         length and width; ``layer.layer_index`` is used for cross-layer
         trimming decisions.
     params : :class:`StudPopulatorAgentConfig`
@@ -70,14 +70,14 @@ class StudPopulatorAgent(LayerAgent):
     def __init__(self, layer, params):
         # type: (Layer, StudPopulatorAgentConfig) -> None
         super(StudPopulatorAgent, self).__init__(layer, params)
-        self.stud_spacing = params.stud_spacing or self.layer.panel.aabb.xmax / 8.0
+        self.stud_spacing = params.stud_spacing or self.layer.aabb.xmax / 8.0
 
     def generate_elements(self):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""
         x_position = self.stud_spacing
         studs = []
-        while x_position < self.panel.aabb.xmax - self.beam_dimensions["stud"][0]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.panel.aabb.ymax, 0)), "stud"))
+        while x_position < self.layer.aabb.xmax - self.beam_dimensions["stud"][0]:
+            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.layer.aabb.ymax, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs
 

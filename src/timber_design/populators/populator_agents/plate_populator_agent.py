@@ -58,8 +58,8 @@ class PlatePopulatorAgent(LayerAgent):
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer."""
         category = "{}_plate".format(self.layer.name)
         plate = Plate.from_outlines(
-            self.layer.panel.outline_a,
-            self.layer.panel.outline_b,
+            self.layer.outline_a,
+            self.layer.outline_b,
             name=category,
             category=category,
         )

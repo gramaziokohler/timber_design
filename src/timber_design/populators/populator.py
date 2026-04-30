@@ -6,6 +6,7 @@ from compas_timber.model import TimberModel
 
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.workflow import JointRuleSolver
+from .layer import Layer
 
 
 class PanelPopulator(object):
@@ -86,14 +87,14 @@ class PanelPopulator(object):
         populator.merge_with_model(model)
     """
 
-    def __init__(self, panel, layers, feature_agents, original_panel=None, transformation_to_populator=None):
+    def __init__(self, panel, model, feature_agents, original_panel=None, transformation_to_populator=None):
         super(PanelPopulator, self).__init__()
         self.panel = panel
-        self.layers = layers
+        self.model = model
         self.feature_agents = feature_agents
         self.original_panel = original_panel
         self.transformation_to_populator = transformation_to_populator
-        self.model = TimberModel()
+        self.layers = [l for l in self.model.elements() if isinstance(l, Layer)]
 
     @property
     def agents(self):

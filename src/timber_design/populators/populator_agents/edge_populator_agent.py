@@ -45,7 +45,7 @@ class EdgePopulatorAgent(LayerAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
     Creates one :class:`~timber_design.populators.Beam2D` per segment of the
-    panel outline (``layer.panel.outline_a``).  Each beam's width is derived
+    panel outline (``layer.outline_a``).  Each beam's width is derived
     from the depth of the panel chamfer at that edge (the distance between
     ``outline_a`` and ``outline_b`` projected onto the outward normal).  An
     optional *minimum width* and *width increment* allow widths to be snapped
@@ -70,7 +70,7 @@ class EdgePopulatorAgent(LayerAgent):
     ----------
     layer : :class:`~timber_design.populators.Layer`
         The layer whose panel outline drives edge-beam placement.
-        ``layer.panel`` provides the outline geometry; ``layer.layer_index``
+        ``layer`` provides the outline geometry; ``layer.layer_index``
         governs cross-layer trimming.
     params : :class:`EdgePopulatorAgentConfig`
         Controls optional standard-width rounding and minimum beam width.
@@ -109,26 +109,26 @@ class EdgePopulatorAgent(LayerAgent):
     def generate_elements(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
-        for i in range(len(self.panel.outline_a) - 1):
+        for i in range(len(self.layer.outline_a) - 1):
             seg, width = self._get_edge_beam_line_and_width(i, min_width=self.edge_beam_min_width, edge_beam_dim_increment=self.standard_beam_width_increment)
             segs.append(seg)
             widths.append(width)
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this agent
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.panel.thickness, z_vector=Vector(0, 0, 1), edge_index=i)
+            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i)
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
             self.elements.append(edge_beam)
-            vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, i)
+            vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
         extend_line_segments(edges, close_loop=True)
         self.outline = join_polyline_segments(edges, close_loop=True)[0][0]
 
     def _get_edge_beam_line_and_width(self, segment_index, min_width=0.0, edge_beam_dim_increment=None) -> tuple[Line, float]:
-        perp_vector = get_polyline_segment_perpendicular_vector(self.panel.outline_a, segment_index)
-        seg_a = self.panel.outline_a.lines[segment_index]
-        seg_b = self.panel.outline_b.lines[segment_index]
+        perp_vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, segment_index)
+        seg_a = self.layer.outline_a.lines[segment_index]
+        seg_b = self.layer.outline_b.lines[segment_index]
         dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
         z = self.layer_center_height
         if TOL.is_zero(dot):  # edges are perpendicular to panel
@@ -152,14 +152,14 @@ class EdgePopulatorAgent(LayerAgent):
         if abs(beam.centerline.direction[0]) < abs(beam.centerline.direction[1]):
             beam.attributes["category"] = "edge_stud"
         else:
-            if dot_vectors(get_polyline_segment_perpendicular_vector(self.panel.outline_a, index), Vector(0, 1, 0)) < 0:
+            if dot_vectors(get_polyline_segment_perpendicular_vector(self.layer.outline_a, index), Vector(0, 1, 0)) < 0:
                 beam.attributes["category"] = "bottom_plate_beam"
             else:
                 beam.attributes["category"] = "top_plate_beam"
 
     def _apply_linear_cut_to_edge_beam(self, beam: Beam2D, edge_index: int) -> None:
         """Trim the edge beams to fit between the plate beams."""
-        plane = self.panel.edge_planes[edge_index]
+        plane = self.layer.edge_planes[edge_index]
         if not TOL.is_zero(dot_vectors(Vector(0, 0, 1), plane.normal)):
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, beam, is_joinery=False)
             beam.add_features(long_cut)
@@ -170,13 +170,12 @@ class EdgePopulatorAgent(LayerAgent):
 
     def create_joint_defs(self) -> list[DirectRule]:
         """Generate the joint definitions for the panel edges."""
-        for _, elements in self.elements_for_layer.values()
-        for candidate in self.create_joint_candidates(model, elements=elements):
-            rule = self.create_edge_beam_joint_rule(*candidate.elements)
+        for candidate in self.create_joint_candidates():
+            rule = self._create_edge_beam_joint_rule(*candidate.elements)
             if rule is not None:
                 self.joint_defs.append(rule)
 
-    def create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
+    def _create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
         beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
         beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
@@ -186,10 +185,10 @@ class EdgePopulatorAgent(LayerAgent):
             corner_index = 0
         else:
             corner_index = max(edge_a_index, edge_b_index)
-        interior_corner = corner_index in get_interior_corner_indices(self.panel.outline_a)
+        interior_corner = corner_index in get_interior_corner_indices(self.layer.outline_a)
 
-        edge_plane_a = self.panel.edge_planes[edge_a_index]
-        edge_plane_b = self.panel.edge_planes[edge_b_index]
+        edge_plane_a = self.layer.edge_planes[edge_a_index]
+        edge_plane_b = self.layer.edge_planes[edge_b_index]
         miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3
 
         if miter:

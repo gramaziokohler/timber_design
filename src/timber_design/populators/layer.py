@@ -5,6 +5,7 @@ from typing import Optional
 from compas.geometry import Polyline
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
+from compas_timber.model import TimberModel
 
 
 class LayerDefinition:
@@ -30,19 +31,9 @@ class LayerDefinition:
         and as a prefix for plate categories (e.g. ``"interior_plate"``).
     agent_configs : list[:class:`~timber_design.populators.LayerAgentConfig`], optional
         Configuration objects for the agents that should be instantiated on
-        this layer.  Mutually exclusive with ``sublayers``.
+        this layer.
     sublayers : list[:class:`LayerDefinition`], optional
-        Nested child layer definitions for composite layers (e.g. multiple
-        insulation sheets that share a parent thickness).  Mutually exclusive
-        with ``agent_configs``.
-
-    Raises
-    ------
-    ValueError
-        If both ``agent_configs`` and ``sublayers`` are provided.
-    ValueError
-        If ``thickness`` is given *and* all sublayer thicknesses are known but
-        their sum does not equal ``thickness``.
+        Nested child layer definitions for composite layers.
 
     Examples
     --------
@@ -54,7 +45,6 @@ class LayerDefinition:
         frame = LayerDefinition(
             thickness=None,  # fill remaining
             name="frame",
-            is_framing_layer=True,
             agent_configs=[
                 EdgePopulatorAgentConfig(),
                 StudPopulatorAgentConfig(stud_spacing=625.0),
@@ -73,251 +63,183 @@ class LayerDefinition:
         self.sublayers = sublayers or []
         self.name = name
         self.agent_configs = agent_configs or []
+        self.position:float=None
+        self.resulting_layer = None
 
-    def get_leaf_layer_defs(self):
-        """Return a list of leaf-level :class:`LayerDefinition` objects (depth-first).
 
-        Resolves all ``thickness=None`` entries before collecting the leaves,
-        so every returned definition carries a concrete thickness.
-
-        Returns
-        -------
-        list[:class:`LayerDefinition`]
-        """
+    def model_from_panel(self, panel):
+        if not self.thickness:
+            self.thickness = panel.thickness
+        elif not TOL.is_close(self.thickness, panel.thickness):
+            raise ValueError(f"the layer height was defined at {self.thickness}, but the panel thickness is {panel.thickness}")
+        self.position = 0.0
         self._resolve_thicknesses()
-        return list(self._iter_leaves())
+        self._resolve_positions()
 
-    def _iter_leaves(self):
-        """Yield leaf-level :class:`LayerDefinition` objects (depth-first).
+        def add_layer_from_def_to_model(layer_def, model, parent=None):
+            layer = Layer.from_panel_and_range(panel, layer_def.position,layer_def.position+layer_def.thickness, agent_configs = layer_def.agent_configs)
+            self.resulting_layer = layer
+            if parent:
+                layer.transform(parent.modeltransformation.inverse())
+            model.add_element(layer, parent=parent)
+            if layer_def.sublayers:
+                for ld in layer_def.sublayers:
+                    add_layer_from_def_to_model(ld, model, parent = layer)
 
-        A *leaf* is a node with no sublayers.  Nodes that have sublayers are
-        traversed recursively without being yielded themselves.
-        """
-        if not self.sublayers:
-            yield self
-        else:
-            for sl in self.sublayers:
-                yield from sl._iter_leaves()
-
+        layer_model = TimberModel()
+        add_layer_from_def_to_model(self, layer_model, parent=None)
+        return layer_model
 
     def _resolve_thicknesses(self):
-        """Resolve all ``thickness=None`` entries in the :class:`LayerDefinition` tree.
-
-        .. warning::
-            This method **mutates** ``layer_def`` and its descendants in place.
-            Always pass a deep copy of the user-supplied definitions — never
-            the originals — so that the config object can be reused across
-            multiple :meth:`create_layers` calls.
-
-        Uses a two-pass algorithm so that thicknesses can flow both directions:
-
-        **Pass 1 — bottom-up** (:meth:`_infer_from_children`):
-            Post-order traversal.  When a node's own thickness is ``None`` but
-            every one of its children already has a concrete thickness, the
-            node's thickness is set to the sum of its children.  This allows
-            composite sub-stacks to omit a total, e.g.
-            ``insulation(sublayers=[board_a(30), board_b(20)])`` resolves to
-            ``insulation.thickness = 50``.
-
-        **Pass 2 — top-down** (:meth:`_distribute_to_children`):
-            Pre-order traversal.  When a node has a known thickness and
-            exactly one child with ``thickness=None``, that child receives
-            the remainder (``parent − sum(concrete siblings)``).  Fully-
-            concrete sibling groups are validated to sum to the parent.
-
-        Raises
-        ------
-        ValueError
-            See :meth:`_infer_from_children` and :meth:`_distribute_to_children`.
-        """
+        """Resolve all ``thickness=None`` entries in the tree (mutates in place)."""
         self._infer_from_children(self)
         self._distribute_to_children(self)
 
+    def resolve_beam_dimensions(self, standard_beam_width):
+        def resolve_all_agent_dims(layer_def):
+            for ac in layer_def.agent_configs:
+                ac.resolve_beam_dimensions(standard_beam_width, layer_def.thickness)
+            if layer_def.sublayers:
+                for sl in layer_def.sublayers:
+                    resolve_all_agent_dims(sl)
+
+        resolve_all_agent_dims(self)
+
+
+    def _resolve_positions(self, start = 0.0):
+        current = start
+        for sl in self.sublayers:
+            sl.position = current
+            if sl.sublayers:
+                sl._resolve_positions(start = current)
+            current += sl.thickness
+
     def _infer_from_children(self, layer_def):
-        """Post-order pass: infer a node's thickness from its children.
-
-        Recurses into every child first, then — if the current node's
-        thickness is still ``None`` and all children are now concrete —
-        sets ``node.thickness = sum(children)``.  Nodes whose thickness
-        is already set, or that have at least one fill-remaining child
-        after recursion, are left for the top-down pass.
-
-        Parameters
-        ----------
-        layer_def : :class:`~timber_design.populators.LayerDefinition`
-        """
         for sl in layer_def.sublayers:
             self._infer_from_children(sl)
-
         if layer_def.thickness is None and layer_def.sublayers:
             if all(sl.thickness is not None for sl in layer_def.sublayers):
                 layer_def.thickness = sum(sl.thickness for sl in layer_def.sublayers)
 
     def _distribute_to_children(self, layer_def):
-        """Pre-order pass: distribute a known parent thickness to fill children.
-
-        Rules applied at each node that has sublayers:
-
-        - **Parent thickness still** ``None``: raises — the bottom-up pass
-          could not infer it (some children remain unresolved).
-        - **All children concrete**: validates ``sum(children) == parent``.
-        - **Exactly one fill child**: assigns it
-          ``parent − sum(concrete siblings)``; raises if that remainder is
-          negative.
-        - **More than one fill child**: raises — at most one ``thickness=None``
-          per sibling group is permitted.
-
-        Recurses into all children after resolving the current level.
-
-        Parameters
-        ----------
-        layer_def : :class:`~timber_design.populators.LayerDefinition`
-
-        Raises
-        ------
-        ValueError
-            On any of the error conditions described above.
-        """
         if not layer_def.sublayers:
             return
-
         fill = [sl for sl in layer_def.sublayers if sl.thickness is None]
         known_sum = sum(sl.thickness for sl in layer_def.sublayers if sl.thickness is not None)
-
         if layer_def.thickness is None:
-            fill_names = [repr(sl.name) for sl in fill]
-            raise ValueError("Cannot resolve fill-remaining sublayer(s) [{}] of layer {!r} because its own thickness is unknown.".format(", ".join(fill_names), layer_def.name))
-
+            raise ValueError("Cannot resolve fill-remaining sublayer(s) of layer {!r}: own thickness unknown.".format(layer_def.name))
         if not fill:
             if not TOL.is_close(known_sum, layer_def.thickness):
                 breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers)
-                raise ValueError("Sublayers of layer {!r} sum to {} but layer thickness is {}. Sublayers: [{}].".format(layer_def.name, known_sum, layer_def.thickness, breakdown))
+                raise ValueError("Sublayers of {!r} sum to {} but layer thickness is {}. [{}]".format(layer_def.name, known_sum, layer_def.thickness, breakdown))
         else:
             if len(fill) > 1:
-                fill_names = [repr(sl.name) for sl in fill]
-                raise ValueError("At most one sublayer of layer {!r} may have thickness=None; got {} ({}).".format(layer_def.name, len(fill), ", ".join(fill_names)))
+                raise ValueError("At most one sublayer of {!r} may have thickness=None; got {}.".format(layer_def.name, len(fill)))
             remaining = layer_def.thickness - known_sum
             if remaining < 0 and not TOL.is_zero(remaining):
-                breakdown = ", ".join("{!r}={}".format(sl.name, sl.thickness) for sl in layer_def.sublayers if sl.thickness is not None)
-                raise ValueError(
-                    "Fixed sublayers of layer {!r} ({}) exceed its thickness ({}); no room left for fill-remaining sublayer {!r}. Fixed sublayers: [{}].".format(
-                        layer_def.name, known_sum, layer_def.thickness, fill[0].name, breakdown
-                    )
-                )
+                raise ValueError("Fixed sublayers of {!r} exceed its thickness {}.".format(layer_def.name, layer_def.thickness))
             fill[0].thickness = remaining
-
         for sl in layer_def.sublayers:
             self._distribute_to_children(sl)
 
 
-class Layer:
-    """A resolved cross-section layer within a panel, carrying geometry and agents.
+class Layer(Panel):
+    """A resolved cross-section layer that *is* a :class:`~compas_timber.elements.Panel`.
 
     Each ``Layer`` is created by
-    :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers` from
-    a :class:`LayerDefinition`.  It holds a :class:`~compas_timber.elements.Panel`
-    whose ``outline_a`` and ``outline_b`` define the exact geometric boundaries
-    of that layer in populator space.
+    :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers` from a
+    :class:`LayerDefinition`.  It extends :class:`~compas_timber.elements.Panel`
+    with agent tracking and tree-structure bookkeeping.
 
-    All :class:`~timber_design.populators.LayerAgent` subclasses receive a
-    ``Layer`` as their first constructor argument.  They access the underlying
-    panel geometry via the
-    :attr:`~timber_design.populators.LayerAgent.panel` property, which
-    always returns ``self.layer.panel``.
+    Since ``Layer`` inherits from ``Panel``, all panel geometry is accessed
+    directly: ``layer.outline_a``, ``layer.outline_b``, ``layer.thickness``,
+    ``layer.planes``, etc.
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The panel geometry for this layer.  Its ``outline_a`` / ``outline_b``
-        span exactly the Z-extent of the layer in populator space.
+    frame : :class:`~compas.geometry.Frame`
+    length, width, thickness : float
+    local_outline_a, local_outline_b : :class:`~compas.geometry.Polyline`, optional
     name : str, optional
-        The layer identifier (e.g. ``"frame"``, ``"interior"``).
-    agents : list[:class:`~timber_design.populators.LayerAgent`], optional
-        Agent instances created for this layer.  Populated after construction.
-    layer_def : :class:`LayerDefinition`, optional
-        The definition object that produced this layer.  Used to read
-        :attr:`~LayerDefinition.agent_configs` and
+    agents : list, optional
     layer_index : int, optional
-        Zero-based ordinal position of this layer in the flat layer stack.
-
 
     Attributes
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        The panel geometry for this layer.
-    name : str or None
-        The layer identifier.
-    agents : list[:class:`~timber_design.populators.LayerAgent`]
-        Agent instances on this layer.
-    layer_def : :class:`LayerDefinition` or None
-        The definition that produced this layer.
+    agents : list
+        Agent instances registered on this layer.
     layer_index : int or None
-        Zero-based position in the layer stack.
-    thickness : float
-        Convenience shortcut to ``layer.panel.thickness``.
-    center_height : float
-        Z coordinate of the layer's mid-thickness in populator space.
-
+        Zero-based ordinal position in the flat layer list.
+    parent_layer : :class:`Layer` or None
+        Parent layer in the cross-section tree.
+    sublayer_list : list[:class:`Layer`]
+        Ordered child layers.
     """
 
     def __init__(
         self,
-        panel: Optional[Panel] = None,
-        name: Optional[str] = None,
-        agents: Optional[list] = None,
-        layer_index: Optional[int] = None,
-        layer_def: Optional["LayerDefinition"] = None,
+        frame,
+        length,
+        width,
+        thickness,
+        local_outline_a=None,
+        local_outline_b=None,
+        type=None,
+        name=None,
+        agents=None,
+        layer_index=None,
+        **kwargs,
     ):
-        self.panel = panel
-        self.name = name
+        super().__init__(
+            frame,
+            length,
+            width,
+            thickness,
+            local_outline_a=local_outline_a,
+            local_outline_b=local_outline_b,
+            type=type,
+            **kwargs,
+        )
+        self.name = name  # Panel.name setter → self._name
         self.agents = agents if agents is not None else []
         self.layer_index = layer_index
-        self.layer_def = layer_def
 
     @property
     def elements(self):
-        """All elements placed on this layer, across every registered agent.
-
-        Uses :meth:`~timber_design.populators.LayerAgent.elements_for_layer`
-        on every agent so the result is always up-to-date after trimming
-        (both :class:`~timber_design.populators.LayerAgent` and
-        :class:`~timber_design.populators.FeatureAgent` implement the same
-        method).
-        """
+        """All elements placed on this layer by every registered agent."""
         result = []
         for agent in self.agents:
             result.extend(agent.elements_for_layer(self))
         return result
 
+    @property
+    def center_height(self):
+        """Z coordinate of the layer's mid-thickness in populator space."""
+        return self.outline_a[0][2] + self.thickness / 2
+
     @classmethod
     def from_panel_and_range(
         cls,
-        panel: Panel,
+        panel,
         range_a: float,
         range_b: float,
         name: Optional[str] = None,
         layer_index: Optional[int] = None,
+        agent_configs: Optional[list] = None
     ) -> "Layer":
-        """Create a layer by trimming a panel to a given Z range.
-
-        Interpolates ``outline_a`` and ``outline_b`` between the source
-        panel's faces at the specified offsets so that the resulting layer
-        panel spans exactly ``[range_a, range_b]`` along the panel's local
-        Z axis.
+        """Create a layer by slicing a panel to a Z range.
 
         Parameters
         ----------
         panel : :class:`compas_timber.elements.Panel`
-            The source panel to trim.
+            Source panel to slice.
         range_a : float
-            Start of the layer in model units, measured from ``outline_a``
-            (the ``0`` face).
+            Layer start, measured from ``outline_a`` face.
         range_b : float
-            End of the layer in model units, measured from ``outline_a``.
+            Layer end, measured from ``outline_a`` face.
         name : str, optional
-            Name for this layer.
         layer_index : int, optional
-            Zero-based ordinal index in the layer stack.
+
         Returns
         -------
         :class:`Layer`
@@ -331,15 +253,15 @@ class Layer:
         offset = range_b / panel.thickness
         frame_outline_b = Polyline([pt_a * (1.0 - offset) + pt_b * offset for pt_a, pt_b in zip(panel.outline_a.points, panel.outline_b.points)])
 
-        layer_panel = Panel.from_outlines(frame_outline_a, frame_outline_b)
-        return cls(layer_panel, name, layer_index=layer_index)
+        layer = cls.from_outlines(frame_outline_a, frame_outline_b)
+        layer.name = name
+        layer.layer_index = layer_index
+        for agent_config in agent_configs:
+                layer.agents.append(agent_config.get_agent_from_layer(layer))
+        return layer
 
-    @property
-    def thickness(self) -> float:
-        """Thickness of this layer's panel."""
-        return self.panel.thickness
-
-    @property
-    def center_height(self) -> float:
-        """Z coordinate of the layer's mid-thickness in populator space."""
-        return self.panel.outline_a[0][2] + self.panel.thickness / 2
+    def iter_subtree(self):
+        """Yield this layer and all descendants depth-first."""
+        yield self
+        for child in self.sublayer_list:
+            yield from child.iter_subtree()

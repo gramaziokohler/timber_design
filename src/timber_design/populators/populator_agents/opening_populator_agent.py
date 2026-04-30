@@ -265,8 +265,8 @@ class OpeningPopulatorAgent(FeatureAgent):
         if not king_dims:
             raise ValueError("Beam dimensions for 'king_stud' not found.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
-        opening_a = Polyline([intersection_line_plane(line, layer.panel.planes[0]) for line in lines])
-        opening_b = Polyline([intersection_line_plane(line, layer.panel.planes[1]) for line in lines])
+        opening_a = Polyline([intersection_line_plane(line, layer.planes[0]) for line in lines])
+        opening_b = Polyline([intersection_line_plane(line, layer.planes[1]) for line in lines])
         box_a = Box.from_points(opening_a.points)
         box_b = Box.from_points(opening_b.points)
         frame_polyline_a = Polyline([box_a.corner(0), box_a.corner(1), box_a.corner(2), box_a.corner(3), box_a.corner(0)])

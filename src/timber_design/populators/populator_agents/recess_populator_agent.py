@@ -136,7 +136,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
             vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
-                edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.panel.thickness - self.beam_dimensions["recess"][1]) * 0.5))
+                edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.layer.thickness - self.beam_dimensions["recess"][1]) * 0.5))
             )
         extend_line_segments(plate_edges, close_loop=True)
         plate_edges = join_polyline_segments(plate_edges, close_loop=True)[0][0]
@@ -145,7 +145,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         for edge in new_centerlines:
             self.elements.append(self.beam_from_category(edge, "recess"))
         self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
-        vector = Vector(0, 0, (self.panel.thickness * 0.5 - self.beam_dimensions["recess"][1]))
+        vector = Vector(0, 0, (self.layer.thickness * 0.5 - self.beam_dimensions["recess"][1]))
         self.elements[-1].transform(Translation.from_vector(vector))
         self.outline = self.outline.copy() if self.outline else None
 

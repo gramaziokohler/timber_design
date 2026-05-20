@@ -136,7 +136,7 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     def __init__(self, layer, params, feature, framing_layers=None, trimming_layers=None):
         # type: (Layer, OpeningPopulatorAgentConfig, Opening, list, list) -> None
-        super().__init__(layer, params, feature, framing_layers, trimming_layers)
+        super().__init__(params, feature, framing_layers, trimming_layers)
         self.lintel_posts = params.lintel_posts
         self.split_bottom_plate_beam = params.split_bottom_plate_beam
         self.opening_type = self.opening.opening_type
@@ -286,11 +286,13 @@ class OpeningPopulatorAgent(FeatureAgent):
             ]
         )
 
-    def extend_elements(self, other_agents):
-        intersecting_agents = []
-        for a in other_agents:
-            if aabb_overlap_x(self, a):
-                intersecting_agents.append(a)
+    def extend_elements(self):
+        other_agents = []
+        for layer in self.framing_layers:
+            for agent in layer.agents:
+                if agent is not self and agent not in other_agents:
+                    other_agents.append(agent)
+        intersecting_agents = [a for a in other_agents if aabb_overlap_x(self, a)]
         if not intersecting_agents:
             return
         self._extend_studs(intersecting_agents)

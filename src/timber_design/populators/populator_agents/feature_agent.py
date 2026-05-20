@@ -161,6 +161,30 @@ class FeatureAgent(PopulatorAgent):
         # Layers this agent has registered itself on during generate_elements.
         self.registered_layers = []
 
+    # ------------------------------------------------------------------
+    # Layer membership
+    # ------------------------------------------------------------------
+
+    def _agent_layers(self):
+        return list(self.registered_layers)
+
+    def create_joint_candidates(self):
+        """Return joint candidates per layer, using the per-layer element dict."""
+        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+        from timber_design.populators.beam2d import Beam2D
+        from compas_timber.connections import JointCandidate
+
+        candidates = []
+        solver = ConnectionSolver2D()
+        for elements in self._elements_by_layer.values():
+            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
+            pairs = solver.find_intersecting_pairs(beam_elements)
+            for element_a, element_b in pairs:
+                topo_result = solver.find_topology(element_a, element_b)
+                if topo_result is not None:
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                    candidates.append(candidate)
+        return candidates
 
     # ------------------------------------------------------------------
     # Unified element API (overrides LayerAgent defaults)

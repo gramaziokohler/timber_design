@@ -16,7 +16,7 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super().__init__()
         self.panel_types = {}
-        for pt in get_leaf_subclasses(LayerAgentConfig):
+        for pt in get_nonabstract_subclasses(LayerAgentConfig):
             self.panel_types[pt.__name__] = pt
         self.panel_type = self.panel_types.get(ghenv.Component.Params.Output[0].NickName, None)
 

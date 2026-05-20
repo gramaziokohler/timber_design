@@ -36,8 +36,7 @@ class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
             sheeting_inside=sheeting_inside,
             lintel_posts=lintel_posts,
             split_bottom_plate_beam=split_bottom_plate_beam,
-            beam_width_overrides=beam_width_overrides,
-            joint_rule_overrides=joint_rule_overrides,
-            default_feature_configs=default_feature_configs,
-            instance_feature_configs=instance_feature_configs,
+            joint_rule_overrides=list(joint_rule_overrides) if joint_rule_overrides else None,
+            default_feature_configs={d.FEATURE_TYPE: d for d in default_feature_configs} if default_feature_configs else None,
+            instance_feature_configs=list(instance_feature_configs) if instance_feature_configs else None,
         )

@@ -76,15 +76,27 @@ class LayerDefinition:
         self._resolve_thicknesses()
         self._resolve_positions()
 
+        layer_index = [0]  # mutable counter for closure
+
         def add_layer_from_def_to_model(layer_def, model, parent=None):
-            layer = Layer.from_panel_and_range(panel, layer_def.position,layer_def.position+layer_def.thickness, agent_configs = layer_def.agent_configs)
-            self.resulting_layer = layer
+            layer = Layer.from_panel_and_range(
+                panel,
+                layer_def.position,
+                layer_def.position + layer_def.thickness,
+                name=layer_def.name,
+                layer_index=layer_index[0],
+                agent_configs=layer_def.agent_configs,
+            )
+            layer_index[0] += 1
+            layer_def.resulting_layer = layer  # store on each specific LayerDefinition
             if parent:
                 layer.transform(parent.modeltransformation.inverse())
+                parent.sublayer_list.append(layer)
+                layer.parent_layer = parent
             model.add_element(layer, parent=parent)
             if layer_def.sublayers:
                 for ld in layer_def.sublayers:
-                    add_layer_from_def_to_model(ld, model, parent = layer)
+                    add_layer_from_def_to_model(ld, model, parent=layer)
 
         layer_model = TimberModel()
         add_layer_from_def_to_model(self, layer_model, parent=None)
@@ -203,6 +215,11 @@ class Layer(Panel):
         self.name = name  # Panel.name setter → self._name
         self.agents = agents if agents is not None else []
         self.layer_index = layer_index
+        self.parent_layer = None
+        self.sublayer_list = []
+
+    def __repr__(self):
+        return "Layer with layer_index({})".format(self.layer_index)
 
     @property
     def elements(self):
@@ -256,8 +273,8 @@ class Layer(Panel):
         layer = cls.from_outlines(frame_outline_a, frame_outline_b)
         layer.name = name
         layer.layer_index = layer_index
-        for agent_config in agent_configs:
-                layer.agents.append(agent_config.get_agent_from_layer(layer))
+        for agent_config in (agent_configs or []):
+            layer.agents.append(agent_config.get_agent_from_layer(layer))
         return layer
 
     def iter_subtree(self):

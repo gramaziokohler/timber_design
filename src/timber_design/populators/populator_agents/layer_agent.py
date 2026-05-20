@@ -207,12 +207,18 @@ class LayerAgent(PopulatorAgent, ABC):
 
     def __init__(self, layer, params):
         # type: (Layer, LayerAgentConfig) -> None
-        super(LayerAgent, self).__init__(params)    
+        super(LayerAgent, self).__init__(params)
         self.layer = layer
         self.layer_index = layer.layer_index if layer is not None else None
-        self.layer_center_height = layer.outline_a[0][2] + layer.thickness / 2
+        self.layer_center_height = layer.center_height
 
+    @property
+    def panel(self):
+        """The panel geometry for this layer (``Layer`` IS a ``Panel``)."""
+        return self.layer
 
+    def _agent_layers(self):
+        return [self.layer] if self.layer is not None else []
 
     def elements_for_layer(self, layer):
         """Return the elements this agent has placed on *layer*.
@@ -248,6 +254,8 @@ class LayerAgent(PopulatorAgent, ABC):
 
     def trim_elements(self):
         for agent in self.layer.agents:
+            if agent is self:
+                continue  # never apply an agent's own boundary to its own elements
             if aabb_overlap(self, agent):
                 self.trim_agent_elements(agent, self.layer)
 

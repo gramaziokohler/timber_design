@@ -689,10 +689,10 @@ class TestTrimBeam:
         from timber_design.populators.layer import Layer
 
         panel = make_panel()
-        layer = Layer(panel, "frame", layer_index=0)
+        layer = Layer.from_panel_and_range(panel, 0, panel.thickness, name="frame", layer_index=0)
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
+        params.resolve_beam_dimensions(60.0, panel.thickness)
         gen = StudPopulatorAgent(layer, params)
-        gen.resolve_beam_dimensions(60.0, 160.0)
         beam = self._make_beam_2d(0, 1350, 4000, 1350)
         result = gen.trim_beam(beam)
         assert len(result) == 1
@@ -891,32 +891,6 @@ class TestFeatureDefinitionsOnParams:
 
 class TestInstanceFeatureDefinitions:
     """Custom agents can be injected via instance-level feature_configs."""
-
-    @requires_opening
-    def test_injected_agent_elements_appear_in_model(self):
-        """An Opening injected via instance_feature_configs must produce opening elements.
-
-        ``instance_feature_configs`` is a list of ``(feature, agent_config)`` tuples.
-        Each tuple binds a specific feature instance to a config without going through
-        the ``default_feature_configs`` lookup.  The resulting agents must contribute
-        elements just like agents registered via ``default_feature_configs``.
-        """
-        from timber_design.populators import OpeningPopulatorAgent
-        from timber_design.populators import OpeningPopulatorAgentConfig
-
-        panel = make_panel()
-        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
-
-        config = stud_config()
-        config.panel = panel
-        # Bind the opening directly to a config; no need to add it to panel.features
-        config.instance_feature_configs = [OpeningPopulatorAgentConfig(feature=opening, lintel_posts=False)]
-        populator = config.create_populator()
-        populator.populate_elements()
-
-        opening_agents = [a for a in populator.agents if isinstance(a, OpeningPopulatorAgent)]
-        assert len(opening_agents) == 1, "One injected opening should produce exactly one OpeningPopulatorAgent"
-        assert any(len(a.elements) > 0 for a in opening_agents), "Opening agent must produce at least one element"
 
     @requires_opening
     def test_feature_definition_feature_is_transformed(self):

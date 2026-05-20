@@ -293,17 +293,17 @@ class PopulatorAgent(ABC):
         # TODO: if we're only working with category rules here then make it explicit, if not, find a way to use the public interface of JointRule
         rules = list(base_rules)
         for override in overrides:
-            for rule in rules:
+            for i, rule in enumerate(rules):
                 if rule.category_a not in self.BEAM_CATEGORY_NAMES or rule.category_b not in self.BEAM_CATEGORY_NAMES:
                     continue
                 # element order matters for T and EDGE_FACE topologies
                 if rule.joint_type.supported_topology == JointTopology.TOPO_T or rule.joint_type.supported_topology == JointTopology.TOPO_EDGE_FACE:
                     if override.category_a == rule.category_a and override.category_b == rule.category_b:
-                        rule = override
+                        rules[i] = override
                         break
                 else:
                     if set([override.category_a, override.category_b]) == set([rule.category_a, rule.category_b]):
-                        rule = override
+                        rules[i] = override
                         break
             else:
                 rules.append(override)
@@ -432,28 +432,60 @@ class PopulatorAgent(ABC):
 
         return beam_segs
 
-    def create_joint_candidates(self):
-        """Return joint candidates for overlapping beam pairs.
+    def _agent_layers(self):
+        """Return the layers this agent is directly registered on.
+
+        Overridden by :class:`LayerAgent` (returns ``[self.layer]``) and
+        :class:`FeatureAgent` (returns ``self.registered_layers``).
+        """
+        return []
+
+    def is_on_layer(self, layer):
+        """Return ``True`` if this agent operates on *layer* or any ancestor/descendant.
+
+        Checks whether any of the agent's registered layers is *layer* itself,
+        an ancestor of *layer*, or a descendant of *layer*.
 
         Parameters
         ----------
-        model : :class:`~compas_timber.model.TimberModel`
-        elements : list, optional
-            Restrict the search to this subset of elements.  When ``None``
-            all of ``self.elements`` are used.  Pass a per-layer filtered
-            list to avoid cross-layer joint candidates for agents that span
-            multiple layers (e.g. :class:`~timber_design.populators.FeatureAgent`).
+        layer : :class:`~timber_design.populators.Layer`
+
+        Returns
+        -------
+        bool
+        """
+        for agent_layer in self._agent_layers():
+            if agent_layer is layer:
+                return True
+            # layer is an ancestor of agent_layer?
+            current = agent_layer.parent_layer
+            while current is not None:
+                if current is layer:
+                    return True
+                current = current.parent_layer
+            # layer is a descendant of agent_layer?
+            for desc in agent_layer.iter_subtree():
+                if desc is layer:
+                    return True
+        return False
+
+    def create_joint_candidates(self):
+        """Return joint candidates for overlapping beam pairs within this agent.
+
+        Subclasses override this to iterate the appropriate element collection.
+        The base implementation iterates ``self.elements`` directly, which is
+        correct for :class:`LayerAgent`.  :class:`FeatureAgent` overrides it
+        to iterate ``_elements_by_layer`` per layer.
         """
         candidates = []
         solver = ConnectionSolver2D()
-        for layer, elements in self._elements_by_layer.items():
-            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
-            pairs = solver.find_intersecting_pairs(beam_elements)
-            for element_a, element_b in pairs:
-                topo_result = solver.find_topology(element_a, element_b)
-                if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                    candidates.append(candidate)
+        beam_elements = [e for e in self.elements if isinstance(e, Beam2D)]
+        pairs = solver.find_intersecting_pairs(beam_elements)
+        for element_a, element_b in pairs:
+            topo_result = solver.find_topology(element_a, element_b)
+            if topo_result is not None:
+                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                candidates.append(candidate)
         return candidates
 
     
@@ -472,7 +504,7 @@ class PopulatorAgent(ABC):
             The agent whose plate elements receive the opening contour cut.
         """
         trimmed_elements = []
-        for element in other_agent.elements.elements_for_layer(layer):
+        for element in other_agent.elements_for_layer(layer):
             if element.is_plate:
                 trimmed_elements.extend(self.trim_plate(element))
             if element.is_beam:
@@ -490,7 +522,7 @@ class PopulatorAgent(ABC):
         """Trim all elements for this agent."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of PopulatorAgent")
 
-    def extend_elements(self, other_agents: list["LayerAgent"]) -> None:
+    def extend_elements(self) -> None:
         pass
 
     def create_joint_defs(self) -> list[DirectRule]:

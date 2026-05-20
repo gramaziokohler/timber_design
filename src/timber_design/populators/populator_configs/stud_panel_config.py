@@ -77,18 +77,29 @@ def stud_panel(
     layer_defs = []
     if sheeting_inside:
         layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    layer_defs.append(LayerDefinition(name="frame", is_framing_layer=True, agent_configs=frame_agent_configs))
+    framing_layer = LayerDefinition(name="frame", agent_configs=frame_agent_configs)
+    layer_defs.append(framing_layer)
     if sheeting_outside:
         layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
     if not default_feature_configs:
         default_feature_configs = {}
     if Opening not in default_feature_configs:
-        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam)
-    config = PanelPopulatorConfig(
-        panel=panel, orientation=orientation, layer_defs=layer_defs, default_feature_configs=default_feature_configs, instance_feature_configs=instance_feature_configs
-    )
-    config.standard_beam_width = standard_beam_width
-    config.beam_width_overrides = beam_width_overrides
-    config.joint_rule_overrides = joint_rule_overrides
+        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam, trimming_layer_defs=layer_defs, framing_layer_defs=[framing_layer])
+    else:
+        # User supplied their own Opening config — inject layer references when missing so
+        # they don't have to know about internal LayerDefinition objects.
+        cfg = default_feature_configs[Opening]
+        if cfg.framing_layer_defs is None:
+            cfg.framing_layer_defs = [framing_layer]
+        if cfg.trimming_layer_defs is None:
+            cfg.trimming_layer_defs = layer_defs
 
+    config = PanelPopulatorConfig(
+        panel=panel,
+        orientation=orientation,
+        standard_beam_width=standard_beam_width,
+        layer_defs=layer_defs,
+        default_feature_configs=default_feature_configs,
+        instance_feature_configs=instance_feature_configs,
+    )
     return config

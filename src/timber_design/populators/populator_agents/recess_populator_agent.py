@@ -129,11 +129,19 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     def generate_elements(self) -> None:
         """Generate recess beams and the sheeting plate for the panel outline."""
         super(RecessPopulatorAgent, self).generate_elements()
-        self.beam_dimensions["recess"] = (self.recess_beam_width, self.recess_beam_height)
+        recess_height = self.recess_beam_height if self.recess_beam_height is not None else self.layer.thickness
+        print("beam dims", self.beam_dimensions["recess"])
+
+        self.beam_dimensions["recess"] = (self.recess_beam_width, recess_height)
         plate_edges = []
         new_centerlines = []
         for i, edge in enumerate(self.outline.lines):
+            print(i, edge)
             vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
+            print("VECTOR", vector)
+            print("beam dims", self.beam_dimensions["recess"])
+            print("layer thickness", self.layer.thickness)
+            print("trv", vector , self.beam_dimensions["recess"][0] , 0.5)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
                 edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.layer.thickness - self.beam_dimensions["recess"][1]) * 0.5))
@@ -168,7 +176,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
             edge_a = candidate.element_a.attributes.get("edge_index")
             edge_b = candidate.element_b.attributes.get("edge_index")
             if edge_a is not None and edge_b is not None:
-                rule = self.create_edge_beam_joint_rule(*candidate.elements)
+                rule = self._create_edge_beam_joint_rule(*candidate.elements)
             else:
                 rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:

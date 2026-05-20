@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING
 
 from compas.geometry import Box
@@ -12,7 +11,6 @@ from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
-from compas_model.models import ElementTree
 from compas_timber.model import TimberModel
 
 from timber_design.populators.layer import Layer
@@ -64,7 +62,7 @@ class PanelPopulatorConfig:
         instance_feature_configs=None,
     ):
         self.panel = panel
-        self.layer_def = LayerDefinition(panel.thickness if panel else None, sublayers=[copy.deepcopy(ld) for ld in layer_defs] if layer_defs else None)   
+        self.layer_def = LayerDefinition(panel.thickness if panel else None, sublayers=list(layer_defs) if layer_defs else None)
         self.default_feature_configs = default_feature_configs or {}
         self.instance_feature_configs = instance_feature_configs or []
         self.orientation = orientation
@@ -112,7 +110,7 @@ class PanelPopulatorConfig:
         -------
         list[:class:`~timber_design.populators.Layer`]
         """
-        layer_model = self.layer_def.model_from_panel(self.panel)
+        layer_model = self.layer_def.model_from_panel(self.populator_panel)
         return layer_model
 
     def create_feature_agents(self):
@@ -148,15 +146,15 @@ class PanelPopulatorConfig:
             if agent_config is None:
                 continue
             transformed_feature = feature.transformed(self.transformation_to_populator)
-            framing_layers = [ld.resulting_layer for ld in agent_config.framing_layer_defs]
-            trimming_layers = [ld.resulting_layer for ld in agent_config.trimming_layer_defs]
+            framing_layers = [ld.resulting_layer for ld in (agent_config.framing_layer_defs or [])]
+            trimming_layers = [ld.resulting_layer for ld in (agent_config.trimming_layer_defs or [])]
             agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         # Instance feature agents — each config carries its own .feature reference.
         for agent_config in self.instance_feature_configs:
             transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
-            framing_layers = [ld.resulting_layer for ld in agent_config.framing_layer_defs]
-            trimming_layers = [ld.resulting_layer for ld in agent_config.trimming_layer_defs]
+            framing_layers = [ld.resulting_layer for ld in (agent_config.framing_layer_defs or [])]
+            trimming_layers = [ld.resulting_layer for ld in (agent_config.trimming_layer_defs or [])]
             agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         return agents
@@ -176,13 +174,10 @@ class PanelPopulatorConfig:
         ValueError
             If no panel has been set.
         """
+        print("Creating populator panel...")
+
         if self.panel is None:
             raise ValueError("No panel provided.")
-
-        # Reset the cached leaf-layer-def list so thickness resolution and
-        # deep-copying of agent configs always run on the original definitions,
-        # even when create_populator() is called multiple times on the same config.
-        self._layer_def_stack = None
 
         self.populator_panel = self.get_populator_panel()
         self.resolve_beam_dimensions()
@@ -202,7 +197,7 @@ class PanelPopulatorConfig:
     # ------------------------------------------------------------------
 
     def resolve_beam_dimensions(self):
-        """Populate :attr:`~timber_design.populators.LayerAgentConfig.beam_dimensions` on every config.
+        """Populate :attr:`~timber_design.populators.LayerAgentConfig.beam_dimensions` on every agent config on that layer.
 
         For :class:`~timber_design.populators.LayerAgentConfig` instances bound
         to a specific layer, the beam height is taken from ``ld.thickness``.
@@ -210,11 +205,24 @@ class PanelPopulatorConfig:
         the per-layer height is supplied when needed via the ``layer`` kwarg of
         :meth:`~timber_design.populators.LayerAgent.beam_from_category`.
         """
+        print("Resolving beam dimensions...")
+
         if not self.standard_beam_width:
             if not self.panel:
                 raise AttributeError("cannot resolve standard_beam_width without panel")
             self.standard_beam_width = self.panel.thickness / 2.0
-        seen = set()
+        # Ensure the root LayerDefinition knows its thickness before resolving
+        # sublayer thicknesses.  When the config is constructed without a panel
+        # (panel is assigned later via ``config.panel = ...``), the root
+        # layer_def.thickness is None at construction time and is only set
+        # inside model_from_panel — which runs *after* this method.  We prime
+        # it here from the populator panel (preferred) or the original panel.
+        if not self.layer_def.thickness:
+            ref = getattr(self, "populator_panel", None) or self.panel
+            if ref:
+                self.layer_def.thickness = ref.thickness
+        # Resolve sublayer thicknesses so that beam heights are never None.
+        self.layer_def._resolve_thicknesses()
         self.layer_def.resolve_beam_dimensions(self.standard_beam_width)
         for ad in self.instance_feature_configs + list(self.default_feature_configs.values()):
             ad.resolve_beam_dimensions(self.standard_beam_width, 0.0)

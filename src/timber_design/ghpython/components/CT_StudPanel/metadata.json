@@ -42,7 +42,7 @@
             {
                 "name": "orientation",
                 "description": "Optional orientation vector.",
-                "typeHintID": "none",
+                "typeHintID": "vector",
                 "scriptParamAccess": 0
             },
             {

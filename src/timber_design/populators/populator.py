@@ -9,7 +9,7 @@ from timber_design.workflow import JointRuleSolver
 from .layer import Layer
 
 
-class PanelPopulator(object):
+class PanelPopulator:
     """Orchestrates the full population of a timber panel with framing elements.
 
     ``PanelPopulator`` is the top-level coordinator for the panel-population
@@ -88,7 +88,6 @@ class PanelPopulator(object):
     """
 
     def __init__(self, panel, model, feature_agents, original_panel=None, transformation_to_populator=None):
-        super(PanelPopulator, self).__init__()
         self.panel = panel
         self.model = model
         self.feature_agents = feature_agents
@@ -114,6 +113,11 @@ class PanelPopulator(object):
             if agent not in seen:
                 seen.append(agent)
         return seen
+
+    @property
+    def elements(self):
+        """List of all elements placed by all agents."""
+        return [e for e in self.model.elements() if not isinstance(e,Layer)]
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
@@ -229,6 +233,8 @@ class PanelPopulator(object):
             for element in self.original_panel.children[:]:
                 model.remove_element(element)
         for element in self.model.elements():
+            if isinstance(element, Layer):
+                continue  # Layer objects are structural bookkeeping only, not physical elements
             element.transform(self.transformation_to_populator.inverse())
             model.add_element(element, parent=self.original_panel)
         for j in self.model.joints:

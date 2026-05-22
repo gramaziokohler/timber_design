@@ -95,6 +95,7 @@ def get_createable_joints():
     TOOD: a typical way of doing that would be to declare the non-creatable base classes abstract and filter those.
     """
     from compas_timber.connections import BallNodeJoint
+    from compas_timber.connections import KBirdsmouthJoint
     from compas_timber.connections import LButtJoint
     from compas_timber.connections import LFrenchRidgeLapJoint
     from compas_timber.connections import LLapJoint
@@ -131,6 +132,7 @@ def get_createable_joints():
         TOliGinaJoint,
         LTenonMortiseJoint,
         TMultiStepJoint,
+        KBirdsmouthJoint,
     ]
 
 

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
@@ -14,17 +15,27 @@ class StudPopulatorAgentConfig(LayerAgentConfig):
 
     Parameters
     ----------
-    stud_spacing : float
-        On-centre spacing between studs in model units.
+    stud_spacing : float, optional
+        On-centre spacing between studs in model units.  When ``None``,
+        the agent defaults to ``stud_width * 8`` at construction time.
+    stud_width : float, optional
+        Explicit width for stud beams.  Takes precedence over
+        *standard_beam_width*.  When ``None`` the standard beam width is used.
     """
     IS_ABSTRACT = False
 
-    stud_spacing: float = 0.0
+    stud_spacing: Optional[float] = None
+    stud_width: Optional[float] = None
+
+    def __post_init__(self):
+        if self.stud_width is not None:
+            self.beam_widths["stud"] = self.stud_width
 
     @property
     def __data__(self):
         data = super().__data__
         data["stud_spacing"] = self.stud_spacing
+        data["stud_width"] = self.stud_width
         return data
 
 
@@ -53,7 +64,8 @@ class StudPopulatorAgent(LayerAgent):
     Attributes
     ----------
     stud_spacing : float
-        On-centre spacing between studs in model units.
+        On-centre spacing between studs in model units.  Must be positive
+        and non-zero; resolved from the config before the agent is constructed.
     """
 
     BEAM_CATEGORY_NAMES = ["stud"]
@@ -70,13 +82,20 @@ class StudPopulatorAgent(LayerAgent):
     def __init__(self, layer, params):
         # type: (Layer, StudPopulatorAgentConfig) -> None
         super(StudPopulatorAgent, self).__init__(layer, params)
-        self.stud_spacing = params.stud_spacing or self.layer.aabb.xmax / 8.0
+        stud_spacing = params.stud_spacing if params.stud_spacing is not None else self.beam_widths["stud"] * 8
+        if stud_spacing <= 0:
+            raise ValueError(
+                "StudPopulatorAgent requires a positive stud_spacing; got {!r}. "
+                "Pass an explicit stud_spacing or ensure standard_beam_width is set "
+                "so the default (stud_width * 8) is positive.".format(stud_spacing)
+            )
+        self.stud_spacing = stud_spacing
 
     def generate_elements(self):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""
         x_position = self.stud_spacing
         studs = []
-        while x_position < self.layer.aabb.xmax - self.beam_dimensions["stud"][0]:
+        while x_position < self.layer.aabb.xmax - self.beam_widths["stud"]:
             studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.layer.aabb.ymax, 0)), "stud"))
             x_position += self.stud_spacing
         self.elements = studs

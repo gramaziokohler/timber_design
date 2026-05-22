@@ -12,6 +12,7 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import AgentBoundaryType
+from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
@@ -24,18 +25,25 @@ class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
 
     Parameters
     ----------
-    recess_beam_width : float
-        Width of the recess beam in model units.
+    recess_beam_width : float, optional
+        Width of the recess beam.  When ``None``, *standard_beam_width* is used.
     recess_beam_height : float, optional
-        Height of the recess beam.  When ``None`` the full frame thickness is used.
+        Height (Z extent) of the recess beam within the frame layer.  When
+        ``None`` the full layer thickness is used, producing no Z offset.
+        Set this to a value smaller than the layer thickness to create a
+        recessed shelf (the beam sits against ``outline_a``).
     sheeting_recess : float, optional
         Thickness of the sheeting plate inserted into the recess.
     """
     IS_ABSTRACT = False
 
-    recess_beam_width: float = 0.0
+    recess_beam_width: Optional[float] = None
     recess_beam_height: Optional[float] = None
     sheeting_recess: Optional[float] = None
+
+    def __post_init__(self):
+        if self.recess_beam_width is not None:
+            self.beam_widths["recess"] = self.recess_beam_width
 
     @property
     def __data__(self):
@@ -51,20 +59,14 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     Creates one ``"recess"`` :class:`~timber_design.populators.Beam2D` per
     segment of the edge agent's outline, offset inward by
-    ``recess_beam_width / 2`` and shifted in Z so the beam sits flush with the
-    required Z level.  Also creates a thin :class:`~compas_timber.elements.Plate`
+    ``recess_beam_width / 2`` and shifted in Z so the beam sits flush with
+    ``outline_a``.  Also creates a thin :class:`~compas_timber.elements.Plate`
     (the sheeting plate) whose outline matches the inward-offset edge outline.
 
     The agent copies the :attr:`~LayerAgent.outline` from the
     :class:`EdgePopulatorAgent` it wraps (it does not define an independent
     boundary).  Its :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`.
-
-    Cross-layer behaviour
-    ---------------------
-    :meth:`trim_agent_elements` cuts sheathing plates on any layer whose index is
-    strictly less than this agent's own :attr:`~LayerAgent.layer_index`
-    (i.e. layers that sit inside the recess frame).
 
     Parameters
     ----------
@@ -75,10 +77,8 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     Attributes
     ----------
-    recess_beam_width : float
-        Width of the recess beam in model units.
     recess_beam_height : float or None
-        Height of the recess beam.  When ``None`` the full frame thickness is used.
+        Height of the recess beam.  ``None`` → full layer thickness.
     sheeting_recess : float or None
         Thickness of the sheeting plate inserted into the recess.
     """
@@ -101,7 +101,6 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         params: RecessPopulatorAgentConfig,
     ):
         super(RecessPopulatorAgent, self).__init__(layer, params)
-        self.recess_beam_width = params.recess_beam_width
         self.recess_beam_height = params.recess_beam_height
         self.sheeting_recess = params.sheeting_recess
 
@@ -125,36 +124,37 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
-
     def generate_elements(self) -> None:
-        """Generate recess beams and the sheeting plate for the panel outline."""
+        """Generate edge beams, recess beams, and the sheeting plate."""
         super(RecessPopulatorAgent, self).generate_elements()
-        recess_height = self.recess_beam_height if self.recess_beam_height is not None else self.layer.thickness
-        print("beam dims", self.beam_dimensions["recess"])
 
-        self.beam_dimensions["recess"] = (self.recess_beam_width, recess_height)
+        recess_width = self.beam_widths["recess"]
+        recess_height = self.recess_beam_height if self.recess_beam_height is not None else self.layer.thickness
+        z_offset = (self.layer.thickness - recess_height) * 0.5
+
         plate_edges = []
         new_centerlines = []
         for i, edge in enumerate(self.outline.lines):
-            print(i, edge)
             vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
-            print("VECTOR", vector)
-            print("beam dims", self.beam_dimensions["recess"])
-            print("layer thickness", self.layer.thickness)
-            print("trv", vector , self.beam_dimensions["recess"][0] , 0.5)
             plate_edges.append(edge.translated(vector * 3.0))
             new_centerlines.append(
-                edge.translated((vector * self.beam_dimensions["recess"][0] * 0.5) + Vector(0, 0, (self.layer.thickness - self.beam_dimensions["recess"][1]) * 0.5))
+                edge.translated((vector * recess_width * 0.5) + Vector(0, 0, z_offset))
             )
+
         extend_line_segments(plate_edges, close_loop=True)
         plate_edges = join_polyline_segments(plate_edges, close_loop=True)[0][0]
         plate_edges[-1] = plate_edges[0]
         extend_line_segments(new_centerlines, close_loop=True)
+
         for edge in new_centerlines:
-            self.elements.append(self.beam_from_category(edge, "recess"))
-        self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
-        vector = Vector(0, 0, (self.layer.thickness * 0.5 - self.beam_dimensions["recess"][1]))
-        self.elements[-1].transform(Translation.from_vector(vector))
+            beam = Beam2D.from_centerline(edge, width=recess_width, height=recess_height, z_vector=Vector(0, 0, 1))
+            beam.attributes["category"] = "recess"
+            self.elements.append(beam)
+
+        if self.sheeting_recess:
+            self.elements.append(Plate.from_outline_thickness(plate_edges, self.sheeting_recess, vector=Vector(0, 0, -1)))
+            plate_vector = Vector(0, 0, self.layer.thickness * 0.5 - recess_height)
+            self.elements[-1].transform(Translation.from_vector(plate_vector))
         self.outline = self.outline.copy() if self.outline else None
 
     # ==========================================================================

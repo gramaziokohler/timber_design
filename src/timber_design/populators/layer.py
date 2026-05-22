@@ -67,7 +67,7 @@ class LayerDefinition:
         self.resulting_layer = None
 
 
-    def model_from_panel(self, panel):
+    def model_from_panel(self, panel, standard_beam_width=None):
         if not self.thickness:
             self.thickness = panel.thickness
         elif not TOL.is_close(self.thickness, panel.thickness):
@@ -86,6 +86,7 @@ class LayerDefinition:
                 name=layer_def.name,
                 layer_index=layer_index[0],
                 agent_configs=layer_def.agent_configs,
+                standard_beam_width=standard_beam_width,
             )
             layer_index[0] += 1
             layer_def.resulting_layer = layer  # store on each specific LayerDefinition
@@ -106,17 +107,6 @@ class LayerDefinition:
         """Resolve all ``thickness=None`` entries in the tree (mutates in place)."""
         self._infer_from_children(self)
         self._distribute_to_children(self)
-
-    def resolve_beam_dimensions(self, standard_beam_width):
-        def resolve_all_agent_dims(layer_def):
-            for ac in layer_def.agent_configs:
-                ac.resolve_beam_dimensions(standard_beam_width, layer_def.thickness)
-            if layer_def.sublayers:
-                for sl in layer_def.sublayers:
-                    resolve_all_agent_dims(sl)
-
-        resolve_all_agent_dims(self)
-
 
     def _resolve_positions(self, start = 0.0):
         current = start
@@ -242,7 +232,8 @@ class Layer(Panel):
         range_b: float,
         name: Optional[str] = None,
         layer_index: Optional[int] = None,
-        agent_configs: Optional[list] = None
+        agent_configs: Optional[list] = None,
+        standard_beam_width: Optional[float] = None,
     ) -> "Layer":
         """Create a layer by slicing a panel to a Z range.
 
@@ -256,6 +247,11 @@ class Layer(Panel):
             Layer end, measured from ``outline_a`` face.
         name : str, optional
         layer_index : int, optional
+        agent_configs : list, optional
+        standard_beam_width : float, optional
+            Passed to each agent config's
+            :meth:`~LayerAgentConfig.get_agent_from_layer` to fill in any
+            beam-width categories not set by an explicit kwarg.
 
         Returns
         -------
@@ -274,7 +270,7 @@ class Layer(Panel):
         layer.name = name
         layer.layer_index = layer_index
         for agent_config in (agent_configs or []):
-            layer.agents.append(agent_config.get_agent_from_layer(layer))
+            layer.agents.append(agent_config.get_agent_from_layer(layer, standard_beam_width))
         return layer
 
     def iter_subtree(self):

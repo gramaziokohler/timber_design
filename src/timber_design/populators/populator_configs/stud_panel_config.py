@@ -12,6 +12,7 @@ def stud_panel(
     panel=None,
     standard_beam_width=None,
     stud_spacing=None,
+    stud_width=None,
     standard_beam_width_increment=None,
     edge_beam_min_width=None,
     orientation=None,
@@ -19,7 +20,6 @@ def stud_panel(
     sheeting_inside=0,
     lintel_posts=False,
     split_bottom_plate_beam=False,
-    beam_width_overrides=None,
     joint_rule_overrides=None,
     default_feature_configs=None,
     instance_feature_configs=None,
@@ -28,15 +28,23 @@ def stud_panel(
 
     Parameters
     ----------
+    panel : :class:`compas_timber.elements.Panel`, optional
+        The panel to populate.
     standard_beam_width : float, optional
-        Default width for all framing beams.
+        Default width for all framing beams.  When ``None``, defaults to
+        half the panel thickness at populate time.
     stud_spacing : float, optional
-        On-centre spacing between studs.  When ``None`` (or ``0``), no stud
-        agent is created (edge-only panel).
+        On-centre spacing between studs.  When ``None``, defaults to
+        ``stud_width * 8`` at populate time.  Pass ``0`` to suppress studs
+        entirely (edge-only panel).
+    stud_width : float, optional
+        Explicit width for stud beams.  When ``None``, *standard_beam_width*
+        is used.
     standard_beam_width_increment : float, optional
         Rounding increment for edge-beam widths.
     edge_beam_min_width : float, optional
-        Minimum width for edge beams.
+        Minimum width for edge beams.  When ``None``, *standard_beam_width*
+        is used.
     orientation : :class:`compas.geometry.Vector`, optional
         Desired stud orientation in world space.
     sheeting_outside : float, optional
@@ -47,29 +55,25 @@ def stud_panel(
         When ``True``, jack studs are added inside the king studs at openings.
     split_bottom_plate_beam : bool, optional
         When ``True``, the bottom plate beam is split at the door opening.
-    beam_width_overrides : dict, optional
-        Per-category width overrides.
     joint_rule_overrides : list, optional
-        Rules that replace matching entries in any agent's ``INTERNAL_RULES`` list.
+        Rules that replace matching entries in any agent's ``INTERNAL_RULES``.
     default_feature_configs : dict, optional
-        Mapping from panel feature class to a ``LayerAgentConfig`` instance.
+        Mapping from panel feature class to a ``FeatureAgentConfig`` instance.
+    instance_feature_configs : list, optional
+        Per-instance feature config overrides.
     """
-    standard_beam_width = standard_beam_width or (panel.thickness / 2 if panel else None)
-    stud_spacing = stud_spacing or (panel.thickness * 2 if panel else None)
-
     frame_agent_configs = [
         EdgePopulatorAgentConfig(
             standard_beam_width_increment=standard_beam_width_increment,
-            edge_beam_min_width=edge_beam_min_width or standard_beam_width,
-            beam_width_overrides=beam_width_overrides,
+            edge_beam_min_width=edge_beam_min_width,
             joint_rule_overrides=joint_rule_overrides,
         ),
     ]
-    if stud_spacing:
+    if stud_spacing is None or stud_spacing:
         frame_agent_configs.append(
             StudPopulatorAgentConfig(
                 stud_spacing=stud_spacing,
-                beam_width_overrides=beam_width_overrides,
+                stud_width=stud_width,
                 joint_rule_overrides=joint_rule_overrides,
             )
         )
@@ -81,20 +85,26 @@ def stud_panel(
     layer_defs.append(framing_layer)
     if sheeting_outside:
         layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+
     if not default_feature_configs:
         default_feature_configs = {}
     if Opening not in default_feature_configs:
-        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam, trimming_layer_defs=layer_defs, framing_layer_defs=[framing_layer])
+        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(
+            lintel_posts=lintel_posts,
+            split_bottom_plate_beam=split_bottom_plate_beam,
+            framing_layer_defs=[framing_layer],
+            trimming_layer_defs=layer_defs,
+        )
     else:
-        # User supplied their own Opening config — inject layer references when missing so
-        # they don't have to know about internal LayerDefinition objects.
+        # User supplied their own Opening config — inject layer references when
+        # missing so they don't need to know about internal LayerDefinition objects.
         cfg = default_feature_configs[Opening]
         if cfg.framing_layer_defs is None:
             cfg.framing_layer_defs = [framing_layer]
         if cfg.trimming_layer_defs is None:
             cfg.trimming_layer_defs = layer_defs
 
-    config = PanelPopulatorConfig(
+    return PanelPopulatorConfig(
         panel=panel,
         orientation=orientation,
         standard_beam_width=standard_beam_width,
@@ -102,4 +112,3 @@ def stud_panel(
         default_feature_configs=default_feature_configs,
         instance_feature_configs=instance_feature_configs,
     )
-    return config

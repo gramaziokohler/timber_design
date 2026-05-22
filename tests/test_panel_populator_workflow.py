@@ -112,7 +112,6 @@ def categories(model):
 
 def by_category(model, cat):
     """List of elements in *model* with the given *cat* category string."""
-    print(e.attributes.get("category") for e in model.elements())
     return [e for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category") == cat]
 
 
@@ -173,17 +172,22 @@ class TestBasicStudWall:
 
 
 class TestEdgeOnlyWall:
-    """stud_spacing=None → only edge beams, no intermediate studs."""
+    """stud_spacing=0 → only edge beams, no intermediate studs."""
 
     def test_no_stud_category(self):
-        _, model = run_workflow(make_panel(), stud_config(stud_spacing=None))
+        _, model = run_workflow(make_panel(), stud_config(stud_spacing=0))
         assert "stud" not in categories(model)
 
     def test_plates_still_created(self):
-        _, model = run_workflow(make_panel(), stud_config(stud_spacing=None))
+        _, model = run_workflow(make_panel(), stud_config(stud_spacing=0))
         cats = categories(model)
         assert "top_plate_beam" in cats
         assert "bottom_plate_beam" in cats
+
+    def test_none_spacing_produces_studs(self):
+        """stud_spacing=None → default spacing (stud_width * 8), so studs appear."""
+        _, model = run_workflow(make_panel(), stud_config(standard_beam_width=60.0, stud_spacing=None))
+        assert "stud" in categories(model)
 
 
 # =============================================================================
@@ -224,40 +228,30 @@ class TestSheathing:
 
 
 class TestCustomBeamDimensions:
-    """beam_width_overrides assigns per-category widths."""
+    """Explicit per-category width kwargs are respected."""
 
     def test_standard_width_applied_to_studs(self):
         _, model = run_workflow(make_panel(), stud_config(standard_beam_width=60.0))
         for stud in by_category(model, "stud"):
             assert abs(stud.width - 60.0) < 1.0
 
-    def test_override_applied_to_target_category(self):
-        """beam_width_overrides applies to stud category (uses beam_from_category).
-
-        Note: EdgePopulatorAgent derives widths geometrically and ignores
-        beam_width_overrides, so plate-beam widths cannot be overridden this way.
-        StudPopulatorAgent DOES respect the override for the 'stud' category.
-        """
+    def test_stud_width_overrides_standard(self):
+        """stud_width takes precedence over standard_beam_width for stud beams."""
         _, model = run_workflow(
             make_panel(),
-            stud_config(
-                standard_beam_width=60.0,
-                beam_width_overrides={"stud": 80.0},
-            ),
+            stud_config(standard_beam_width=60.0, stud_width=80.0),
         )
         for stud in by_category(model, "stud"):
             assert abs(stud.width - 80.0) < 1.0
 
-    def test_non_overridden_categories_use_standard_width(self):
+    def test_stud_width_does_not_affect_other_categories(self):
+        """stud_width only overrides studs; other categories still use standard_beam_width."""
         _, model = run_workflow(
             make_panel(),
-            stud_config(
-                standard_beam_width=60.0,
-                beam_width_overrides={"top_plate_beam": 90.0},
-            ),
+            stud_config(standard_beam_width=60.0, stud_width=80.0),
         )
         for stud in by_category(model, "stud"):
-            assert abs(stud.width - 60.0) < 1.0
+            assert abs(stud.width - 80.0) < 1.0
 
 
 # =============================================================================
@@ -691,8 +685,7 @@ class TestTrimBeam:
         panel = make_panel()
         layer = Layer.from_panel_and_range(panel, 0, panel.thickness, name="frame", layer_index=0)
         params = StudPopulatorAgentConfig(stud_spacing=625.0)
-        params.resolve_beam_dimensions(60.0, panel.thickness)
-        gen = StudPopulatorAgent(layer, params)
+        gen = params.get_agent_from_layer(layer, 60.0)
         beam = self._make_beam_2d(0, 1350, 4000, 1350)
         result = gen.trim_beam(beam)
         assert len(result) == 1
@@ -881,7 +874,7 @@ class TestFeatureDefinitionsOnParams:
 
         for agent in populator.agents:
             if isinstance(agent, EdgePopulatorAgent):
-                assert agent.beam_dimensions, f"{type(agent).__name__}.beam_dimensions empty"
+                assert agent.beam_widths, f"{type(agent).__name__}.beam_widths empty"
 
 
 # =============================================================================

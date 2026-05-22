@@ -34,7 +34,7 @@ from timber_design.workflow import DirectRule
 
 @dataclass
 class LayerAgentConfig(PopulatorAgentConfig, ABC):
-    """Base dataclass for populator agent configuration.
+    """Base dataclass for layer-bound populator agent configuration.
 
     All concrete config classes (e.g. :class:`~timber_design.populators.StudPopulatorAgentConfig`,
     :class:`~timber_design.populators.EdgePopulatorAgentConfig`) extend this
@@ -45,7 +45,8 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
     beam_width_overrides : dict, optional
         Per-category beam width overrides.  Keys are category name strings
         (e.g. ``"stud"``, ``"header"``); values are floats in model units.
-        Overrides are applied by :meth:`~LayerAgent.resolve_beam_dimensions`.
+        Applied as fallback when a concrete subclass does not provide an
+        explicit per-category width kwarg.
     joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
         Rules that replace matching entries in the agent's ``RULES`` list.
         Non-matching overrides are appended.
@@ -59,50 +60,21 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
     IS_ABSTRACT = True
     AGENT_TYPE = None
 
-    beam_width_overrides: Optional[dict] = None
-    joint_rule_overrides: Optional[List[CategoryRule]] = None
-    # Populated by resolve_beam_dimensions() before the agent is instantiated.
-    # init=False keeps it out of __init__ and repr; default_factory ensures each
-    # instance gets its own fresh dict instead of sharing a class-level mutable.
-    beam_dimensions: dict = field(default_factory=dict, init=False)
-
-    @property
-    def __data__(self):
-        return {
-            "beam_width_overrides": self.beam_width_overrides,
-            "joint_rule_overrides": self.joint_rule_overrides,
-        }
-
-    def resolve_beam_dimensions(self, standard_beam_width: float, frame_thickness: float) -> None:
-        """Populate :attr:`beam_dimensions` from *standard_beam_width*, *frame_thickness*, and any per-category overrides.
-
-        Called by :meth:`~PanelPopulatorConfig.resolve_beam_dimensions` before
-        agents are instantiated.  When the agent is later created, it copies
-        this dict so its ``beam_dimensions`` are already populated.
-
-        Parameters
-        ----------
-        standard_beam_width : float
-            Default beam width applied to every category that has no override.
-        frame_thickness : float
-            Layer thickness used as the beam height for all categories.
-        """
-        if self.AGENT_TYPE is None:
-            return
-        bwo = self.beam_width_overrides or {}
-        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
-            if category in bwo:
-                self.beam_dimensions[category] = (bwo[category], frame_thickness)
-            else:
-                self.beam_dimensions[category] = (standard_beam_width, frame_thickness)
-
-    def get_agent_from_layer(self, layer):
+    def get_agent_from_layer(self, layer, standard_beam_width=None):
         """Instantiate the agent for the given layer.
+
+        Fills any missing entries in :attr:`beam_widths` from
+        :attr:`beam_width_overrides` and *standard_beam_width* before
+        constructing the agent, so the agent receives a fully-resolved
+        ``beam_widths`` dict.
 
         Parameters
         ----------
         layer : :class:`~timber_design.populators.Layer`
             The layer to create the agent for.
+        standard_beam_width : float, optional
+            Default width applied to every beam category not already present
+            in :attr:`beam_widths`.
 
         Returns
         -------
@@ -115,6 +87,10 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
+        bwo = self.beam_width_overrides or {}
+        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
+            if category not in self.beam_widths:
+                self.beam_widths[category] = bwo.get(category, standard_beam_width)
         return self.AGENT_TYPE(layer, self)
 
 
@@ -137,14 +113,14 @@ class LayerAgent(PopulatorAgent, ABC):
       its spatial boundary in populator space, used for trimming by peer agents.
     - :attr:`rules` — :class:`~timber_design.workflow.CategoryRule` instances
       that specify which joint type to create between specific beam categories.
-    - :attr:`beam_dimensions` — ``{category: (width, height)}`` populated by
-      :meth:`resolve_beam_dimensions` from factory-level parameters.
+    - :attr:`beam_widths` — ``{category: width}`` filled by
+      :meth:`get_agent_from_layer` just before the agent is constructed.
 
     Class-level attributes
     ----------------------
     BEAM_CATEGORY_NAMES : list[str]
         The beam categories this agent can create.  Used by
-        :meth:`resolve_beam_dimensions`.
+        :meth:`resolve_beam_widths`.
     INTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
@@ -188,9 +164,9 @@ class LayerAgent(PopulatorAgent, ABC):
     external_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active cross-agent joint rules (``EXTERNAL_RULES`` merged with any
         matching :attr:`LayerAgentConfig.joint_rule_overrides`).
-    beam_dimensions : dict[str, tuple[float, float]]
-        ``{category: (width, height)}`` mapping resolved by
-        :meth:`resolve_beam_dimensions`.
+    beam_widths : dict[str, float]
+        ``{category: width}`` mapping filled by :meth:`get_agent_from_layer`.
+        Beam height is always ``layer.thickness`` at call time.
     joint_defs : list[:class:`~timber_design.workflow.DirectRule`]
         Accumulated joint definitions, populated by :meth:`create_joint_defs`.
     aabb : :class:`~timber_design.populators.AABB2D` or None
@@ -219,6 +195,20 @@ class LayerAgent(PopulatorAgent, ABC):
 
     def _agent_layers(self):
         return [self.layer] if self.layer is not None else []
+
+    def beam_from_category(self, centerline, category, layer=None, **kwargs):
+        """Create a beam, defaulting *layer* to ``self.layer``.
+
+        Delegates to :meth:`~PopulatorAgent.beam_from_category` with
+        ``layer`` set to ``self.layer`` when the caller omits it.  This lets
+        :class:`LayerAgent` subclasses call
+        ``self.beam_from_category(line, "stud")`` without explicitly passing
+        the layer every time.
+
+        :class:`FeatureAgent` subclasses must pass *layer* explicitly because
+        they operate across multiple layers.
+        """
+        return super().beam_from_category(centerline, category, layer=layer or self.layer, **kwargs)
 
     def elements_for_layer(self, layer):
         """Return the elements this agent has placed on *layer*.

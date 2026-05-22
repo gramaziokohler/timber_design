@@ -1,9 +1,11 @@
 from itertools import product
 
+from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.model import TimberModel
 
+from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.workflow import JointRuleSolver
 from .layer import Layer
@@ -145,9 +147,25 @@ class PanelPopulator:
 
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
+
+        After all agents have trimmed their elements, degenerate
+        :class:`~timber_design.populators.Beam2D` instances whose length is
+        zero (or below floating-point tolerance) are silently removed.  These
+        can arise when an agent boundary exactly coincides with a beam endpoint
+        — a legal geometric configuration that produces a zero-length residual
+        segment that would otherwise crash downstream joint processing.
         """
         for agent in self.agents:
             agent.trim_elements()
+        self._drop_degenerate_beams()
+
+    def _drop_degenerate_beams(self):
+        """Remove zero-length :class:`~timber_design.populators.Beam2D` elements from all agents."""
+        for agent in self.agents:
+            agent.elements = [
+                e for e in agent.elements
+                if not (isinstance(e, Beam2D) and e.length < TOL.absolute)
+            ]
 
     def add_elements_to_model(self):
         """Add all surviving elements to the internal model (stage 4)."""

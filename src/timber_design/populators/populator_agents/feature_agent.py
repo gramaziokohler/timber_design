@@ -72,24 +72,26 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
             )
         return self.get_agent_from_feature(self.feature)
 
-    def get_agent_from_feature(self, feature, framing_layers=None, trimming_layers=None):
+    def get_agent_from_feature(self, feature, framing_layers=None, trimming_layers=None, standard_beam_width=None):
         """Instantiate a feature-based agent.
 
-        A :class:`FeatureAgent` is not bound to a single layer at construction
-        time — layers are discovered from the ``layers`` argument of
-        :meth:`FeatureAgent.generate_elements`.  The agent is therefore
-        created with ``layer=None``.
+        Fills any missing entries in :attr:`beam_widths` from
+        :attr:`beam_width_overrides` and *standard_beam_width* before
+        constructing the agent.  A :class:`FeatureAgent` is not bound to a
+        single layer at construction time — layers are discovered from the
+        ``layers`` argument of :meth:`FeatureAgent.generate_elements`.
 
         Parameters
         ----------
         feature : :class:`~compas_timber.panel_features.PanelFeature`
             The (possibly transformed) feature instance.
         framing_layers : list[:class:`~timber_design.populators.Layer`], optional
-            Resolved :class:`Layer` objects for element generation.  Supplied
-            by :meth:`~PanelPopulatorConfig.create_feature_agents` after it
-            maps :attr:`framing_layer_defs` to ``Layer`` instances.
+            Resolved :class:`Layer` objects for element generation.
         trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
             Resolved :class:`Layer` objects for cross-layer plate trimming.
+        standard_beam_width : float, optional
+            Default width applied to every beam category not already present
+            in :attr:`beam_widths`.
 
         Returns
         -------
@@ -102,6 +104,10 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
+        bwo = self.beam_width_overrides or {}
+        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
+            if category not in self.beam_widths:
+                self.beam_widths[category] = bwo.get(category, standard_beam_width)
         return self.AGENT_TYPE(None, self, feature, framing_layers, trimming_layers)
 
 

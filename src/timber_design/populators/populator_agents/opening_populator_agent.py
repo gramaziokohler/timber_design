@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from compas.geometry import Box
 from compas.geometry import Line
@@ -31,18 +32,58 @@ from timber_design.workflow import CategoryRule
 
 @dataclass
 class OpeningPopulatorAgentConfig(FeatureAgentConfig):
+    """Configuration for an opening surround agent.
+
+    Parameters
+    ----------
+    lintel_posts : bool, optional
+        When ``True``, jack studs (lintel posts) are added inside the king studs.
+    split_bottom_plate_beam : bool, optional
+        For door openings: use an L-butt joint at the king/jack stud base so the
+        bottom plate can be split at the opening.
+    header_width : float, optional
+        Explicit width for header beams.
+    sill_width : float, optional
+        Explicit width for sill beams (window openings only).
+    king_stud_width : float, optional
+        Explicit width for king stud beams.
+    jack_stud_width : float, optional
+        Explicit width for jack stud (lintel post) beams.
+
+    All width kwargs take precedence over *standard_beam_width* and
+    :attr:`~PopulatorAgentConfig.beam_width_overrides` for their respective
+    categories.  When ``None``, *standard_beam_width* is used.
+    """
     IS_ABSTRACT = False
     FEATURE_TYPE = Opening
 
     feature: Opening = None
     lintel_posts: bool = False
     split_bottom_plate_beam: bool = False
+    header_width: Optional[float] = None
+    sill_width: Optional[float] = None
+    king_stud_width: Optional[float] = None
+    jack_stud_width: Optional[float] = None
+
+    def __post_init__(self):
+        if self.header_width is not None:
+            self.beam_widths["header"] = self.header_width
+        if self.sill_width is not None:
+            self.beam_widths["sill"] = self.sill_width
+        if self.king_stud_width is not None:
+            self.beam_widths["king_stud"] = self.king_stud_width
+        if self.jack_stud_width is not None:
+            self.beam_widths["jack_stud"] = self.jack_stud_width
 
     @property
     def __data__(self):
         data = super().__data__
         data["lintel_posts"] = self.lintel_posts
         data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
+        data["header_width"] = self.header_width
+        data["sill_width"] = self.sill_width
+        data["king_stud_width"] = self.king_stud_width
+        data["jack_stud_width"] = self.jack_stud_width
         return data
 
 
@@ -200,22 +241,22 @@ class OpeningPopulatorAgent(FeatureAgent):
         jack_offset = 0
 
         if self.lintel_posts:
-            jack_offset = self.beam_dimensions["jack_stud"][0] / 2
+            jack_offset = self.beam_widths["jack_stud"] / 2
             layer_elements.append(self.beam_from_category(segments[0].translated([-jack_offset, 0, 0]), "jack_stud", layer=layer, name="left_jack_stud"))
             layer_elements.append(self.beam_from_category(segments[2].translated([jack_offset, 0, 0]), "jack_stud", layer=layer, name="right_jack_stud"))
 
-        king_offset = self.beam_dimensions["king_stud"][0] / 2
+        king_offset = self.beam_widths["king_stud"] / 2
         layer_elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", layer=layer, name="left_king_stud"))
         layer_elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", layer=layer, name="right_king_stud"))
 
-        header_offset = self.beam_dimensions["header"][0] / 2
+        header_offset = self.beam_widths["header"] / 2
         header = self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", layer=layer, name="header")
         layer_elements.append(header)
 
         # Window-only sill
         sill = None
         if self.opening_type == "window":
-            sill_offset = self.beam_dimensions["sill"][0] / 2
+            sill_offset = self.beam_widths["sill"] / 2
             sill = self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", layer=layer, name="sill")
             layer_elements.append(sill)
 
@@ -261,9 +302,8 @@ class OpeningPopulatorAgent(FeatureAgent):
         return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
 
     def _create_frame_polylines(self, opening: Opening, layer: Layer) -> tuple[Polyline, Polyline]:
-        king_dims = self.beam_dimensions.get("king_stud")
-        if not king_dims:
-            raise ValueError("Beam dimensions for 'king_stud' not found.")
+        if "king_stud" not in self.beam_widths:
+            raise ValueError("Beam width for 'king_stud' not set — use get_agent_from_feature() to construct this agent so beam widths are filled automatically.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
         opening_a = Polyline([intersection_line_plane(line, layer.planes[0]) for line in lines])
         opening_b = Polyline([intersection_line_plane(line, layer.planes[1]) for line in lines])

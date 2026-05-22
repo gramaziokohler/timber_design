@@ -50,12 +50,12 @@ def make_panel(width=4000.0, height=2700.0, thickness=160.0):
     return Panel.from_outline_thickness(make_outline(0, 0, width, height), thickness)
 
 
-def build_layers(panel, si=0.0, so=0.0):
+def build_layers(panel, si=0.0, so=0.0, standard_beam_width=None):
     """Build a flat list of :class:`Layer` instances in populator space.
 
     Mirrors the cross-section used by tests: optional interior plate,
     a fill-remaining framing layer, optional exterior plate.  Runs the
-    full config pipeline (transform → resolve dims → create layers).
+    full config pipeline (transform → create layers).
     """
     layer_defs = []
     if si:
@@ -63,9 +63,8 @@ def build_layers(panel, si=0.0, so=0.0):
     layer_defs.append(LayerDefinition(name="frame"))
     if so:
         layer_defs.append(LayerDefinition(so, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
-    config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs)
+    config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs, standard_beam_width=standard_beam_width)
     config.populator_panel = config.get_populator_panel()
-    config.resolve_beam_dimensions()
     layer_model = config.create_populator_model()
     return list(layer_model.elements())
 
@@ -76,14 +75,9 @@ def get_frame_layer(layers):
 
 
 def make_agent(agent_cls, config_cls, layer, standard_beam_width=60.0, **config_kwargs):
-    """Construct an agent with pre-resolved beam dimensions.
-
-    Resolves beam dimensions on the config *before* constructing the agent,
-    so the agent's ``beam_dimensions`` dict is correctly populated at init.
-    """
+    """Construct an agent via the config factory, which fills beam widths automatically."""
     params = config_cls(**config_kwargs)
-    params.resolve_beam_dimensions(standard_beam_width, layer.thickness)
-    return agent_cls(layer, params)
+    return params.get_agent_from_layer(layer, standard_beam_width)
 
 
 # =============================================================================
@@ -349,7 +343,6 @@ class TestStudPanelPopulatorConfig:
         panel = kwargs.pop("panel", None) or make_panel()
         config = stud_panel(panel=panel, standard_beam_width=60.0, stud_spacing=625.0, **kwargs)
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         return config, list(layer_model.elements())
 
@@ -370,7 +363,6 @@ class TestStudPanelPopulatorConfig:
         panel = make_panel()
         config = stud_panel(panel=panel, standard_beam_width=60.0, stud_spacing=None)
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         layers = list(layer_model.elements())
         assert any(isinstance(g, StudPopulatorAgent) for g in _all_layer_agents(layers))
@@ -386,7 +378,7 @@ class TestStudPanelPopulatorConfig:
     def test_beam_dimensions_resolved_on_agents(self):
         _, layers = self._layers()
         for g in _all_layer_agents(layers):
-            assert g.beam_dimensions, "{}.beam_dimensions is empty after resolve".format(type(g).__name__)
+            assert g.beam_widths, "{}.beam_widths is empty after resolve".format(type(g).__name__)
 
     def test_create_layers_returns_interior_layer_when_sheeting_set(self):
         _, layers = self._layers(sheeting_inside=15.0)
@@ -415,7 +407,6 @@ class TestRecessPanelPopulatorConfig:
             edge_beam_min_width=60.0,
         )
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         return config, list(layer_model.elements())
 
@@ -426,7 +417,7 @@ class TestRecessPanelPopulatorConfig:
     def test_beam_dimensions_resolved(self):
         _, layers = self._layers()
         for g in _all_layer_agents(layers):
-            assert g.beam_dimensions, "{}.beam_dimensions is empty".format(type(g).__name__)
+            assert g.beam_widths, "{}.beam_widths is empty".format(type(g).__name__)
 
 
 # =============================================================================
@@ -444,7 +435,6 @@ class TestLayerTree:
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         layers = list(layer_model.elements())
         frame = next(la for la in layers if la.name == "frame")
@@ -461,7 +451,6 @@ class TestLayerTree:
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         layers = list(layer_model.elements())
         frame = next(la for la in layers if la.name == "frame")
@@ -476,7 +465,6 @@ class TestLayerTree:
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         layers = list(layer_model.elements())
         frame = next(la for la in layers if la.name == "frame")
@@ -502,7 +490,6 @@ class TestIsOnLayer:
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
-        config.resolve_beam_dimensions()
         layer_model = config.create_populator_model()
         layers = list(layer_model.elements())
         frame = next(la for la in layers if la.name == "frame")
@@ -523,7 +510,6 @@ class TestIsOnLayer:
         other_ld = LayerDefinition(20.0, name="other")
         config2 = PanelPopulatorConfig(panel=panel, layer_defs=[other_ld])
         config2.populator_panel = config2.get_populator_panel()
-        config2.resolve_beam_dimensions()
         layer_model2 = config2.create_populator_model()
         other = next(la for la in layer_model2.elements() if la.name == "other")
         _, _, agent = self._setup()

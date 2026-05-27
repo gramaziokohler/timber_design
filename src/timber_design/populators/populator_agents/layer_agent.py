@@ -1,35 +1,11 @@
 from abc import ABC
-from abc import abstractmethod
 from dataclasses import dataclass
-from dataclasses import field
-from typing import List
-from typing import Optional
-from typing import Union
-
-from compas.geometry import Line
-from compas.geometry import Vector
-from compas.itertools import pairwise
-from compas_timber.base import TimberElement
-from compas_timber.connections import JointCandidate
-from compas_timber.connections import JointTopology
-from compas_timber.elements import Plate
-from compas_timber.utils import is_point_in_polyline
 
 from timber_design.populators import aabb_overlap
-from timber_design.populators.agent_intersection import BeamOutlineIntersectionData
-from timber_design.populators.agent_intersection import find_beam_outline_crossings
-from timber_design.populators.beam2d import AABB2D
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.layer import Layer
-from .populator_agent import PopulatorAgentConfig
-from .populator_agent import PopulatorAgent
+
 from .populator_agent import AgentBoundaryType
-
-from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
-
-
+from .populator_agent import PopulatorAgent
+from .populator_agent import PopulatorAgentConfig
 
 
 @dataclass
@@ -46,6 +22,7 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
         The :class:`LayerAgent` subclass this config instantiates.
         Set on each concrete subclass after both classes are defined.
     """
+
     IS_ABSTRACT = True
     AGENT_TYPE = None
 
@@ -249,4 +226,3 @@ class LayerAgent(PopulatorAgent, ABC):
                 continue  # peer placed nothing on this layer — leave its other layers alone
             if aabb_overlap(self, agent):
                 self.trim_agent_elements(agent, self.layer)
-

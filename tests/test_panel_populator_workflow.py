@@ -677,7 +677,6 @@ class TestTrimBeam:
 
     def test_none_boundary_returns_beam_unchanged(self):
         """BOUNDARY_TYPE=NONE: trim_beam always returns the original beam."""
-        from timber_design.populators import StudPopulatorAgent
         from timber_design.populators import StudPopulatorAgentConfig
         from timber_design.populators.layer import Layer
 

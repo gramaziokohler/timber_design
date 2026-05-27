@@ -64,7 +64,6 @@ def recess_panel(
         Per-instance feature config overrides.
     """
 
-
     layer_defs = []
     if sheeting_inside:
         layer_defs.append(LayerConfig(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))

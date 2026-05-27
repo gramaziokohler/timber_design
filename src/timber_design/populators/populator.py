@@ -3,11 +3,11 @@ from itertools import product
 from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
-from compas_timber.model import TimberModel
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.workflow import JointRuleSolver
+
 from .layer import Layer
 
 
@@ -95,7 +95,7 @@ class PanelPopulator:
         self.feature_agents = feature_agents
         self.original_panel = original_panel
         self.transformation_to_populator = transformation_to_populator
-        self.layers = [l for l in self.model.elements() if isinstance(l, Layer)]
+        self.layers = [la for la in self.model.elements() if isinstance(la, Layer)]
 
     @property
     def agents(self):
@@ -119,7 +119,7 @@ class PanelPopulator:
     @property
     def elements(self):
         """List of all elements placed by all agents."""
-        return [e for e in self.model.elements() if not isinstance(e,Layer)]
+        return [e for e in self.model.elements() if not isinstance(e, Layer)]
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
@@ -162,10 +162,7 @@ class PanelPopulator:
     def _drop_degenerate_beams(self):
         """Remove zero-length :class:`~timber_design.populators.Beam2D` elements from all agents."""
         for agent in self.agents:
-            agent.elements = [
-                e for e in agent.elements
-                if not (isinstance(e, Beam2D) and e.length < TOL.absolute)
-            ]
+            agent.elements = [e for e in agent.elements if not (isinstance(e, Beam2D) and e.length < TOL.absolute)]
 
     def add_elements_to_model(self):
         """Add all surviving elements to the internal model (stage 4)."""

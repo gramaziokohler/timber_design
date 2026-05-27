@@ -13,7 +13,6 @@ from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import AgentBoundaryType
 from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
 from timber_design.workflow import CategoryRule
@@ -35,6 +34,7 @@ class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
     sheeting_recess : float, optional
         Thickness of the sheeting plate inserted into the recess.
     """
+
     IS_ABSTRACT = False
 
     recess_beam_width: Optional[float] = None
@@ -155,9 +155,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         for i, edge in enumerate(self.outline.lines):
             vector = -get_polyline_segment_perpendicular_vector(self.outline, i)
             plate_edges.append(edge.translated(vector * 3.0))
-            new_centerlines.append(
-                edge.translated((vector * recess_width * 0.5) + Vector(0, 0, z_offset))
-            )
+            new_centerlines.append(edge.translated((vector * recess_width * 0.5) + Vector(0, 0, z_offset)))
 
         extend_line_segments(plate_edges, close_loop=True)
         plate_edges = join_polyline_segments(plate_edges, close_loop=True)[0][0]

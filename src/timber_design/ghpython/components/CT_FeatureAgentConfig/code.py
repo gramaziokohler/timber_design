@@ -35,9 +35,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
         self.feature_config_types = {}
         for ft in _get_leaf_feature_configs(FeatureAgentConfig):
             self.feature_config_types[ft.__name__] = ft
-        self.config_type = self.feature_config_types.get(
-            ghenv.Component.Params.Output[0].NickName, None
-        )
+        self.config_type = self.feature_config_types.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(
         self,

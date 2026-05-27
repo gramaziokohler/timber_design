@@ -5,15 +5,12 @@ from typing import TYPE_CHECKING
 from compas.geometry import Box
 from compas.geometry import Frame
 from compas.geometry import Point
-from compas.geometry import Polyline
 from compas.geometry import Transformation
 from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
 from compas_timber.elements import Panel
-from compas_timber.model import TimberModel
 
-from timber_design.populators.layer import Layer
 from timber_design.populators.layer import LayerConfig
 from timber_design.populators.populator import PanelPopulator
 
@@ -90,8 +87,6 @@ class PanelPopulatorConfig:
         populator_panel = Panel.from_outlines(*local_polylines)
         return populator_panel
 
-
-
     def _iter_agent_configs(self):
         """Yield every agent config in the panel: layer agents then feature agents.
 
@@ -99,6 +94,7 @@ class PanelPopulatorConfig:
         ``agent_configs``, then yields the ``default_feature_configs`` values and
         ``instance_feature_configs``.
         """
+
         def walk(layer_def):
             for agent_config in layer_def.agent_configs:
                 yield agent_config

@@ -63,9 +63,8 @@ class LayerConfig:
         self.sublayers = sublayers or []
         self.name = name
         self.agent_configs = agent_configs or []
-        self.position:float=None
+        self.position: float = None
         self.resulting_layer = None
-
 
     def model_from_panel(self, panel):
         """Build a :class:`~compas_timber.model.TimberModel` of :class:`Layer` objects.
@@ -127,12 +126,12 @@ class LayerConfig:
         self._infer_from_children(self)
         self._distribute_to_children(self)
 
-    def _resolve_positions(self, start = 0.0):
+    def _resolve_positions(self, start=0.0):
         current = start
         for sl in self.sublayers:
             sl.position = current
             if sl.sublayers:
-                sl._resolve_positions(start = current)
+                sl._resolve_positions(start=current)
             current += sl.thickness
 
     def _infer_from_children(self, layer_def):
@@ -287,7 +286,7 @@ class Layer(Panel):
         layer = cls.from_outlines(frame_outline_a, frame_outline_b)
         layer.name = name
         layer.layer_index = layer_index
-        for agent_config in (agent_configs or []):
+        for agent_config in agent_configs or []:
             layer.agents.append(agent_config.get_agent_from_layer(layer))
         return layer
 

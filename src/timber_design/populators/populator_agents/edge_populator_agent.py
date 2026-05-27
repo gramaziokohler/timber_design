@@ -13,7 +13,8 @@ from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
-from compas_timber.fabrication import JackRafterCutProxy, LongitudinalCutProxy
+from compas_timber.fabrication import JackRafterCutProxy
+from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_interior_corner_indices
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
@@ -189,7 +190,7 @@ class EdgePopulatorAgent(LayerAgent):
         seg_a = self.layer.outline_a.lines[segment_index]
         seg_b = self.layer.outline_b.lines[segment_index]
         dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
-        width +=abs(dot)
+        width += abs(dot)
         z = self.layer_center_height
         if TOL.is_zero(dot) or dot < 0:  # seg_a is outermost (or edges are flush)
             outer_segment = Line(Point(seg_a.start[0], seg_a.start[1], z), Point(seg_a.end[0], seg_a.end[1], z))
@@ -269,7 +270,6 @@ class EdgePopulatorAgent(LayerAgent):
         miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3
 
         if miter:
-
             if interior_corner:
                 ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
                 ref_side_main: dict[int, float] = beam_ref_side_incidence(beam_a, beam_b)
@@ -279,7 +279,6 @@ class EdgePopulatorAgent(LayerAgent):
                 front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])[0]])
 
                 ccx = intersection_plane_plane(front_a, front_b)
-
 
                 if not ppx or not ccx:
                     raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))

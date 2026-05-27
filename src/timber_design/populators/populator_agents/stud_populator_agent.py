@@ -22,6 +22,7 @@ class StudPopulatorAgentConfig(LayerAgentConfig):
         Explicit width for stud beams.  Takes precedence over
         *standard_beam_width*.  When ``None`` the standard beam width is used.
     """
+
     IS_ABSTRACT = False
 
     stud_spacing: Optional[float] = None

@@ -53,6 +53,7 @@ class OpeningPopulatorAgentConfig(FeatureAgentConfig):
     All width kwargs take precedence over *standard_beam_width* for their
     respective categories.  When ``None``, *standard_beam_width* is used.
     """
+
     IS_ABSTRACT = False
     FEATURE_TYPE = Opening
 
@@ -180,7 +181,17 @@ class OpeningPopulatorAgent(FeatureAgent):
     ]
     BOUNDARY_TYPE = AgentBoundaryType.EXCLUSIVE
 
-    def __init__(self, feature, framing_layers=None, trimming_layers=None, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, lintel_posts=False, split_bottom_plate_beam=False):
+    def __init__(
+        self,
+        feature,
+        framing_layers=None,
+        trimming_layers=None,
+        beam_widths=None,
+        internal_joint_overrides=None,
+        external_joint_overrides=None,
+        lintel_posts=False,
+        split_bottom_plate_beam=False,
+    ):
         # type: (Opening, list, list, Optional[dict], Optional[list], Optional[list], bool, bool) -> None
         super().__init__(feature, framing_layers, trimming_layers, beam_widths, internal_joint_overrides, external_joint_overrides)
         self.lintel_posts = lintel_posts
@@ -363,8 +374,6 @@ class OpeningPopulatorAgent(FeatureAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-
-
     def _cull_stud(self, stud: Beam2D) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
         return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
@@ -385,6 +394,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
         return [plate]
+
 
 # Set after both classes are defined so forward reference is resolved
 OpeningPopulatorAgentConfig.AGENT_TYPE = OpeningPopulatorAgent

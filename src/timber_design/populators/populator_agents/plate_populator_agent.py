@@ -9,6 +9,7 @@ from timber_design.populators.populator_agents.layer_agent import LayerAgentConf
 @dataclass
 class PlatePopulatorAgentConfig(LayerAgentConfig):
     """Configuration for a single sheathing plate agent."""
+
     IS_ABSTRACT = False
 
     @property

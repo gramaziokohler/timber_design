@@ -68,4 +68,6 @@ __all__ = [
     "extend_beam_to_closest_agents",
     "find_beam_outline_crossings",
     "PanelPopulatorConfig",
+    "PopulatorAgent",
+    "PopulatorAgentConfig",
 ]

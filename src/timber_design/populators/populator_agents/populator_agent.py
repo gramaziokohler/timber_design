@@ -11,7 +11,6 @@ from compas.geometry import Vector
 from compas.itertools import pairwise
 from compas_timber.base import TimberElement
 from compas_timber.connections import JointCandidate
-from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
@@ -53,6 +52,7 @@ class AgentBoundaryType(object):
     INCLUSIVE = "inclusive"
     NONE = "none"
 
+
 @dataclass
 class PopulatorAgentConfig(ABC):
     """Base dataclass for populator agent configuration.
@@ -92,6 +92,7 @@ class PopulatorAgentConfig(ABC):
         The :class:`PopulatorAgent` subclass this config instantiates.
         Set on each concrete subclass after both classes are defined.
     """
+
     IS_ABSTRACT = True
     AGENT_TYPE = None
 
@@ -224,7 +225,6 @@ class PopulatorAgent(ABC):
         self.elements = []
         self.outline = None
 
-
     @property
     def aabb(self):
         """The 2D axis-aligned bounding box enclosing all elements in this agent.
@@ -297,7 +297,6 @@ class PopulatorAgent(ABC):
             else:
                 rules.append(override)
         return rules
-
 
     def beam_from_category(self, centerline: Line, category: str, layer: "Layer", **kwargs) -> Beam2D:
         """Create a :class:`~timber_design.populators.Beam2D` from a centreline and category.
@@ -496,8 +495,6 @@ class PopulatorAgent(ABC):
                 candidates.append(candidate)
         return candidates
 
-    
-
     def trim_agent_elements(self, other_agent, layer):
         """Punch the opening contour through plates on *other_agent*'s layer.
 
@@ -518,7 +515,6 @@ class PopulatorAgent(ABC):
             if element.is_beam:
                 trimmed_elements.extend(self.trim_beam(element, layer))
         other_agent.set_elements_for_layer(layer, trimmed_elements)
-        
 
     @abstractmethod
     def generate_elements(self):

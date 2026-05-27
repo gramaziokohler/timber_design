@@ -449,10 +449,13 @@ class TestLayerTree:
     def test_sublayer_list_populated(self):
         """Parent layer's sublayer_list contains the child layers."""
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerConfig(name="frame", sublayers=[
-            LayerConfig(80.0, name="inner_frame"),
-            LayerConfig(80.0, name="outer_frame"),
-        ])
+        frame_ld = LayerConfig(
+            name="frame",
+            sublayers=[
+                LayerConfig(80.0, name="inner_frame"),
+                LayerConfig(80.0, name="outer_frame"),
+            ],
+        )
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
         layer_model = config.create_populator_model()
@@ -465,10 +468,13 @@ class TestLayerTree:
     def test_parent_layer_set(self):
         """Child layers carry a reference to their parent."""
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerConfig(name="frame", sublayers=[
-            LayerConfig(80.0, name="inner_frame"),
-            LayerConfig(80.0, name="outer_frame"),
-        ])
+        frame_ld = LayerConfig(
+            name="frame",
+            sublayers=[
+                LayerConfig(80.0, name="inner_frame"),
+                LayerConfig(80.0, name="outer_frame"),
+            ],
+        )
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
         layer_model = config.create_populator_model()
@@ -479,10 +485,13 @@ class TestLayerTree:
 
     def test_iter_subtree_yields_all_descendants(self):
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerConfig(name="frame", sublayers=[
-            LayerConfig(80.0, name="inner"),
-            LayerConfig(80.0, name="outer"),
-        ])
+        frame_ld = LayerConfig(
+            name="frame",
+            sublayers=[
+                LayerConfig(80.0, name="inner"),
+                LayerConfig(80.0, name="outer"),
+            ],
+        )
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
         layer_model = config.create_populator_model()
@@ -505,9 +514,12 @@ class TestIsOnLayer:
         # Single sublayer of 80 mm — use a panel with matching thickness so
         # the sublayer sum equals the parent thickness.
         panel = make_panel(thickness=80.0)
-        frame_ld = LayerConfig(name="frame", sublayers=[
-            LayerConfig(80.0, name="sub", agent_configs=[EdgePopulatorAgentConfig()]),
-        ])
+        frame_ld = LayerConfig(
+            name="frame",
+            sublayers=[
+                LayerConfig(80.0, name="sub", agent_configs=[EdgePopulatorAgentConfig()]),
+            ],
+        )
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
         layer_model = config.create_populator_model()

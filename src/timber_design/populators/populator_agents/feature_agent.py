@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from timber_design.populators import aabb_overlap
+
 from .populator_agent import PopulatorAgent
 from .populator_agent import PopulatorAgentConfig
 
@@ -51,7 +52,6 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
         # LayerConfig objects are resolved at runtime; not round-tripped here.
         return data
 
-
     def get_agent(self):
         """Instantiate a feature-based agent using the stored :attr:`feature`.
 
@@ -67,10 +67,7 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
             If ``AGENT_TYPE`` has not been set on this config class.
         """
         if self.feature is None:
-            raise ValueError(
-                "{} has no feature set. Pass it to the constructor or call "
-                "get_agent_from_feature(feature) instead.".format(type(self).__name__)
-            )
+            raise ValueError("{} has no feature set. Pass it to the constructor or call get_agent_from_feature(feature) instead.".format(type(self).__name__))
         return self.get_agent_from_feature(self.feature)
 
     def get_agent_from_feature(self, feature, framing_layers=None, trimming_layers=None, standard_beam_width=None):
@@ -182,9 +179,10 @@ class FeatureAgent(PopulatorAgent):
 
     def create_joint_candidates(self):
         """Return joint candidates per layer, using the per-layer element dict."""
-        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-        from timber_design.populators.beam2d import Beam2D
         from compas_timber.connections import JointCandidate
+
+        from timber_design.populators.beam2d import Beam2D
+        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 
         candidates = []
         solver = ConnectionSolver2D()
@@ -290,9 +288,9 @@ class FeatureAgent(PopulatorAgent):
             # correct boundary for each layer rather than the last one generated.
             self.outline = None
             layer_elements = self.generate_elements_for_layer(layer)
-            self._elements_by_layer[layer.layer_index] = layer_elements # add to per-layer dict
-            self._outline_by_layer[layer.layer_index] = self.outline # capture per-layer boundary
-            self.elements.extend(layer_elements) # add to general elements list
+            self._elements_by_layer[layer.layer_index] = layer_elements  # add to per-layer dict
+            self._outline_by_layer[layer.layer_index] = self.outline  # capture per-layer boundary
+            self.elements.extend(layer_elements)  # add to general elements list
             # Register only on layers where elements were placed.
             if layer_elements:
                 self.register_on_layer(layer)

@@ -28,8 +28,14 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "layers",
-                "description": "List of layers.",
+                "name": "layer_defs",
+                "description": "List of LayerConfig objects describing the panel cross-section.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of joint rule overrides applied to all agents in this populator.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },

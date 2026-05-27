@@ -3,7 +3,7 @@
     "nickname": "PopulatorLayer",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Create a LayerDefinition from inputs.",
+    "description": "Create a LayerConfig from inputs.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -37,7 +37,7 @@
         "outputParameters": [
             {
                 "name": "Layer",
-                "description": "Created LayerDefinition instance."
+                "description": "Created LayerConfig instance."
             }
         ]
     }

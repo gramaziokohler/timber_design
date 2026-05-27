@@ -28,14 +28,32 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "standard_beam_width_increment",
-                "description": "Beam width increment.",
+                "name": "stud_width",
+                "description": "Explicit stud beam width. When omitted, standard_beam_width is used.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
-                "name": "edge_beam_min_width",
-                "description": "Minimum edge beam width.",
+                "name": "standard_beam_width_increment",
+                "description": "Rounding increment for edge-beam widths.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_stud_width",
+                "description": "Width of vertical edge studs. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "top_plate_beam_width",
+                "description": "Width of top plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom_plate_beam_width",
+                "description": "Width of bottom plate beams. Falls back to standard_beam_width when omitted.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },

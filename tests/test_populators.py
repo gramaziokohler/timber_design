@@ -18,7 +18,7 @@ from compas_timber.elements import Plate
 from timber_design.populators import EdgePopulatorAgent
 from timber_design.populators import EdgePopulatorAgentConfig
 from timber_design.populators import Layer
-from timber_design.populators import LayerDefinition
+from timber_design.populators import LayerConfig
 from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators import PlatePopulatorAgent
 from timber_design.populators import PlatePopulatorAgentConfig
@@ -59,10 +59,10 @@ def build_layers(panel, si=0.0, so=0.0, standard_beam_width=None):
     """
     layer_defs = []
     if si:
-        layer_defs.append(LayerDefinition(si, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    layer_defs.append(LayerDefinition(name="frame"))
+        layer_defs.append(LayerConfig(si, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
+    layer_defs.append(LayerConfig(name="frame"))
     if so:
-        layer_defs.append(LayerDefinition(so, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+        layer_defs.append(LayerConfig(so, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
     config = PanelPopulatorConfig(panel=panel, layer_defs=layer_defs, standard_beam_width=standard_beam_width)
     config.populator_panel = config.get_populator_panel()
     layer_model = config.create_populator_model()
@@ -90,7 +90,8 @@ class TestEdgePopulatorAgent:
     def gen(self):
         panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
         frame_layer = get_frame_layer(build_layers(panel))
-        g = make_agent(EdgePopulatorAgent, EdgePopulatorAgentConfig, frame_layer, edge_beam_min_width=60.0)
+        # standard_beam_width=60.0 (make_agent default) fills all edge categories
+        g = make_agent(EdgePopulatorAgent, EdgePopulatorAgentConfig, frame_layer)
         g.generate_elements()
         return g
 
@@ -118,17 +119,37 @@ class TestEdgePopulatorAgent:
         assert gen.aabb is not None
         assert isinstance(gen.aabb, AABB2D)
 
-    def test_width_respects_minimum(self, gen):
+    def test_width_uses_standard_beam_width(self, gen):
+        # make_agent default standard_beam_width=60.0 → all beams should be 60.0
         for e in gen.elements:
-            assert e.width >= 60.0
+            assert e.width == 60.0
+
+    def test_explicit_per_category_width(self):
+        panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
+        frame_layer = get_frame_layer(build_layers(panel))
+        g = make_agent(
+            EdgePopulatorAgent,
+            EdgePopulatorAgentConfig,
+            frame_layer,
+            edge_stud_width=80.0,
+            top_plate_beam_width=60.0,
+            bottom_plate_beam_width=60.0,
+        )
+        g.generate_elements()
+        for e in g.elements:
+            if e.attributes["category"] == "edge_stud":
+                assert e.width == 80.0
+            else:
+                assert e.width == 60.0
 
     def test_standard_width_increment_rounds_up(self):
         panel = make_panel()
         frame_layer = get_frame_layer(build_layers(panel))
-        g = make_agent(EdgePopulatorAgent, EdgePopulatorAgentConfig, frame_layer, edge_beam_min_width=0.0, standard_beam_width_increment=20.0)
+        # standard_beam_width=60.0 → 60 is already a multiple of 20
+        g = make_agent(EdgePopulatorAgent, EdgePopulatorAgentConfig, frame_layer, standard_beam_width_increment=20.0)
         g.generate_elements()
         for e in g.elements:
-            assert e.width % 20.0 < 1.0 or e.width >= 60.0
+            assert e.width % 20.0 < 1.0
 
 
 # =============================================================================
@@ -242,7 +263,7 @@ class TestPlatePopulatorAgent:
 
 
 # =============================================================================
-# build_layers (LayerDefinition flow through PanelPopulatorConfig)
+# build_layers (LayerConfig flow through PanelPopulatorConfig)
 # =============================================================================
 
 
@@ -312,13 +333,13 @@ class TestBuildLayers:
 class TestGetPopulatorPanel:
     def test_returns_panel_instance(self):
         panel = make_panel()
-        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerDefinition(name="frame")])
+        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerConfig(name="frame")])
         populator_panel = config.get_populator_panel()
         assert isinstance(populator_panel, Panel)
 
     def test_preserves_thickness(self):
         panel = make_panel(thickness=160.0)
-        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerDefinition(name="frame")])
+        config = PanelPopulatorConfig(panel=panel, layer_defs=[LayerConfig(name="frame")])
         populator_panel = config.get_populator_panel()
         assert abs(populator_panel.thickness - 160.0) < 1.0
 
@@ -404,7 +425,6 @@ class TestRecessPanelPopulatorConfig:
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,
-            edge_beam_min_width=60.0,
         )
         config.populator_panel = config.get_populator_panel()
         layer_model = config.create_populator_model()
@@ -429,9 +449,9 @@ class TestLayerTree:
     def test_sublayer_list_populated(self):
         """Parent layer's sublayer_list contains the child layers."""
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerDefinition(name="frame", sublayers=[
-            LayerDefinition(80.0, name="inner_frame"),
-            LayerDefinition(80.0, name="outer_frame"),
+        frame_ld = LayerConfig(name="frame", sublayers=[
+            LayerConfig(80.0, name="inner_frame"),
+            LayerConfig(80.0, name="outer_frame"),
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
@@ -445,9 +465,9 @@ class TestLayerTree:
     def test_parent_layer_set(self):
         """Child layers carry a reference to their parent."""
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerDefinition(name="frame", sublayers=[
-            LayerDefinition(80.0, name="inner_frame"),
-            LayerDefinition(80.0, name="outer_frame"),
+        frame_ld = LayerConfig(name="frame", sublayers=[
+            LayerConfig(80.0, name="inner_frame"),
+            LayerConfig(80.0, name="outer_frame"),
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
@@ -459,9 +479,9 @@ class TestLayerTree:
 
     def test_iter_subtree_yields_all_descendants(self):
         panel = make_panel(thickness=160.0)
-        frame_ld = LayerDefinition(name="frame", sublayers=[
-            LayerDefinition(80.0, name="inner"),
-            LayerDefinition(80.0, name="outer"),
+        frame_ld = LayerConfig(name="frame", sublayers=[
+            LayerConfig(80.0, name="inner"),
+            LayerConfig(80.0, name="outer"),
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
@@ -485,8 +505,8 @@ class TestIsOnLayer:
         # Single sublayer of 80 mm — use a panel with matching thickness so
         # the sublayer sum equals the parent thickness.
         panel = make_panel(thickness=80.0)
-        frame_ld = LayerDefinition(name="frame", sublayers=[
-            LayerDefinition(80.0, name="sub", agent_configs=[EdgePopulatorAgentConfig()]),
+        frame_ld = LayerConfig(name="frame", sublayers=[
+            LayerConfig(80.0, name="sub", agent_configs=[EdgePopulatorAgentConfig()]),
         ])
         config = PanelPopulatorConfig(panel=panel, layer_defs=[frame_ld])
         config.populator_panel = config.get_populator_panel()
@@ -507,7 +527,7 @@ class TestIsOnLayer:
 
     def test_agent_is_not_on_unrelated_layer(self):
         panel = make_panel(thickness=20.0)
-        other_ld = LayerDefinition(20.0, name="other")
+        other_ld = LayerConfig(20.0, name="other")
         config2 = PanelPopulatorConfig(panel=panel, layer_defs=[other_ld])
         config2.populator_panel = config2.get_populator_panel()
         layer_model2 = config2.create_populator_model()

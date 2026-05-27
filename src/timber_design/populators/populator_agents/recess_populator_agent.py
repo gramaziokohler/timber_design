@@ -42,8 +42,15 @@ class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
     sheeting_recess: Optional[float] = None
 
     def __post_init__(self):
+        super().__post_init__()
         if self.recess_beam_width is not None:
             self.beam_widths["recess"] = self.recess_beam_width
+
+    def _agent_kwargs(self):
+        kwargs = super()._agent_kwargs()
+        kwargs["recess_beam_height"] = self.recess_beam_height
+        kwargs["sheeting_recess"] = self.sheeting_recess
+        return kwargs
 
     @property
     def __data__(self):
@@ -83,13 +90,13 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         Thickness of the sheeting plate inserted into the recess.
     """
 
-    BEAM_CATEGORY_NAMES = ["recess"]
+    BEAM_CATEGORY_NAMES = ["recess", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
     NAME = "RecessPopulatorAgent"
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
-    INTERNAL_RULES = [
+    INTERNAL_JOINT_RULES = [
         CategoryRule(LMiterJoint, "recess", "recess", max_distance=1.0),
     ]
-    EXTERNAL_RULES = [
+    EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "recess", "top_plate_beam", max_distance=1.0),
         CategoryRule(TButtJoint, "recess", "bottom_plate_beam", max_distance=1.0),
         CategoryRule(TButtJoint, "recess", "edge_stud", max_distance=1.0),
@@ -97,12 +104,23 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     def __init__(
         self,
-        layer: Layer,
-        params: RecessPopulatorAgentConfig,
+        layer,
+        beam_widths=None,
+        internal_joint_overrides=None,
+        external_joint_overrides=None,
+        standard_beam_width_increment=None,
+        recess_beam_height=None,
+        sheeting_recess=None,
     ):
-        super(RecessPopulatorAgent, self).__init__(layer, params)
-        self.recess_beam_height = params.recess_beam_height
-        self.sheeting_recess = params.sheeting_recess
+        super(RecessPopulatorAgent, self).__init__(
+            layer,
+            beam_widths=beam_widths,
+            internal_joint_overrides=internal_joint_overrides,
+            external_joint_overrides=external_joint_overrides,
+            standard_beam_width_increment=standard_beam_width_increment,
+        )
+        self.recess_beam_height = recess_beam_height
+        self.sheeting_recess = sheeting_recess
 
     def trim_plate(self, plate):
         """Apply the recess outline as a ``FreeContour`` cut to *plate*.
@@ -169,14 +187,16 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         inherited from :class:`EdgePopulatorAgent`.  All other pairs — in
         practice ``"recess"``–``"recess"`` pairs — fall through to
         :meth:`~LayerAgent.get_direct_rule_from_elements`, which looks up
-        :attr:`~LayerAgent.INTERNAL_RULES` by category name and finds the
-        ``CategoryRule(LMiterJoint, "recess", "recess")`` entry.
+        :attr:`~PopulatorAgent.INTERNAL_JOINT_RULES` by category name and finds
+        the ``CategoryRule(LMiterJoint, "recess", "recess")`` entry.
         """
         for candidate in self.create_joint_candidates():
             edge_a = candidate.element_a.attributes.get("edge_index")
             edge_b = candidate.element_b.attributes.get("edge_index")
             if edge_a is not None and edge_b is not None:
-                rule = self._create_edge_beam_joint_rule(*candidate.elements)
+                # Edge-beam pairs: geometric joint by default, rule-based when
+                # the pair was overridden (see EdgePopulatorAgent._edge_joint_rule).
+                rule = self._edge_joint_rule(*candidate.elements)
             else:
                 rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:

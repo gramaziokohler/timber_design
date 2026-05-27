@@ -33,7 +33,7 @@ from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopula
 
 
 from .layer import Layer
-from .layer import LayerDefinition
+from .layer import LayerConfig
 
 from .populator_configs.panel_populator_config import PanelPopulatorConfig
 
@@ -43,7 +43,7 @@ __all__ = [
     "AABB2D",
     "Beam2D",
     "Layer",
-    "LayerDefinition",
+    "LayerConfig",
     "LayerAgent",
     "AgentBoundaryType",
     "LayerAgentConfig",

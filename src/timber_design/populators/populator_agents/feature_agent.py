@@ -24,15 +24,15 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
     feature : :class:`~compas_timber.panel_features.PanelFeature`, optional
         The panel feature instance driving element placement.  When set,
         :meth:`get_agent` can be called without any additional arguments.
-    framing_layer_defs : list[:class:`~timber_design.populators.LayerDefinition`], optional
+    framing_layer_defs : list[:class:`~timber_design.populators.LayerConfig`], optional
         The layers on which this feature agent generates framing elements.
-        Pass the same :class:`LayerDefinition` objects given to
+        Pass the same :class:`LayerConfig` objects given to
         :class:`~timber_design.populators.PanelPopulatorConfig` as
         ``layer_defs``; the config resolves them to :class:`Layer` objects.
         When ``None`` the agent falls back to populating every layer whose
         :attr:`~timber_design.populators.Layer.is_framing_layer` flag is
         ``True``.
-    trimming_layer_defs : list[:class:`~timber_design.populators.LayerDefinition`], optional
+    trimming_layer_defs : list[:class:`~timber_design.populators.LayerConfig`], optional
         The layers whose plate elements this feature agent modifies in the
         cross-layer trim pass (e.g. punching an opening through sheathing).
         When ``None`` the agent falls back to its subclass default behaviour.
@@ -48,8 +48,9 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
     def __data__(self):
         data = super().__data__
         data["feature"] = self.feature
-        # LayerDefinition objects are resolved at runtime; not round-tripped here.
+        # LayerConfig objects are resolved at runtime; not round-tripped here.
         return data
+
 
     def get_agent(self):
         """Instantiate a feature-based agent using the stored :attr:`feature`.
@@ -73,13 +74,12 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
         return self.get_agent_from_feature(self.feature)
 
     def get_agent_from_feature(self, feature, framing_layers=None, trimming_layers=None, standard_beam_width=None):
-        """Instantiate a feature-based agent.
+        """Construct this config's :class:`FeatureAgent` for *feature*.
 
-        Fills any missing entries in :attr:`beam_widths` from
-        :attr:`beam_width_overrides` and *standard_beam_width* before
-        constructing the agent.  A :class:`FeatureAgent` is not bound to a
-        single layer at construction time — layers are discovered from the
-        ``layers`` argument of :meth:`FeatureAgent.generate_elements`.
+        The agent is built with explicit keyword arguments assembled by
+        :meth:`~PopulatorAgentConfig._agent_kwargs` — the agent never receives
+        the config object itself.  A :class:`FeatureAgent` is not bound to a
+        single layer at construction time; layers are passed explicitly.
 
         Parameters
         ----------
@@ -90,8 +90,10 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
         trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
             Resolved :class:`Layer` objects for cross-layer plate trimming.
         standard_beam_width : float, optional
-            Default width applied to every beam category not already present
-            in :attr:`beam_widths`.
+            Convenience for constructing an agent in isolation: when given,
+            any unset beam-category widths are filled first.  In the full
+            pipeline widths are pre-filled by
+            :meth:`~timber_design.populators.PanelPopulatorConfig.resolve_beam_widths`.
 
         Returns
         -------
@@ -104,11 +106,9 @@ class FeatureAgentConfig(PopulatorAgentConfig, ABC):
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        bwo = self.beam_width_overrides or {}
-        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
-            if category not in self.beam_widths:
-                self.beam_widths[category] = bwo.get(category, standard_beam_width)
-        return self.AGENT_TYPE(None, self, feature, framing_layers, trimming_layers)
+        if standard_beam_width is not None:
+            self.fill_beam_widths(standard_beam_width)
+        return self.AGENT_TYPE(feature, framing_layers, trimming_layers, **self._agent_kwargs())
 
 
 class FeatureAgent(PopulatorAgent):
@@ -144,26 +144,32 @@ class FeatureAgent(PopulatorAgent):
 
     Parameters
     ----------
-    params : :class:`FeatureAgentConfig`
-        Configuration for this agent.
     feature : :class:`~compas_timber.panel_features.PanelFeature`
         The (possibly transformed) feature instance driving element placement.
     framing_layers : list[:class:`~timber_design.populators.Layer`], optional
         Explicit framing layers; overrides ``is_framing_layer`` fallback.
     trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
         Explicit trimming layers; restricts cross-layer plate cutting.
+    beam_widths : dict[str, float], optional
+        ``{category: width}`` mapping resolved by the config.
+    internal_joint_overrides, external_joint_overrides : list, optional
+        Per-agent joint-rule overrides forwarded by the config.
     """
 
     FEATURE_TYPE = None
 
-    def __init__(self, params, feature, framing_layers=None, trimming_layers=None):
-        # type: (FeatureAgentConfig, object, list, list) -> None
-        super().__init__(params)
+    def __init__(self, feature, framing_layers=None, trimming_layers=None, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (object, list, list, Optional[dict], Optional[list], Optional[list]) -> None
+        super().__init__(beam_widths, internal_joint_overrides, external_joint_overrides)
         self.feature = feature
         self.framing_layers = framing_layers or []
         self.trimming_layers = trimming_layers or []
         # Per-layer element tracking.  Populated during generate_elements.
         self._elements_by_layer = {}
+        # Per-layer boundary outline.  A feature agent frames on several layers,
+        # so it has one boundary per layer; trimming/culling on a given layer
+        # must use that layer's outline (see outline_for_layer).
+        self._outline_by_layer = {}
         # Layers this agent has registered itself on during generate_elements.
         self.registered_layers = []
 
@@ -208,6 +214,18 @@ class FeatureAgent(PopulatorAgent):
         list
         """
         return self._elements_by_layer.get(layer.layer_index, [])
+
+    def outline_for_layer(self, layer):
+        """Return the boundary outline this agent generated on *layer*.
+
+        A feature agent frames on multiple layers and stores one outline per
+        layer (see :meth:`generate_elements`), so a peer trimming on a given
+        layer always uses that layer's boundary rather than the last one
+        generated.
+        """
+        if layer is None:
+            return self.outline
+        return self._outline_by_layer.get(layer.layer_index)
 
     def set_elements_for_layer(self, layer, elements):
         """Replace the element list for *layer* and rebuild ``self.elements``.
@@ -267,8 +285,13 @@ class FeatureAgent(PopulatorAgent):
             All layers in the populator.
         """
         for layer in self.framing_layers:
+            # generate_elements_for_layer sets self.outline for the layer it is
+            # working on; capture it per-layer so later trim/cull passes use the
+            # correct boundary for each layer rather than the last one generated.
+            self.outline = None
             layer_elements = self.generate_elements_for_layer(layer)
             self._elements_by_layer[layer.layer_index] = layer_elements # add to per-layer dict
+            self._outline_by_layer[layer.layer_index] = self.outline # capture per-layer boundary
             self.elements.extend(layer_elements) # add to general elements list
             # Register only on layers where elements were placed.
             if layer_elements:

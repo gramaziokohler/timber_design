@@ -66,9 +66,9 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
     NAME = "PanelBoundaryPopulatorAgent"
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
-    def __init__(self, layer, params):
-        # type: (Layer, PanelBoundaryPopulatorAgentConfig) -> None
-        super(PanelBoundaryPopulatorAgent, self).__init__(layer, params)
+    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
+        super(PanelBoundaryPopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
 
     # ==========================================================================
     # private methods for creating edge beams

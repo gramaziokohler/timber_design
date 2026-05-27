@@ -376,7 +376,6 @@ class TestRecessPanel:
             standard_beam_width=60.0,
             recess_beam_width=40.0,
             recess_beam_height=80.0,
-            edge_beam_min_width=60.0,
         )
         _, model = run_workflow(panel, config)
         return model
@@ -855,7 +854,7 @@ class TestFeatureDefinitionsOnParams:
 
         panel = make_panel()
         config_plain = stud_config()
-        config_with_defn = stud_config(default_feature_configs={_Sentinel: EdgePopulatorAgentConfig(edge_beam_min_width=60.0)})
+        config_with_defn = stud_config(default_feature_configs={_Sentinel: EdgePopulatorAgentConfig()})
         config_plain.panel = panel
         populator_plain = config_plain.create_populator()
         config_with_defn.panel = panel
@@ -868,7 +867,7 @@ class TestFeatureDefinitionsOnParams:
         from timber_design.populators import EdgePopulatorAgentConfig
 
         panel = make_panel()
-        config = stud_config(default_feature_configs={Panel: EdgePopulatorAgentConfig(edge_beam_min_width=60.0)})
+        config = stud_config(default_feature_configs={Panel: EdgePopulatorAgentConfig()})
         config.panel = panel
         populator = config.create_populator()
 

@@ -227,7 +227,12 @@ class PanelPopulator:
                         self.model.add_joint_candidate(candidate)
                         candidates.append(candidate)
                 clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-                jrs = JointRuleSolver(agent_a.external_rules + agent_b.external_rules)
+                # Per-agent external overrides must win even when the matching
+                # base rule is owned by the *other* agent.  The solver applies
+                # the first matching rule, so overrides from both agents are
+                # placed ahead of the (merged) base rule lists.
+                overrides = agent_a.external_overrides + agent_b.external_overrides
+                jrs = JointRuleSolver(overrides + agent_a.external_rules + agent_b.external_rules)
                 jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
 
     def process_joinery(self):

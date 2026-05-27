@@ -31,6 +31,11 @@ class StudPopulatorAgentConfig(LayerAgentConfig):
         if self.stud_width is not None:
             self.beam_widths["stud"] = self.stud_width
 
+    def _agent_kwargs(self):
+        kwargs = super()._agent_kwargs()
+        kwargs["stud_spacing"] = self.stud_spacing
+        return kwargs
+
     @property
     def __data__(self):
         data = super().__data__
@@ -70,8 +75,8 @@ class StudPopulatorAgent(LayerAgent):
 
     BEAM_CATEGORY_NAMES = ["stud"]
     NAME = "StudPopulatorAgent"
-    INTERNAL_RULES = []
-    EXTERNAL_RULES = [
+    INTERNAL_JOINT_RULES = []
+    EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
@@ -79,10 +84,10 @@ class StudPopulatorAgent(LayerAgent):
         CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
     ]
 
-    def __init__(self, layer, params):
-        # type: (Layer, StudPopulatorAgentConfig) -> None
-        super(StudPopulatorAgent, self).__init__(layer, params)
-        stud_spacing = params.stud_spacing if params.stud_spacing is not None else self.beam_widths["stud"] * 8
+    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, stud_spacing=None):
+        # type: (Layer, Optional[dict], Optional[list], Optional[list], Optional[float]) -> None
+        super(StudPopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
+        stud_spacing = stud_spacing if stud_spacing is not None else self.beam_widths["stud"] * 8
         if stud_spacing <= 0:
             raise ValueError(
                 "StudPopulatorAgent requires a positive stud_spacing; got {!r}. "

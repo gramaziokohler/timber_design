@@ -53,55 +53,91 @@ class AgentBoundaryType(object):
     INCLUSIVE = "inclusive"
     NONE = "none"
 
-
 @dataclass
 class PopulatorAgentConfig(ABC):
     """Base dataclass for populator agent configuration.
 
-    All concrete config classes (e.g. :class:`~timber_design.populators.StudPopulatorAgentConfig`,
+    A config is responsible for *parsing and computing* everything its agent
+    needs, then constructing that agent with explicit keyword arguments (see
+    :meth:`_agent_kwargs`).  The agent itself only populates, trims, and joins.
+
+    Concrete config classes (e.g.
+    :class:`~timber_design.populators.StudPopulatorAgentConfig`,
     :class:`~timber_design.populators.EdgePopulatorAgentConfig`) extend this
-    class and add their own fields.
+    class, add explicit per-category beam-width fields, and override
+    :meth:`_agent_kwargs` to forward their extra parameters.
 
     Parameters
     ----------
-    beam_width_overrides : dict, optional
-        Per-category beam width overrides.  Keys are category name strings
-        (e.g. ``"stud"``, ``"header"``); values are floats in model units.
-        Applied as fallback when a concrete subclass does not provide an
-        explicit per-category width kwarg.  Used by
-        :meth:`~LayerAgentConfig.get_agent_from_layer` /
-        :meth:`~FeatureAgentConfig.get_agent_from_feature`.
-    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Rules that replace matching entries in the agent's ``RULES`` list.
-        Non-matching overrides are appended.
+    internal_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
+        Rules that replace matching entries in the agent's
+        :attr:`~PopulatorAgent.INTERNAL_JOINT_RULES`.  Non-matching overrides
+        are appended.
+    external_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
+        Rules that replace matching entries in the agent's
+        :attr:`~PopulatorAgent.EXTERNAL_JOINT_RULES`.  Non-matching overrides
+        are appended.
+
+    Attributes
+    ----------
+    beam_widths : dict[str, float]
+        ``{category: width}`` mapping.  Concrete subclasses seed this in
+        ``__post_init__`` from their explicit width kwargs; any remaining
+        categories are filled with the panel's ``standard_beam_width`` by
+        :meth:`fill_beam_widths`.
 
     Class Attributes
     ----------------
     AGENT_TYPE : type or None
-        The :class:`LayerAgent` subclass this config instantiates.
+        The :class:`PopulatorAgent` subclass this config instantiates.
         Set on each concrete subclass after both classes are defined.
     """
     IS_ABSTRACT = True
     AGENT_TYPE = None
 
-    beam_width_overrides: Optional[dict] = None
-    joint_rule_overrides: Optional[List[CategoryRule]] = None
-    # Concrete config subclasses populate this dict in ``__post_init__`` for any
-    # category whose width was supplied as an explicit constructor kwarg
-    # (e.g. ``stud_width``).  The factory methods (get_agent_from_layer /
-    # get_agent_from_feature) then fill in any remaining categories with
-    # *standard_beam_width* just before the agent is constructed.
-    # init=False keeps it out of __init__ / repr; default_factory gives each
-    # instance its own dict.
+    internal_joint_overrides: Optional[List[CategoryRule]] = None
+    external_joint_overrides: Optional[List[CategoryRule]] = None
     beam_widths: dict = field(default_factory=dict, init=False)
 
     @property
     def __data__(self):
         return {
-            "beam_width_overrides": self.beam_width_overrides,
-            "joint_rule_overrides": self.joint_rule_overrides,
+            "internal_joint_overrides": self.internal_joint_overrides,
+            "external_joint_overrides": self.external_joint_overrides,
         }
 
+    def fill_beam_widths(self, standard_beam_width):
+        """Fill any unset beam-category widths with *standard_beam_width*.
+
+        Categories already present in :attr:`beam_widths` (set from explicit
+        width kwargs in ``__post_init__``) are left untouched.
+
+        Parameters
+        ----------
+        standard_beam_width : float
+            Default width applied to every category this agent can create that
+            does not already have an explicit width.
+        """
+        if self.AGENT_TYPE is None:
+            return
+        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
+            self.beam_widths.setdefault(category, standard_beam_width)
+
+    def _agent_kwargs(self):
+        """Return the explicit constructor kwargs shared by every populator agent.
+
+        Concrete configs override this to add their own parameters, e.g.::
+
+            def _agent_kwargs(self):
+                kwargs = super()._agent_kwargs()
+                kwargs["stud_spacing"] = self.stud_spacing
+                return kwargs
+        """
+        return {
+            "beam_widths": dict(self.beam_widths),
+            "internal_joint_overrides": self.internal_joint_overrides,
+            "external_joint_overrides": self.external_joint_overrides,
+        }
 
 
 class PopulatorAgent(ABC):
@@ -132,31 +168,37 @@ class PopulatorAgent(ABC):
     BEAM_CATEGORY_NAMES : list[str]
         The beam categories this agent can create.  Used by
         :meth:`resolve_beam_widths`.
-    INTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
+    INTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
         :meth:`create_joint_defs` / :meth:`get_direct_rule_from_elements`.
-        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
-    EXTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
+        Overridable per-instance via the config's ``internal_joint_overrides``.
+    EXTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.  Used by
         :meth:`~timber_design.populators.PanelPopulator.create_cross_agent_joints`.
-        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
+        Overridable per-instance via the config's ``external_joint_overrides``.
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`~FeatureBoundaryType.NONE`.
 
     Parameters
     ----------
-    params : :class:`LayerAgentConfig`
-        Configuration including beam width overrides, joint rule overrides,
-        and agent-specific parameters.
+    beam_widths : dict[str, float], optional
+        ``{category: width}`` mapping, fully resolved by the config before
+        construction.
+    internal_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
+        Overrides merged into :attr:`INTERNAL_JOINT_RULES` to form
+        :attr:`internal_rules`.
+    external_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
+        Overrides merged into :attr:`EXTERNAL_JOINT_RULES` to form
+        :attr:`external_rules`.
 
     Attributes
     ----------
     beam_widths : dict[str, float]
-        ``{category: width}`` mapping filled by the factory method before
-        the agent is constructed.  Beam height is always ``layer.thickness``.
+        ``{category: width}`` mapping passed in by the config.  Beam height is
+        always ``layer.thickness``.
     joint_defs : list[:class:`~timber_design.workflow.DirectRule`]
         Accumulated joint definitions, populated by :meth:`create_joint_defs`.
     aabb : :class:`~timber_design.populators.AABB2D` or None
@@ -164,19 +206,20 @@ class PopulatorAgent(ABC):
     """
 
     BEAM_CATEGORY_NAMES = []
-    INTERNAL_RULES = []
-    EXTERNAL_RULES = []
+    INTERNAL_JOINT_RULES: list[CategoryRule] = []
+    EXTERNAL_JOINT_RULES: list[CategoryRule] = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
-    def __init__(self, params):
-        # type: (PopulatorAgentConfig) -> None
-        if params.joint_rule_overrides:
-            self.internal_rules = self._apply_rule_overrides(self.INTERNAL_RULES, params.joint_rule_overrides)
-            self.external_rules = self._apply_rule_overrides(self.EXTERNAL_RULES, params.joint_rule_overrides)
-        else:
-            self.internal_rules = list(self.INTERNAL_RULES)
-            self.external_rules = list(self.EXTERNAL_RULES)
-        self.beam_widths: dict[str, float] = dict(params.beam_widths)
+    def __init__(self, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Optional[dict], Optional[list], Optional[list]) -> None
+        self.beam_widths: dict[str, float] = dict(beam_widths) if beam_widths else {}
+        self.internal_rules = self._apply_overrides(self.INTERNAL_JOINT_RULES, internal_joint_overrides)
+        self.external_rules = self._apply_overrides(self.EXTERNAL_JOINT_RULES, external_joint_overrides)
+        # Raw external overrides kept separately so cross-agent joint resolution
+        # can give a per-agent override precedence over *another* agent's base
+        # rule for the same category pair, regardless of agent ordering (an
+        # external rule is owned by only one of the two agents it connects).
+        self.external_overrides = list(external_joint_overrides) if external_joint_overrides else []
         self.joint_defs = []
         self.elements = []
         self.outline = None
@@ -224,44 +267,33 @@ class PopulatorAgent(ABC):
         """
         raise NotImplementedError
 
-    def _apply_rule_overrides(self, base_rules: list[CategoryRule], overrides: list[CategoryRule]) -> list[CategoryRule]:
-        """Return a copy of *base_rules* with matching *overrides* applied.
+    @staticmethod
+    def _apply_overrides(base_rules: list[CategoryRule], overrides: Optional[list[CategoryRule]]) -> list[CategoryRule]:
+        """Return a new rule list: *base_rules* with *overrides* applied.
 
-        For each override:
-
-        - If the override's category pair matches an existing rule in
-          *base_rules* (respecting order for T/EDGE_FACE topologies), the
-          existing rule is replaced.
-        - If no match is found, the override is appended.
+        For each override, if its (unordered) category pair matches an existing
+        rule in *base_rules* that rule is replaced; otherwise the override is
+        appended.  The class-level :attr:`INTERNAL_JOINT_RULES` /
+        :attr:`EXTERNAL_JOINT_RULES` are never mutated — a fresh list is always
+        returned.
 
         Parameters
         ----------
         base_rules : list[:class:`~timber_design.workflow.CategoryRule`]
-            Either :attr:`INTERNAL_RULES` or :attr:`EXTERNAL_RULES`.
-        overrides : list[:class:`~timber_design.workflow.CategoryRule`]
-            The per-instance overrides from
-            :attr:`LayerAgentConfig.joint_rule_overrides`.
-
-        Returns
-        -------
-        list[:class:`~timber_design.workflow.CategoryRule`]
+            Either :attr:`INTERNAL_JOINT_RULES` or :attr:`EXTERNAL_JOINT_RULES`.
+        overrides : list[:class:`~timber_design.workflow.CategoryRule`] or None
+            Per-agent overrides from the config's ``internal_joint_overrides``
+            / ``external_joint_overrides``.
         """
-        # NOTE: this is a bit of a breach of encapsulation, but necessary to allow for rule overrides
-        # TODO: if we're only working with category rules here then make it explicit, if not, find a way to use the public interface of JointRule
         rules = list(base_rules)
+        if not overrides:
+            return rules
         for override in overrides:
+            pair = {override.category_a, override.category_b}
             for i, rule in enumerate(rules):
-                if rule.category_a not in self.BEAM_CATEGORY_NAMES or rule.category_b not in self.BEAM_CATEGORY_NAMES:
-                    continue
-                # element order matters for T and EDGE_FACE topologies
-                if rule.joint_type.supported_topology == JointTopology.TOPO_T or rule.joint_type.supported_topology == JointTopology.TOPO_EDGE_FACE:
-                    if override.category_a == rule.category_a and override.category_b == rule.category_b:
-                        rules[i] = override
-                        break
-                else:
-                    if set([override.category_a, override.category_b]) == set([rule.category_a, rule.category_b]):
-                        rules[i] = override
-                        break
+                if {rule.category_a, rule.category_b} == pair:
+                    rules[i] = override
+                    break
             else:
                 rules.append(override)
         return rules
@@ -330,13 +362,25 @@ class PopulatorAgent(ABC):
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
 
-    def cull_element_at_point(self, point) -> bool:
+    def outline_for_layer(self, layer):
+        """Return the boundary outline that applies on *layer*.
+
+        Single-layer agents (every :class:`LayerAgent`) have one boundary, so
+        the base implementation ignores *layer* and returns :attr:`outline`.
+        Multi-layer agents (:class:`FeatureAgent`) override this to return the
+        outline they generated on each specific layer, so trimming/culling on
+        one layer never uses another layer's boundary.
+        """
+        return self.outline
+
+    def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
+        outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return False
-        if self.outline is None:
+        if outline is None:
             return False
-        is_inside = is_point_in_polyline(point, self.outline, in_plane=False)
+        is_inside = is_point_in_polyline(point, outline, in_plane=False)
         if self.BOUNDARY_TYPE == AgentBoundaryType.EXCLUSIVE and is_inside:
             return True
         if self.BOUNDARY_TYPE == AgentBoundaryType.INCLUSIVE and not is_inside:
@@ -349,19 +393,26 @@ class PopulatorAgent(ABC):
     def trim_beam(
         self,
         beam: Beam2D,
+        layer=None,
         skip_notches: Optional[bool] = True,
         skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
-        """Splits the beam at the agent's boundary outline and returns the resulting segments."""
+        """Split *beam* at this agent's boundary on *layer* and return the surviving segments."""
+        outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return [beam]
-        if self.outline is None:
+        if outline is None:
             return [beam]
 
-        crossings = find_beam_outline_crossings(beam, self.outline, skip_notches=skip_notches, skip_laps=skip_laps)
+        crossings = find_beam_outline_crossings(beam, outline, skip_notches=skip_notches, skip_laps=skip_laps)
         if not crossings:
             # No outline crossings — keep or cull the whole beam, preserving object identity.
-            return [] if self.cull_element_at_point(beam.centerline.midpoint) else [beam]
+            # cull_element_at_point handles the in/out-of-boundary test; cull_beam_segment
+            # handles agent-specific culls (e.g. studs overlapping an opening's king/jack
+            # studs) that are independent of the boundary outline.
+            if self.cull_element_at_point(beam.centerline.midpoint, layer) or self.cull_beam_segment(beam):
+                return []
+            return [beam]
 
         intersections = [
             BeamOutlineIntersectionData(start_dot=0.0),
@@ -381,7 +432,7 @@ class PopulatorAgent(ABC):
                 continue
 
             beam_seg = beam.get_beam_segment(seg_start, seg_end)
-            if self.cull_element_at_point(beam_seg.centerline.midpoint):
+            if self.cull_element_at_point(beam_seg.centerline.midpoint, layer):
                 continue
             if self.cull_beam_segment(beam_seg):
                 continue
@@ -465,7 +516,7 @@ class PopulatorAgent(ABC):
             if element.is_plate:
                 trimmed_elements.extend(self.trim_plate(element))
             if element.is_beam:
-                trimmed_elements.extend(self.trim_beam(element))
+                trimmed_elements.extend(self.trim_beam(element, layer))
         other_agent.set_elements_for_layer(layer, trimmed_elements)
         
 

@@ -34,8 +34,20 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "edge_beam_min_width",
-                "description": "Minimum edge beam width.",
+                "name": "edge_stud_width",
+                "description": "Width of vertical edge studs. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "top_plate_beam_width",
+                "description": "Width of top plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom_plate_beam_width",
+                "description": "Width of bottom plate beams. Falls back to standard_beam_width when omitted.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
@@ -62,12 +74,6 @@
                 "description": "Sheeting thickness in recess.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
-            },
-            {
-                "name": "beam_width_overrides",
-                "description": "List or dict of beam width overrides.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
             },
             {
                 "name": "joint_rule_overrides",

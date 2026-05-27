@@ -8,7 +8,20 @@
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
-        "inputParameters": [],
+        "inputParameters": [
+            {
+                "name": "internal_joint_overrides",
+                "description": "List of category joint rules between elements contained within this agent.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "external_joint_overrides",
+                "description": "List of category joint rules between elements of this agent and those of other agents.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
         "outputParameters": [
             {
                 "name": "Agent",

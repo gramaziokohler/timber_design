@@ -8,14 +8,14 @@ This section provides visual representations of the class hierarchies and relati
 
 ### Orchestration
 
-`PanelPopulatorConfig` holds all parameters for one panel type, resolves the layer stack from `LayerDefinition` blueprints, and produces a ready-to-use `PanelPopulator`.
+`PanelPopulatorConfig` holds all parameters for one panel type, resolves the layer stack from `LayerConfig` blueprints, and produces a ready-to-use `PanelPopulator`.
 
 ```mermaid
 classDiagram
 
     class PanelPopulatorConfig {
         +panel : Panel
-        +layer_defs : list[LayerDefinition]
+        +layer_defs : list[LayerConfig]
         +default_feature_configs : dict
         +instance_feature_configs : list
         +standard_beam_width : float
@@ -58,12 +58,12 @@ classDiagram
         +elements : list
     }
 
-    class LayerDefinition {
+    class LayerConfig {
         +thickness : float
         +name : str
         +is_framing_layer : bool
         +agent_configs : list[LayerAgentConfig]
-        +sublayers : list[LayerDefinition]
+        +sublayers : list[LayerConfig]
     }
 
     class ConnectionSolver2D {
@@ -73,12 +73,12 @@ classDiagram
     }
 
     PanelPopulatorConfig --> PanelPopulator : creates
-    PanelPopulatorConfig "1" *-- "1..*" LayerDefinition : holds
+    PanelPopulatorConfig "1" *-- "1..*" LayerConfig : holds
     PanelPopulatorConfig --> Layer : creates via layers_from_panel_and_thicknesses
     PanelPopulator "1" *-- "1..*" Layer : owns
     PanelPopulator --> ConnectionSolver2D : uses
     Layer "1" *-- "1..*" LayerAgent : has registered
-    LayerDefinition --> LayerAgentConfig : carries
+    LayerConfig --> LayerAgentConfig : carries
 ```
 
 ---
@@ -96,7 +96,7 @@ classDiagram
 
     class PanelPopulatorConfig {
         +panel : Panel
-        +layer_defs : list[LayerDefinition]
+        +layer_defs : list[LayerConfig]
         +default_feature_configs : dict[type, LayerAgentConfig]
         +instance_feature_configs : list
         +standard_beam_width : float
@@ -137,15 +137,15 @@ classDiagram
 
     PanelPopulatorConfig <|-- StudPanelPopulatorConfig
     PanelPopulatorConfig <|-- RecessPanelPopulatorConfig
-    PanelPopulatorConfig ..> LayerDefinition : creates / reads
+    PanelPopulatorConfig ..> LayerConfig : creates / reads
     PanelPopulatorConfig ..> LayerAgentConfig : reads default_feature_configs
 ```
 
 ---
 
-### Layer and LayerDefinition
+### Layer and LayerConfig
 
-`LayerDefinition` is a pure data blueprint with no geometry.  `Layer` is the
+`LayerConfig` is a pure data blueprint with no geometry.  `Layer` is the
 resolved runtime object that holds geometry (a sliced panel) and the list of
 agents registered on it.  The definition tree supports nested `sublayers` for
 composite cross-sections; `thickness=None` on a leaf causes fill-remaining
@@ -154,12 +154,12 @@ resolution against the parent.
 ```mermaid
 classDiagram
 
-    class LayerDefinition {
+    class LayerConfig {
         +thickness : float | None
         +name : str
         +is_framing_layer : bool
         +agent_configs : list[LayerAgentConfig]
-        +sublayers : list[LayerDefinition]
+        +sublayers : list[LayerConfig]
     }
 
     class Layer {
@@ -174,10 +174,10 @@ classDiagram
         +from_panel_and_range(panel, a, b, ...)$
     }
 
-    LayerDefinition "0..*" --> LayerDefinition : sublayers
-    LayerDefinition --> LayerAgentConfig : carries agent_configs
+    LayerConfig "0..*" --> LayerConfig : sublayers
+    LayerConfig --> LayerAgentConfig : carries agent_configs
     Layer "1" *-- "0..*" LayerAgent : registered agents
-    PanelPopulatorConfig --> LayerDefinition : reads (deep copy)
+    PanelPopulatorConfig --> LayerConfig : reads (deep copy)
     PanelPopulatorConfig --> Layer : produces
 ```
 

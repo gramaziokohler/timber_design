@@ -6,7 +6,7 @@ This guide walks through the full workflow for automatically framing a
 
 The workflow has three phases:
 
-1. **Configure** — assemble `LayerDefinition` objects and agent configs, then
+1. **Configure** — assemble `LayerConfig` objects and agent configs, then
    pass them to `PanelPopulatorConfig` (or use the `stud_panel()` /
    `recess_panel()` shortcut functions).
 2. **Populate** — call `config.create_populator()` to get a
@@ -52,12 +52,12 @@ flowchart LR
     %% ── Layer definitions ────────────────────────────────────────────────
 subgraph layer definitions:
         direction TB
-        ldExt["LayerDefinition <br> 'exterior' · 22 mm"]:::layerdef
-        ldFrame["LayerDefinition <br> 'frame' · fill <br> is_framing_layer=True"]:::layerdef
-        ldParent["LayerDefinition <br> 'insulation' · 120 mm"]:::layerdef
-        ldSubA["LayerDefinition <br> 'insulation_a' · 60 mm"]:::layerdef
-        ldSubB["LayerDefinition <br> 'insulation_b' · 60 mm"]:::layerdef
-        ldInt["LayerDefinition <br> 'interior' · 15 mm"]:::layerdef
+        ldExt["LayerConfig <br> 'exterior' · 22 mm"]:::layerdef
+        ldFrame["LayerConfig <br> 'frame' · fill <br> is_framing_layer=True"]:::layerdef
+        ldParent["LayerConfig <br> 'insulation' · 120 mm"]:::layerdef
+        ldSubA["LayerConfig <br> 'insulation_a' · 60 mm"]:::layerdef
+        ldSubB["LayerConfig <br> 'insulation_b' · 60 mm"]:::layerdef
+        ldInt["LayerConfig <br> 'interior' · 15 mm"]:::layerdef
         ldSubA -->|sublayers| ldParent
         ldSubB -->|sublayers| ldParent 
 
@@ -403,10 +403,10 @@ the agent is instantiated.
 ## Understanding the layer system
 
 The panel cross-section is described by an ordered list of
-:class:`~timber_design.populators.LayerDefinition` objects — one per layer from
+:class:`~timber_design.populators.LayerConfig` objects — one per layer from
 the interior face (`outline_a`) to the exterior face (`outline_b`).
 
-Each `LayerDefinition` is a pure data blueprint.  It carries:
+Each `LayerConfig` is a pure data blueprint.  It carries:
 
 - `thickness` — the layer's depth in model units.  Pass ``None`` to let the
   layer claim the remaining panel thickness after all fixed-thickness siblings
@@ -424,7 +424,7 @@ calls `layers_from_panel_and_thicknesses` to produce
 the source panel using *outline chaining* — each layer's far boundary is reused
 as the next layer's near boundary with no floating-point re-interpolation.
 
-### Custom cross-section with LayerDefinition
+### Custom cross-section with LayerConfig
 
 Use `PanelPopulatorConfig` directly when you need full control over the layer
 stack:
@@ -432,17 +432,17 @@ stack:
 ```python
 from timber_design.populators import (
     PanelPopulatorConfig,
-    LayerDefinition,
+    LayerConfig,
     EdgePopulatorAgentConfig,
     StudPopulatorAgentConfig,
     PlatePopulatorAgentConfig,
 )
 
 layer_defs = [
-    LayerDefinition(15,   name="interior", agent_configs=[PlatePopulatorAgentConfig()]),
-    LayerDefinition(None, name="frame",    is_framing_layer=True,
+    LayerConfig(15,   name="interior", agent_configs=[PlatePopulatorAgentConfig()]),
+    LayerConfig(None, name="frame",    is_framing_layer=True,
                     agent_configs=[EdgePopulatorAgentConfig(), StudPopulatorAgentConfig(stud_spacing=625)]),
-    LayerDefinition(22,   name="exterior", agent_configs=[PlatePopulatorAgentConfig()]),
+    LayerConfig(22,   name="exterior", agent_configs=[PlatePopulatorAgentConfig()]),
 ]
 
 config = PanelPopulatorConfig(
@@ -459,25 +459,25 @@ The ``None`` thickness on the frame layer receives whatever is left after the
 
 ### Nested sublayers
 
-A `LayerDefinition` can contain `sublayers` instead of `agent_configs` to
+A `LayerConfig` can contain `sublayers` instead of `agent_configs` to
 group related layers under a shared parent thickness.  Sublayers inherit the
 parent's remaining thickness the same way:
 
 ```python
-from timber_design.populators import LayerDefinition, PlatePopulatorAgentConfig
+from timber_design.populators import LayerConfig, PlatePopulatorAgentConfig
 
-insulation = LayerDefinition(
+insulation = LayerConfig(
     thickness=120,
     name="insulation",
     sublayers=[
-        LayerDefinition(60, name="insulation_a", agent_configs=[PlatePopulatorAgentConfig()]),
-        LayerDefinition(60, name="insulation_b", agent_configs=[PlatePopulatorAgentConfig()]),
+        LayerConfig(60, name="insulation_a", agent_configs=[PlatePopulatorAgentConfig()]),
+        LayerConfig(60, name="insulation_b", agent_configs=[PlatePopulatorAgentConfig()]),
     ],
 )
 ```
 
 !!! note
-    A `LayerDefinition` may have either `agent_configs` or `sublayers`, never
+    A `LayerConfig` may have either `agent_configs` or `sublayers`, never
     both.  The outermost list passed to `PanelPopulatorConfig` may freely mix
     leaf definitions (with `agent_configs`) and composite definitions (with
     `sublayers`).

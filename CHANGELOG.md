@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 A new `timber_design.populators` package replaces the old wall-populator module with a general, layer-based panel framing system.
 
-* **`LayerDefinition` / `Layer`** — `LayerDefinition` is a pure-data blueprint (thickness, name, `is_framing_layer`, `agent_configs`, optional `sublayers`).  `Layer` is the resolved runtime object that holds a sliced panel geometry and the agents registered on it.  `PanelPopulatorConfig` resolves fill-remaining (`thickness=None`) thicknesses with a two-pass bottom-up / top-down algorithm and never mutates the original definitions, making configs safe to reuse in Rhino live-update loops.
+* **`LayerConfig` / `Layer`** — `LayerConfig` is a pure-data blueprint (thickness, name, `is_framing_layer`, `agent_configs`, optional `sublayers`).  `Layer` is the resolved runtime object that holds a sliced panel geometry and the agents registered on it.  `PanelPopulatorConfig` resolves fill-remaining (`thickness=None`) thicknesses with a two-pass bottom-up / top-down algorithm and never mutates the original definitions, making configs safe to reuse in Rhino live-update loops.
 * **`PanelPopulatorConfig`** — config class that accepts an explicit `layer_defs` list, `default_feature_configs` dict, and an optional `panel`.  Produces a `PanelPopulator` via `create_populator()`.  `layers_from_panel_and_layer_defs` builds `Layer` objects using *outline chaining* — each layer's far boundary is reused as the next layer's near boundary, eliminating floating-point discrepancies at shared faces.
 * **`stud_panel()`** (`populator_configs.stud_panel_config`) — factory function returning a `PanelPopulatorConfig` for standard stud-wall framing.  Parameters: `standard_beam_width`, `stud_spacing`, `orientation`, `edge_beam_min_width`, `standard_beam_width_increment`, `sheeting_outside`, `sheeting_inside`, `lintel_posts`, `split_bottom_plate_beam`, `beam_width_overrides`, `joint_rule_overrides`, `default_feature_configs`.
 * **`recess_panel()`** (`populator_configs.recess_panel_config`) — factory function returning a `PanelPopulatorConfig` for recessed-frame panels.  Parameters: `recess_beam_width`, `recess_beam_height`, `sheeting_recess`, plus the common edge and sheeting parameters.
@@ -35,7 +35,7 @@ A new `timber_design.populators` package replaces the old wall-populator module 
 * `CT: RecessPanel` — calls `recess_panel()` with all parameters exposed as GH inputs.
 * `CT: PopulatorConfig` — wraps `PanelPopulatorConfig` directly for fully custom layer stacks.
 * `CT: PopulatorAgent` — dynamic component that introspects `LayerAgentConfig` subclasses; output nickname selects the agent type at runtime.
-* `CT: PopulatorLayer` — wraps `LayerDefinition` (thickness, name, agent configs, sublayers, framing flag).
+* `CT: PopulatorLayer` — wraps `LayerConfig` (thickness, name, agent configs, sublayers, framing flag).
 
 #### Other additions
 

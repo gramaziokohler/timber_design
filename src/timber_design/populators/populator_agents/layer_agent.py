@@ -40,17 +40,6 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
     :class:`~timber_design.populators.EdgePopulatorAgentConfig`) extend this
     class and add their own fields.
 
-    Parameters
-    ----------
-    beam_width_overrides : dict, optional
-        Per-category beam width overrides.  Keys are category name strings
-        (e.g. ``"stud"``, ``"header"``); values are floats in model units.
-        Applied as fallback when a concrete subclass does not provide an
-        explicit per-category width kwarg.
-    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Rules that replace matching entries in the agent's ``RULES`` list.
-        Non-matching overrides are appended.
-
     Class Attributes
     ----------------
     AGENT_TYPE : type or None
@@ -61,20 +50,23 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
     AGENT_TYPE = None
 
     def get_agent_from_layer(self, layer, standard_beam_width=None):
-        """Instantiate the agent for the given layer.
+        """Construct this config's :class:`LayerAgent` for *layer*.
 
-        Fills any missing entries in :attr:`beam_widths` from
-        :attr:`beam_width_overrides` and *standard_beam_width* before
-        constructing the agent, so the agent receives a fully-resolved
-        ``beam_widths`` dict.
+        The agent is built with explicit keyword arguments assembled by
+        :meth:`~PopulatorAgentConfig._agent_kwargs` — the agent never receives
+        the config object itself.
 
         Parameters
         ----------
         layer : :class:`~timber_design.populators.Layer`
             The layer to create the agent for.
         standard_beam_width : float, optional
-            Default width applied to every beam category not already present
-            in :attr:`beam_widths`.
+            Convenience for constructing an agent in isolation: when given,
+            any unset beam-category widths are filled via
+            :meth:`~PopulatorAgentConfig.fill_beam_widths` first.  In the full
+            pipeline widths are pre-filled by
+            :meth:`~timber_design.populators.PanelPopulatorConfig.resolve_beam_widths`
+            and this argument is omitted.
 
         Returns
         -------
@@ -87,11 +79,9 @@ class LayerAgentConfig(PopulatorAgentConfig, ABC):
         """
         if self.AGENT_TYPE is None:
             raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        bwo = self.beam_width_overrides or {}
-        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
-            if category not in self.beam_widths:
-                self.beam_widths[category] = bwo.get(category, standard_beam_width)
-        return self.AGENT_TYPE(layer, self)
+        if standard_beam_width is not None:
+            self.fill_beam_widths(standard_beam_width)
+        return self.AGENT_TYPE(layer, **self._agent_kwargs())
 
 
 class LayerAgent(PopulatorAgent, ABC):
@@ -120,17 +110,17 @@ class LayerAgent(PopulatorAgent, ABC):
     ----------------------
     BEAM_CATEGORY_NAMES : list[str]
         The beam categories this agent can create.  Used by
-        :meth:`resolve_beam_widths`.
-    INTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
+        :meth:`~PopulatorAgentConfig.fill_beam_widths`.
+    INTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
         :meth:`create_joint_defs` / :meth:`get_direct_rule_from_elements`.
-        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
-    EXTERNAL_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
+        Overridable per-instance via the config's ``internal_joint_overrides``.
+    EXTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.  Used by
         :meth:`~timber_design.populators.PanelPopulator.create_cross_agent_joints`.
-        Overridable per-instance via :attr:`LayerAgentConfig.joint_rule_overrides`.
+        Overridable per-instance via the config's ``external_joint_overrides``.
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`~FeatureBoundaryType.NONE`.
@@ -159,13 +149,13 @@ class LayerAgent(PopulatorAgent, ABC):
     outline : :class:`~compas.geometry.Polyline` or None
         Closed boundary polyline in populator space.  Set by :meth:`generate_elements`.
     internal_rules : list[:class:`~timber_design.workflow.CategoryRule`]
-        Active within-agent joint rules (``INTERNAL_RULES`` merged with any
-        matching :attr:`LayerAgentConfig.joint_rule_overrides`).
+        Active within-agent joint rules (``INTERNAL_JOINT_RULES`` merged with
+        any matching ``internal_joint_overrides``).
     external_rules : list[:class:`~timber_design.workflow.CategoryRule`]
-        Active cross-agent joint rules (``EXTERNAL_RULES`` merged with any
-        matching :attr:`LayerAgentConfig.joint_rule_overrides`).
+        Active cross-agent joint rules (``EXTERNAL_JOINT_RULES`` merged with
+        any matching ``external_joint_overrides``).
     beam_widths : dict[str, float]
-        ``{category: width}`` mapping filled by :meth:`get_agent_from_layer`.
+        ``{category: width}`` mapping supplied by the config.
         Beam height is always ``layer.thickness`` at call time.
     joint_defs : list[:class:`~timber_design.workflow.DirectRule`]
         Accumulated joint definitions, populated by :meth:`create_joint_defs`.
@@ -177,13 +167,13 @@ class LayerAgent(PopulatorAgent, ABC):
     """
 
     BEAM_CATEGORY_NAMES = []
-    INTERNAL_RULES = []
-    EXTERNAL_RULES = []
+    INTERNAL_JOINT_RULES = []
+    EXTERNAL_JOINT_RULES = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
-    def __init__(self, layer, params):
-        # type: (Layer, LayerAgentConfig) -> None
-        super(LayerAgent, self).__init__(params)
+    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
+        super(LayerAgent, self).__init__(beam_widths, internal_joint_overrides, external_joint_overrides)
         self.layer = layer
         self.layer_index = layer.layer_index if layer is not None else None
         self.layer_center_height = layer.center_height
@@ -243,9 +233,20 @@ class LayerAgent(PopulatorAgent, ABC):
         self.elements = elements
 
     def trim_elements(self):
+        """Trim peer agents' elements against this agent's boundary — same layer only.
+
+        A peer may span multiple layers (e.g. an
+        :class:`~timber_design.populators.OpeningPopulatorAgent` framing an
+        opening on several framing layers).  The trim is scoped to the elements
+        the peer placed on ``self.layer`` via
+        :meth:`~PopulatorAgent.elements_for_layer`, so a layer agent never cuts
+        framing that belongs to a different layer.
+        """
         for agent in self.layer.agents:
             if agent is self:
                 continue  # never apply an agent's own boundary to its own elements
+            if not agent.elements_for_layer(self.layer):
+                continue  # peer placed nothing on this layer — leave its other layers alone
             if aabb_overlap(self, agent):
                 self.trim_agent_elements(agent, self.layer)
 

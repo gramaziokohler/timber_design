@@ -4,7 +4,7 @@ Demonstrates the three most common panel framing scenarios:
 
 1.  Basic stud wall — edge beams, studs, optional sheathing.
 2.  Stud wall with openings — window and door using Panel.features.
-3.  Custom layer stack — direct use of LayerDefinition / PanelPopulatorConfig.
+3.  Custom layer stack — direct use of LayerConfig / PanelPopulatorConfig.
 
 Run any section independently; all geometry is created from scratch so no
 external model file is required.
@@ -19,7 +19,7 @@ from compas_timber.panel_features import Opening
 from compas_timber.panel_features import OpeningType
 
 from timber_design.populators import EdgePopulatorAgentConfig
-from timber_design.populators import LayerDefinition
+from timber_design.populators import LayerConfig
 from timber_design.populators import OpeningPopulatorAgentConfig
 from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators import PlatePopulatorAgentConfig
@@ -153,7 +153,7 @@ def example_with_openings():
 # ===========================================================================
 
 def example_custom_layer_stack():
-    """Full control over the cross-section via LayerDefinition."""
+    """Full control over the cross-section via LayerConfig."""
     model = TimberModel()
     # Thicker panel: interior board + structural frame + exterior cladding
     panel = make_rectangular_panel(width=4000, height=2700, thickness=220)
@@ -173,12 +173,12 @@ def example_custom_layer_stack():
 
     # LayerDefinitions — thickness=None on the frame claims the remainder
     layer_defs = [
-        LayerDefinition(
+        LayerConfig(
             thickness=15,
             name="interior",
             agent_configs=[PlatePopulatorAgentConfig()],
         ),
-        LayerDefinition(
+        LayerConfig(
             thickness=None,   # filled with whatever is left: 220 - 15 - 25 = 180 mm
             name="frame",
             is_framing_layer=True,
@@ -190,7 +190,7 @@ def example_custom_layer_stack():
                 StudPopulatorAgentConfig(stud_spacing=600),
             ],
         ),
-        LayerDefinition(
+        LayerConfig(
             thickness=25,
             name="exterior",
             agent_configs=[PlatePopulatorAgentConfig()],

@@ -14,7 +14,7 @@ from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 
 from timber_design.populators.layer import Layer
-from timber_design.populators.layer import LayerDefinition
+from timber_design.populators.layer import LayerConfig
 from timber_design.populators.populator import PanelPopulator
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ class PanelPopulatorConfig:
     ----------
     panel : :class:`compas_timber.elements.Panel`, optional
         The panel to populate.  Required for :meth:`create_populator`.
-    layer_defs : list[:class:`~timber_design.populators.LayerDefinition`], optional
+    layer_defs : list[:class:`~timber_design.populators.LayerConfig`], optional
         Ordered list of layer definitions that describe the panel cross-section
         from ``outline_a`` to ``outline_b``.  Each definition may contain
         nested ``sublayers``.  A definition with ``thickness=None`` will receive
@@ -62,7 +62,7 @@ class PanelPopulatorConfig:
         instance_feature_configs=None,
     ):
         self.panel = panel
-        self.layer_def = LayerDefinition(panel.thickness if panel else None, sublayers=list(layer_defs) if layer_defs else None)
+        self.root_layer_def = LayerConfig(panel.thickness if panel else None, sublayers=list(layer_defs) if layer_defs else None)
         self.default_feature_configs = default_feature_configs or {}
         self.instance_feature_configs = instance_feature_configs or []
         self.orientation = orientation
@@ -90,36 +90,60 @@ class PanelPopulatorConfig:
         populator_panel = Panel.from_outlines(*local_polylines)
         return populator_panel
 
+
+
+    def _iter_agent_configs(self):
+        """Yield every agent config in the panel: layer agents then feature agents.
+
+        Walks the :class:`LayerConfig` tree (depth-first) collecting each layer's
+        ``agent_configs``, then yields the ``default_feature_configs`` values and
+        ``instance_feature_configs``.
+        """
+        def walk(layer_def):
+            for agent_config in layer_def.agent_configs:
+                yield agent_config
+            for sublayer in layer_def.sublayers:
+                yield from walk(sublayer)
+
+        yield from walk(self.root_layer_def)
+        for agent_config in self.default_feature_configs.values():
+            yield agent_config
+        for agent_config in self.instance_feature_configs:
+            yield agent_config
+
+    def resolve_beam_widths(self):
+        """Fill every agent config's ``beam_widths`` with :attr:`standard_beam_width`.
+
+        This is the single place where the panel-wide default beam width is
+        pushed into the agent configs.  Each config keeps any explicit
+        per-category widths it was given and only the unset categories are
+        filled (see :meth:`~PopulatorAgentConfig.fill_beam_widths`).
+        """
+        for agent_config in self._iter_agent_configs():
+            agent_config.fill_beam_widths(self.standard_beam_width)
+
     def create_populator_model(self):
-        """Build :class:`~timber_design.populators.Layer` objects from resolved thicknesses.
+        """Resolve beam widths and build the :class:`Layer` model from the panel.
 
-        Uses *outline chaining*: the ``outline_b`` produced for each layer
-        panel is reused as the ``outline_a`` of the next.  This guarantees
-        adjacent layers share an identical geometric boundary with no
-        floating-point discrepancy.
-
-        Also builds :attr:`_original_ld_to_layer` — a mapping from the
-        identity of each original (user-supplied) :class:`LayerDefinition`
-        leaf to its resolved :class:`Layer`.  This is consumed by
-        :meth:`_resolve_layer_defs` so that
-        :attr:`~FeatureAgentConfig.framing_layer_defs` /
-        :attr:`~FeatureAgentConfig.trimming_layer_defs` can be translated to
-        concrete :class:`Layer` instances.
+        Resolves :attr:`standard_beam_width` (defaulting to half the panel
+        thickness), fills every agent config's beam widths, then delegates the
+        actual layer slicing and agent attachment to
+        :meth:`~timber_design.populators.LayerConfig.model_from_panel`.
 
         Returns
         -------
-        list[:class:`~timber_design.populators.Layer`]
+        :class:`~compas_timber.model.TimberModel`
         """
         if not self.standard_beam_width:
             ref = getattr(self, "populator_panel", None) or self.panel
             if ref:
                 self.standard_beam_width = ref.thickness / 2.0
-        if not self.layer_def.thickness:
+        if not self.root_layer_def.thickness:
             ref = getattr(self, "populator_panel", None) or self.panel
             if ref:
-                self.layer_def.thickness = ref.thickness
-        layer_model = self.layer_def.model_from_panel(self.populator_panel, self.standard_beam_width)
-        return layer_model
+                self.root_layer_def.thickness = ref.thickness
+        self.resolve_beam_widths()
+        return self.root_layer_def.model_from_panel(self.populator_panel)
 
     def create_feature_agents(self):
         """Create all feature populator agents.
@@ -129,7 +153,7 @@ class PanelPopulatorConfig:
 
         For each config that declares :attr:`~FeatureAgentConfig.framing_layer_defs`
         or :attr:`~FeatureAgentConfig.trimming_layer_defs`, the
-        :class:`LayerDefinition` references are resolved to concrete
+        :class:`LayerConfig` references are resolved to concrete
         :class:`Layer` objects via :meth:`_resolve_layer_defs` before the
         agent is instantiated.
 
@@ -156,14 +180,14 @@ class PanelPopulatorConfig:
             transformed_feature = feature.transformed(self.transformation_to_populator)
             framing_layers = [ld.resulting_layer for ld in (agent_config.framing_layer_defs or [])]
             trimming_layers = [ld.resulting_layer for ld in (agent_config.trimming_layer_defs or [])]
-            agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers, self.standard_beam_width))
+            agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         # Instance feature agents — each config carries its own .feature reference.
         for agent_config in self.instance_feature_configs:
             transformed_feature = agent_config.feature.transformed(self.transformation_to_populator)
             framing_layers = [ld.resulting_layer for ld in (agent_config.framing_layer_defs or [])]
             trimming_layers = [ld.resulting_layer for ld in (agent_config.trimming_layer_defs or [])]
-            agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers, self.standard_beam_width))
+            agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         return agents
 
@@ -189,14 +213,15 @@ class PanelPopulatorConfig:
         self.populator_panel = self.get_populator_panel()
         if not self.standard_beam_width:
             self.standard_beam_width = self.populator_panel.thickness / 2.0
-        if not self.layer_def.thickness:
-            self.layer_def.thickness = self.populator_panel.thickness
-        layer_model = self.create_populator_model()
+        if not self.root_layer_def.thickness:
+            self.root_layer_def.thickness = self.populator_panel.thickness
+
+        populator_model = self.create_populator_model()
         feature_agents = self.create_feature_agents()
 
         return PanelPopulator(
             self.populator_panel,
-            layer_model,
+            populator_model,
             feature_agents,
             original_panel=self.panel,
             transformation_to_populator=self.transformation_to_populator,

@@ -50,9 +50,8 @@ class OpeningPopulatorAgentConfig(FeatureAgentConfig):
     jack_stud_width : float, optional
         Explicit width for jack stud (lintel post) beams.
 
-    All width kwargs take precedence over *standard_beam_width* and
-    :attr:`~PopulatorAgentConfig.beam_width_overrides` for their respective
-    categories.  When ``None``, *standard_beam_width* is used.
+    All width kwargs take precedence over *standard_beam_width* for their
+    respective categories.  When ``None``, *standard_beam_width* is used.
     """
     IS_ABSTRACT = False
     FEATURE_TYPE = Opening
@@ -74,6 +73,12 @@ class OpeningPopulatorAgentConfig(FeatureAgentConfig):
             self.beam_widths["king_stud"] = self.king_stud_width
         if self.jack_stud_width is not None:
             self.beam_widths["jack_stud"] = self.jack_stud_width
+
+    def _agent_kwargs(self):
+        kwargs = super()._agent_kwargs()
+        kwargs["lintel_posts"] = self.lintel_posts
+        kwargs["split_bottom_plate_beam"] = self.split_bottom_plate_beam
+        return kwargs
 
     @property
     def __data__(self):
@@ -153,13 +158,13 @@ class OpeningPopulatorAgent(FeatureAgent):
     FEATURE_TYPE = Opening
     BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
     NAME = "OpeningPopulatorAgent"
-    INTERNAL_RULES = [
+    INTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
         CategoryRule(TButtJoint, "sill", "king_stud"),
         CategoryRule(TButtJoint, "sill", "jack_stud"),
         CategoryRule(LButtJoint, "jack_stud", "header", mill_depth=5.0),
     ]
-    EXTERNAL_RULES = [
+    EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "top_plate_beam", mill_depth=5.0),
         CategoryRule(TButtJoint, "jack_stud", "edge_stud"),
@@ -175,11 +180,11 @@ class OpeningPopulatorAgent(FeatureAgent):
     ]
     BOUNDARY_TYPE = AgentBoundaryType.EXCLUSIVE
 
-    def __init__(self, layer, params, feature, framing_layers=None, trimming_layers=None):
-        # type: (Layer, OpeningPopulatorAgentConfig, Opening, list, list) -> None
-        super().__init__(params, feature, framing_layers, trimming_layers)
-        self.lintel_posts = params.lintel_posts
-        self.split_bottom_plate_beam = params.split_bottom_plate_beam
+    def __init__(self, feature, framing_layers=None, trimming_layers=None, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, lintel_posts=False, split_bottom_plate_beam=False):
+        # type: (Opening, list, list, Optional[dict], Optional[list], Optional[list], bool, bool) -> None
+        super().__init__(feature, framing_layers, trimming_layers, beam_widths, internal_joint_overrides, external_joint_overrides)
+        self.lintel_posts = lintel_posts
+        self.split_bottom_plate_beam = split_bottom_plate_beam
         self.opening_type = self.opening.opening_type
         self.sill_angle = 0.0
         self.header_angle = 0.0
@@ -327,23 +332,32 @@ class OpeningPopulatorAgent(FeatureAgent):
         )
 
     def extend_elements(self):
-        other_agents = []
+        """Extend king/jack studs to neighboring boundaries — one layer at a time.
+
+        The opening may frame on several layers.  Each layer's king/jack studs
+        are extended only against the peer agents *on that same layer*, so a
+        stud is never extended to a boundary that belongs to a different layer.
+        """
         for layer in self.framing_layers:
-            for agent in layer.agents:
-                if agent is not self and agent not in other_agents:
-                    other_agents.append(agent)
-        intersecting_agents = [a for a in other_agents if aabb_overlap_x(self, a)]
-        if not intersecting_agents:
-            return
-        self._extend_studs(intersecting_agents)
+            layer_elements = self.elements_for_layer(layer)
+            king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
+            jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
+            if not (king_studs or jack_studs):
+                continue
+            peer_agents = [a for a in layer.agents if a is not self and aabb_overlap_x(self, a)]
+            if not peer_agents:
+                continue
+            self._extend_studs(king_studs, jack_studs, peer_agents, layer)
 
-    def _extend_studs(self, intersecting_agents: list[LayerAgent]) -> None:
-        """Extend king and jack studs in-place to the nearest neighboring panel boundaries."""
-        for king_stud in [s for s in self.king_studs if s is not None]:
-            extend_beam_to_closest_agents(king_stud, intersecting_agents)
+    def _extend_studs(self, king_studs, jack_studs, intersecting_agents: list[LayerAgent], layer) -> None:
+        """Extend the given king and jack studs in-place to the nearest neighboring boundaries on *layer*."""
+        for king_stud in king_studs:
+            if king_stud is not None:
+                extend_beam_to_closest_agents(king_stud, intersecting_agents, layer=layer)
 
-        for jack_stud in [s for s in self.jack_studs if s is not None]:
-            extend_beam_to_closest_agents(jack_stud, intersecting_agents, only_start=True)
+        for jack_stud in jack_studs:
+            if jack_stud is not None:
+                extend_beam_to_closest_agents(jack_stud, intersecting_agents, only_start=True, layer=layer)
 
     # ==========================================================================
     # Cross-layer trimming

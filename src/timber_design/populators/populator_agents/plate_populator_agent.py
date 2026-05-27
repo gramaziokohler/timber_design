@@ -49,9 +49,9 @@ class PlatePopulatorAgent(LayerAgent):
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
     NAME = "PlatePopulatorAgent"
 
-    def __init__(self, layer, params):
-        # type: (Layer, PlatePopulatorAgentConfig) -> None
-        super(PlatePopulatorAgent, self).__init__(layer, params)
+    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
+        super(PlatePopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
         self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 
     def generate_elements(self) -> None:

@@ -4,7 +4,7 @@ Select the feature agent type via the right-click menu.  The component
 exposes the constructor parameters of the chosen config as dynamic inputs.
 
 The two optional list inputs ``framing_layers`` and ``trimming_layers``
-accept :class:`~timber_design.populators.LayerDefinition` objects — the
+accept :class:`~timber_design.populators.LayerConfig` objects — the
 **same** objects wired into a ``CT_PopulatorConfig`` component.  They
 control on which layers the feature agent generates beams and on which
 layers it cuts sheathing plates.  When left disconnected the agent falls
@@ -24,8 +24,8 @@ from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_pa
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
-# Names of the two permanent list inputs that are always present
-_PERMANENT_PARAM_NAMES = ["framing_layers", "trimming_layers"]
+# Names of the permanent list inputs that are always present
+_PERMANENT_PARAM_NAMES = ["framing_layers", "trimming_layers", "external_joint_overrides", "internal_joint_overrides"]
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
@@ -43,6 +43,8 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
         self,
         framing_layers: System.Collections.Generic.List[object],
         trimming_layers: System.Collections.Generic.List[object],
+        internal_joint_overrides: System.Collections.Generic.List[object],
+        external_joint_overrides: System.Collections.Generic.List[object],
         *args,
     ):
         if not self.config_type:
@@ -50,7 +52,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
 
         ghenv.Component.Message = self.config_type.__name__
 
-        # Map positional *args to constructor kwargs (skip framing/trimming — handled above).
+        # Map positional *args to constructor kwargs (permanent params handled above).
         kwargs = {}
         names = self._config_arg_names()
         for i, val in enumerate(args):
@@ -59,6 +61,8 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
 
         kwargs["framing_layer_defs"] = list(framing_layers) if framing_layers else None
         kwargs["trimming_layer_defs"] = list(trimming_layers) if trimming_layers else None
+        kwargs["external_joint_overrides"] = list(external_joint_overrides) if external_joint_overrides else None
+        kwargs["internal_joint_overrides"] = list(internal_joint_overrides) if internal_joint_overrides else None
 
         return self.config_type(**kwargs)
 
@@ -69,7 +73,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
         ``beam_width_overrides``, and ``joint_rule_overrides`` — those are
         handled separately.
         """
-        skip = {"framing_layer_defs", "trimming_layer_defs", "beam_width_overrides", "joint_rule_overrides"}
+        skip = _PERMANENT_PARAM_NAMES
         spec = inspect.getfullargspec(self.config_type.__init__)
         return [n for n in spec.args[1:] if n not in skip]
 

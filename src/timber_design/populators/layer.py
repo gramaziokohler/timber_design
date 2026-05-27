@@ -8,10 +8,10 @@ from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 
 
-class LayerDefinition:
+class LayerConfig:
     """Declarative description of one cross-section layer within a panel.
 
-    A ``LayerDefinition`` is a *blueprint* — it does not carry any geometry.
+    A ``LayerConfig`` is a *blueprint* — it does not carry any geometry.
     Geometry is only created when
     :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers`
     resolves the full layer stack and instantiates :class:`Layer` objects from
@@ -32,17 +32,17 @@ class LayerDefinition:
     agent_configs : list[:class:`~timber_design.populators.LayerAgentConfig`], optional
         Configuration objects for the agents that should be instantiated on
         this layer.
-    sublayers : list[:class:`LayerDefinition`], optional
+    sublayers : list[:class:`LayerConfig`], optional
         Nested child layer definitions for composite layers.
 
     Examples
     --------
     A structural frame layer with an edge agent and a stud agent::
 
-        from timber_design.populators import LayerDefinition
+        from timber_design.populators import LayerConfig
         from timber_design.populators import EdgePopulatorAgentConfig, StudPopulatorAgentConfig
 
-        frame = LayerDefinition(
+        frame = LayerConfig(
             thickness=None,  # fill remaining
             name="frame",
             agent_configs=[
@@ -67,11 +67,31 @@ class LayerDefinition:
         self.resulting_layer = None
 
 
-    def model_from_panel(self, panel, standard_beam_width=None):
+    def model_from_panel(self, panel):
+        """Build a :class:`~compas_timber.model.TimberModel` of :class:`Layer` objects.
+
+        Resolves all fill-remaining thicknesses and layer positions, then walks
+        the definition tree depth-first, creating one :class:`Layer` per node and
+        attaching the agents declared in each node's ``agent_configs``.
+
+        Beam widths on those agent configs must already be resolved (the
+        :class:`~timber_design.populators.PanelPopulatorConfig` does this via
+        :meth:`~timber_design.populators.PanelPopulatorConfig.resolve_beam_widths`
+        before calling this method).
+
+        Parameters
+        ----------
+        panel : :class:`compas_timber.elements.Panel`
+            The populator-space panel to slice into layers.
+
+        Returns
+        -------
+        :class:`~compas_timber.model.TimberModel`
+        """
         if not self.thickness:
             self.thickness = panel.thickness
         elif not TOL.is_close(self.thickness, panel.thickness):
-            raise ValueError(f"the layer height was defined at {self.thickness}, but the panel thickness is {panel.thickness}")
+            raise ValueError("the layer height was defined at {}, but the panel thickness is {}".format(self.thickness, panel.thickness))
         self.position = 0.0
         self._resolve_thicknesses()
         self._resolve_positions()
@@ -86,10 +106,9 @@ class LayerDefinition:
                 name=layer_def.name,
                 layer_index=layer_index[0],
                 agent_configs=layer_def.agent_configs,
-                standard_beam_width=standard_beam_width,
             )
             layer_index[0] += 1
-            layer_def.resulting_layer = layer  # store on each specific LayerDefinition
+            layer_def.resulting_layer = layer  # store on each specific LayerConfig
             if parent:
                 layer.transform(parent.modeltransformation.inverse())
                 parent.sublayer_list.append(layer)
@@ -150,7 +169,7 @@ class Layer(Panel):
 
     Each ``Layer`` is created by
     :meth:`~timber_design.populators.PanelPopulatorConfig.create_layers` from a
-    :class:`LayerDefinition`.  It extends :class:`~compas_timber.elements.Panel`
+    :class:`LayerConfig`.  It extends :class:`~compas_timber.elements.Panel`
     with agent tracking and tree-structure bookkeeping.
 
     Since ``Layer`` inherits from ``Panel``, all panel geometry is accessed
@@ -233,25 +252,24 @@ class Layer(Panel):
         name: Optional[str] = None,
         layer_index: Optional[int] = None,
         agent_configs: Optional[list] = None,
-        standard_beam_width: Optional[float] = None,
     ) -> "Layer":
-        """Create a layer by slicing a panel to a Z range.
+        """Create a layer by slicing *panel* to a Z range and attaching agents.
 
         Parameters
         ----------
         panel : :class:`compas_timber.elements.Panel`
             Source panel to slice.
         range_a : float
-            Layer start, measured from ``outline_a`` face.
+            Layer start, measured from the ``outline_a`` face.
         range_b : float
-            Layer end, measured from ``outline_a`` face.
+            Layer end, measured from the ``outline_a`` face.
         name : str, optional
         layer_index : int, optional
-        agent_configs : list, optional
-        standard_beam_width : float, optional
-            Passed to each agent config's
-            :meth:`~LayerAgentConfig.get_agent_from_layer` to fill in any
-            beam-width categories not set by an explicit kwarg.
+        agent_configs : list[:class:`~timber_design.populators.LayerAgentConfig`], optional
+            Configs whose agents are instantiated on the new layer.  Their beam
+            widths are expected to be resolved already; this method calls
+            :meth:`~LayerAgentConfig.get_agent_from_layer` without a
+            ``standard_beam_width``.
 
         Returns
         -------
@@ -270,7 +288,7 @@ class Layer(Panel):
         layer.name = name
         layer.layer_index = layer_index
         for agent_config in (agent_configs or []):
-            layer.agents.append(agent_config.get_agent_from_layer(layer, standard_beam_width))
+            layer.agents.append(agent_config.get_agent_from_layer(layer))
         return layer
 
     def iter_subtree(self):

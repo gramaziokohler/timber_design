@@ -24,7 +24,7 @@ from timber_design.populators.populator_configs.stud_panel_config import stud_pa
 config = stud_panel(standard_beam_width=60, stud_spacing=625, panel=panel)
 
 populator = config.create_populator()
-  # ├─ resolves LayerDefinition thicknesses (two-pass bottom-up / top-down)
+  # ├─ resolves LayerConfig thicknesses (two-pass bottom-up / top-down)
   # ├─ layers_from_panel_and_layer_defs() → list[Layer]  (outline chaining)
   # └─ create_feature_agents()            → list[FeatureAgent]
 
@@ -54,7 +54,7 @@ populator.merge_with_model(model)
 
 ## Layers
 
-::: timber_design.populators.layer.LayerDefinition
+::: timber_design.populators.layer.LayerConfig
 
 ::: timber_design.populators.layer.Layer
 

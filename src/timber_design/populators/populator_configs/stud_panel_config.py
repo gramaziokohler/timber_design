@@ -1,6 +1,6 @@
 from compas_timber.panel_features import Opening
 
-from timber_design.populators import LayerDefinition
+from timber_design.populators import LayerConfig
 from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
 from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
@@ -14,13 +14,16 @@ def stud_panel(
     stud_spacing=None,
     stud_width=None,
     standard_beam_width_increment=None,
-    edge_beam_min_width=None,
+    edge_stud_width=None,
+    top_plate_beam_width=None,
+    bottom_plate_beam_width=None,
     orientation=None,
     sheeting_outside=0,
     sheeting_inside=0,
     lintel_posts=False,
     split_bottom_plate_beam=False,
-    joint_rule_overrides=None,
+    internal_joint_overrides=None,
+    external_joint_overrides=None,
     default_feature_configs=None,
     instance_feature_configs=None,
 ):
@@ -42,9 +45,15 @@ def stud_panel(
         is used.
     standard_beam_width_increment : float, optional
         Rounding increment for edge-beam widths.
-    edge_beam_min_width : float, optional
-        Minimum width for edge beams.  When ``None``, *standard_beam_width*
-        is used.
+    edge_stud_width : float, optional
+        Explicit width for vertical edge studs.  When ``None``,
+        *standard_beam_width* is used.
+    top_plate_beam_width : float, optional
+        Explicit width for top plate beams.  When ``None``,
+        *standard_beam_width* is used.
+    bottom_plate_beam_width : float, optional
+        Explicit width for bottom plate beams.  When ``None``,
+        *standard_beam_width* is used.
     orientation : :class:`compas.geometry.Vector`, optional
         Desired stud orientation in world space.
     sheeting_outside : float, optional
@@ -55,8 +64,12 @@ def stud_panel(
         When ``True``, jack studs are added inside the king studs at openings.
     split_bottom_plate_beam : bool, optional
         When ``True``, the bottom plate beam is split at the door opening.
-    joint_rule_overrides : list, optional
-        Rules that replace matching entries in any agent's ``INTERNAL_RULES``.
+    internal_joint_overrides : list, optional
+        :class:`~timber_design.workflow.CategoryRule` instances that replace
+        matching entries in the frame (edge) agent's ``INTERNAL_JOINT_RULES``.
+    external_joint_overrides : list, optional
+        :class:`~timber_design.workflow.CategoryRule` instances that replace
+        matching entries in the frame (edge) agent's ``EXTERNAL_JOINT_RULES``.
     default_feature_configs : dict, optional
         Mapping from panel feature class to a ``FeatureAgentConfig`` instance.
     instance_feature_configs : list, optional
@@ -65,8 +78,11 @@ def stud_panel(
     frame_agent_configs = [
         EdgePopulatorAgentConfig(
             standard_beam_width_increment=standard_beam_width_increment,
-            edge_beam_min_width=edge_beam_min_width,
-            joint_rule_overrides=joint_rule_overrides,
+            edge_stud_width=edge_stud_width,
+            top_plate_beam_width=top_plate_beam_width,
+            bottom_plate_beam_width=bottom_plate_beam_width,
+            internal_joint_overrides=internal_joint_overrides,
+            external_joint_overrides=external_joint_overrides,
         ),
     ]
     if stud_spacing is None or stud_spacing:
@@ -74,17 +90,16 @@ def stud_panel(
             StudPopulatorAgentConfig(
                 stud_spacing=stud_spacing,
                 stud_width=stud_width,
-                joint_rule_overrides=joint_rule_overrides,
             )
         )
 
     layer_defs = []
     if sheeting_inside:
-        layer_defs.append(LayerDefinition(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    framing_layer = LayerDefinition(name="frame", agent_configs=frame_agent_configs)
+        layer_defs.append(LayerConfig(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
+    framing_layer = LayerConfig(name="frame", agent_configs=frame_agent_configs)
     layer_defs.append(framing_layer)
     if sheeting_outside:
-        layer_defs.append(LayerDefinition(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+        layer_defs.append(LayerConfig(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
 
     if not default_feature_configs:
         default_feature_configs = {}
@@ -97,7 +112,7 @@ def stud_panel(
         )
     else:
         # User supplied their own Opening config — inject layer references when
-        # missing so they don't need to know about internal LayerDefinition objects.
+        # missing so they don't need to know about internal LayerConfig objects.
         cfg = default_feature_configs[Opening]
         if cfg.framing_layer_defs is None:
             cfg.framing_layer_defs = [framing_layer]

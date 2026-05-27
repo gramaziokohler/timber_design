@@ -2,12 +2,15 @@ from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-
+from compas_timber.connections import JointCandidate
 from timber_design.populators import aabb_overlap
 
 from .populator_agent import PopulatorAgent
 from .populator_agent import PopulatorAgentConfig
 
+
+from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 
 @dataclass
 class FeatureAgentConfig(PopulatorAgentConfig, ABC):
@@ -179,11 +182,6 @@ class FeatureAgent(PopulatorAgent):
 
     def create_joint_candidates(self):
         """Return joint candidates per layer, using the per-layer element dict."""
-        from compas_timber.connections import JointCandidate
-
-        from timber_design.populators.beam2d import Beam2D
-        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-
         candidates = []
         solver = ConnectionSolver2D()
         for elements in self._elements_by_layer.values():

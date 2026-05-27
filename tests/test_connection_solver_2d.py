@@ -25,6 +25,8 @@ from compas_timber.connections.solver import JointTopology
 
 from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.connection_solver_2d import BeamContact
+from timber_design.populators.connection_solver_2d import Beam2DCluster
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 
 
@@ -347,3 +349,116 @@ class TestFindIntersectingAgentPairs:
         agent_b = SimpleAgent([make_beam(3, -1, 3, 1)])
         pairs = list(solver.find_intersecting_agent_pairs([agent_a, agent_b]))
         assert len(pairs) == 1
+
+
+# =============================================================================
+# find_beam_contacts (occlusion-aware perimeter walk)
+# =============================================================================
+
+
+class TestFindBeamContacts:
+    """Occlusion-aware contact detection and end/middle role classification."""
+
+    def test_stud_into_plate_is_T(self):
+        """A stud butting a plate's long face → one contact, end (stud) / middle (plate)."""
+        solver = ConnectionSolver2D()
+        plate = make_beam(0, 0, 10, 0, width=0.5)        # top face at y=0.25
+        stud = make_beam(5, 0.25, 5, 5, width=0.5)        # start cap on the plate face
+        contacts = solver.find_beam_contacts(stud, [plate])
+        assert len(contacts) == 1
+        contact = contacts[0]
+        assert contact.topology == JointTopology.TOPO_T
+        assert contact.role_for(stud) == "end"
+        assert contact.role_for(plate) == "middle"
+
+    def test_occlusion_excludes_beam_behind_a_nearer_one(self):
+        """`above` butts the plate's top; `below` butts the bottom — the plate
+        occludes `below` from `above`, so `above` must not register a contact
+        with `below` even though it is within max_distance."""
+        solver = ConnectionSolver2D(max_distance=2.0)
+        plate = make_beam(0, 0, 10, 0, width=1.0)          # y = [-0.5, 0.5]
+        above = make_beam(5, 0.5, 5, 3, width=0.5)          # butts top face
+        below = make_beam(5, -0.5, 5, -3, width=0.5)        # butts bottom face (behind the plate)
+        contacts = solver.find_beam_contacts(above, [plate, below])
+        touched = {id(c.beam_b) for c in contacts}
+        assert id(plate) in touched
+        assert id(below) not in touched
+
+
+# =============================================================================
+# Beam2DCluster — role-based Y/K topology
+# =============================================================================
+
+
+class TestBeam2DClusterTopology:
+    """Cluster topology is derived from member beams' end/middle roles."""
+
+    def _contact(self, a, b, role_a, role_b, topology):
+        return BeamContact(a, b, role_a, role_b, None, None, Point(0, 0, 0), topology)
+
+    def test_two_beam_cluster_passes_through_pairwise_topology(self):
+        a, b = make_beam(0, 0, 2, 0), make_beam(2, 0, 4, 0)
+        cluster = Beam2DCluster([self._contact(a, b, "end", "end", JointTopology.TOPO_L)])
+        assert cluster.topology == JointTopology.TOPO_L
+
+    def test_three_beams_all_ends_is_Y(self):
+        a, b, c = make_beam(0, 0, 0, 3), make_beam(0, 0, 3, 0), make_beam(0, 0, -3, 0)
+        contacts = [
+            self._contact(a, b, "end", "end", JointTopology.TOPO_L),
+            self._contact(b, c, "end", "end", JointTopology.TOPO_L),
+            self._contact(a, c, "end", "end", JointTopology.TOPO_L),
+        ]
+        assert Beam2DCluster(contacts).topology == JointTopology.TOPO_Y
+
+    def test_three_beams_one_middle_is_K(self):
+        through, s1, s2 = make_beam(0, 0, 10, 0), make_beam(5, 0, 5, 3), make_beam(5, 0, 5, -3)
+        contacts = [
+            self._contact(s1, through, "end", "middle", JointTopology.TOPO_T),
+            self._contact(s2, through, "end", "middle", JointTopology.TOPO_T),
+        ]
+        assert Beam2DCluster(contacts).topology == JointTopology.TOPO_K
+
+    def test_spurious_pairwise_T_still_resolves_to_Y(self):
+        """Three beams meeting at their ends: even if one pair is mislabeled T by
+        the pairwise solver (thickness offset), the roles are all 'end' so the
+        cluster is Y."""
+        a, b, c = make_beam(0, 0, 0, 3), make_beam(0, 0, 3, 0), make_beam(0, 0, -3, 0)
+        contacts = [
+            self._contact(a, b, "end", "end", JointTopology.TOPO_L),
+            self._contact(b, c, "end", "end", JointTopology.TOPO_L),
+            self._contact(a, c, "end", "end", JointTopology.TOPO_T),  # mislabeled
+        ]
+        assert Beam2DCluster(contacts).topology == JointTopology.TOPO_Y
+
+
+# =============================================================================
+# cluster_contacts — port-based union-find
+# =============================================================================
+
+
+class TestClusterContacts:
+    """Contacts merge into one cluster when they share a beam port."""
+
+    def test_shared_end_port_merges_into_one_cluster(self):
+        solver = ConnectionSolver2D()
+        a, b, c = make_beam(0, 0, 0, 3), make_beam(0, 0, 3, 0), make_beam(0, 0, -3, 0)
+        loc = Point(0, 0, 0)
+        contacts = [
+            BeamContact(a, b, "end", "end", "start", "start", loc, JointTopology.TOPO_L),
+            BeamContact(a, c, "end", "end", "start", "start", loc, JointTopology.TOPO_L),
+        ]
+        clusters = solver.cluster_contacts(contacts)
+        assert len(clusters) == 1
+        assert len(clusters[0].beams) == 3
+
+    def test_distinct_end_ports_stay_separate(self):
+        """Two T-joints at different points along a plate must not merge."""
+        solver = ConnectionSolver2D()
+        plate = make_beam(0, 0, 10, 0, width=0.5)
+        s1, s2 = make_beam(2, 0.25, 2, 3), make_beam(8, 0.25, 8, 3)
+        contacts = [
+            BeamContact(s1, plate, "end", "middle", "start", None, Point(2, 0, 0), JointTopology.TOPO_T),
+            BeamContact(s2, plate, "end", "middle", "start", None, Point(8, 0, 0), JointTopology.TOPO_T),
+        ]
+        clusters = solver.cluster_contacts(contacts)
+        assert len(clusters) == 2

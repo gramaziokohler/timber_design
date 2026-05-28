@@ -15,8 +15,8 @@ from compas_timber.elements import Beam as CTBeam
 from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
-class BeamFromBox(Grasshopper.Kernel.GH_ScriptInstance):
 
+class BeamFromBox(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(
         self,
         box_brep: System.Collections.Generic.List[object],
@@ -64,9 +64,9 @@ class BeamFromBox(Grasshopper.Kernel.GH_ScriptInstance):
         pts = [Point(*p) for p in obb_points]
 
         origin = pts[0]
-        x_vec = pts[1] - pts[0]   # edge along local X
-        y_vec = pts[3] - pts[0]   # edge along local Y
-        z_vec = pts[4] - pts[0]   # edge along local Z
+        x_vec = pts[1] - pts[0]  # edge along local X
+        y_vec = pts[3] - pts[0]  # edge along local Y
+        z_vec = pts[4] - pts[0]  # edge along local Z
 
         xsize = x_vec.length
         ysize = y_vec.length
@@ -79,7 +79,7 @@ class BeamFromBox(Grasshopper.Kernel.GH_ScriptInstance):
         )
 
         sizes = [a[0] for a in axes]
-        vecs  = [a[1] for a in axes]
+        vecs = [a[1] for a in axes]
 
         x_axis = vecs[0].unitized()
         y_axis = vecs[1].unitized()

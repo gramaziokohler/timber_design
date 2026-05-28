@@ -59,6 +59,10 @@ class JointRuleSolver(object):
         self.clusters = []
         self.joining_errors = []
 
+    @property
+    def max_rule_distance(self):
+        return max([rule.max_distance for rule in self.rules if rule.max_distance] + [self.max_distance])
+
     @staticmethod
     def _sort_rules(rules, use_default_topo=False):
         """Sorts the rules by their priority."""
@@ -103,7 +107,7 @@ class JointRuleSolver(object):
         max_rule_distance = max([rule.max_distance for rule in self.rules if rule.max_distance] + [self.max_distance])
         clusters = get_clusters_from_model(model, max_distance=max_rule_distance)
         clusters = self._remove_handled_pairs(clusters, handled_pairs)
-        unjoined_clusters = self._joints_from_rules_and_clusters(model, self.rules, clusters, max_distance=self.max_distance)
+        unjoined_clusters = self.joints_from_rules_and_clusters(model, clusters, max_distance=self.max_distance)
         return self.joining_errors, unjoined_clusters
 
     def _remove_handled_pairs(self, clusters, handled_pairs):
@@ -114,12 +118,12 @@ class JointRuleSolver(object):
                 remaining_clusters.append(cluster)
         return remaining_clusters
 
-    def _joints_from_rules_and_clusters(self, model, rules, clusters, max_distance=None):
+    def joints_from_rules_and_clusters(self, model, clusters, max_distance=None):
         """Processes the JointRules and creates joints based on the clusters."""
         remaining_clusters = []
         for cluster in clusters:
             promoted = False
-            for rule in rules:
+            for rule in self.rules:
                 joint, error = rule.try_create_joint(model, cluster, max_distance=max_distance)
                 if joint:
                     promoted = True
@@ -130,7 +134,7 @@ class JointRuleSolver(object):
             if not promoted:
                 if len(cluster.joints) > 1:
                     sub_clusters = [Cluster([j]) for j in cluster.joints]
-                    sub_remaining_clusters = self._joints_from_rules_and_clusters(model, rules, sub_clusters, max_distance=max_distance)
+                    sub_remaining_clusters = self.joints_from_rules_and_clusters(model, sub_clusters, max_distance=max_distance)
                     remaining_clusters.extend(sub_remaining_clusters)
                 else:
                     remaining_clusters.append(cluster)
@@ -622,7 +626,7 @@ def set_default_joints(model, x_default="x-lap", t_default="t-butt", l_default="
         pass
 
 
-def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
+def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
     """Analyzes the model to find clusters of beams and plates. This will create JointCandidates and PlateJointCandidates in the model.
     Parameters
     ----------
@@ -636,13 +640,10 @@ def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
     list[:class:`~compas_timber.connections.Cluster`]
         A list of clusters found in the model.
     """
-    # too high a max_cluster_size will lead to combinatorial explosion, even when efficient algorithm is used.
-    # see: https://github.com/gramaziokohler/compas_timber/pull/705
-    if max_cluster_size > 16:
-        raise ValueError(f"max_cluster_size should not be too high to avoid combinatorial explosion, got {max_cluster_size}")
-    model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    clusters = get_clusters_from_joint_candidates(model.joint_candidates, max_distance=max_distance)
+    # model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    # model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    candidates = model.joint_candidates if not ignore_joints else model.unpromoted_joint_candidates
+    clusters = get_clusters_from_joint_candidates(candidates, max_distance=max_distance)
     return clusters
 
 

@@ -1,0 +1,104 @@
+{
+    "name": "Recess Panel Config",
+    "nickname": "RecessPanel",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a recess PanelPopulatorConfig.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel geometry or element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Default width for every framing beam category not given an explicit width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "recess_beam_width",
+                "description": "Recess beam width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "recess_beam_height",
+                "description": "Recess beam height.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_recess",
+                "description": "Sheeting thickness in recess.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_stud_width",
+                "description": "Width of vertical edge studs. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "top_plate_beam_width",
+                "description": "Width of top plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom_plate_beam_width",
+                "description": "Width of bottom plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width_increment",
+                "description": "Rounding increment for edge-beam widths.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_outside",
+                "description": "Outside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_inside",
+                "description": "Inside sheeting thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories (internal vs external is inferred).",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "List of FeatureAgentConfig instances registered under their FEATURE_TYPE class.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "instance_feature_configs",
+                "description": "List of per-feature-instance FeatureAgentConfig overrides.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Config",
+                "description": "PanelPopulatorConfig"
+            }
+        ]
+    }
+}

@@ -135,6 +135,8 @@ data/
 .vs
 .claude
 
+
+
 docs/api/generated/
 
 scripts/

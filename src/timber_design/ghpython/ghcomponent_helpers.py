@@ -493,6 +493,38 @@ def manage_cpython_dynamic_params(input_names, ghenv, rename_count=0, permanent_
     ghenv.Component.VariableParameterMaintenance()
 
 
+def manage_cpython_dynamic_output_params(output_names, ghenv, permanent_param_count=0):
+    """Synchronizes output parameters to match the given names.
+
+    Removes outputs not in output_names, adds missing ones, preserves existing connections.
+
+    Parameters
+    ----------
+    output_names : list(str)
+        The names of the output parameters.
+    ghenv : object
+        The Grasshopper environment object.
+    permanent_param_count : int, optional
+        The number of leading output parameters that should not be modified. Default is 0.
+
+    """
+    to_remove = []
+    for i in range(permanent_param_count, len(ghenv.Component.Params.Output)):
+        if ghenv.Component.Params.Output[i].Name not in output_names:
+            to_remove.append(ghenv.Component.Params.Output[i])
+
+    for param in to_remove:
+        param.IsolateObject()
+        ghenv.Component.Params.UnregisterOutputParameter(param, True)
+
+    for i, name in enumerate(output_names):
+        if name not in [ghenv.Component.Params.Output[j].Name for j in range(len(ghenv.Component.Params.Output))]:
+            add_cpython_gh_param(name, "Output", ghenv, index=i + permanent_param_count)
+
+    ghenv.Component.VariableParameterMaintenance()
+    ghenv.Component.ExpireSolution(True)
+
+
 def get_guid_and_geometry(obj):
     """
     Try to get the GUID of a referenced Rhino object, otherwise just return the geometry.

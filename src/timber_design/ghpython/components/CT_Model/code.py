@@ -10,6 +10,7 @@ from compas.tolerance import Tolerance
 
 # from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
+from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
@@ -31,7 +32,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(
         self,
         Elements: System.Collections.Generic.List[object],
-        Containers: System.Collections.Generic.List[object],
+        PanelConfigs: System.Collections.Generic.List[object],
         JointRules: System.Collections.Generic.List[object],
         Features: System.Collections.Generic.List[object],
         MaxDistance: float,
@@ -39,7 +40,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     ):
         # this used to be default behavior in Rhino7.. I think..
         Elements = Elements or []
-        Containers = Containers or []
+        PanelConfigs = PanelConfigs or []
         JointRules = JointRules or []
         Features = Features or []
 
@@ -47,7 +48,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             warning(self.component, "Input parameter Beams failed to collect data")
         if not JointRules:
             warning(self.component, "Input parameter JointRules failed to collect data")
-        if not (Elements or Containers):  # shows beams even if no joints are found
+        if not Elements:  # shows beams even if no joints are found
             return
         if MaxDistance is None:
             MaxDistance = TOL.ABSOLUTE  # compared to calculted distance, so shouldn't be just 0.0
@@ -57,10 +58,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         debug_info = DebugInfomation()
 
         ##### Adding elements #####
-        self.add_elements_to_model(Model, Elements, Containers)
-
-        ##### Wall populating #####
-        handled_pairs, wall_joints = self.handle_populators(Model, Containers, MaxDistance)
+        self.add_elements_to_model(Model, Elements)
 
         ##### Handle joinery #####
         # checks elements compatibility and generates Joints
@@ -68,10 +66,16 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
         if JointRules:
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
+            # ensure that the model is connected before analyzing
+            Model.connect_adjacent_beams(max_distance=solver.max_distance)
+            Model.connect_adjacent_plates(max_distance=solver.max_distance)
+            Model.connect_adjacent_panels(max_distance=solver.max_distance)
             joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
-
             for je in joint_errors:
                 debug_info.add_joint_error(je)
+
+        if PanelConfigs:
+            self.handle_populators(PanelConfigs, Model)
 
         # applies extensions and features resulting from joints
         bje = Model.process_joinery()
@@ -104,39 +108,23 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             error(self.component, f"Unsupported unit: {units}")
             return
 
-    def add_elements_to_model(self, model, elements, containers):
+    def add_elements_to_model(self, model, elements):
         """Adds elements to the model and groups them by slab."""
         elements = [e for e in elements if e is not None]
         for element in elements:
-            element.reset()
+            if not isinstance(element, Panel):
+                # Panels carry user-defined features (openings, etc.) that must
+                # survive into create_populator().  Resetting them would wipe
+                # _features before the populator has a chance to read them.
+                element.reset()
             model.add_element(element)
 
-        containers = [c for c in containers if c is not None]
-
-        for index, c_def in enumerate(containers):
-            slab = c_def.slab
-            model.add_group_element(slab, name=slab.name + str(index))
-
-    def handle_populators(self, model, containers, max_distance):
-        # Handle wall populators
-        model.connect_adjacent_walls()
-        config_sets = [c_def.config_set for c_def in containers]
-        populators = []
-        if any(config_sets):
-            populators = WallPopulator.from_model(model, config_sets)
-
-        handled_pairs = []
-        wall_joints = []
-        for populator, slab in zip(populators, list(model.slabs)):
-            elements = populator.create_elements()
-            model.add_elements(elements, parent=slab.name)
-            joint_definitions = populator.create_joints(elements, max_distance)
-            wall_joints.extend(joint_definitions)
-            for j_def in joint_definitions:
-                element_a, element_b = j_def.elements
-                handled_pairs.append({element_a, element_b})
-
-        return handled_pairs, wall_joints
+    def handle_populators(self, panel_configs, model, max_distance=None):
+        for c_def in panel_configs:
+            pop = c_def.create_populator()
+            pop.populate_elements()
+            pop.join_elements()
+            pop.merge_with_model(model)
 
     def handle_features(self, features):
         feature_errors = []

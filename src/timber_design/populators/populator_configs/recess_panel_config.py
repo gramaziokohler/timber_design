@@ -7,17 +7,19 @@ from timber_design.populators.populator_agents.recess_populator_agent import Rec
 def recess_panel(
     panel=None,
     standard_beam_width=None,
+    # Recess agent
     recess_beam_width=None,
     recess_beam_height=None,
-    standard_beam_width_increment=None,
+    sheeting_recess=0,
+    # Edge agent
     edge_stud_width=None,
     top_plate_beam_width=None,
     bottom_plate_beam_width=None,
+    standard_beam_width_increment=None,
+    # Panel-level
     sheeting_outside=0,
     sheeting_inside=0,
-    sheeting_recess=0,
-    internal_joint_overrides=None,
-    external_joint_overrides=None,
+    joint_rule_overrides=None,
     default_feature_configs=None,
     instance_feature_configs=None,
 ):
@@ -28,13 +30,16 @@ def recess_panel(
     panel : :class:`compas_timber.elements.Panel`, optional
         The panel to populate.
     standard_beam_width : float, optional
-        Default width for all framing beams.  When ``None``, defaults to
-        half the panel thickness at populate time.
+        Default width for every framing beam category not given an explicit
+        width below.  When ``None``, defaults to half the panel thickness at
+        populate time.
     recess_beam_width : float, optional
         Width of the recess beam.  When ``None``, *standard_beam_width* is used.
     recess_beam_height : float, optional
         Height (Z extent) of the recess beam within the frame layer.  When
         ``None``, the full layer thickness is used (no recess offset).
+    sheeting_recess : float, optional
+        Thickness of the sheeting plate inserted into the recess.
     edge_stud_width : float, optional
         Explicit width for vertical edge studs.  When ``None``,
         *standard_beam_width* is used.
@@ -50,20 +55,16 @@ def recess_panel(
         Thickness of external sheathing plate.
     sheeting_inside : float, optional
         Thickness of internal sheathing plate.
-    sheeting_recess : float, optional
-        Thickness of the sheeting plate inserted into the recess.
-    internal_joint_overrides : list, optional
-        :class:`~timber_design.workflow.CategoryRule` instances that replace
-        matching entries in the recess agent's ``INTERNAL_JOINT_RULES``.
-    external_joint_overrides : list, optional
-        :class:`~timber_design.workflow.CategoryRule` instances that replace
-        matching entries in the recess agent's ``EXTERNAL_JOINT_RULES``.
+    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
+        Joint-rule overrides routed automatically to whichever agents own the
+        rule's categories (see
+        :meth:`~timber_design.populators.PanelPopulatorConfig.route_rule_overrides`).
+        Callers do not need to know which agent owns a pair.
     default_feature_configs : dict, optional
         Mapping from panel feature class to a ``FeatureAgentConfig`` instance.
     instance_feature_configs : list, optional
         Per-instance feature config overrides.
     """
-
     layer_defs = []
     if sheeting_inside:
         layer_defs.append(LayerConfig(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
@@ -78,15 +79,15 @@ def recess_panel(
         recess_beam_width=recess_beam_width,
         recess_beam_height=recess_beam_height,
         sheeting_recess=sheeting_recess,
-        internal_joint_overrides=internal_joint_overrides,
-        external_joint_overrides=external_joint_overrides,
     )
     layer_defs.insert(1, LayerConfig(name="frame", agent_configs=[recess_agent_config]))
 
-    return PanelPopulatorConfig(
+    config = PanelPopulatorConfig(
         panel=panel,
         standard_beam_width=standard_beam_width,
         layer_defs=layer_defs,
         default_feature_configs=default_feature_configs,
         instance_feature_configs=instance_feature_configs,
     )
+    config.route_rule_overrides(joint_rule_overrides)
+    return config

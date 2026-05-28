@@ -8,8 +8,10 @@ The workflow has three phases:
 
 1. **Configure** — assemble `LayerConfig` objects and agent configs, then
    pass them to `PanelPopulatorConfig` (or use the `stud_panel()` /
-   `recess_panel()` shortcut functions).
-2. **Populate** — call `config.create_populator()` to get a
+   `recess_panel()` factory functions, which build the right `LayerConfig`
+   stack for the two most common framing systems).
+2. **Populate** — set `config.panel` (or pass `panel=` to the factory), call
+   `config.create_populator()` to get a
    :class:`~timber_design.populators.PanelPopulator`, then generate elements,
    trim, join, and apply fabrication features.
 3. **Merge** — transform elements back to world space and attach them to the
@@ -53,7 +55,7 @@ flowchart LR
 subgraph layer definitions:
         direction TB
         ldExt["LayerConfig <br> 'exterior' · 22 mm"]:::layerdef
-        ldFrame["LayerConfig <br> 'frame' · fill <br> is_framing_layer=True"]:::layerdef
+        ldFrame["LayerConfig <br> 'frame' · fill"]:::layerdef
         ldParent["LayerConfig <br> 'insulation' · 120 mm"]:::layerdef
         ldSubA["LayerConfig <br> 'insulation_a' · 60 mm"]:::layerdef
         ldSubB["LayerConfig <br> 'insulation_b' · 60 mm"]:::layerdef
@@ -107,11 +109,10 @@ end
 ```python
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
-from timber_design.populators import (
-    StudPanelPopulatorConfig,
-    RecessPanelPopulatorConfig,
-    OpeningPopulatorAgentConfig,
-)
+from timber_design.populators import OpeningPopulatorAgentConfig
+from timber_design.populators import PanelPopulatorConfig
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 ```
 
 All lengths are in the model's native units (mm in the examples below).
@@ -131,14 +132,16 @@ outline_b = Polyline([Point(0, 0, 160), Point(4000, 0, 160), Point(4000, 2700, 1
 panel = Panel.from_outlines(outline_a, outline_b)
 model.add_element(panel)
 
-# 2 -- Create a config with all parameters
-config = StudPanelPopulatorConfig(
+# 2 -- Create a config via the stud_panel() factory.  Pass panel= here or set
+#      config.panel later (e.g. when reusing the same config across many panels).
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,   # stud / plate cross-section width, mm
     stud_spacing=625,         # on-centre stud spacing, mm
 )
 
 # 3 -- Create the populator and run all population stages
-populator = config.create_populator_from_panel(panel)
+populator = config.create_populator()
 populator.populate_elements()   # generate -> extend -> trim -> add to internal model
 populator.join_elements()       # within-agent and cross-agent joints
 populator.process_joinery()     # BTLx fabrication features
@@ -162,7 +165,8 @@ Pass non-zero `sheeting_inside` and/or `sheeting_outside` to create flat
 :class:`~compas_timber.elements.Plate` elements on one or both faces.
 
 ```python
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
     sheeting_inside=15,    # OSB / gypsum board on the inside face, mm
@@ -178,9 +182,11 @@ thicknesses, so beams and plates never overlap.
 ## Stud wall with a window opening
 
 Openings are modelled as :class:`~compas_timber.panel_features.Opening` features
-attached to the panel.  :class:`~timber_design.populators.StudPanelPopulatorConfig`
-detects these automatically and creates an
-:class:`~timber_design.populators.OpeningPopulatorAgent` for each one.
+attached to the panel.  `stud_panel()` registers an
+:class:`~timber_design.populators.OpeningPopulatorAgentConfig` under
+`default_feature_configs[Opening]` for you, so any Opening on the panel is
+automatically picked up and produces an
+:class:`~timber_design.populators.OpeningPopulatorAgent`.
 
 ```python
 from compas_timber.panel_features.opening import Opening, OpeningType
@@ -191,13 +197,14 @@ win_outline = Polyline([Point(800, 900, 0), Point(2200, 900, 0), Point(2200, 240
 opening = Opening.from_outline_panel(win_outline, panel, opening_type=OpeningType.WINDOW)
 panel.add_feature(opening)
 
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
     lintel_posts=True,         # add jack studs (lintel posts) beside the header
 )
 
-populator = config.create_populator_from_panel(panel)
+populator = config.create_populator()
 populator.populate_elements()
 populator.join_elements()
 populator.process_joinery()
@@ -218,7 +225,8 @@ door_outline = Polyline([Point(1500, 0, 0), Point(2500, 0, 0), Point(2500, 2100,
 opening = Opening.from_outline_panel(door_outline, panel, opening_type=OpeningType.DOOR)
 panel.add_feature(opening)
 
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
     lintel_posts=True,
@@ -230,17 +238,39 @@ config = StudPanelPopulatorConfig(
 
 ## Custom beam dimensions per category
 
-Use `beam_width_overrides` to give specific beam categories a different width
-than `standard_beam_width`.  Keys are category name strings.
+Each beam category that an agent can produce has an **explicit per-category
+width** parameter on its config — there is no longer a single
+`beam_width_overrides` dict.  Any category not given an explicit width falls
+back to `standard_beam_width`.
 
 ```python
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
-    beam_width_overrides={
-        "header": 120,      # double-up the header
-        "king_stud": 60,
-        "jack_stud": 60,
+    stud_width=60,              # intermediate studs
+    edge_stud_width=80,         # vertical edge studs (wider than studs here)
+    top_plate_beam_width=60,
+    bottom_plate_beam_width=60,
+)
+```
+
+Opening-related categories (header, sill, king_stud, jack_stud) are owned by
+:class:`~timber_design.populators.OpeningPopulatorAgentConfig` and are set there
+when you supply your own opening config:
+
+```python
+config = stud_panel(
+    panel=panel,
+    standard_beam_width=60,
+    stud_spacing=625,
+    default_feature_configs={
+        Opening: OpeningPopulatorAgentConfig(
+            lintel_posts=True,
+            header_width=120,    # double-up the header
+            king_stud_width=60,
+            jack_stud_width=60,
+        ),
     },
 )
 ```
@@ -250,15 +280,15 @@ config = StudPanelPopulatorConfig(
 ## Snapping edge beams to standard lumber widths
 
 `standard_beam_width_increment` rounds each edge-beam width *up* to the nearest
-multiple of that value.  `edge_beam_min_width` sets a floor below which no edge
-beam will be narrower.
+multiple of that value.  Combine it with the explicit per-category widths above
+when you need a specific lower bound.
 
 ```python
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
-    standard_beam_width_increment=20,  # round up to 60, 80, 100, ... mm
-    edge_beam_min_width=60,
+    standard_beam_width_increment=20,  # round each edge-beam width up to 60, 80, 100, ... mm
 )
 ```
 
@@ -266,19 +296,19 @@ config = StudPanelPopulatorConfig(
 
 ## Recess panel
 
-Use :class:`~timber_design.populators.RecessPanelPopulatorConfig` for panels
-where a recessed frame and sheeting plate are required instead of studs.
+Use the `recess_panel()` factory for panels where a recessed frame and sheeting
+plate are required instead of studs.
 
 ```python
-config = RecessPanelPopulatorConfig(
+config = recess_panel(
+    panel=panel,
     standard_beam_width=60,
     recess_beam_width=40,      # width of the recess frame member
     recess_beam_height=80,     # height of the recess frame member
-    edge_beam_min_width=60,
     sheeting_recess=18,        # thickness of the plate inserted into the recess
 )
 
-populator = config.create_populator_from_panel(panel)
+populator = config.create_populator()
 populator.populate_elements()
 populator.join_elements()
 populator.process_joinery()
@@ -287,32 +317,24 @@ populator.merge_with_model(model)
 
 ---
 
-## Two ways to create a populator
+## Reusing one config across many panels
 
-`create_populator_from_panel(panel)` is the standard call — the panel is passed
-as an argument and the config can be reused across many panels.
-
-`create_populator()` (no panel argument) is a convenience shorthand for when
-the panel is stored on the config object itself (``config.panel = panel``).
-Both methods accept an optional `feature_configs` keyword argument.
-
----
-
-## Populating all panels in a model
-
-Iterate over every panel in the model and apply the same configuration.
-Call `merge_with_model` with `clear_panel=True` to replace any previously
-generated framing when re-running.
+`config.create_populator()` is the only entry point.  Reuse a config across
+many panels by assigning `config.panel = panel` before each call (the factory
+functions also accept a `panel=` keyword for the one-shot case).  Call
+`merge_with_model` with `clear_panel=True` to replace any previously generated
+framing when re-running.
 
 ```python
-config = StudPanelPopulatorConfig(
+config = stud_panel(
     standard_beam_width=60,
     stud_spacing=625,
     sheeting_inside=15,
 )
 
 for panel in list(model.panels):
-    populator = config.create_populator_from_panel(panel)
+    config.panel = panel
+    populator = config.create_populator()
     populator.populate_elements()
     populator.join_elements()
     populator.process_joinery()
@@ -328,17 +350,18 @@ for panel in list(model.panels):
 ## Controlling stud orientation
 
 By default studs run parallel to the panel's local Y axis (vertical).  Pass
-a world-space `stud_direction` vector to
-:class:`~timber_design.populators.StudPanelPopulatorConfig` to override this —
-useful for diagonal or horizontal framing.
+a world-space `orientation` vector to `stud_panel()` (or
+`PanelPopulatorConfig`) to override this — useful for diagonal or horizontal
+framing.
 
 ```python
 from compas.geometry import Vector
 
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
-    stud_direction=Vector(0, 0, 1),   # vertical in world space
+    orientation=Vector(0, 0, 1),   # vertical in world space
 )
 ```
 
@@ -350,15 +373,16 @@ to the panel normal falls back to the default.
 ## Type-level feature definitions
 
 `default_feature_configs` maps a feature class to a
-:class:`~timber_design.populators.LayerAgentConfig` instance (with no
-`feature` set).  When `create_populator_from_panel` iterates over `panel.features` it
+:class:`~timber_design.populators.FeatureAgentConfig` instance (with no
+`feature` set).  When `create_populator()` iterates over `panel.features` it
 picks the most-specific matching config using MRO-based lookup and calls
 `get_agent_from_feature` for each match.
 
 ```python
 from timber_design.populators import OpeningPopulatorAgentConfig
 
-config = StudPanelPopulatorConfig(
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
     default_feature_configs={
@@ -366,7 +390,7 @@ config = StudPanelPopulatorConfig(
     },
 )
 
-populator = config.create_populator_from_panel(panel)   # one agent per Opening on the panel
+populator = config.create_populator()   # one agent per Opening on the panel
 ```
 
 Because `Door` is a subclass of `Opening`, you can provide separate configs for
@@ -383,16 +407,20 @@ default_feature_configs={
 
 ## Injecting per-instance feature agents
 
-Pass a list of :class:`~timber_design.populators.LayerAgentConfig` instances —
-each with its `feature` attribute set — to `create_populator_from_panel` to inject agents
-for specific features.  These always take precedence over `default_feature_configs`.
+Set `instance_feature_configs` on the config (either at construction or after)
+to a list of :class:`~timber_design.populators.FeatureAgentConfig` instances —
+each with its `feature` attribute pointing at a specific feature on the panel.
+Instance configs always take precedence over `default_feature_configs` for
+their feature.
 
 ```python
 from timber_design.populators import OpeningPopulatorAgentConfig
 
 agent_cfg = OpeningPopulatorAgentConfig(feature=my_opening, lintel_posts=True)
 
-populator = config.create_populator_from_panel(panel, feature_configs=[agent_cfg])
+config.panel = panel
+config.instance_feature_configs = [agent_cfg]
+populator = config.create_populator()
 ```
 
 The feature geometry is automatically transformed into populator space before
@@ -412,17 +440,22 @@ Each `LayerConfig` is a pure data blueprint.  It carries:
   layer claim the remaining panel thickness after all fixed-thickness siblings
   have been allocated (at most one ``None`` per sibling group).
 - `name` — a human-readable identifier used in the resolved `Layer` object.
-- `is_framing_layer` — when ``True``, feature agents (openings, etc.) are
-  applied to this layer.
 - `agent_configs` — the :class:`~timber_design.populators.LayerAgentConfig`
   instances that will be instantiated on this layer.
+- `sublayers` — optional nested `LayerConfig` children.
 
-At runtime, `PanelPopulatorConfig.create_layers` deep-copies the definition
-tree (so the originals are never mutated), resolves all thicknesses, and then
-calls `layers_from_panel_and_thicknesses` to produce
-:class:`~timber_design.populators.Layer` objects whose panels are sliced from
-the source panel using *outline chaining* — each layer's far boundary is reused
-as the next layer's near boundary with no floating-point re-interpolation.
+There is no `is_framing_layer` flag — instead, the `OpeningPopulatorAgentConfig`
+(and other feature configs) declare *which* layers they frame on via
+`framing_layer_defs=[…]` and which they trim through via
+`trimming_layer_defs=[…]`.  The `stud_panel()` factory wires these up for you.
+
+At runtime, `PanelPopulatorConfig.create_populator_model` resolves all
+thicknesses, calls `resolve_beam_widths` to fill every agent config's
+`beam_widths` with `standard_beam_width`, and then delegates to
+`LayerConfig.model_from_panel` to slice the source panel into
+:class:`~timber_design.populators.Layer` objects.  Slicing uses *outline
+chaining* — each layer's far boundary is reused as the next layer's near
+boundary with no floating-point re-interpolation.
 
 ### Custom cross-section with LayerConfig
 
@@ -436,20 +469,31 @@ from timber_design.populators import (
     EdgePopulatorAgentConfig,
     StudPopulatorAgentConfig,
     PlatePopulatorAgentConfig,
+    OpeningPopulatorAgentConfig,
 )
 
-layer_defs = [
-    LayerConfig(15,   name="interior", agent_configs=[PlatePopulatorAgentConfig()]),
-    LayerConfig(None, name="frame",    is_framing_layer=True,
-                    agent_configs=[EdgePopulatorAgentConfig(), StudPopulatorAgentConfig(stud_spacing=625)]),
-    LayerConfig(22,   name="exterior", agent_configs=[PlatePopulatorAgentConfig()]),
-]
+interior_ld = LayerConfig(15, name="interior", agent_configs=[PlatePopulatorAgentConfig()])
+frame_ld    = LayerConfig(None, name="frame",
+                          agent_configs=[
+                              EdgePopulatorAgentConfig(),
+                              StudPopulatorAgentConfig(stud_spacing=625),
+                          ])
+exterior_ld = LayerConfig(22, name="exterior", agent_configs=[PlatePopulatorAgentConfig()])
+layer_defs  = [interior_ld, frame_ld, exterior_ld]
 
 config = PanelPopulatorConfig(
     panel=panel,
     standard_beam_width=60,
     layer_defs=layer_defs,
-    default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)},
+    default_feature_configs={
+        # Tell the opening agent which layer to frame and which layers to
+        # cut its outline through (so sheathing plates get the opening hole).
+        Opening: OpeningPopulatorAgentConfig(
+            lintel_posts=True,
+            framing_layer_defs=[frame_ld],
+            trimming_layer_defs=layer_defs,
+        ),
+    },
 )
 populator = config.create_populator()
 ```
@@ -491,7 +535,8 @@ from compas.geometry import Point, Polyline
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 from compas_timber.panel_features.opening import Opening, OpeningType
-from timber_design.populators import StudPanelPopulatorConfig
+from timber_design.populators import OpeningPopulatorAgentConfig
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 
 # Model
 model = TimberModel()
@@ -514,18 +559,23 @@ win_outline = Polyline([
 ])
 panel.add_feature(Opening.from_outline_panel(win_outline, panel, opening_type=OpeningType.WINDOW))
 
-# Config
-config = StudPanelPopulatorConfig(
+# Config: stud_panel() builds the right layer stack and wires up an Opening
+# agent for any Opening feature on the panel.  Customize opening beam widths
+# by supplying your own OpeningPopulatorAgentConfig.
+config = stud_panel(
+    panel=panel,
     standard_beam_width=60,
     stud_spacing=625,
     sheeting_inside=15,
     sheeting_outside=22,
     lintel_posts=True,
-    beam_width_overrides={"header": 120},
+    default_feature_configs={
+        Opening: OpeningPopulatorAgentConfig(lintel_posts=True, header_width=120),
+    },
 )
 
 # Populate
-populator = config.create_populator_from_panel(panel)
+populator = config.create_populator()
 populator.populate_elements()
 populator.join_elements()
 populator.process_joinery()

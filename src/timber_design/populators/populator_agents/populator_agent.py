@@ -11,6 +11,7 @@ from compas.geometry import Vector
 from compas.itertools import pairwise
 from compas_timber.base import TimberElement
 from compas_timber.connections import JointCandidate
+from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
@@ -19,6 +20,7 @@ from timber_design.populators.agent_intersection import find_beam_outline_crossi
 from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -242,9 +244,12 @@ class PopulatorAgent(ABC):
             return None
         return AABB2D.from_points(pts)
 
-    @abstractmethod
     def elements_for_layer(self, layer):
         """Return the elements this agent has placed on *layer*.
+
+        Single-layer agents (every :class:`LayerAgent`) hold one flat element
+        list and ignore *layer*.  :class:`FeatureAgent` overrides this to return
+        the elements bucketed under that layer.
 
         Parameters
         ----------
@@ -254,28 +259,39 @@ class PopulatorAgent(ABC):
         -------
         list
         """
-        raise NotImplementedError
+        return self.elements
 
-    @abstractmethod
     def set_elements_for_layer(self, layer, elements):
         """Replace this agent's element list for *layer*.
+
+        Single-layer agents replace the whole flat list; :class:`FeatureAgent`
+        overrides this to update only the bucket for *layer*.
 
         Parameters
         ----------
         layer : :class:`~timber_design.populators.Layer`
         elements : list
         """
-        raise NotImplementedError
+        self.elements = elements
 
     @staticmethod
     def _apply_overrides(base_rules: list[CategoryRule], overrides: Optional[list[CategoryRule]]) -> list[CategoryRule]:
         """Return a new rule list: *base_rules* with *overrides* applied.
 
-        For each override, if its (unordered) category pair matches an existing
-        rule in *base_rules* that rule is replaced; otherwise the override is
-        appended.  The class-level :attr:`INTERNAL_JOINT_RULES` /
-        :attr:`EXTERNAL_JOINT_RULES` are never mutated — a fresh list is always
-        returned.
+        For each override, an existing rule is *replaced* only when **both**:
+
+        - it targets the same :attr:`~CategoryRule.joint_type.SUPPORTED_TOPOLOGY`, and
+        - its categories match.  T-joints and edge-face plate joints compare
+          categories in order (the ``(a,b)`` and ``(b,a)`` variants are kept as
+          distinct rules because main/cross differs); other topologies match by
+          unordered pair.
+
+        Otherwise the override is appended, so the same ordered category pair
+        may carry multiple rules as long as their topologies differ (e.g. a
+        ``TButtJoint`` and an ``LButtJoint`` for ``(stud, top_plate_beam)``).
+
+        The class-level :attr:`INTERNAL_JOINT_RULES` / :attr:`EXTERNAL_JOINT_RULES`
+        are never mutated — a fresh list is always returned.
 
         Parameters
         ----------
@@ -289,11 +305,19 @@ class PopulatorAgent(ABC):
         if not overrides:
             return rules
         for override in overrides:
-            pair = {override.category_a, override.category_b}
+            topo = override.joint_type.SUPPORTED_TOPOLOGY
+            order_sensitive = topo in (JointTopology.TOPO_T, JointTopology.TOPO_EDGE_FACE)
             for i, rule in enumerate(rules):
-                if {rule.category_a, rule.category_b} == pair:
-                    rules[i] = override
-                    break
+                if rule.joint_type.SUPPORTED_TOPOLOGY != topo:
+                    continue
+                if order_sensitive:
+                    if rule.category_a == override.category_a and rule.category_b == override.category_b:
+                        rules[i] = override
+                        break
+                else:
+                    if {rule.category_a, rule.category_b} == {override.category_a, override.category_b}:
+                        rules[i] = override
+                        break
             else:
                 rules.append(override)
         return rules
@@ -519,12 +543,29 @@ class PopulatorAgent(ABC):
     @abstractmethod
     def generate_elements(self):
         """Generate all elements for this agent's layer."""
-        raise NotImplementedError("generate_elements method must be implemented in subclasses of LayerAgent")
-
-    @abstractmethod
-    def trim_elements(self):
-        """Trim all elements for this agent."""
         raise NotImplementedError("generate_elements method must be implemented in subclasses of PopulatorAgent")
+
+    def _trim_layers(self):
+        """Layers on which this agent trims peer elements (defaults to its own layers)."""
+        return self._agent_layers()
+
+    def trim_elements(self):
+        """Trim peer agents' elements against this agent's boundary — same layer only.
+
+        For each layer this agent acts on (see :meth:`_trim_layers`), every peer
+        on that layer has *its elements on that layer* trimmed against this
+        agent's boundary.  A peer that spans several layers (e.g. an opening
+        framing on multiple layers) only has its same-layer elements touched, so
+        a boundary never cuts framing that belongs to a different layer.
+        """
+        for layer in self._trim_layers():
+            for agent in layer.agents:
+                if agent is self:
+                    continue  # never apply an agent's own boundary to its own elements
+                if not agent.elements_for_layer(layer):
+                    continue  # peer placed nothing on this layer
+                if aabb_overlap(self, agent):
+                    self.trim_agent_elements(agent, layer)
 
     def extend_elements(self) -> None:
         pass

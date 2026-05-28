@@ -3,8 +3,6 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
-from timber_design.populators import aabb_overlap
-
 from .populator_agent import PopulatorAgent
 from .populator_agent import PopulatorAgentConfig
 
@@ -228,7 +226,7 @@ class FeatureAgent(PopulatorAgent):
     def set_elements_for_layer(self, layer, elements):
         """Replace the element list for *layer* and rebuild ``self.elements``.
 
-        Called by :meth:`~LayerAgent.trim_within_layer` after trimming so that
+        Called by :meth:`~PopulatorAgent.trim_elements` after trimming so that
         both the per-layer dict and the flat list stay consistent.
 
         Parameters
@@ -275,7 +273,7 @@ class FeatureAgent(PopulatorAgent):
         elements are returned the agent registers itself on that layer so
         subsequent within-layer trim and join passes treat it as a peer.
         Layers where no elements are generated are not registered — cross-layer
-        trimming on those layers is handled via :meth:`trim_other_layers`.
+        trimming on those layers is handled via :meth:`trim_elements`.
 
         Parameters
         ----------
@@ -316,20 +314,12 @@ class FeatureAgent(PopulatorAgent):
     # Cross-layer trimming
     # ------------------------------------------------------------------
 
-    def trim_elements(self):
-        """Apply :meth:`trim_agent_elements` to agents on layers this agent is not registered on.
+    def _trim_layers(self):
+        """A feature agent trims peers on every layer it frames *and* trims.
 
-        Overrides :meth:`LayerAgent.trim_other_layers` to skip registered
-        layers (where within-layer trimming already handled peer interaction).
-
-        Parameters
-        ----------
-        layers : list[:class:`~timber_design.populators.Layer`]
-            All layers in the populator.
+        ``trim_elements`` itself is inherited from :class:`PopulatorAgent`; a
+        feature agent only differs in *which* layers it acts on — its framing
+        layers (where it placed studs) plus its trimming layers (e.g. sheathing
+        plates it must cut through).
         """
-        for layer in self.framing_layers + self.trimming_layers:
-            for other_agent in layer.agents:
-                if other_agent is self:
-                    continue
-                if aabb_overlap(self, other_agent):
-                    self.trim_agent_elements(other_agent, layer)
+        return self.framing_layers + self.trimming_layers

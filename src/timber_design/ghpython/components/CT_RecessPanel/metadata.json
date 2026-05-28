@@ -17,7 +17,7 @@
             },
             {
                 "name": "standard_beam_width",
-                "description": "Standard beam width.",
+                "description": "Default width for every framing beam category not given an explicit width.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
@@ -30,6 +30,12 @@
             {
                 "name": "recess_beam_height",
                 "description": "Recess beam height.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "sheeting_recess",
+                "description": "Sheeting thickness in recess.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
@@ -53,7 +59,7 @@
             },
             {
                 "name": "standard_beam_width_increment",
-                "description": "Beam width increment.",
+                "description": "Rounding increment for edge-beam widths.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
@@ -70,20 +76,20 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "sheeting_recess",
-                "description": "Sheeting thickness in recess.",
-                "typeHintID": "float",
-                "scriptParamAccess": 0
-            },
-            {
                 "name": "joint_rule_overrides",
-                "description": "List of joint rule overrides.",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories (internal vs external is inferred).",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "default_feature_configs",
-                "description": "Default feature configs mapping.",
+                "description": "List of FeatureAgentConfig instances registered under their FEATURE_TYPE class.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "instance_feature_configs",
+                "description": "List of per-feature-instance FeatureAgentConfig overrides.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             }

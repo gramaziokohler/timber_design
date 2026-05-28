@@ -106,8 +106,11 @@ class LayerConfig:
                 layer_index=layer_index[0],
                 agent_configs=layer_def.agent_configs,
             )
+
             layer_index[0] += 1
             layer_def.resulting_layer = layer  # store on each specific LayerConfig
+            print("resulting_layer = ", layer_def.resulting_layer)
+            print(layer_def)
             if parent:
                 layer.transform(parent.modeltransformation.inverse())
                 parent.sublayer_list.append(layer)
@@ -228,6 +231,9 @@ class Layer(Panel):
 
     def __repr__(self):
         return "Layer with layer_index({})".format(self.layer_index)
+
+    def __str__(self):
+        return "Layer(name={}, layer_index={}, position={}, thickness={})".format(self.name, self.layer_index, self.frame.point[2], self.thickness)
 
     @property
     def elements(self):

@@ -102,7 +102,7 @@ class EdgePopulatorAgent(LayerAgent):
     :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded during
-    :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`.
+    :meth:`~timber_design.populators.PanelPopulator.trim_elements`.
 
     Parameters
     ----------

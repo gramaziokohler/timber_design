@@ -24,14 +24,16 @@ from timber_design.populators.populator_configs.stud_panel_config import stud_pa
 config = stud_panel(standard_beam_width=60, stud_spacing=625, panel=panel)
 
 populator = config.create_populator()
-  # ├─ resolves LayerConfig thicknesses (two-pass bottom-up / top-down)
-  # ├─ layers_from_panel_and_layer_defs() → list[Layer]  (outline chaining)
-  # └─ create_feature_agents()            → list[FeatureAgent]
+  # ├─ get_populator_panel()     panel transformed to flat 2D populator space
+  # ├─ resolve_beam_widths()     fills every agent config's beam_widths dict
+  # ├─ create_populator_model()  LayerConfig.model_from_panel() → TimberModel
+  # │                             of Layer objects (outline chaining)
+  # └─ create_feature_agents()   → list[FeatureAgent]
 
 populator.populate_elements()
   # ├─ generate_elements()      each agent creates its Beam2D / Plate objects
   # ├─ extend_elements()        agents extend beams to reach adjacent boundaries
-  # ├─ trim_elements()          within-layer trim, then cross-layer trim
+  # ├─ trim_elements()          each agent applies its boundary to peers' same-layer elements
   # └─ add_elements_to_model()  surviving elements → internal TimberModel
 
 populator.join_elements()
@@ -121,6 +123,10 @@ populator.merge_with_model(model)
 ## 2D connection solver
 
 ::: timber_design.populators.connection_solver_2d.ConnectionSolver2D
+
+::: timber_design.populators.connection_solver_2d.BeamContact
+
+::: timber_design.populators.connection_solver_2d.Beam2DCluster
 
 ::: timber_design.populators.connection_solver_2d.aabb_overlap
 

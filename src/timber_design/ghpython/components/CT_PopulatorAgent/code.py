@@ -25,13 +25,20 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
             self.panel_types[pt.__name__] = pt
         self.panel_type = self.panel_types.get(ghenv.Component.Params.Output[0].NickName, None)
 
-    def RunScript(self, joint_rule_overrides: System.Collections.Generic.List[object], *args):
+    def RunScript(
+        self,
+        internal_joint_overrides: System.Collections.Generic.List[object],
+        external_joint_overrides: System.Collections.Generic.List[object],
+        *args,
+    ):
         if not self.panel_type:
             return
         ghenv.Component.Message = self.panel_type.__name__
         kwargs = {}
-        if joint_rule_overrides:
-            kwargs["joint_rule_overrides"] = list(joint_rule_overrides)
+        if internal_joint_overrides:
+            kwargs["internal_joint_overrides"] = list(internal_joint_overrides)
+        if external_joint_overrides:
+            kwargs["external_joint_overrides"] = list(external_joint_overrides)
         names = self.arg_names()
         for i, val in enumerate(args):
             if val is not None and i < len(names):

@@ -1,8 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
 
-from timber_design.populators import aabb_overlap
-
 from .populator_agent import AgentBoundaryType
 from .populator_agent import PopulatorAgent
 from .populator_agent import PopulatorAgentConfig
@@ -122,7 +120,7 @@ class LayerAgent(PopulatorAgent, ABC):
         The panel geometry for this layer.  Shortcut for ``self.layer``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
-        and mutated by :meth:`trim_within_layer` / :meth:`trim_agent_elements`.
+        and mutated by :meth:`trim_elements` / :meth:`trim_agent_elements`.
     outline : :class:`~compas.geometry.Polyline` or None
         Closed boundary polyline in populator space.  Set by :meth:`generate_elements`.
     internal_rules : list[:class:`~timber_design.workflow.CategoryRule`]
@@ -177,52 +175,6 @@ class LayerAgent(PopulatorAgent, ABC):
         """
         return super().beam_from_category(centerline, category, layer=layer or self.layer, **kwargs)
 
-    def elements_for_layer(self, layer):
-        """Return the elements this agent has placed on *layer*.
-
-        A :class:`LayerAgent` is always bound to exactly one layer, so this
-        returns ``self.elements`` regardless of which layer is passed.  The
-        caller is responsible for only passing layers this agent is registered
-        on.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-
-        Returns
-        -------
-        list
-        """
-        return self.elements
-
-    def set_elements_for_layer(self, layer, elements):
-        """Replace this agent's element list for *layer*.
-
-        For a single-layer :class:`LayerAgent`, replaces ``self.elements``
-        entirely.  Called by :meth:`trim_within_layer` after trimming so the
-        agent's element list reflects surviving post-trim segments.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-        elements : list
-        """
-        self.elements = elements
-
-    def trim_elements(self):
-        """Trim peer agents' elements against this agent's boundary — same layer only.
-
-        A peer may span multiple layers (e.g. an
-        :class:`~timber_design.populators.OpeningPopulatorAgent` framing an
-        opening on several framing layers).  The trim is scoped to the elements
-        the peer placed on ``self.layer`` via
-        :meth:`~PopulatorAgent.elements_for_layer`, so a layer agent never cuts
-        framing that belongs to a different layer.
-        """
-        for agent in self.layer.agents:
-            if agent is self:
-                continue  # never apply an agent's own boundary to its own elements
-            if not agent.elements_for_layer(self.layer):
-                continue  # peer placed nothing on this layer — leave its other layers alone
-            if aabb_overlap(self, agent):
-                self.trim_agent_elements(agent, self.layer)
+    # elements_for_layer / set_elements_for_layer / trim_elements are inherited
+    # from PopulatorAgent: a LayerAgent holds one flat element list and trims on
+    # its single layer (PopulatorAgent._trim_layers -> _agent_layers -> [self.layer]).

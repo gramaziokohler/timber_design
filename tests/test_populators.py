@@ -12,6 +12,8 @@ import pytest
 
 from compas.geometry import Point
 from compas.geometry import Polyline
+from compas_timber.connections import LButtJoint
+from compas_timber.connections import TButtJoint
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 
@@ -27,6 +29,16 @@ from timber_design.populators import StudPopulatorAgentConfig
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.workflow import CategoryRule
+
+try:
+    from timber_design.populators import OpeningPopulatorAgentConfig
+
+    _HAS_OPENING = True
+except ImportError:  # Opening not in the installed compas_timber
+    _HAS_OPENING = False
+
+requires_opening = pytest.mark.skipif(not _HAS_OPENING, reason="Opening not available in installed compas_timber")
 
 
 # =============================================================================
@@ -546,3 +558,144 @@ class TestIsOnLayer:
         other = next(la for la in layer_model2.elements() if la.name == "other")
         _, _, agent = self._setup()
         assert not agent.is_on_layer(other)
+
+
+# =============================================================================
+# PanelPopulatorConfig.route_rule_overrides
+# =============================================================================
+
+
+def _config_with(*agent_configs, default_feature_configs=None):
+    """Build a minimal PanelPopulatorConfig with the given frame-layer agent configs."""
+    frame_ld = LayerConfig(name="frame", agent_configs=list(agent_configs))
+    return PanelPopulatorConfig(
+        layer_defs=[frame_ld],
+        default_feature_configs=default_feature_configs or {},
+    )
+
+
+class TestRouteRuleOverrides:
+    """Routes :class:`CategoryRule` overrides to per-agent internal/external slots."""
+
+    def test_none_is_a_noop(self):
+        edge = EdgePopulatorAgentConfig()
+        _config_with(edge).route_rule_overrides(None)
+        assert not edge.internal_joint_overrides
+        assert not edge.external_joint_overrides
+
+    def test_empty_list_is_a_noop(self):
+        edge = EdgePopulatorAgentConfig()
+        _config_with(edge).route_rule_overrides([])
+        assert not edge.internal_joint_overrides
+        assert not edge.external_joint_overrides
+
+    def test_internal_when_both_categories_owned_by_one_agent(self):
+        """Both ``edge_stud`` and ``top_plate_beam`` are EdgePopulatorAgent categories
+        → the rule lands in the edge config's internal_joint_overrides only."""
+        edge = EdgePopulatorAgentConfig()
+        rule = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
+        _config_with(edge).route_rule_overrides([rule])
+        assert rule in (edge.internal_joint_overrides or [])
+        assert not edge.external_joint_overrides
+
+    def test_external_when_categories_span_two_agents(self):
+        """``stud`` belongs to StudPopulatorAgent and ``top_plate_beam`` to
+        EdgePopulatorAgent → the rule lands as an external override on *both*."""
+        edge = EdgePopulatorAgentConfig()
+        stud = StudPopulatorAgentConfig()
+        rule = CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0)
+        _config_with(edge, stud).route_rule_overrides([rule])
+        assert rule in (edge.external_joint_overrides or [])
+        assert rule in (stud.external_joint_overrides or [])
+        assert not edge.internal_joint_overrides
+        assert not stud.internal_joint_overrides
+
+    def test_skipped_when_no_agent_owns_either_category(self):
+        edge = EdgePopulatorAgentConfig()
+        stud = StudPopulatorAgentConfig()
+        rule = CategoryRule(LButtJoint, "foo", "bar")
+        _config_with(edge, stud).route_rule_overrides([rule])
+        assert not edge.internal_joint_overrides
+        assert not edge.external_joint_overrides
+        assert not stud.internal_joint_overrides
+        assert not stud.external_joint_overrides
+
+    def test_routing_is_idempotent_for_the_same_rule(self):
+        """Routing the same rule twice must not produce a duplicate."""
+        edge = EdgePopulatorAgentConfig()
+        rule = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
+        config = _config_with(edge)
+        config.route_rule_overrides([rule])
+        config.route_rule_overrides([rule])
+        assert (edge.internal_joint_overrides or []).count(rule) == 1
+
+    def test_unordered_dedup_for_non_T_joints(self):
+        """L/X joints don't care about category order, so ``(a,b)`` and ``(b,a)``
+        for the same joint type collapse to a single override."""
+        edge = EdgePopulatorAgentConfig()
+        ab = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
+        ba = CategoryRule(LButtJoint, "top_plate_beam", "edge_stud", mill_depth=5.0)
+        _config_with(edge).route_rule_overrides([ab, ba])
+        overrides = edge.internal_joint_overrides or []
+        assert len(overrides) == 1
+
+    @requires_opening
+    def test_order_matters_for_T_joint_internal_rules(self):
+        """For TButtJoint, ``(a,b)`` and ``(b,a)`` define *different* joints
+        (which beam is the cross), so both must be kept when routed to an
+        agent that owns both categories."""
+        opening = OpeningPopulatorAgentConfig()
+        edge = EdgePopulatorAgentConfig()
+        ab = CategoryRule(TButtJoint, "jack_stud", "header", mill_depth=5.0)
+        ba = CategoryRule(TButtJoint, "header", "jack_stud", mill_depth=5.0)
+        config = _config_with(edge, default_feature_configs={object: opening})
+        config.route_rule_overrides([ab, ba])
+        overrides = opening.internal_joint_overrides or []
+        assert ab in overrides
+        assert ba in overrides
+
+    @requires_opening
+    def test_routes_to_feature_agent_via_default_feature_configs(self):
+        """Rules whose categories live on a feature agent (header/king_stud, …)
+        must be routed there even though the feature config is in
+        ``default_feature_configs``, not in ``layer_defs``."""
+        opening = OpeningPopulatorAgentConfig()
+        edge = EdgePopulatorAgentConfig()
+        # both header and king_stud are owned by OpeningPopulatorAgent → internal
+        rule_internal = CategoryRule(LButtJoint, "header", "king_stud")
+        # king_stud (opening) + top_plate_beam (edge) → external on both
+        rule_external = CategoryRule(TButtJoint, "king_stud", "top_plate_beam", mill_depth=5.0)
+        config = _config_with(edge, default_feature_configs={object: opening})
+        config.route_rule_overrides([rule_internal, rule_external])
+        assert rule_internal in (opening.internal_joint_overrides or [])
+        assert rule_external in (opening.external_joint_overrides or [])
+        assert rule_external in (edge.external_joint_overrides or [])
+
+    def test_rule_overrides_routed_via_stud_panel(self):
+        """End-to-end: ``joint_rule_overrides`` passed to ``stud_panel()`` reach the
+        right agent slots after the factory finishes."""
+        edge_rule = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
+        cross_rule = CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0)
+        unknown_rule = CategoryRule(LButtJoint, "foo", "bar")
+
+        panel = make_panel()
+        config = stud_panel(
+            panel=panel,
+            standard_beam_width=60.0,
+            stud_spacing=625.0,
+            joint_rule_overrides=[edge_rule, cross_rule, unknown_rule],
+        )
+        # Pick out the agent configs from the frame layer.
+        frame_ld = next(ld for ld in config.root_layer_def.sublayers if ld.name == "frame")
+        edge = next(c for c in frame_ld.agent_configs if isinstance(c, EdgePopulatorAgentConfig))
+        stud = next(c for c in frame_ld.agent_configs if isinstance(c, StudPopulatorAgentConfig))
+
+        # edge_rule → both categories owned by the edge agent → internal on edge.
+        assert edge_rule in (edge.internal_joint_overrides or [])
+        # cross_rule → stud + top_plate_beam straddle the two agents → external on both.
+        assert cross_rule in (edge.external_joint_overrides or [])
+        assert cross_rule in (stud.external_joint_overrides or [])
+        # unknown_rule → no agent owns either category → not appended anywhere.
+        for cfg in (edge, stud):
+            assert unknown_rule not in (cfg.internal_joint_overrides or [])
+            assert unknown_rule not in (cfg.external_joint_overrides or [])

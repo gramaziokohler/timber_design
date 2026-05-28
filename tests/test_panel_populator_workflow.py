@@ -265,11 +265,16 @@ class TestWindowOpening:
 
     @pytest.fixture(scope="class")
     def result(self):
+        from timber_design.populators import OpeningPopulatorAgentConfig
+
         panel = make_panel()
         win_outline = make_outline(1000, 900, 2400, 2200)
         opening = Opening.from_outline_panel(win_outline, panel, opening_type=OpeningType.WINDOW)
         panel.add_feature(opening)
-        _, model = run_workflow(panel, stud_config(lintel_posts=True))
+        _, model = run_workflow(
+            panel,
+            stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)}),
+        )
         return model
 
     def test_header_created(self, result):
@@ -316,11 +321,16 @@ class TestDoorOpening:
 
     @pytest.fixture(scope="class")
     def result(self):
+        from timber_design.populators import OpeningPopulatorAgentConfig
+
         panel = make_panel()
         door_outline = make_outline(1500, 0, 2500, 2100)
         opening = Opening.from_outline_panel(door_outline, panel, opening_type=OpeningType.DOOR)
         panel.add_feature(opening)
-        _, model = run_workflow(panel, stud_config(lintel_posts=True))
+        _, model = run_workflow(
+            panel,
+            stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)}),
+        )
         return model
 
     def test_header_created(self, result):
@@ -341,22 +351,33 @@ def test_no_sill_for_door():
     agents run — which also means no sill is produced.  Either way the
     assertion is valid.
     """
+    from timber_design.populators import OpeningPopulatorAgentConfig
+
     panel = make_panel()
     door_outline = make_outline(1500, 0, 2500, 2100)
     opening = Opening.from_outline_panel(door_outline, panel, opening_type=OpeningType.DOOR)
     panel.add_feature(opening)
-    _, model = run_workflow(panel, stud_config(lintel_posts=True))
+    _, model = run_workflow(
+        panel,
+        stud_config(default_feature_configs={Opening: OpeningPopulatorAgentConfig(lintel_posts=True)}),
+    )
     assert "sill" not in categories(model)
 
 
 @requires_opening
 def test_door_with_split_bottom_plate_runs_without_error():
     """split_bottom_plate_beam=True must not raise during population."""
+    from timber_design.populators import OpeningPopulatorAgentConfig
+
     panel = make_panel()
     door_outline = make_outline(1500, 0, 2500, 2100)
     opening = Opening.from_outline_panel(door_outline, panel, opening_type=OpeningType.DOOR)
     panel.add_feature(opening)
-    config = stud_config(lintel_posts=True, split_bottom_plate_beam=True)
+    config = stud_config(
+        default_feature_configs={
+            Opening: OpeningPopulatorAgentConfig(lintel_posts=True, split_bottom_plate_beam=True),
+        },
+    )
     _, model = run_workflow(panel, config)
     assert "header" in categories(model)
 

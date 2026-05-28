@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from compas.geometry import Line
+from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
@@ -54,7 +55,7 @@ class StudPopulatorAgent(LayerAgent):
     Z-centre of the layer.
 
     Stud segments that intersect with an :class:`~timber_design.populators.OpeningPopulatorAgent`
-    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_within_layer_elements`
+    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_elements`
     phase; overlapping king or jack studs are culled by
     :meth:`~OpeningPopulatorAgent._cull_stud`.
 
@@ -83,6 +84,10 @@ class StudPopulatorAgent(LayerAgent):
         CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "header", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
+        # HACK: the following are for when the studs extend and hit a corner in the edge beams. This should eventually be replaced by proper Y_TOPO/K_TOPO joint rules.
+        CategoryRule(LButtJoint, "stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
     ]
 
     def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, stud_spacing=None):

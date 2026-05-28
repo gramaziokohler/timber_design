@@ -3,7 +3,7 @@
     "nickname": "StudPanel",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Create a stud-framed PanelPopulatorConfig.",
+    "description": "Create a stud-framed PanelPopulatorConfig.  Opening-specific options (lintel_posts, split_bottom_plate_beam, header_width, ...) live on an OpeningPopulatorAgentConfig that you wire through default_feature_configs or instance_feature_configs.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -17,25 +17,19 @@
             },
             {
                 "name": "standard_beam_width",
-                "description": "Standard beam width.",
+                "description": "Default width for every framing beam category not given an explicit width.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
                 "name": "stud_spacing",
-                "description": "Stud spacing.",
+                "description": "On-centre stud spacing. None -> 8 x stud_width. 0 -> no studs.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
                 "name": "stud_width",
-                "description": "Explicit stud beam width. When omitted, standard_beam_width is used.",
-                "typeHintID": "float",
-                "scriptParamAccess": 0
-            },
-            {
-                "name": "standard_beam_width_increment",
-                "description": "Rounding increment for edge-beam widths.",
+                "description": "Explicit stud beam width. Falls back to standard_beam_width when omitted.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
@@ -58,6 +52,12 @@
                 "scriptParamAccess": 0
             },
             {
+                "name": "standard_beam_width_increment",
+                "description": "Rounding increment for edge-beam widths.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
                 "name": "orientation",
                 "description": "Optional orientation vector.",
                 "typeHintID": "vector",
@@ -76,32 +76,20 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "lintel_posts",
-                "description": "Whether to create lintel posts.",
-                "typeHintID": "bool",
-                "scriptParamAccess": 0
-            },
-            {
-                "name": "split_bottom_plate_beam",
-                "description": "Whether to split bottom plate beam.",
-                "typeHintID": "bool",
-                "scriptParamAccess": 0
-            },
-            {
                 "name": "joint_rule_overrides",
-                "description": "List of joint rule overrides.",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories (internal vs external is inferred).",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "default_feature_configs",
-                "description": "Default feature configs mapping.",
+                "description": "List of FeatureAgentConfig instances (one per feature type) registered under their FEATURE_TYPE class. Pass an OpeningPopulatorAgentConfig here to enable lintel_posts / split_bottom_plate_beam / custom header / sill widths.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "instance_feature_configs",
-                "description": "List of instance-specific feature configs.",
+                "description": "List of per-feature-instance FeatureAgentConfig overrides.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             }

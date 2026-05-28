@@ -5,11 +5,16 @@ exposes the constructor parameters of the chosen config as dynamic inputs.
 
 The two optional list inputs ``framing_layers`` and ``trimming_layers``
 accept :class:`~timber_design.populators.LayerConfig` objects — the
-**same** objects wired into a ``CT_PopulatorConfig`` component.  They
-control on which layers the feature agent generates beams and on which
-layers it cuts sheathing plates.  When left disconnected the agent falls
-back to its default layer-selection logic (``is_framing_layer`` flag and
-full-panel cross-section cut respectively).
+**same** objects wired into a ``CT_PopulatorConfig`` component.  They tell
+the feature agent which layers to generate framing on and which layers to
+cut sheathing plates through.  Wire them to the matching ``CT_PopulatorLayer``
+outputs.  When omitted the agent uses no framing/trimming layers.
+
+``internal_joint_overrides`` / ``external_joint_overrides`` set per-agent
+overrides directly on the config.  For panel-wide rule routing (where
+each rule is dispatched to the right agent automatically), use the
+``joint_rule_overrides`` input on ``CT_StudPanel`` / ``CT_RecessPanel`` /
+``CT_PopulatorConfig`` instead.
 """
 
 # r: timber_design>=0.1.0
@@ -67,9 +72,9 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
     def _config_arg_names(self):
         """Return the constructor parameter names for the current config type.
 
-        Excludes ``framing_layer_defs``, ``trimming_layer_defs``,
-        ``beam_width_overrides``, and ``joint_rule_overrides`` — those are
-        handled separately.
+        Excludes the permanent inputs (``framing_layers``, ``trimming_layers``,
+        ``internal_joint_overrides``, ``external_joint_overrides``), which are
+        wired through dedicated component inputs.
         """
         skip = _PERMANENT_PARAM_NAMES
         spec = inspect.getfullargspec(self.config_type.__init__)

@@ -109,7 +109,7 @@ class OpeningPopulatorAgent(FeatureAgent):
     The agent computes its :attr:`~LayerAgent.outline` from the
     outer edges of the king (and jack) studs and the header/sill, so that
     peer agents (studs) can trim their elements at the opening boundary via
-    :meth:`~timber_design.populators.LayerAgent.trim_within_layer`.
+    :meth:`~timber_design.populators.PopulatorAgent.trim_elements`.
 
     Its :attr:`~LayerAgent.BOUNDARY_TYPE` is
     :attr:`~FeatureBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
@@ -178,6 +178,13 @@ class OpeningPopulatorAgent(FeatureAgent):
         CategoryRule(TButtJoint, "king_stud", "sill", mill_depth=5.0),
         CategoryRule(TButtJoint, "stud", "header"),
         CategoryRule(TButtJoint, "stud", "sill"),
+        # HACK: the following are for when the studs extend and hit a corner in the edge beams. This should eventually be replaced by proper Y_TOPO/K_TOPO joint rules.
+        CategoryRule(LButtJoint, "jack_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "jack_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "king_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "king_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+        CategoryRule(LButtJoint, "king_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
     ]
     BOUNDARY_TYPE = AgentBoundaryType.EXCLUSIVE
 
@@ -232,7 +239,7 @@ class OpeningPopulatorAgent(FeatureAgent):
     def cull_beam_segment(self, beam: Beam) -> bool:
         """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
 
-        Only called from :meth:`trim_within_layer` on segments that already
+        Only called from :meth:`trim_elements` on segments that already
         survived the midpoint / outline-crossing cull.  The check is restricted
         to ``"stud"`` category beams so that plate-beam segments (``"top_plate_beam"``,
         ``"bottom_plate_beam"``, ``"edge_stud"``, …) flanking the opening are

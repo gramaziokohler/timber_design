@@ -22,11 +22,11 @@ class PanelPopulator:
 
     1. **generate_elements** — each agent creates its beams and plates.
     2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
-    3. **trim_elements** — for each overlapping agent pair, dispatches to
-       :meth:`~timber_design.populators.LayerAgent.trim_within_layer`
-       (same layer) or
-       :meth:`~timber_design.populators.LayerAgent.trim_agent_elements`
-       (different layers).  Each agent's implementation decides what to do.
+    3. **trim_elements** — each agent applies its boundary to its peer agents'
+       same-layer elements via
+       :meth:`~timber_design.populators.PopulatorAgent.trim_agent_elements`.
+       Single-layer agents act on their own layer; feature agents act on every
+       layer they frame or trim.
 
     4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
     5. **join_elements** — two sub-passes mirroring stage 3:

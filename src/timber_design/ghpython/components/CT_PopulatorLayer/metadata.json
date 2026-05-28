@@ -22,8 +22,8 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "agents",
-                "description": "List of agent config objects for this layer.",
+                "name": "agent_configs",
+                "description": "List of LayerAgentConfig objects for this layer.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },

@@ -35,7 +35,7 @@
             },
             {
                 "name": "joint_rule_overrides",
-                "description": "List of joint rule overrides applied to all agents in this populator.",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories (internal vs external is inferred). Applied via PanelPopulatorConfig.route_rule_overrides() after construction.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },

@@ -9,6 +9,7 @@ from compas.geometry import Transformation
 from compas.geometry import Vector
 from compas.geometry import cross_vectors
 from compas.tolerance import TOL
+from compas_timber.connections import JointTopology
 from compas_timber.elements import Panel
 
 from timber_design.populators.layer import LayerConfig
@@ -118,6 +119,70 @@ class PanelPopulatorConfig:
         for agent_config in self._iter_agent_configs():
             agent_config.fill_beam_widths(self.standard_beam_width)
 
+    def route_rule_overrides(self, joint_rule_overrides):
+        """Distribute joint-rule overrides to the agent configs that own their categories.
+
+        For each :class:`~timber_design.workflow.CategoryRule` in ``joint_rule_overrides``,
+        every agent config (across all layers + feature configs) whose
+        ``AGENT_TYPE.BEAM_CATEGORY_NAMES`` overlaps the rule's category pair has
+        the rule appended to its overrides:
+
+        - both categories owned by the agent → ``internal_joint_overrides``
+        - exactly one category owned by the agent → ``external_joint_overrides``
+
+        Agents that own neither category are skipped.  This is the single place
+        a panel-level rule list is matched against per-agent rule slots, so
+        callers can supply rules without knowing which agent owns each pair.
+
+        Parameters
+        ----------
+        joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`] or None
+        """
+
+        def merge_rule_to_list(rule, rule_list):
+            """Return *rule_list* with *rule* appended if not already present.
+
+            A rule is considered "already present" only when an existing rule
+            shares **the same SUPPORTED_TOPOLOGY** *and* matching categories.
+            That means the same ordered pair may carry several rules as long as
+            their joint types target different topologies (e.g. a ``TButtJoint``
+            and an ``LButtJoint`` for the same ``(stud, top_plate_beam)`` pair
+            stay distinct because their topologies differ).
+
+            Within a single topology, T-joints and edge-face plate joints are
+            order-sensitive — ``(a,b)`` and ``(b,a)`` carry different main/cross
+            semantics, so they're kept separate; other topologies dedup by
+            unordered pair.
+
+            Returning the list (instead of mutating-or-rebinding the argument)
+            avoids the local-rebind trap when ``rule_list`` arrives as ``None``.
+            """
+            if rule_list is None:
+                rule_list = []
+            topo = rule.joint_type.SUPPORTED_TOPOLOGY
+            order_sensitive = topo in (JointTopology.TOPO_T, JointTopology.TOPO_EDGE_FACE)
+            if order_sensitive:
+                already_present = any(ir.joint_type.SUPPORTED_TOPOLOGY == topo and ir.category_a == rule.category_a and ir.category_b == rule.category_b for ir in rule_list)
+            else:
+                pair = {rule.category_a, rule.category_b}
+                already_present = any(ir.joint_type.SUPPORTED_TOPOLOGY == topo and {ir.category_a, ir.category_b} == pair for ir in rule_list)
+            if not already_present:
+                rule_list.append(rule)
+            return rule_list
+
+        if not joint_rule_overrides:
+            return
+        for rule in joint_rule_overrides:
+            pair = {rule.category_a, rule.category_b}
+            for agent_config in self._iter_agent_configs():
+                categories = set(agent_config.AGENT_TYPE.BEAM_CATEGORY_NAMES)
+                if not (pair & categories):
+                    continue
+                if pair <= categories:  # both categories owned by the agent
+                    agent_config.internal_joint_overrides = merge_rule_to_list(rule, agent_config.internal_joint_overrides)
+                else:  # exactly one category owned by the agent
+                    agent_config.external_joint_overrides = merge_rule_to_list(rule, agent_config.external_joint_overrides)
+
     def create_populator_model(self):
         """Resolve beam widths and build the :class:`Layer` model from the panel.
 
@@ -170,12 +235,17 @@ class PanelPopulatorConfig:
         for feature in self.panel.features:
             if feature in explicitly_defined:
                 continue
-            agent_config = self._find_definition_for_feature(feature, self.default_feature_configs)
+            agent_config = self._find_config_for_feature(feature, self.default_feature_configs)
             if agent_config is None:
                 continue
+            print("ACFLD", agent_config.framing_layer_defs)
             transformed_feature = feature.transformed(self.transformation_to_populator)
             framing_layers = [ld.resulting_layer for ld in (agent_config.framing_layer_defs or [])]
+            print(f"Framing layers for {feature}: {framing_layers}")
+            print("ACTLD", agent_config.trimming_layer_defs)
+
             trimming_layers = [ld.resulting_layer for ld in (agent_config.trimming_layer_defs or [])]
+            print(f"Trimming layers for {feature}: {trimming_layers}")
             agents.append(agent_config.get_agent_from_feature(transformed_feature, framing_layers, trimming_layers))
 
         # Instance feature agents — each config carries its own .feature reference.
@@ -224,7 +294,7 @@ class PanelPopulatorConfig:
         )
 
     @staticmethod
-    def _find_definition_for_feature(feature, definitions):
+    def _find_config_for_feature(feature, definitions):
         """Return the most specific config for *feature* using MRO-based lookup.
 
         Walks ``type(feature).__mro__`` from most to least specific, returning

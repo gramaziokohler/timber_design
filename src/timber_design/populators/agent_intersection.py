@@ -132,9 +132,18 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
     for i in range(n_outline):
         hit_dots = dots_by_outline.get(i, [])
 
-        if len(hit_dots) == 0 and inside:
-            # entire edge lies within the beam blank — record the corner
-            current_entry.internal_dots.append(_beam_dot(outline[i + 1]))
+        if len(hit_dots) == 0:
+            if inside:
+                # entire edge lies within the beam blank — record the corner.
+                if current_entry is None:
+                    # Inside/outside tracking desynced — e.g. a boundary-coincident
+                    # crossing was filtered out in Step 1, or a 2-hit edge was
+                    # processed while inside.  Open a fresh entry rather than
+                    # dereferencing None; its start_dot is resolved by the
+                    # wrap-around step below (or stays None and is ignored).
+                    current_entry = BeamOutlineIntersectionData()
+                    crossings_as_dots.append(current_entry)
+                current_entry.internal_dots.append(_beam_dot(outline[i + 1]))
 
         elif len(hit_dots) == 1:
             # edge crosses beam boundary once: either entering or exiting
@@ -148,14 +157,16 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
                 crossings_as_dots.append(current_entry)
             else:
                 # exited the beam blank
+                if current_entry is None:
+                    current_entry = BeamOutlineIntersectionData()
+                    crossings_as_dots.append(current_entry)
                 current_entry.end_dot = hit_dots[0]
                 current_entry = None
 
         elif len(hit_dots) == 2:
-            # Outline edge enters and exits the beam blank in one step.
-            # Endpoint coincidences are filtered in Step 1, so this branch is
-            # only reached for genuine interior crossings — always from outside
-            # for a convex (rectangular) blank.
+            # Outline edge enters and exits the beam blank in one step — a genuine
+            # interior crossing for a convex (rectangular) blank, normally from
+            # outside.  Leave ``inside`` unchanged (net no transition).
             crossings_as_dots.append(
                 BeamOutlineIntersectionData(
                     start_dot=min(hit_dots),
@@ -163,8 +174,6 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
                 )
             )
             current_entry = None
-            # inside is unchanged: was False, remains False.
-            # inside is unchanged: was False, remains False.
 
     # ------------------------------------------------------------------
     # Wrap-around: outline started inside the beam.

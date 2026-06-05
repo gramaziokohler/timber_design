@@ -1,7 +1,7 @@
-from timber_design.populators import LayerConfig
-from timber_design.populators import PanelPopulatorConfig
-from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
-from timber_design.populators.populator_agents.recess_populator_agent import RecessPopulatorAgentConfig
+from timber_design.populators import PanelPopulator
+from timber_design.populators import PlatePopulatorAgent
+from timber_design.populators import RecessPopulatorAgent
+
 
 
 def recess_panel(
@@ -65,29 +65,36 @@ def recess_panel(
     instance_feature_configs : list, optional
         Per-instance feature config overrides.
     """
-    layer_defs = []
-    if sheeting_inside:
-        layer_defs.append(LayerConfig(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    if sheeting_outside:
-        layer_defs.append(LayerConfig(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
 
-    recess_agent_config = RecessPopulatorAgentConfig(
-        standard_beam_width_increment=standard_beam_width_increment,
+    core_start = sheeting_inside or 0
+    core_end = panel.thickness - (sheeting_outside or 0)
+    panel.define_core_layer(core_start, core_end)
+
+    agents = []
+    # define_core_layer only creates the exterior/interior layer when its face
+    # has sheeting (non-zero thickness); key the plate agents off existence so
+    # a missing layer is simply skipped.
+    if panel.exterior_layer:  # the [0, sheeting_inside] slice
+        agents.append(PlatePopulatorAgent(panel.exterior_layer))
+    if panel.interior_layer:  # the [thickness - sheeting_outside, thickness] slice
+        agents.append(PlatePopulatorAgent(panel.interior_layer))
+
+    agents.append(RecessPopulatorAgent(
+        panel.core_layer,
+        recess_width=recess_beam_width,
         edge_stud_width=edge_stud_width,
         top_plate_beam_width=top_plate_beam_width,
         bottom_plate_beam_width=bottom_plate_beam_width,
-        recess_beam_width=recess_beam_width,
+        standard_beam_width_increment=standard_beam_width_increment,
         recess_beam_height=recess_beam_height,
         sheeting_recess=sheeting_recess,
-    )
-    layer_defs.insert(1, LayerConfig(name="frame", agent_configs=[recess_agent_config]))
+    ))
 
-    config = PanelPopulatorConfig(
-        panel=panel,
+    return PanelPopulator(
+        panel,
+        agents,
+        default_feature_agents=default_feature_configs,
         standard_beam_width=standard_beam_width,
-        layer_defs=layer_defs,
-        default_feature_configs=default_feature_configs,
-        instance_feature_configs=instance_feature_configs,
+        joint_rule_overrides=joint_rule_overrides,
     )
-    config.route_rule_overrides(joint_rule_overrides)
-    return config
+

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+
 from typing import Optional
 
 from compas.geometry import Line
@@ -6,44 +6,7 @@ from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
-from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
-
-
-@dataclass
-class StudPopulatorAgentConfig(LayerAgentConfig):
-    """Configuration for a stud-framing agent.
-
-    Parameters
-    ----------
-    stud_spacing : float, optional
-        On-centre spacing between studs in model units.  When ``None``,
-        the agent defaults to ``stud_width * 8`` at construction time.
-    stud_width : float, optional
-        Explicit width for stud beams.  Takes precedence over
-        *standard_beam_width*.  When ``None`` the standard beam width is used.
-    """
-
-    IS_ABSTRACT = False
-
-    stud_spacing: Optional[float] = None
-    stud_width: Optional[float] = None
-
-    def __post_init__(self):
-        if self.stud_width is not None:
-            self.beam_widths["stud"] = self.stud_width
-
-    def _agent_kwargs(self):
-        kwargs = super()._agent_kwargs()
-        kwargs["stud_spacing"] = self.stud_spacing
-        return kwargs
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        data["stud_spacing"] = self.stud_spacing
-        data["stud_width"] = self.stud_width
-        return data
 
 
 class StudPopulatorAgent(LayerAgent):
@@ -90,27 +53,41 @@ class StudPopulatorAgent(LayerAgent):
         CategoryRule(LButtJoint, "stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
     ]
 
-    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, stud_spacing=None):
-        # type: (Layer, Optional[dict], Optional[list], Optional[list], Optional[float]) -> None
-        super(StudPopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
-        stud_spacing = stud_spacing if stud_spacing is not None else self.beam_widths["stud"] * 8
-        if stud_spacing <= 0:
+    def __init__(
+        self,
+        layer,
+        stud_width: Optional[float] = None,
+        internal_joint_overrides=None,
+        external_joint_overrides=None,
+        stud_spacing=None,
+    ):
+        # type: (Layer, Optional[float], Optional[list], Optional[list], Optional[float]) -> None
+        super(StudPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        self.beam_widths["stud"] = stud_width
+        # Stored as-is; the default (``stud_width * 8``) is resolved in
+        # :meth:`generate_elements` once ``PanelPopulator.resolve_beam_widths``
+        # has filled the stud width from ``standard_beam_width``.
+        self.stud_spacing = stud_spacing
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["stud_width"] = self.beam_widths.get("stud")
+        data["stud_spacing"] = self.stud_spacing
+        return data
+
+    def generate_elements_for_layer(self, layer=None):
+        """Populate the layer with stud beams at ``stud_spacing`` intervals."""
+        spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_widths["stud"] * 8
+        if spacing <= 0:
             raise ValueError(
                 "StudPopulatorAgent requires a positive stud_spacing; got {!r}. "
                 "Pass an explicit stud_spacing or ensure standard_beam_width is set "
-                "so the default (stud_width * 8) is positive.".format(stud_spacing)
+                "so the default (stud_width * 8) is positive.".format(spacing)
             )
-        self.stud_spacing = stud_spacing
-
-    def generate_elements(self):
-        """Populate the layer with stud beams at ``stud_spacing`` intervals."""
-        x_position = self.stud_spacing
+        x_position = spacing
         studs = []
         while x_position < self.layer.aabb.xmax - self.beam_widths["stud"]:
             studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.layer.aabb.ymax, 0)), "stud"))
-            x_position += self.stud_spacing
-        self.elements = studs
-
-
-# Set after both classes are defined so forward reference is resolved
-StudPopulatorAgentConfig.AGENT_TYPE = StudPopulatorAgent
+            x_position += spacing
+        return studs, None

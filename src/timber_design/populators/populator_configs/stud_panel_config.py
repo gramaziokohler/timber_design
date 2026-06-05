@@ -2,12 +2,11 @@ import copy
 
 from compas_timber.panel_features import Opening
 
-from timber_design.populators import LayerConfig
-from timber_design.populators import PanelPopulatorConfig
-from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
-from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgentConfig
-from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgentConfig
-from timber_design.populators.populator_agents.stud_populator_agent import StudPopulatorAgentConfig
+from timber_design.populators import PanelPopulator
+from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
+from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgent
+from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgent
+from timber_design.populators.populator_agents.stud_populator_agent import StudPopulatorAgent
 
 
 def stud_panel(
@@ -26,8 +25,8 @@ def stud_panel(
     sheeting_outside=0,
     sheeting_inside=0,
     joint_rule_overrides=None,
-    default_feature_configs=None,
-    instance_feature_configs=None,
+    default_feature_agents=None,
+    instance_feature_agents=None,
 ):
     """Create a config for a standard stud-framed wall panel.
 
@@ -94,60 +93,69 @@ def stud_panel(
     instance_feature_configs : list, optional
         Per-instance feature config overrides.
     """
-    frame_agent_configs = [
-        EdgePopulatorAgentConfig(
+
+    core_start = sheeting_inside or 0
+    core_end = panel.thickness - (sheeting_outside or 0)
+    panel.define_core_layer(core_start, core_end)
+
+    agents = []
+    # define_core_layer only creates the exterior/interior layer when its face
+    # has sheeting (non-zero thickness); key the plate agents off existence so
+    # a missing layer is simply skipped.
+    if panel.exterior_layer:  # the [0, sheeting_inside] slice
+        agents.append(PlatePopulatorAgent(panel.exterior_layer))
+    if panel.interior_layer:  # the [thickness - sheeting_outside, thickness] slice
+        agents.append(PlatePopulatorAgent(panel.interior_layer))
+
+    agents.append(EdgePopulatorAgent(panel.core_layer, 
             standard_beam_width_increment=standard_beam_width_increment,
             edge_stud_width=edge_stud_width,
             top_plate_beam_width=top_plate_beam_width,
             bottom_plate_beam_width=bottom_plate_beam_width,
-        ),
-    ]
+        ))
+    
     if stud_spacing is None or stud_spacing:
         # spacing=0 → no studs; spacing=None → default (stud_width * 8) at populate time.
-        frame_agent_configs.append(
-            StudPopulatorAgentConfig(
-                stud_spacing=stud_spacing,
+        agents.append(
+            StudPopulatorAgent(panel.core_layer,
                 stud_width=stud_width,
+                stud_spacing=stud_spacing,
             )
         )
 
-    layer_defs = []
-    if sheeting_inside:
-        layer_defs.append(LayerConfig(sheeting_inside, name="interior", agent_configs=[PlatePopulatorAgentConfig()]))
-    framing_layer = LayerConfig(name="frame", agent_configs=frame_agent_configs)
-    layer_defs.append(framing_layer)
-    if sheeting_outside:
-        layer_defs.append(LayerConfig(sheeting_outside, name="exterior", agent_configs=[PlatePopulatorAgentConfig()]))
+
 
     # Build a fresh dict so we don't mutate the caller's mapping when GH (or
     # any caller) reuses the same dict across multiple panels.
-    default_feature_configs = dict(default_feature_configs) if default_feature_configs else {}
-    if Opening not in default_feature_configs:
-        default_feature_configs[Opening] = OpeningPopulatorAgentConfig(
-            framing_layer_defs=[framing_layer],
-            trimming_layer_defs=layer_defs,
+    trimming_layers = [la for la in (panel.interior_layer, panel.core_layer, panel.exterior_layer) if la]
+    default_feature_agents = dict(default_feature_agents) if default_feature_agents else {}
+    if Opening not in default_feature_agents:
+        default_feature_agents[Opening] = OpeningPopulatorAgent(
+            element_layers=[panel.core_layer],
+            trimming_layers=trimming_layers,
         )
     else:
-        # The user-supplied Opening config may be a single instance shared
-        # across multiple stud_panel() calls (e.g. one CT_FeatureAgentConfig
-        # output wired into a CT_StudPanel component that processes a list of
-        # panels).  Mutating its framing_layer_defs / trimming_layer_defs
-        # in-place would let the last call's LayerConfig references "win",
-        # leaving every other panel's opening agent pointing at a layer whose
-        # resulting_layer is set by a different model.  Shallow-copy the
-        # config so each stud_panel call has its own slot to write into.
-        cfg = copy.copy(default_feature_configs[Opening])
-        cfg.framing_layer_defs = [framing_layer]
-        cfg.trimming_layer_defs = layer_defs
-        default_feature_configs[Opening] = cfg
+        # The user-supplied prototype may be a single instance shared across
+        # multiple stud_panel() calls (e.g. one CT_FeatureAgentConfig output
+        # wired into a CT_StudPanel component that processes a list of panels).
+        # Shallow-copy it so each call binds its own layer references.
+        prototype = copy.copy(default_feature_agents[Opening])
+        prototype.element_layers = [panel.core_layer]
+        prototype.trimming_layers = trimming_layers
+        default_feature_agents[Opening] = prototype
 
-    config = PanelPopulatorConfig(
+    # Instance feature agents are already feature-bound; add them directly.
+    if instance_feature_agents:
+        agents.extend(instance_feature_agents)
+
+    # NOTE: ``orientation`` is no longer consumed by PanelPopulator — the stud
+    # direction is baked into the panel's local frame at construction time
+    # (``Panel.from_outlines(..., orientation=...)``).  Build the panel with the
+    # desired orientation upstream of this factory.
+    return PanelPopulator(
         panel=panel,
-        orientation=orientation,
         standard_beam_width=standard_beam_width,
-        layer_defs=layer_defs,
-        default_feature_configs=default_feature_configs,
-        instance_feature_configs=instance_feature_configs,
+        agents=agents,
+        default_feature_agents=default_feature_agents,
+        joint_rule_overrides=joint_rule_overrides,
     )
-    config.route_rule_overrides(joint_rule_overrides)
-    return config

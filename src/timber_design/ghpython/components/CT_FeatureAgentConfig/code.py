@@ -3,7 +3,7 @@
 Select the feature agent type via the right-click menu.  The component
 exposes the constructor parameters of the chosen config as dynamic inputs.
 
-The two optional list inputs ``framing_layers`` and ``trimming_layers``
+The two optional list inputs ``element_layers`` and ``trimming_layers``
 accept :class:`~timber_design.populators.LayerConfig` objects — the
 **same** objects wired into a ``CT_PopulatorConfig`` component.  They tell
 the feature agent which layers to generate framing on and which layers to
@@ -30,7 +30,7 @@ from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 
 # Names of the permanent list inputs that are always present
-_PERMANENT_PARAM_NAMES = ["framing_layers", "trimming_layers", "external_joint_overrides", "internal_joint_overrides"]
+_PERMANENT_PARAM_NAMES = ["element_layers", "trimming_layers", "external_joint_overrides", "internal_joint_overrides"]
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
@@ -44,7 +44,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(
         self,
-        framing_layers: System.Collections.Generic.List[object],
+        element_layers: System.Collections.Generic.List[object],
         trimming_layers: System.Collections.Generic.List[object],
         internal_joint_overrides: System.Collections.Generic.List[object],
         external_joint_overrides: System.Collections.Generic.List[object],
@@ -62,7 +62,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
             if val is not None and i < len(names):
                 kwargs[names[i]] = val
 
-        kwargs["framing_layer_defs"] = list(framing_layers) if framing_layers else None
+        kwargs["framing_layer_defs"] = list(element_layers) if element_layers else None
         kwargs["trimming_layer_defs"] = list(trimming_layers) if trimming_layers else None
         kwargs["external_joint_overrides"] = list(external_joint_overrides) if external_joint_overrides else None
         kwargs["internal_joint_overrides"] = list(internal_joint_overrides) if internal_joint_overrides else None
@@ -72,7 +72,7 @@ class FeatureAgentConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
     def _config_arg_names(self):
         """Return the constructor parameter names for the current config type.
 
-        Excludes the permanent inputs (``framing_layers``, ``trimming_layers``,
+        Excludes the permanent inputs (``element_layers``, ``trimming_layers``,
         ``internal_joint_overrides``, ``external_joint_overrides``), which are
         wired through dedicated component inputs.
         """

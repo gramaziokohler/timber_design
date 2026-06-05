@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 
 from compas.geometry import Line
 from compas.geometry import Point
@@ -11,17 +10,6 @@ from compas_timber.utils import join_polyline_segments
 from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
-from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
-
-
-@dataclass
-class PanelBoundaryPopulatorAgentConfig(LayerAgentConfig):
-    IS_ABSTRACT = False
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        return data
 
 
 class PanelBoundaryPopulatorAgent(LayerAgent):
@@ -66,14 +54,14 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
     NAME = "PanelBoundaryPopulatorAgent"
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
-    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
-        super(PanelBoundaryPopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
+    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[list], Optional[list]) -> None
+        super(PanelBoundaryPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
 
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
-    def generate_elements(self):
+    def generate_elements_for_layer(self, layer=None):
         pass
 
     def generate_boundaries(self) -> None:
@@ -110,6 +98,3 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         aabb2d = AABB2D.from_points(self.outline.points)
         return aabb2d
 
-
-# Set after both classes are defined so forward reference is resolved
-PanelBoundaryPopulatorAgentConfig.AGENT_TYPE = PanelBoundaryPopulatorAgent

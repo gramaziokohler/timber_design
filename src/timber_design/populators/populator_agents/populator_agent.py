@@ -1,11 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
-from dataclasses import dataclass
-from dataclasses import field
-from typing import List
 from typing import Optional
 from typing import Union
 
+from compas.data import Data
 from compas.geometry import Line
 from compas.geometry import Vector
 from compas.itertools import pairwise
@@ -21,7 +19,6 @@ from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
-from timber_design.populators.layer import Layer
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -55,95 +52,7 @@ class AgentBoundaryType(object):
     NONE = "none"
 
 
-@dataclass
-class PopulatorAgentConfig(ABC):
-    """Base dataclass for populator agent configuration.
-
-    A config is responsible for *parsing and computing* everything its agent
-    needs, then constructing that agent with explicit keyword arguments (see
-    :meth:`_agent_kwargs`).  The agent itself only populates, trims, and joins.
-
-    Concrete config classes (e.g.
-    :class:`~timber_design.populators.StudPopulatorAgentConfig`,
-    :class:`~timber_design.populators.EdgePopulatorAgentConfig`) extend this
-    class, add explicit per-category beam-width fields, and override
-    :meth:`_agent_kwargs` to forward their extra parameters.
-
-    Parameters
-    ----------
-    internal_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Rules that replace matching entries in the agent's
-        :attr:`~PopulatorAgent.INTERNAL_JOINT_RULES`.  Non-matching overrides
-        are appended.
-    external_joint_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Rules that replace matching entries in the agent's
-        :attr:`~PopulatorAgent.EXTERNAL_JOINT_RULES`.  Non-matching overrides
-        are appended.
-
-    Attributes
-    ----------
-    beam_widths : dict[str, float]
-        ``{category: width}`` mapping.  Concrete subclasses seed this in
-        ``__post_init__`` from their explicit width kwargs; any remaining
-        categories are filled with the panel's ``standard_beam_width`` by
-        :meth:`fill_beam_widths`.
-
-    Class Attributes
-    ----------------
-    AGENT_TYPE : type or None
-        The :class:`PopulatorAgent` subclass this config instantiates.
-        Set on each concrete subclass after both classes are defined.
-    """
-
-    IS_ABSTRACT = True
-    AGENT_TYPE = None
-
-    internal_joint_overrides: Optional[List[CategoryRule]] = None
-    external_joint_overrides: Optional[List[CategoryRule]] = None
-    beam_widths: dict = field(default_factory=dict, init=False)
-
-    @property
-    def __data__(self):
-        return {
-            "internal_joint_overrides": self.internal_joint_overrides,
-            "external_joint_overrides": self.external_joint_overrides,
-        }
-
-    def fill_beam_widths(self, standard_beam_width):
-        """Fill any unset beam-category widths with *standard_beam_width*.
-
-        Categories already present in :attr:`beam_widths` (set from explicit
-        width kwargs in ``__post_init__``) are left untouched.
-
-        Parameters
-        ----------
-        standard_beam_width : float
-            Default width applied to every category this agent can create that
-            does not already have an explicit width.
-        """
-        if self.AGENT_TYPE is None:
-            return
-        for category in self.AGENT_TYPE.BEAM_CATEGORY_NAMES:
-            self.beam_widths.setdefault(category, standard_beam_width)
-
-    def _agent_kwargs(self):
-        """Return the explicit constructor kwargs shared by every populator agent.
-
-        Concrete configs override this to add their own parameters, e.g.::
-
-            def _agent_kwargs(self):
-                kwargs = super()._agent_kwargs()
-                kwargs["stud_spacing"] = self.stud_spacing
-                return kwargs
-        """
-        return {
-            "beam_widths": dict(self.beam_widths),
-            "internal_joint_overrides": self.internal_joint_overrides,
-            "external_joint_overrides": self.external_joint_overrides,
-        }
-
-
-class PopulatorAgent(ABC):
+class PopulatorAgent(Data, ABC):
     """Abstract base class for all panel populator agents.
 
     A ``LayerAgent`` is responsible for one logical group of framing
@@ -213,19 +122,39 @@ class PopulatorAgent(ABC):
     EXTERNAL_JOINT_RULES: list[CategoryRule] = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
-    def __init__(self, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Optional[dict], Optional[list], Optional[list]) -> None
-        self.beam_widths: dict[str, float] = dict(beam_widths) if beam_widths else {}
+    def __init__(self, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Optional[list], Optional[list]) -> None
+        # Initialise the compas ``Data`` base so ``guid`` / ``name`` exist and the
+        # agent participates in COMPAS JSON serialization (json_dump / json_load).
+        super().__init__()
+        # ``beam_widths`` starts empty; concrete subclasses populate it from their
+        # explicit per-category constructor kwargs (e.g. ``edge_stud_width``,
+        # ``stud_width``).
+        self.beam_widths: dict[str, float] = {}
         self.internal_rules = self._apply_overrides(self.INTERNAL_JOINT_RULES, internal_joint_overrides)
         self.external_rules = self._apply_overrides(self.EXTERNAL_JOINT_RULES, external_joint_overrides)
-        # Raw external overrides kept separately so cross-agent joint resolution
-        # can give a per-agent override precedence over *another* agent's base
-        # rule for the same category pair, regardless of agent ordering (an
-        # external rule is owned by only one of the two agents it connects).
+        # Raw overrides kept separately from the merged rule lists: ``external_overrides``
+        # so cross-agent joint resolution can give a per-agent override precedence over
+        # *another* agent's base rule for the same pair regardless of agent ordering,
+        # and both so ``__data__`` can round-trip the agent through its constructor.
+        self.internal_overrides = list(internal_joint_overrides) if internal_joint_overrides else []
         self.external_overrides = list(external_joint_overrides) if external_joint_overrides else []
         self.joint_defs = []
         self.elements = []
         self.outline = None
+
+    @property
+    def __data__(self):
+        """Serializable construction state.
+
+        Keys match the constructor parameters, so an agent round-trips through
+        ``type(agent)(**agent.__data__)``.  Subclasses extend this with their own
+        per-category widths (read back out of :attr:`beam_widths`) and parameters.
+        """
+        return {
+            "internal_joint_overrides": self.internal_overrides or None,
+            "external_joint_overrides": self.external_overrides or None,
+        }
 
     @property
     def aabb(self):
@@ -519,53 +448,40 @@ class PopulatorAgent(ABC):
                 candidates.append(candidate)
         return candidates
 
-    def trim_agent_elements(self, other_agent, layer):
-        """Punch the opening contour through plates on *other_agent*'s layer.
+    def trim_agent_elements(self, other_agent):
+        """Trim *other_agent*'s elements **on *layer*** against this agent's boundary.
 
-        When :attr:`~FeatureAgent.trimming_layers` is non-empty, only agents
-        whose layer is in that list receive the contour cut.  Otherwise the
-        cut is applied to all plate elements in *other_agent* (full-panel
-        cross-section behaviour).
+        Each of the peer's elements on that layer is cut by this agent's
+        boundary (plates via :meth:`trim_plate`, beams via :meth:`trim_beam`),
+        and the surviving segments are written back with
+        :meth:`set_elements_for_layer`.
 
         Parameters
         ----------
-        other_agent : :class:`~timber_design.populators.LayerAgent`
-            The agent whose plate elements receive the opening contour cut.
+        other_agent : :class:`~timber_design.populators.PopulatorAgent`
+            The peer whose elements on *layer* receive the cut.
+        layer : :class:`~timber_design.populators.Layer`
+            The layer whose elements are trimmed.
         """
         trimmed_elements = []
-        for element in other_agent.elements_for_layer(layer):
-            if element.is_plate:
-                trimmed_elements.extend(self.trim_plate(element))
-            if element.is_beam:
-                trimmed_elements.extend(self.trim_beam(element, layer))
+        trimming_layers = set(self.trimming_layers, other_agent.element_layers)
+        for layer in trimming_layers:
+            for element in other_agent.elements_for_layer(layer):
+                if element.is_plate:
+                    trimmed_elements.extend(self.trim_plate(element))
+                if element.is_beam:
+                    trimmed_elements.extend(self.trim_beam(element, layer))
         other_agent.set_elements_for_layer(layer, trimmed_elements)
 
     @abstractmethod
     def generate_elements(self):
         """Generate all elements for this agent's layer."""
-        raise NotImplementedError("generate_elements method must be implemented in subclasses of PopulatorAgent")
+        for layer in self.element_layers:
+            self.outline = None
+            layer_elements, layer_outline = self.generate_elements_for_layer(layer)
+            self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
+            self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
 
-    def _trim_layers(self):
-        """Layers on which this agent trims peer elements (defaults to its own layers)."""
-        return self._agent_layers()
-
-    def trim_elements(self):
-        """Trim peer agents' elements against this agent's boundary — same layer only.
-
-        For each layer this agent acts on (see :meth:`_trim_layers`), every peer
-        on that layer has *its elements on that layer* trimmed against this
-        agent's boundary.  A peer that spans several layers (e.g. an opening
-        framing on multiple layers) only has its same-layer elements touched, so
-        a boundary never cuts framing that belongs to a different layer.
-        """
-        for layer in self._trim_layers():
-            for agent in layer.agents:
-                if agent is self:
-                    continue  # never apply an agent's own boundary to its own elements
-                if not agent.elements_for_layer(layer):
-                    continue  # peer placed nothing on this layer
-                if aabb_overlap(self, agent):
-                    self.trim_agent_elements(agent, layer)
 
     def extend_elements(self) -> None:
         pass

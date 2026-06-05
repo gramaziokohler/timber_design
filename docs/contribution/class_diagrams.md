@@ -272,7 +272,7 @@ classDiagram
         <<abstract>>
         +FEATURE_TYPE : type$
         +feature : PanelFeature
-        +framing_layers : list[Layer]
+        +element_layers : list[Layer]
         +trimming_layers : list[Layer]
         +registered_layers : list[Layer]
         -_elements_by_layer : dict[int, list]
@@ -385,7 +385,7 @@ classDiagram
         +feature : PanelFeature
         +framing_layer_defs : list[LayerConfig]
         +trimming_layer_defs : list[LayerConfig]
-        +get_agent_from_feature(feature, framing_layers, trimming_layers, standard_beam_width) FeatureAgent
+        +get_agent_from_feature(feature, element_layers, trimming_layers, standard_beam_width) FeatureAgent
     }
 
     class EdgePopulatorAgentConfig {

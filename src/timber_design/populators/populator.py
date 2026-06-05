@@ -3,12 +3,13 @@ from itertools import product
 from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
+from compas_timber.model import TimberModel
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.workflow import JointRuleSolver
+from timber_design.populators.connection_solver_2d import aabb_overlap
 
-from .layer import Layer
+from timber_design.workflow import JointRuleSolver
 
 
 class PanelPopulator:
@@ -89,40 +90,157 @@ class PanelPopulator:
         populator.merge_with_model(model)
     """
 
-    def __init__(self, panel, model, feature_agents, original_panel=None, transformation_to_populator=None):
-        self.panel = panel
-        self.model = model
-        self.feature_agents = feature_agents
-        self.original_panel = original_panel
-        self.transformation_to_populator = transformation_to_populator
-        self.layers = [la for la in self.model.elements() if isinstance(la, Layer)]
+    def __init__(
+        self,
+        panel,
+        agents,
+        default_feature_agents=None,
+        standard_beam_width=None,
+        joint_rule_overrides=None,
+    ):
+        self.original_panel = panel
+        self.model = None
+        self.agents = agents
 
-    @property
-    def agents(self):
-        """Deduplicated list of every :class:`LayerAgent` across all layers + feature agents.
+        # Config-time setup that does NOT depend on the panel's final geometry.
+        self.parse_default_feature_agents(default_feature_agents or {})
+        self.resolve_beam_widths(standard_beam_width)
+        self.route_rule_overrides(joint_rule_overrides)
 
-        :class:`FeatureAgent` instances register themselves on multiple layers
-        during :meth:`generate_elements`, so a plain flatten of ``layer.agents``
-        would contain duplicates.  This property preserves first-seen order
-        and appends any feature agents that never registered on a layer.
+   
+    # ------------------------------------------------------------------
+    # Initialization methods
+    # ------------------------------------------------------------------
+
+    def resolve_beam_widths(self, standard_beam_width):
+        """Fill any unset per-category beam widths on every agent with :attr:`standard_beam_width`.
+
+        For each agent in :attr:`agents`, walks the categories declared in
+        ``agent.BEAM_CATEGORY_NAMES`` and fills entries that are either missing
+        or ``None`` in ``agent.beam_widths`` with :attr:`standard_beam_width`.
+        Per-category widths the caller already supplied to an agent constructor
+        are left untouched, so explicit per-agent overrides always win over the
+        panel-wide default.
+
+        Does nothing when :attr:`standard_beam_width` is ``None``; in that case
+        the caller is responsible for having supplied every per-category width
+        directly to each agent.
         """
-        seen = []
-        for layer in self.layers:
-            for agent in layer.agents:
-                if agent not in seen:
-                    seen.append(agent)
-        for agent in self.feature_agents:
-            if agent not in seen:
-                seen.append(agent)
-        return seen
+        if standard_beam_width is None:
+            return
+        for agent in self.agents:
+            for category in agent.BEAM_CATEGORY_NAMES:
+                if agent.beam_widths.get(category) is None:
+                    agent.beam_widths[category] = standard_beam_width
+
+    def route_rule_overrides(self, rule_overrides):
+        """Distribute joint-rule overrides to whichever agents own their categories.
+
+        For each :class:`~timber_design.workflow.CategoryRule` in *rule_overrides*,
+        every agent in :attr:`agents` whose ``BEAM_CATEGORY_NAMES`` overlaps the
+        rule's category pair has the rule merged into its rule lists:
+
+        - both categories owned by the agent → ``agent.internal_rules``
+        - exactly one category owned by the agent → ``agent.external_rules``
+          *and* ``agent.external_overrides`` (the latter so the rule keeps its
+          precedence over another agent's base rule for the same pair in
+          :meth:`create_cross_agent_joints`)
+
+        Agents that own neither category are skipped.  Merging delegates to
+        :meth:`~PopulatorAgent._apply_overrides`, which replaces an existing
+        rule only when both the ``joint_type.SUPPORTED_TOPOLOGY`` *and* the
+        categories match (ordered for ``TOPO_T`` / ``TOPO_EDGE_FACE``, unordered
+        otherwise), so the same pair may carry several rules targeting different
+        topologies (e.g. a ``TButtJoint`` and an ``LButtJoint`` for the same
+        ``(stud, top_plate_beam)`` pair).
+
+        This is the single place a panel-level rule list is matched against
+        per-agent rule slots, so callers can supply rules without knowing which
+        agent owns each pair.
+
+        Parameters
+        ----------
+        rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`] or None
+        """
+        if not rule_overrides:
+            return
+        for rule in rule_overrides:
+            pair = {rule.category_a, rule.category_b}
+            for agent in self.agents:
+                categories = set(agent.BEAM_CATEGORY_NAMES)
+                if not (pair and categories):
+                    continue
+                if pair <= categories:
+                    # Both categories owned by this agent → internal override.
+                    agent.internal_rules = agent._apply_overrides(agent.internal_rules, [rule])
+                else:
+                    # Exactly one category owned → external override on this
+                    # agent.  We update both the merged ``external_rules`` list
+                    # (consumed by the joint solver) *and* the raw
+                    # ``external_overrides`` list (consumed by
+                    # ``create_cross_agent_joints`` to take precedence over the
+                    # other agent's base rule for the same pair).
+                    agent.external_rules = agent._apply_overrides(agent.external_rules, [rule])
+                    agent.external_overrides = agent._apply_overrides(agent.external_overrides, [rule])
+
+    def parse_default_feature_agents(self, default_feature_agents):
+        """Instantiate a feature agent for every panel feature lacking one.
+
+        Walks ``original_panel.features``; for any feature that no existing agent
+        already handles, looks up a prototype agent in *default_feature_agents*
+        (keyed by feature class), copies it, binds the feature, and appends it to
+        :attr:`agents`.  The prototype already carries its ``element_layers`` /
+        ``trimming_layers`` (set by the factory against the original panel's
+        layers); :meth:`repoint_agents_to_populator_layers` rebinds those to the
+        populator mirror during :meth:`prepare`.
+
+        Parameters
+        ----------
+        default_feature_agents : dict[type, :class:`~timber_design.populators.FeatureAgent`]
+            Prototype feature agent per feature class.
+        """
+        for feature in self.original_panel.features:
+            if any(getattr(agent, "feature", None) is feature for agent in self.agents):
+                continue  # a feature agent already handles this feature
+            prototype = default_feature_agents.get(type(feature))
+            if prototype is None:
+                continue
+            agent = type(prototype)(**prototype.__data__)
+            
+            agent.feature = feature
+            self.agents.append(agent)
 
     @property
     def elements(self):
         """List of all elements placed by all agents."""
-        return [e for e in self.model.elements() if not isinstance(e, Layer)]
+        return [e for e in self.model.elements() if not e.children]
+
+    @property
+    def layers(self):
+        """The (detached, panel-local) layers the agents operate on."""
+        seen = []
+        for agent in self.agents:
+            for layer in agent._agent_layers():
+                if layer not in seen:
+                    seen.append(layer)
+        return seen
+
+    def _element_to_layer(self):
+        """Build ``{element: layer}`` for every element an agent placed.
+
+        For a :class:`LayerAgent` every element belongs to its single layer; for
+        a :class:`FeatureAgent` elements are taken from each registered layer's
+        bucket.  Used to parent each element under the correct layer.
+        """
+        mapping = {}
+        for agent in self.agents:
+            for layer in agent._agent_layers():
+                for element in agent.elements_for_layer(layer):
+                    mapping[element] = layer
+        return mapping
 
     def __repr__(self):
-        return "PanelPopulator({})".format(self.panel)
+        return "PanelPopulator({})".format(self.original_panel)
 
     def populate_elements(self):
         """Execute stages 1–4: generate, extend, trim, and add elements to the model.
@@ -130,6 +248,8 @@ class PanelPopulator:
         Call :meth:`join_elements` and :meth:`process_joinery` afterwards to
         complete the population workflow.
         """
+        # model extracted here to ensure the latest version of panel and layer geometry
+        self.model = extract_model_from_parent(self.original_panel) 
         self.generate_elements()
         self.extend_elements()
         self.trim_elements()
@@ -156,7 +276,10 @@ class PanelPopulator:
         segment that would otherwise crash downstream joint processing.
         """
         for agent in self.agents:
-            agent.trim_elements()
+            if agent is self:
+                continue
+            if aabb_overlap(self, agent):
+                self.trim_agent_elements(agent)
         self._drop_degenerate_beams()
 
     def _drop_degenerate_beams(self):
@@ -165,10 +288,25 @@ class PanelPopulator:
             agent.elements = [e for e in agent.elements if not (isinstance(e, Beam2D) and e.length < TOL.absolute)]
 
     def add_elements_to_model(self):
-        """Add all surviving elements to the internal model (stage 4)."""
+        """Add every generated element to :attr:`model` under its (detached) layer (stage 4).
+
+        Each element is re-expressed in its owning layer's local frame
+        (``element.transformation = layer.transformation_to_local() @ element.transformation``)
+        and parented under that layer.  Its ``modeltransformation`` therefore
+        still resolves to the panel-local placement the agent generated (so
+        joinery and BTLx processing run in populator space), and
+        :meth:`merge_with_model` only has to move the layer subtree back under
+        the original panel — no per-element transform.
+        """
+        element_layer = self._element_to_layer()
         for agent in self.agents:
             for element in agent.elements:
-                self.model.add_element(element)
+                layer = element_layer.get(element)
+                if layer is None:
+                    self.model.add_element(element)
+                    continue
+                element.transformation = layer.transformation_to_local() * element.transformation
+                self.model.add_element(element, parent=layer)
 
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
@@ -211,7 +349,8 @@ class PanelPopulator:
         """
         solver = ConnectionSolver2D()
         for layer in self.layers:
-            for agent_a, agent_b in solver.find_intersecting_agent_pairs(layer.agents):
+            agents = [a for a in self.agents if a.elements_for_layer(layer)]
+            for agent_a, agent_b in solver.find_intersecting_agent_pairs(agents):
                 elements_a = agent_a.elements_for_layer(layer)
                 elements_b = agent_b.elements_for_layer(layer)
                 candidates = []
@@ -236,13 +375,20 @@ class PanelPopulator:
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
         self.model.process_joinery()
 
-    def merge_with_model(self, model, clear_panel=False):
-        """Transform elements back to world space and attach them to the caller's model (stage 7).
+    def merge_with_model(self, model, clear_panel=True):
+        """Move the populated layer subtree back under the original panel in *model* (stage 7).
+
+        Reattaching each detached layer under the original panel shifts the whole
+        subtree — layers **and** the generated elements parented under them —
+        from panel-local (populator) space into world space.  No geometry
+        transform is applied; only computed caches are reset so they recompute
+        against the new parent.
 
         Parameters
         ----------
         model : :class:`compas_timber.model.TimberModel`
-            The caller's model to merge into.
+            The caller's model to merge into.  The original panel must already be
+            present so the layers have a parent to reattach to.
         clear_panel : bool, optional
             When ``True``, removes all existing children of :attr:`original_panel`
             (and their joints) from *model* before merging.  Use this to
@@ -252,10 +398,124 @@ class PanelPopulator:
         if clear_panel:
             for element in self.original_panel.children[:]:
                 model.remove_element(element)
-        for element in self.model.elements():
-            if isinstance(element, Layer):
-                continue  # Layer objects are structural bookkeeping only, not physical elements
-            element.transform(self.transformation_to_populator.inverse())
-            model.add_element(element, parent=self.original_panel)
-        for j in self.model.joints:
-            model.add_joint(j)
+
+        merge_model_into_model(self.model, model, parent=self.original_panel)
+
+# =============================================================================
+# Model sub-tree surgery
+# =============================================================================
+
+def _reset_caches(element):
+    """Invalidate an element's computed-geometry caches after a tree move.
+
+    Re-parenting changes ``modeltransformation`` but does not touch
+    ``transformation``, so the ``@reset_computed`` setter hook never fires.
+    Null the caches so geometry recomputes against the new parent (``_blank``
+    is a Beam-specific cache, ``_planes`` a Panel/Layer one).
+    """
+    for attr in ("_elementgeometry", "_aabb", "_obb", "_blank", "_planes"):
+        if hasattr(element, attr):
+            setattr(element, attr, None)
+
+def _detach_subtree(model, parent):
+    # type: (TimberModel, Element | None) -> list
+    """Remove a subtree from *model*, returning ``(parent, [children])`` tuples.
+
+    When *parent* is an element it is **kept** in *model* and only its descendants
+    are removed; its direct children are recorded under ``None`` so they can be
+    re-rooted elsewhere.  When *parent* is ``None`` every top-level element of
+    *model* (and its subtree) is removed, also recorded under ``None``.
+
+    Removal is leaves-first (so each removed node is a tree leaf, which
+    ``remove_element`` handles cleanly); the returned tuples are ordered
+    parents-before-children for re-insertion.
+    """
+    tuples = []
+
+    def walk(element, is_kept_root):
+        children = list(element.children)
+        if children:
+            tuples.append((None if is_kept_root else element, children))
+            for child in children:
+                walk(child, is_kept_root=False)
+        if not is_kept_root and model.has_element(element):
+            model.remove_element(element)
+
+    if parent is not None:
+        walk(parent, is_kept_root=True)
+    else:
+        tops = [element for element in model.elements() if element.parent is None]
+        tuples.append((None, tops))
+        for top in tops:
+            walk(top, is_kept_root=False)
+    return tuples
+
+
+def _attach_subtree(tuples, model, root_element=None):
+    # type: (list, TimberModel, Element | None) -> None
+    """Re-add ``(parent, [children])`` tuples into *model* (parents before children).
+
+    Tuples whose recorded parent is ``None`` are attached under *root_element*.  Each
+    re-added element has its computed properties reset so geometry recomputes
+    against the new tree.
+    """
+    for parent, children in tuples:
+        target_parent = parent or root_element # when parent is None, re-root under *root_element* instead
+        for child in children:
+            model.add_element(child, parent=target_parent)
+            child.reset_computed_properties()
+
+
+def extract_model_from_parent(parent):
+    # type: (Element) -> TimberModel
+    """Detach *parent*'s child subtree into a new, standalone :class:`TimberModel`.
+
+    The *parent* element itself stays in its current model; its descendants are
+    removed from that model and re-rooted (hierarchy preserved) in a fresh
+    :class:`TimberModel`, which is returned.
+
+    A child element detached from its parent reports its geometry in the
+    parent's local frame — convenient for operating on, e.g., a panel's layers
+    in isolation, then merging them back with :func:`merge_model_into_model`.
+
+    Parameters
+    ----------
+    parent : :class:`~compas_model.elements.Element`
+        The element whose children are extracted.  Must be in a model.
+
+    Returns
+    -------
+    :class:`TimberModel`
+        A new model containing *parent*'s former subtree.
+    """
+    print("extracting model from parent", type(parent))
+    tuples = _detach_subtree(parent.model, parent)
+    new_model = TimberModel()
+    _attach_subtree(tuples, new_model)
+    return new_model
+
+
+def merge_model_into_model(model, target_model, parent=None):
+    # type: (TimberModel, TimberModel, Element | None) -> None
+    """Move every element (and joints) of *model* into *target_model* under *parent*.
+
+    All of *model*'s top-level elements and their subtrees are detached and
+    re-added beneath *parent* in *target_model* (or under the root when *parent*
+    is ``None``), preserving the hierarchy and resetting each moved element's
+    computed properties.  Joints defined on *model* are copied across.
+
+    Parameters
+    ----------
+    model : :class:`TimberModel`
+        The source model whose contents are moved out.
+    target_model : :class:`TimberModel`
+        The model to merge *model*'s elements into.
+    parent : :class:`~compas_model.elements.Element`, optional
+        The element under which the moved elements are re-rooted.  ``None``
+        attaches them under the target model's root.
+    """
+    joints = list(model.joints)
+    tuples = _detach_subtree(model, None)
+    _attach_subtree(tuples, target_model, root_element=parent)
+    for joint in joints:
+        target_model.add_joint(joint)

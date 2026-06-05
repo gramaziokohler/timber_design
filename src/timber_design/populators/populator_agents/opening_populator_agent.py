@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+
 from typing import Optional
 
 from compas.geometry import Box
@@ -22,75 +22,10 @@ from timber_design.populators.agent_intersection import extend_beam_to_closest_a
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.connection_solver_2d import aabb_overlap_x
-from timber_design.populators.layer import Layer
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
-from timber_design.populators.populator_agents.feature_agent import FeatureAgentConfig
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
-
-
-@dataclass
-class OpeningPopulatorAgentConfig(FeatureAgentConfig):
-    """Configuration for an opening surround agent.
-
-    Parameters
-    ----------
-    lintel_posts : bool, optional
-        When ``True``, jack studs (lintel posts) are added inside the king studs.
-    split_bottom_plate_beam : bool, optional
-        For door openings: use an L-butt joint at the king/jack stud base so the
-        bottom plate can be split at the opening.
-    header_width : float, optional
-        Explicit width for header beams.
-    sill_width : float, optional
-        Explicit width for sill beams (window openings only).
-    king_stud_width : float, optional
-        Explicit width for king stud beams.
-    jack_stud_width : float, optional
-        Explicit width for jack stud (lintel post) beams.
-
-    All width kwargs take precedence over *standard_beam_width* for their
-    respective categories.  When ``None``, *standard_beam_width* is used.
-    """
-
-    IS_ABSTRACT = False
-    FEATURE_TYPE = Opening
-
-    feature: Opening = None
-    lintel_posts: bool = False
-    split_bottom_plate_beam: bool = False
-    header_width: Optional[float] = None
-    sill_width: Optional[float] = None
-    king_stud_width: Optional[float] = None
-    jack_stud_width: Optional[float] = None
-
-    def __post_init__(self):
-        if self.header_width is not None:
-            self.beam_widths["header"] = self.header_width
-        if self.sill_width is not None:
-            self.beam_widths["sill"] = self.sill_width
-        if self.king_stud_width is not None:
-            self.beam_widths["king_stud"] = self.king_stud_width
-        if self.jack_stud_width is not None:
-            self.beam_widths["jack_stud"] = self.jack_stud_width
-
-    def _agent_kwargs(self):
-        kwargs = super()._agent_kwargs()
-        kwargs["lintel_posts"] = self.lintel_posts
-        kwargs["split_bottom_plate_beam"] = self.split_bottom_plate_beam
-        return kwargs
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        data["lintel_posts"] = self.lintel_posts
-        data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
-        data["header_width"] = self.header_width
-        data["sill_width"] = self.sill_width
-        data["king_stud_width"] = self.king_stud_width
-        data["jack_stud_width"] = self.jack_stud_width
-        return data
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -190,51 +125,69 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     def __init__(
         self,
-        feature,
-        framing_layers=None,
+        feature: Opening = None,
+        element_layers=None,
         trimming_layers=None,
-        beam_widths=None,
+        header_width: Optional[float] = None,
+        sill_width: Optional[float] = None,
+        king_stud_width: Optional[float] = None,
+        jack_stud_width: Optional[float] = None,
         internal_joint_overrides=None,
         external_joint_overrides=None,
-        lintel_posts=False,
-        split_bottom_plate_beam=False,
+        lintel_posts: bool = False,
+        split_bottom_plate_beam: bool = False,
     ):
-        # type: (Opening, list, list, Optional[dict], Optional[list], Optional[list], bool, bool) -> None
-        super().__init__(feature, framing_layers, trimming_layers, beam_widths, internal_joint_overrides, external_joint_overrides)
+        # type: (Opening, list, list, Optional[float], Optional[float], Optional[float], Optional[float], Optional[list], Optional[list], bool, bool) -> None
+        super().__init__(feature, element_layers, trimming_layers, internal_joint_overrides, external_joint_overrides)
+        self.beam_widths["header"] = header_width
+        self.beam_widths["sill"] = sill_width
+        self.beam_widths["king_stud"] = king_stud_width
+        self.beam_widths["jack_stud"] = jack_stud_width
         self.lintel_posts = lintel_posts
         self.split_bottom_plate_beam = split_bottom_plate_beam
-        self.opening_type = self.opening.opening_type
         self.sill_angle = 0.0
         self.header_angle = 0.0
-        # explicit beam attributes — populated by generate_elements()
-        if self.opening_type == "door" and self.split_bottom_plate_beam:
-            if self.lintel_posts:
-                self.internal_rules = [r for r in self.internal_rules if not (r.category_a == "jack_stud" and r.category_b == "bottom_plate_beam")]
-                self.internal_rules.append(
-                    CategoryRule(
-                        LButtJoint,
-                        "jack_stud",
-                        "bottom_plate_beam",
-                    )
-                )
-            else:
-                self.internal_rules = [r for r in self.internal_rules if not (r.category_a == "king_stud" and r.category_b == "bottom_plate_beam")]
-                self.internal_rules.append(
-                    CategoryRule(
-                        LButtJoint,
-                        "king_stud",
-                        "bottom_plate_beam",
-                    )
-                )
+        # Feature-dependent rule setup is deferred until the feature is bound and
+        # generation starts (see _apply_split_bottom_plate_rules): this agent is
+        # often constructed as a prototype with ``feature=None`` and the concrete
+        # feature is assigned later, so nothing here may dereference ``feature``.
+        self._split_rules_applied = False
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["header_width"] = self.beam_widths.get("header")
+        data["sill_width"] = self.beam_widths.get("sill")
+        data["king_stud_width"] = self.beam_widths.get("king_stud")
+        data["jack_stud_width"] = self.beam_widths.get("jack_stud")
+        data["lintel_posts"] = self.lintel_posts
+        data["split_bottom_plate_beam"] = self.split_bottom_plate_beam
+        return data
 
     @property
     def opening(self):
-        """The opening feature that drives element placement.
-
-        Returns ``self.feature``, which is set from ``params.feature`` by the
-        base :class:`~timber_design.populators.LayerAgent` constructor.
-        """
+        """The opening feature that drives element placement (alias for ``feature``)."""
         return self.feature
+
+    @property
+    def opening_type(self):
+        """``"door"`` / ``"window"`` of the bound opening, or ``None`` if unbound."""
+        return self.opening.opening_type if self.opening is not None else None
+
+    def _apply_split_bottom_plate_rules(self):
+        """Swap in L-butt rules at the king/jack-stud base for split-bottom-plate doors.
+
+        Deferred from ``__init__`` because it depends on ``opening_type`` (and
+        therefore on the bound feature).  Runs once, at the start of generation.
+        """
+        if self._split_rules_applied:
+            return
+        self._split_rules_applied = True
+        if not (self.opening_type == "door" and self.split_bottom_plate_beam):
+            return
+        main = "jack_stud" if self.lintel_posts else "king_stud"
+        self.internal_rules = [r for r in self.internal_rules if not (r.category_a == main and r.category_b == "bottom_plate_beam")]
+        self.internal_rules.append(CategoryRule(LButtJoint, main, "bottom_plate_beam"))
 
     def cull_beam_segment(self, beam: Beam) -> bool:
         """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
@@ -250,6 +203,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         return self._cull_stud(beam)
 
     def generate_elements_for_layer(self, layer):
+        self._apply_split_bottom_plate_rules()
 
         frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature, layer)
         frame_polyline = self._create_frame_polyline(frame_polyline_a, frame_polyline_b, layer)
@@ -296,8 +250,8 @@ class OpeningPopulatorAgent(FeatureAgent):
             header.add_features(long_cut)
 
         extend_line_segments(segments, close_loop=True)
-        self.outline = join_polyline_segments(segments, close_loop=True)[0][0]
-        return layer_elements
+        outline = join_polyline_segments(segments, close_loop=True)[0][0]
+        return layer_elements, outline
 
     @property
     def header(self):
@@ -324,7 +278,7 @@ class OpeningPopulatorAgent(FeatureAgent):
     def right_king_stud(self):
         return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
 
-    def _create_frame_polylines(self, opening: Opening, layer: Layer) -> tuple[Polyline, Polyline]:
+    def _create_frame_polylines(self, opening: Opening, layer) -> tuple[Polyline, Polyline]:
         if "king_stud" not in self.beam_widths:
             raise ValueError("Beam width for 'king_stud' not set — use get_agent_from_feature() to construct this agent so beam widths are filled automatically.")
         lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
@@ -336,7 +290,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         frame_polyline_b = Polyline([box_b.corner(0), box_b.corner(1), box_b.corner(2), box_b.corner(3), box_b.corner(0)])
         return frame_polyline_a, frame_polyline_b
 
-    def _create_frame_polyline(self, frame_polyline_a: Polyline, frame_polyline_b: Polyline, layer: Layer) -> Polyline:
+    def _create_frame_polyline(self, frame_polyline_a: Polyline, frame_polyline_b: Polyline, layer) -> Polyline:
         """Bounding rectangle aligned orthogonal to the panel_populator.orientation."""
         center_height = layer.center_height
         return Polyline(
@@ -356,7 +310,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         are extended only against the peer agents *on that same layer*, so a
         stud is never extended to a boundary that belongs to a different layer.
         """
-        for layer in self.framing_layers:
+        for layer in self.element_layers:
             layer_elements = self.elements_for_layer(layer)
             king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
             jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
@@ -401,7 +355,3 @@ class OpeningPopulatorAgent(FeatureAgent):
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
         return [plate]
-
-
-# Set after both classes are defined so forward reference is resolved
-OpeningPopulatorAgentConfig.AGENT_TYPE = OpeningPopulatorAgent

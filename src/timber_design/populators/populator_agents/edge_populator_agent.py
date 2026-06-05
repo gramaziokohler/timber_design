@@ -1,5 +1,4 @@
 import math
-from dataclasses import dataclass
 from typing import Optional
 
 from compas.geometry import Line
@@ -23,58 +22,8 @@ from compas_timber.utils import join_polyline_segments
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
-from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
-
-
-@dataclass
-class EdgePopulatorAgentConfig(LayerAgentConfig):
-    """Configuration for :class:`EdgePopulatorAgent`.
-
-    Parameters
-    ----------
-    standard_beam_width_increment : float, optional
-        When set, each edge-beam width is rounded up to the next multiple of
-        this value.
-    edge_stud_width : float, optional
-        Width of vertical edge studs.  Falls back to *standard_beam_width*
-        when ``None``.
-    top_plate_beam_width : float, optional
-        Width of top plate beams.  Falls back to *standard_beam_width* when
-        ``None``.
-    bottom_plate_beam_width : float, optional
-        Width of bottom plate beams.  Falls back to *standard_beam_width*
-        when ``None``.
-    """
-
-    IS_ABSTRACT = False
-    standard_beam_width_increment: Optional[float] = None
-    edge_stud_width: Optional[float] = None
-    top_plate_beam_width: Optional[float] = None
-    bottom_plate_beam_width: Optional[float] = None
-
-    def __post_init__(self):
-        if self.edge_stud_width is not None:
-            self.beam_widths["edge_stud"] = self.edge_stud_width
-        if self.top_plate_beam_width is not None:
-            self.beam_widths["top_plate_beam"] = self.top_plate_beam_width
-        if self.bottom_plate_beam_width is not None:
-            self.beam_widths["bottom_plate_beam"] = self.bottom_plate_beam_width
-
-    def _agent_kwargs(self):
-        kwargs = super()._agent_kwargs()
-        kwargs["standard_beam_width_increment"] = self.standard_beam_width_increment
-        return kwargs
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        data["standard_beam_width_increment"] = self.standard_beam_width_increment
-        data["edge_stud_width"] = self.edge_stud_width
-        data["top_plate_beam_width"] = self.top_plate_beam_width
-        data["bottom_plate_beam_width"] = self.bottom_plate_beam_width
-        return data
 
 
 class EdgePopulatorAgent(LayerAgent):
@@ -130,18 +79,39 @@ class EdgePopulatorAgent(LayerAgent):
     ]
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
-    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None, standard_beam_width_increment=None):
-        # type: (Layer, Optional[dict], Optional[list], Optional[list], Optional[float]) -> None
-        super(EdgePopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
+    def __init__(
+        self,
+        layer,
+        edge_stud_width: Optional[float] = None,
+        top_plate_beam_width: Optional[float] = None,
+        bottom_plate_beam_width: Optional[float] = None,
+        internal_joint_overrides=None,
+        external_joint_overrides=None,
+        standard_beam_width_increment=None,
+    ):
+        super(EdgePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        self.beam_widths["edge_stud"] = edge_stud_width
+        self.beam_widths["top_plate_beam"] = top_plate_beam_width
+        self.beam_widths["bottom_plate_beam"] = bottom_plate_beam_width
         self.standard_beam_width_increment = standard_beam_width_increment
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["edge_stud_width"] = self.beam_widths.get("edge_stud")
+        data["top_plate_beam_width"] = self.beam_widths.get("top_plate_beam")
+        data["bottom_plate_beam_width"] = self.beam_widths.get("bottom_plate_beam")
+        data["standard_beam_width_increment"] = self.standard_beam_width_increment
+        return data
 
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
 
-    def generate_elements(self) -> None:
+    def generate_elements_for_layer(self, layer=None):
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
+        elements = []
         for i in range(len(self.layer.outline_a) - 1):
             category = self._get_segment_category(i)
             width = self.beam_widths[category]
@@ -154,11 +124,13 @@ class EdgePopulatorAgent(LayerAgent):
             edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i)
             self._set_edge_beam_category(edge_beam, i)
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
-            self.elements.append(edge_beam)
+            elements.append(edge_beam)
             vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, i)
             edges.append(seg.translated(vector * (-edge_beam.width / 2)))
         extend_line_segments(edges, close_loop=True)
-        self.outline = join_polyline_segments(edges, close_loop=True)[0][0]
+        outline = join_polyline_segments(edges, close_loop=True)[0][0]
+        return elements, outline
+
 
     def _get_segment_category(self, segment_index: int) -> str:
         """Return the beam category for the outline segment at *segment_index*.
@@ -250,8 +222,6 @@ class EdgePopulatorAgent(LayerAgent):
         space).  Sloped/chamfered edges carry a Z component in their normal.
         """
         plane = self.layer.edge_planes[edge_index]
-        print("Edge plane {} normal: {}".format(edge_index, plane.normal))
-        print(TOL.is_zero(plane.normal[2]))
         return TOL.is_zero(plane.normal[2])
 
     def _create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
@@ -308,6 +278,3 @@ class EdgePopulatorAgent(LayerAgent):
                 else:  # a = main, b = cross
                     return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=edge_plane_a)
 
-
-# Set after both classes are defined so forward reference is resolved
-EdgePopulatorAgentConfig.AGENT_TYPE = EdgePopulatorAgent

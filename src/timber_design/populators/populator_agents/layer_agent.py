@@ -1,62 +1,7 @@
 from abc import ABC
-from dataclasses import dataclass
 
 from .populator_agent import AgentBoundaryType
 from .populator_agent import PopulatorAgent
-from .populator_agent import PopulatorAgentConfig
-
-
-@dataclass
-class LayerAgentConfig(PopulatorAgentConfig, ABC):
-    """Base dataclass for layer-bound populator agent configuration.
-
-    All concrete config classes (e.g. :class:`~timber_design.populators.StudPopulatorAgentConfig`,
-    :class:`~timber_design.populators.EdgePopulatorAgentConfig`) extend this
-    class and add their own fields.
-
-    Class Attributes
-    ----------------
-    AGENT_TYPE : type or None
-        The :class:`LayerAgent` subclass this config instantiates.
-        Set on each concrete subclass after both classes are defined.
-    """
-
-    IS_ABSTRACT = True
-    AGENT_TYPE = None
-
-    def get_agent_from_layer(self, layer, standard_beam_width=None):
-        """Construct this config's :class:`LayerAgent` for *layer*.
-
-        The agent is built with explicit keyword arguments assembled by
-        :meth:`~PopulatorAgentConfig._agent_kwargs` — the agent never receives
-        the config object itself.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-            The layer to create the agent for.
-        standard_beam_width : float, optional
-            Convenience for constructing an agent in isolation: when given,
-            any unset beam-category widths are filled via
-            :meth:`~PopulatorAgentConfig.fill_beam_widths` first.  In the full
-            pipeline widths are pre-filled by
-            :meth:`~timber_design.populators.PanelPopulatorConfig.resolve_beam_widths`
-            and this argument is omitted.
-
-        Returns
-        -------
-        :class:`LayerAgent`
-
-        Raises
-        ------
-        NotImplementedError
-            If ``AGENT_TYPE`` has not been set on this config class.
-        """
-        if self.AGENT_TYPE is None:
-            raise NotImplementedError("{} does not define AGENT_TYPE".format(type(self).__name__))
-        if standard_beam_width is not None:
-            self.fill_beam_widths(standard_beam_width)
-        return self.AGENT_TYPE(layer, **self._agent_kwargs())
 
 
 class LayerAgent(PopulatorAgent, ABC):
@@ -146,12 +91,27 @@ class LayerAgent(PopulatorAgent, ABC):
     EXTERNAL_JOINT_RULES = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
-    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
-        super(LayerAgent, self).__init__(beam_widths, internal_joint_overrides, external_joint_overrides)
+    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[list], Optional[list]) -> None
+        super(LayerAgent, self).__init__(internal_joint_overrides, external_joint_overrides)
         self.layer = layer
-        self.layer_index = layer.layer_index if layer is not None else None
-        self.layer_center_height = layer.center_height
+        self.element_layers = [layer]  # default to only generating on this agent's layer; override in subclass if needed
+        self.trimming_layers = [layer]  # default to only trimming on this agent's layer; override in subclass if needed
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["layer"] = self.layer
+        return data
+
+    @property
+    def layer_center_height(self):
+        """Z coordinate of the centre of this agent's layer (populator space).
+
+        Computed from :attr:`layer` rather than cached, so re-pointing the agent
+        onto a different layer (e.g. the populator-panel copy) stays consistent.
+        """
+        return self.layer.center_height if self.layer is not None else None
 
     @property
     def panel(self):
@@ -175,6 +135,20 @@ class LayerAgent(PopulatorAgent, ABC):
         """
         return super().beam_from_category(centerline, category, layer=layer or self.layer, **kwargs)
 
-    # elements_for_layer / set_elements_for_layer / trim_elements are inherited
-    # from PopulatorAgent: a LayerAgent holds one flat element list and trims on
-    # its single layer (PopulatorAgent._trim_layers -> _agent_layers -> [self.layer]).
+    def is_on_layer(self, layer):
+        """Tests whether this agent is active on *layer*.
+        Parameters
+        ----------
+        layer : :class:`~timber_design.populators.Layer`
+            The layer to check.
+        """
+        return layer is self.layer
+
+    def is_on_panel(self, panel):
+        """Tests whether this agent is active on *layer*.
+        Parameters
+        ----------
+        layer : :class:`~timber_design.populators.Layer`
+            The layer to check.
+        """
+        return self.layer in panel.layers

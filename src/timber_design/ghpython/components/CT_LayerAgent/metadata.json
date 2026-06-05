@@ -1,26 +1,14 @@
 {
-    "name": "FeatureAgentConfigurator",
-    "nickname": "FeatureAgent",
+    "name": "PopulatorAgentConfigurator",
+    "nickname": "PopulatorAgent",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Dynamic configurator for FeatureAgentConfig implementations.",
+    "description": "Dynamic configurator for LayerAgentConfig implementations.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
-            {
-                "name": "element_layers",
-                "description": "List of framing layer definitions.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "trimming_layers",
-                "description": "List of trimming layer definitions.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
-            },
             {
                 "name": "internal_joint_overrides",
                 "description": "List of category joint rules between elements contained within this agent.",
@@ -37,7 +25,7 @@
         "outputParameters": [
             {
                 "name": "Agent",
-                "description": "Configured FeatureAgentConfig instance produced by the configurator."
+                "description": "Configured LayerAgentConfig instance produced by the configurator."
             }
         ]
     }

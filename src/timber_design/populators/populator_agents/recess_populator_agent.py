@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+
 from typing import Optional
 
 from compas.geometry import Translation
@@ -14,51 +14,7 @@ from compas_timber.utils import join_polyline_segments
 from timber_design.populators import AgentBoundaryType
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
-from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgentConfig
 from timber_design.workflow import CategoryRule
-
-
-@dataclass
-class RecessPopulatorAgentConfig(EdgePopulatorAgentConfig):
-    """Configuration for a recess-frame agent.
-
-    Parameters
-    ----------
-    recess_beam_width : float, optional
-        Width of the recess beam.  When ``None``, *standard_beam_width* is used.
-    recess_beam_height : float, optional
-        Height (Z extent) of the recess beam within the frame layer.  When
-        ``None`` the full layer thickness is used, producing no Z offset.
-        Set this to a value smaller than the layer thickness to create a
-        recessed shelf (the beam sits against ``outline_a``).
-    sheeting_recess : float, optional
-        Thickness of the sheeting plate inserted into the recess.
-    """
-
-    IS_ABSTRACT = False
-
-    recess_beam_width: Optional[float] = None
-    recess_beam_height: Optional[float] = None
-    sheeting_recess: Optional[float] = None
-
-    def __post_init__(self):
-        super().__post_init__()
-        if self.recess_beam_width is not None:
-            self.beam_widths["recess"] = self.recess_beam_width
-
-    def _agent_kwargs(self):
-        kwargs = super()._agent_kwargs()
-        kwargs["recess_beam_height"] = self.recess_beam_height
-        kwargs["sheeting_recess"] = self.sheeting_recess
-        return kwargs
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        data["recess_beam_width"] = self.recess_beam_width
-        data["recess_beam_height"] = self.recess_beam_height
-        data["sheeting_recess"] = self.sheeting_recess
-        return data
 
 
 class RecessPopulatorAgent(EdgePopulatorAgent):
@@ -105,7 +61,10 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     def __init__(
         self,
         layer,
-        beam_widths=None,
+        recess_width: Optional[float] = None,
+        edge_stud_width: Optional[float] = None,
+        top_plate_beam_width: Optional[float] = None,
+        bottom_plate_beam_width: Optional[float] = None,
         internal_joint_overrides=None,
         external_joint_overrides=None,
         standard_beam_width_increment=None,
@@ -114,13 +73,24 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     ):
         super(RecessPopulatorAgent, self).__init__(
             layer,
-            beam_widths=beam_widths,
+            edge_stud_width=edge_stud_width,
+            top_plate_beam_width=top_plate_beam_width,
+            bottom_plate_beam_width=bottom_plate_beam_width,
             internal_joint_overrides=internal_joint_overrides,
             external_joint_overrides=external_joint_overrides,
             standard_beam_width_increment=standard_beam_width_increment,
         )
+        self.beam_widths["recess"] = recess_width
         self.recess_beam_height = recess_beam_height
         self.sheeting_recess = sheeting_recess
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["recess_width"] = self.beam_widths.get("recess")
+        data["recess_beam_height"] = self.recess_beam_height
+        data["sheeting_recess"] = self.sheeting_recess
+        return data
 
     def trim_plate(self, plate):
         """Apply the recess outline as a ``FreeContour`` cut to *plate*.
@@ -142,7 +112,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         free_contour = FreeContour.from_polyline_and_element(outline, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
 
-    def generate_elements(self) -> None:
+    def generate_elements_for_layer(self, layer=None):
         """Generate edge beams, recess beams, and the sheeting plate."""
         super(RecessPopulatorAgent, self).generate_elements()
 
@@ -199,7 +169,3 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
                 rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
-
-
-# Set after both classes are defined so forward reference is resolved
-RecessPopulatorAgentConfig.AGENT_TYPE = RecessPopulatorAgent

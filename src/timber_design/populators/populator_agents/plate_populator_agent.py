@@ -1,21 +1,7 @@
-from dataclasses import dataclass
-
+from typing import Optional
 from compas_timber.elements import Plate
 
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
-from timber_design.populators.populator_agents.layer_agent import LayerAgentConfig
-
-
-@dataclass
-class PlatePopulatorAgentConfig(LayerAgentConfig):
-    """Configuration for a single sheathing plate agent."""
-
-    IS_ABSTRACT = False
-
-    @property
-    def __data__(self):
-        data = super().__data__
-        return data
 
 
 class PlatePopulatorAgent(LayerAgent):
@@ -50,12 +36,12 @@ class PlatePopulatorAgent(LayerAgent):
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
     NAME = "PlatePopulatorAgent"
 
-    def __init__(self, layer, beam_widths=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Layer, Optional[dict], Optional[list], Optional[list]) -> None
-        super(PlatePopulatorAgent, self).__init__(layer, beam_widths, internal_joint_overrides, external_joint_overrides)
+    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+        # type: (Layer, Optional[list], Optional[list]) -> None
+        super(PlatePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
         self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 
-    def generate_elements(self) -> None:
+    def generate_elements_for_layer(self, layer=None):
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer."""
         category = "{}_plate".format(self.layer.name)
         plate = Plate.from_outlines(
@@ -64,8 +50,4 @@ class PlatePopulatorAgent(LayerAgent):
             name=category,
             category=category,
         )
-        self.elements.append(plate)
-
-
-# Set after both classes are defined so forward reference is resolved
-PlatePopulatorAgentConfig.AGENT_TYPE = PlatePopulatorAgent
+        return [plate], None

@@ -1,3 +1,5 @@
+import compas_timber.connections as _ct_connections
+from compas.data import Data
 from compas.tolerance import TOL
 from compas_timber.connections import Cluster
 from compas_timber.connections import JointTopology
@@ -9,6 +11,26 @@ from compas_timber.connections import XLapJoint
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
+
+
+def _joint_type_to_name(joint_type):
+    """Serialize a joint *class* to its name for COMPAS JSON serialization.
+
+    The rule classes hold a reference to a joint **class** (e.g.
+    :class:`~compas_timber.connections.LButtJoint`), which the JSON encoder
+    cannot serialize directly.  We store its name and resolve it back on load.
+    """
+    return None if joint_type is None else joint_type.__name__
+
+
+def _joint_type_from_name(name):
+    """Resolve a joint class name back to the class on ``compas_timber.connections``."""
+    if name is None:
+        return None
+    try:
+        return getattr(_ct_connections, name)
+    except AttributeError:
+        raise ValueError("Unknown joint type {!r}; not found on compas_timber.connections".format(name))
 
 
 class CollectionDef(object):
@@ -141,7 +163,7 @@ class JointRuleSolver(object):
         return remaining_clusters
 
 
-class JointRule(object):
+class JointRule(Data):
     """Represents a rule for creating joints between timber elements.
     Parameters
     ----------
@@ -154,9 +176,29 @@ class JointRule(object):
     """
 
     def __init__(self, joint_type, max_distance=None, **kwargs):
+        super().__init__()
         self.joint_type = joint_type
         self.max_distance = max_distance
         self.kwargs = kwargs
+
+    @property
+    def __data__(self):
+        # ``joint_type`` is a class, so it is serialized by name and resolved on
+        # load (see ``__from_data__``).  ``kwargs`` carries the extra joint
+        # arguments captured by ``**kwargs`` in the constructor.
+        return {
+            "joint_type": _joint_type_to_name(self.joint_type),
+            "max_distance": self.max_distance,
+            "kwargs": self.kwargs,
+        }
+
+    @classmethod
+    def __from_data__(cls, data):
+        return cls(
+            _joint_type_from_name(data["joint_type"]),
+            max_distance=data.get("max_distance"),
+            **(data.get("kwargs") or {}),
+        )
 
     def _comply_topology(self, cluster, raise_error=False):
         """Checks if the given elements comply with the given topology.
@@ -262,6 +304,22 @@ class DirectRule(JointRule):
     def __init__(self, joint_type, elements, max_distance=None, **kwargs):
         super(DirectRule, self).__init__(joint_type, max_distance=max_distance, **kwargs)
         self.elements = elements
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        # ``elements`` are TimberElements (COMPAS Data) and serialize directly.
+        data["elements"] = self.elements
+        return data
+
+    @classmethod
+    def __from_data__(cls, data):
+        return cls(
+            _joint_type_from_name(data["joint_type"]),
+            data["elements"],
+            max_distance=data.get("max_distance"),
+            **(data.get("kwargs") or {}),
+        )
 
     def ToString(self):
         # GH doesn't know
@@ -373,6 +431,25 @@ class CategoryRule(JointRule):
         self.category_a = category_a
         self.category_b = category_b
         self.topos = topos or []
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["category_a"] = self.category_a
+        data["category_b"] = self.category_b
+        data["topos"] = self.topos
+        return data
+
+    @classmethod
+    def __from_data__(cls, data):
+        return cls(
+            _joint_type_from_name(data["joint_type"]),
+            data["category_a"],
+            data["category_b"],
+            topos=data.get("topos") or None,
+            max_distance=data.get("max_distance"),
+            **(data.get("kwargs") or {}),
+        )
 
     def ToString(self):
         return repr(self)
@@ -503,6 +580,21 @@ class TopologyRule(JointRule):
     def __init__(self, topology_type, joint_type, max_distance=None, **kwargs):
         super(TopologyRule, self).__init__(joint_type, max_distance=max_distance, **kwargs)
         self.topology_type = topology_type
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["topology_type"] = self.topology_type
+        return data
+
+    @classmethod
+    def __from_data__(cls, data):
+        return cls(
+            data["topology_type"],
+            _joint_type_from_name(data["joint_type"]),
+            max_distance=data.get("max_distance"),
+            **(data.get("kwargs") or {}),
+        )
 
     def ToString(self):
         # GH doesn't know

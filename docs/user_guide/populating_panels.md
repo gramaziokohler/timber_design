@@ -1,106 +1,91 @@
 # Populating Panels
 
-This guide walks through the full workflow for automatically framing a
+This guide walks through the workflow for automatically framing a
 :class:`~compas_timber.elements.Panel` with structural elements using
 `timber_design.populators`.
 
-The workflow has three phases:
+## Cross-section layers live on the Panel
 
-1. **Configure** — assemble `LayerConfig` objects and agent configs, then
-   pass them to `PanelPopulatorConfig` (or use the `stud_panel()` /
-   `recess_panel()` factory functions, which build the right `LayerConfig`
-   stack for the two most common framing systems).
-2. **Populate** — set `config.panel` (or pass `panel=` to the factory), call
-   `config.create_populator()` to get a
-   :class:`~timber_design.populators.PanelPopulator`, then generate elements,
-   trim, join, and apply fabrication features.
-3. **Merge** — transform elements back to world space and attach them to the
-   original model.
+A panel's cross-section is described by **layers that belong to the panel
+itself** (in `compas_timber`), not by a separate configuration object.  Call
+`panel.define_core_layer(start, end)` to slice the panel — measured from the
+``outline_a`` face — into up to three layers:
 
-### Workflow overview
+- `panel.exterior_layer` — `[0, start]` (omitted/``None`` when ``start == 0``)
+- `panel.core_layer` — `[start, end]` (the structural frame)
+- `panel.interior_layer` — `[end, thickness]` (omitted/``None`` when ``end == thickness``)
 
-The diagram below mirrors a Grasshopper canvas: data objects flow left-to-right
-into each component.  The nested sublayers block (`'insulation'`) is an optional
-pattern — most panels use flat `layer_defs` lists.
+Each `Layer` *is a* `Panel` (it wraps a sliced ``layer_panel``), so it can be
+joined by `PanelJoint`s and added to the `TimberModel` as a child of the panel.
+The factory functions `stud_panel()` / `recess_panel()` call `define_core_layer`
+for you; for a panel that already carries a layer structure you provide the
+agents directly.
+
+## The PanelPopulator
+
+`PanelPopulator` is the single entry point — there is no longer a separate
+`PanelPopulatorConfig`.  You hand it the panel and a list of agents (each agent
+references one of the panel's layers); the factory functions assemble both:
+
+```python
+from compas_timber.model import TimberModel
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+
+populator = stud_panel(
+    panel=panel,                 # define_core_layer is called for you
+    standard_beam_width=60,
+    stud_spacing=625,
+    sheeting_inside=15,
+    sheeting_outside=18,
+)
+
+model = TimberModel()
+model.add_element(panel)         # panel + its layers enter the model tree
+populator.populate_elements()    # prepare -> generate -> extend -> trim -> add
+populator.join_elements()        # within-agent + cross-agent joints
+populator.merge_with_model(model)
+```
+
+### What the populator does internally
+
+The populator always works in a flat *populator space* (the panel re-expressed
+as an axis-aligned rectangle with the stud orientation aligned to +Y), then maps
+results back to the world-space panel:
 
 ```mermaid
 flowchart LR
     classDef element fill:#d4edda,stroke:#28a745,color:#000
-    classDef agentcfg fill:#cce5ff,stroke:#004085,color:#000
-    classDef layerdef fill:#fff3cd,stroke:#856404,color:#000
-    classDef config   fill:#e2d9f3,stroke:#6f42c1,color:#000
-    classDef stage    fill:#f8f9fa,stroke:#6c757d,color:#000
-    classDef model    fill:#f8d7da,stroke:#721c24,color:#000
-    classDef shortcut fill:#d1ecf1,stroke:#0c5460,color:#000,stroke-dasharray:4 2
+    classDef stage   fill:#f8f9fa,stroke:#6c757d,color:#000
+    classDef model   fill:#f8d7da,stroke:#721c24,color:#000
 
-    %% ── Panel & features ────────────────────────────────────────────────
-    panel(["Panel"]):::element
-    opening(["Opening  feature"]):::element
-    opening -->|"panel.add_feature()"| panel
+    panel(["Panel (+ layers, world space)"]):::element
 
-    %% ── Agent configs ────────────────────────────────────────────────────
-    plateCfgExt(["PlatePopulatorAgentConfig"]):::agentcfg
-    edgeCfg(["EdgePopulatorAgentConfig"]):::agentcfg
-    studCfg(["StudPopulatorAgentConfig <br> stud_spacing=625"]):::agentcfg
-    plateCfgSubA(["PlatePopulatorAgentConfig"]):::agentcfg
-    plateCfgSubB(["PlatePopulatorAgentConfig"]):::agentcfg
-    plateCfgInt(["PlatePopulatorAgentConfig"]):::agentcfg
-    openingCfg(["OpeningPopulatorAgentConfig <br> lintel_posts=True"]):::agentcfg
-    openingCfgF(["OpeningPopulatorAgentConfig <br> lintel_posts=True"]):::agentcfg
-
-    opening  -->|feature| openingCfgF
-
-
-    %% ── Layer definitions ────────────────────────────────────────────────
-subgraph layer definitions:
-        direction TB
-        ldExt["LayerConfig <br> 'exterior' · 22 mm"]:::layerdef
-        ldFrame["LayerConfig <br> 'frame' · fill"]:::layerdef
-        ldParent["LayerConfig <br> 'insulation' · 120 mm"]:::layerdef
-        ldSubA["LayerConfig <br> 'insulation_a' · 60 mm"]:::layerdef
-        ldSubB["LayerConfig <br> 'insulation_b' · 60 mm"]:::layerdef
-        ldInt["LayerConfig <br> 'interior' · 15 mm"]:::layerdef
-        ldSubA -->|sublayers| ldParent
-        ldSubB -->|sublayers| ldParent 
-
-    plateCfgExt  -->|agent_configs| ldExt
-    edgeCfg      -->|agent_configs| ldFrame
-    studCfg      -->|agent_configs| ldFrame
-    plateCfgSubA -->|agent_configs| ldSubA
-    plateCfgSubB -->|agent_configs| ldSubB
-    plateCfgInt  -->|agent_configs| ldInt
-end
-
-    %% ── PanelPopulatorConfig ─────────────────────────────────────────────
-    config["PanelPopulatorConfig <br> standard_beam_width=60"]:::config
-
-    panel      --> |panel| config
-    ldExt      --> |layer_defs| config
-    ldFrame    --> |layer_defs| config
-    ldParent   --> |layer_defs| config
-    ldInt      --> |layer_defs| config
-    openingCfg -->|"default_feature_configs"| config
-    openingCfgF  -->|"instance_feature_configs"| config
-
-
-    %% ── PanelPopulator ───────────────────────────────────────────────────
     subgraph pop["  PanelPopulator  "]
         direction TB
+        prep["prepare()<br/>mirror layers onto a populator-space panel<br/>+ re-point agents at the mirror"]:::stage
         gen["generate_elements()"]:::stage
         ext["extend_elements()"]:::stage
         trim["trim_elements()"]:::stage
         add["add_elements_to_model()"]:::stage
         join["join_elements()"]:::stage
-        proc["process_joinery()"]:::stage
-        gen --> ext --> trim --> add --> join --> proc
+        prep --> gen --> ext --> trim --> add --> join
     end
 
-    config -->|"create_populator()"| gen
+    panel -->|populate_elements()| prep
 
-    %% ── Model ────────────────────────────────────────────────────────────
     model[("TimberModel")]:::model
-    proc -->|"merge_with_model()"| model
+    join -->|"merge_with_model()<br/>re-parent each element under its<br/>matching original-panel layer"| model
 ```
+
+- **`prepare()`** builds a populator-space copy of the panel, mirrors the
+  panel's layer structure onto *that* copy (never onto the original), and
+  re-points every agent at the mirrored layer.  It is deferred until
+  `populate_elements()` so it reads the panel's *final* layer geometry — i.e.
+  after any panel-joinery extensions (see the model workflow below).
+- **`merge_with_model()`** transforms each generated element from populator
+  space straight into its owning **original-panel layer's** local frame and
+  parents it there, so framing is grouped by layer in the model tree and moves
+  with the layer.
 
 ---
 
@@ -109,13 +94,47 @@ end
 ```python
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
-from timber_design.populators import OpeningPopulatorAgentConfig
-from timber_design.populators import PanelPopulatorConfig
+from timber_design.populators import OpeningPopulatorAgent
+from timber_design.populators import PanelPopulator
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 ```
 
 All lengths are in the model's native units (mm in the examples below).
+
+!!! note "API change"
+    The `*Config` classes (`PanelPopulatorConfig`, `LayerConfig`,
+    `EdgePopulatorAgentConfig`, …) have been removed.  Layers now live on the
+    `Panel` (`panel.define_core_layer`), and `PanelPopulator` is constructed
+    directly with a panel and a list of agents.  Sections further down that
+    still reference the old `*Config` API are being updated.
+
+---
+
+## Model-level workflow (CT: Model)
+
+When several panels are joined to each other, the order of operations matters.
+Panel joints **extend the per-layer `layer_panels`** (so adjacent panels' layers
+butt correctly), and the populators must see that *final* layer geometry.  The
+`CT: Model` component runs:
+
+1. **Add elements** — each panel (with its layer structure) is added to the
+   model.  `element.reset()` is called first so a Grasshopper re-solve starts
+   from a clean state (prior extensions / joinery features / connection
+   interfaces are cleared; user openings are kept).
+2. **Panel joinery first** — `model.connect_adjacent_panels()`, promote the
+   panel-joint candidates via the joint rules, then `model.process_panel_joinery()`
+   so each `PanelJoint` extends its layers.
+3. **Populate** — run each `PanelPopulator` (`populate_elements` → `join_elements`
+   → `merge_with_model`).  Because `prepare()` is deferred, agents now generate
+   against the extended layers.
+4. **Beam / plate joinery** — `connect_adjacent_beams` / `connect_adjacent_plates`
+   then apply the joint rules.
+5. **Final joinery** — `model.process_joinery(include_panels=False)` applies
+   extensions + features for the non-panel joints.  Panel joints are skipped
+   here because step 2 already processed them (their layer extensions are not
+   idempotent).
+6. **User features**.
 
 ---
 
@@ -125,32 +144,40 @@ The simplest case: a rectangular panel with evenly-spaced vertical studs and
 plate beams along the top and bottom edges.
 
 ```python
-# 1 -- Build or load a model that already contains the Panel
-model = TimberModel()
+from compas.geometry import Point, Polyline
+from compas_timber.elements import Panel
+from compas_timber.model import TimberModel
+from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+
+# 1 -- Build the Panel and add it (with its layers) to the model
 outline_a = Polyline([Point(0, 0, 0), Point(4000, 0, 0), Point(4000, 2700, 0), Point(0, 2700, 0), Point(0, 0, 0)])
 outline_b = Polyline([Point(0, 0, 160), Point(4000, 0, 160), Point(4000, 2700, 160), Point(0, 2700, 160), Point(0, 0, 160)])
 panel = Panel.from_outlines(outline_a, outline_b)
-model.add_element(panel)
 
-# 2 -- Create a config via the stud_panel() factory.  Pass panel= here or set
-#      config.panel later (e.g. when reusing the same config across many panels).
-config = stud_panel(
+# 2 -- The factory returns a ready-to-run PanelPopulator (and calls
+#      panel.define_core_layer for you).
+populator = stud_panel(
     panel=panel,
-    standard_beam_width=60,   # stud / plate cross-section width, mm
+    standard_beam_width=60,   # default cross-section width, mm
     stud_spacing=625,         # on-centre stud spacing, mm
 )
 
-# 3 -- Create the populator and run all population stages
-populator = config.create_populator()
-populator.populate_elements()   # generate -> extend -> trim -> add to internal model
-populator.join_elements()       # within-agent and cross-agent joints
-populator.process_joinery()     # BTLx fabrication features
+model = TimberModel()
+model.add_element(panel)      # panel + its layers enter the model tree
 
-# 4 -- Merge framing back into the main model as children of the panel
+# 3 -- Run the population stages
+populator.populate_elements()   # prepare -> generate -> extend -> trim -> add
+populator.join_elements()       # within-agent and cross-agent joints
+
+# 4 -- Merge framing into the model under the matching panel layers
 populator.merge_with_model(model)
+
+# 5 -- Apply fabrication features for the joints created above
+model.process_joinery()
 ```
 
-After `merge_with_model` the model contains:
+After `merge_with_model` the model contains, **grouped under the panel's
+`core_layer`**:
 
 - **top_plate_beam** — full-width horizontal beam along the top edge
 - **bottom_plate_beam** — full-width horizontal beam along the bottom edge

@@ -32,7 +32,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(
         self,
         Elements: System.Collections.Generic.List[object],
-        PanelConfigs: System.Collections.Generic.List[object],
+        Populators: System.Collections.Generic.List[object],
         JointRules: System.Collections.Generic.List[object],
         Features: System.Collections.Generic.List[object],
         MaxDistance: float,
@@ -40,12 +40,12 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     ):
         # this used to be default behavior in Rhino7.. I think..
         Elements = Elements or []
-        PanelConfigs = PanelConfigs or []
+        Populators = Populators or []
         JointRules = JointRules or []
         Features = Features or []
 
         if not Elements:
-            warning(self.component, "Input parameter Beams failed to collect data")
+            warning(self.component, "Input parameter Elements failed to collect data")
         if not JointRules:
             warning(self.component, "Input parameter JointRules failed to collect data")
         if not Elements:  # shows beams even if no joints are found
@@ -57,32 +57,45 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         Model = TimberModel(tolerance=tol)
         debug_info = DebugInfomation()
 
-        ##### Adding elements #####
+        JointRules = [j for j in JointRules if j is not None]
+        solver = JointRuleSolver(JointRules, max_distance=MaxDistance) if JointRules else None
+
+        ##### 1. Add elements (panels carry their pre-defined layer structure) #####
         self.add_elements_to_model(Model, Elements)
 
-        ##### Handle joinery #####
-        # checks elements compatibility and generates Joints
-        JointRules = [j for j in JointRules if j is not None]
+        ##### 2. Panel joinery FIRST #####
+        # Connect adjacent panels, promote panel-joint candidates via the rules,
+        # then process_panel_joinery() so each PanelJoint extends its per-layer
+        # `layer_panels` (and adds interfaces).  This must happen before the
+        # populators run so the agents generate against the *final*, extended
+        # layer geometry.
+        Model.connect_adjacent_panels(max_distance=solver.max_distance if solver else MaxDistance)
+        if solver:
+            solver.apply_rules_to_model(Model)
+        panel_errors = Model.process_panel_joinery()
+        for pe in panel_errors:
+            debug_info.add_joint_error(pe)
 
-        if JointRules:
-            solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
-            # ensure that the model is connected before analyzing
+        ##### 3. Populate the (now extended) layers with framing #####
+        if Populators:
+            self.handle_populators(Populators, Model)
+
+        ##### 4. Beam / plate joinery between the generated elements #####
+        if solver:
             Model.connect_adjacent_beams(max_distance=solver.max_distance)
             Model.connect_adjacent_plates(max_distance=solver.max_distance)
-            Model.connect_adjacent_panels(max_distance=solver.max_distance)
             joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
             for je in joint_errors:
                 debug_info.add_joint_error(je)
 
-        if PanelConfigs:
-            self.handle_populators(PanelConfigs, Model)
-
-        # applies extensions and features resulting from joints
-        bje = Model.process_joinery()
+        ##### 5. Apply extensions + features for non-panel joints #####
+        # Panel joinery was already processed in step 2; skip it here so its
+        # (non-idempotent) layer extensions are not applied twice.
+        bje = Model.process_joinery(include_panels=False)
         if bje:
             debug_info.add_joint_error(bje)
 
-        ##### Handle user features #####
+        ##### 6. Handle user features #####
         if Features:
             feature_errors = self.handle_features(Features)
             debug_info.add_feature_error(feature_errors)
@@ -109,19 +122,35 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             return
 
     def add_elements_to_model(self, model, elements):
-        """Adds elements to the model and groups them by slab."""
+        """Add input elements to the model, resetting prior-solve state.
+
+        Grasshopper persists the same element objects across solves, so any
+        joinery state applied on a previous run (blank extensions, joint-applied
+        features, and — for panels — connection interfaces) must be cleared
+        before re-processing, otherwise it accumulates.  ``Element.reset()`` /
+        ``Panel.reset()`` removes joinery features and extensions while keeping
+        user-defined, non-joinery features (e.g. panel openings), so it is safe
+        to reset panels too.
+        """
         elements = [e for e in elements if e is not None]
         for element in elements:
-            if not isinstance(element, Panel):
-                # Panels carry user-defined features (openings, etc.) that must
-                # survive into create_populator().  Resetting them would wipe
-                # _features before the populator has a chance to read them.
-                element.reset()
+            element.reset()
             model.add_element(element)
 
-    def handle_populators(self, panel_configs, model, max_distance=None):
-        for c_def in panel_configs:
-            pop = c_def.create_populator()
+    def handle_populators(self, populators, model, max_distance=None):
+        """Run each :class:`~timber_design.populators.PanelPopulator`.
+
+        ``PanelConfigs`` now carries fully-built :class:`PanelPopulator`
+        instances (the old ``PanelPopulatorConfig`` was merged into the
+        populator).  Each populator builds its own populator-space panel and
+        mirrored layers lazily on the first ``populate_elements`` call
+        (``PanelPopulator.prepare``), so it reads whatever layer geometry the
+        panel has *now* — i.e. after step-2 panel-joinery extensions.  Generated
+        framing is then merged back under the matching original-panel layers.
+        """
+        for pop in populators:
+            if pop is None:
+                continue
             pop.populate_elements()
             pop.join_elements()
             pop.merge_with_model(model)

@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+#### Panel layers moved to `compas_timber`; populator config classes removed
+
+The cross-section layer model moved upstream into `compas_timber`, and the
+configuration layer in `timber_design.populators` was collapsed into the
+populator and agents.  This significantly simplifies the populator subsystem
+described below (which now reflects the pre-existing, config-based design and is
+being updated).
+
+* **`Layer` lives on the `Panel` (`compas_timber`).** `Panel.define_core_layer(start, end)`
+  slices the panel into `exterior_layer` / `core_layer` / `interior_layer`
+  (degenerate zero-thickness layers are skipped → ``None``).  Each `Layer` *is a*
+  `Panel`, participates in the model tree (its `modeltransformation` propagates
+  through the hierarchy), and is added to the model as a child of its panel.
+  `Panel.layer_tree` exposes layers keyed by hierarchical path.
+* **`PanelPopulator` replaces `PanelPopulatorConfig`.** It is built directly from
+  a panel + a list of agents.  All the `*Config` dataclasses
+  (`PanelPopulatorConfig`, `LayerConfig`, `LayerAgentConfig`, `FeatureAgentConfig`,
+  `EdgePopulatorAgentConfig`, `StudPopulatorAgentConfig`,
+  `OpeningPopulatorAgentConfig`, …) were removed; agents take their parameters
+  (beam widths, joint-rule overrides, stud spacing, …) as explicit constructor
+  keyword arguments.
+* **Populator panel + layer mirroring.** `PanelPopulator` only creates layers on
+  its own internal populator-space panel — never on the original.  In a deferred
+  `prepare()` step (run on first `populate_elements`) it mirrors the panel's
+  layer structure onto the populator panel, re-points each agent at the mirror,
+  and rebases feature geometry — so agents generate against the panel's *final*
+  layer geometry (after any panel-joinery extensions).
+* **Layer-aware merge.** `PanelPopulator.merge_with_model` transforms each
+  generated element from populator space into its owning **original-panel layer's**
+  local frame and parents it there, so framing is grouped by layer in the model
+  tree and moves with the layer.
+* **`standard_beam_width` and joint-rule overrides** are resolved on the
+  populator: `resolve_beam_widths` fills unset per-category widths, and
+  `route_rule_overrides` distributes `CategoryRule` overrides to the agents that
+  own each category.
+* **`PanelPopulator.populate_elements` / `trim_elements`** are now driven by the
+  populator's flat agent list (the per-layer `layer.agents` back-reference was
+  removed); `trim_elements` scopes each cut to same-layer peers.
+
+#### Model joinery workflow (`compas_timber` + `CT: Model`)
+
+* **`TimberModel.process_joinery(include_panels=True)`** — new parameter.  Pass
+  `include_panels=False` to skip joints that involve a `Panel`, for use after
+  `process_panel_joinery` has already extended the panels (panel-joint layer
+  extensions are not idempotent and must not be applied twice).
+* **`CT: Model` workflow reordered** so panel joinery runs *before* population:
+  add elements (with `reset()` for clean re-solves) → `connect_adjacent_panels`
+  + promote → `process_panel_joinery` (extend layer_panels) → run populators →
+  `connect_adjacent_beams`/`plates` + promote → `process_joinery(include_panels=False)`
+  → user features.  This fixes accumulation / double-processing on re-runs.
+* **`Panel.model` setter is idempotent** — re-adding a panel to its model no
+  longer raises “Element already in the model”; layers already attached are
+  skipped.
+
 ### Added
 
 #### Panel Populator subsystem (`timber_design.populators`)
@@ -31,7 +87,7 @@ A new `timber_design.populators` package replaces the old wall-populator module 
 
 * **`PopulatorAgent`** (abstract) — common base for both layer- and feature-bound agents.  Owns the unified element/outline machinery: `elements_for_layer(layer)` / `set_elements_for_layer(layer, elements)` (default: single flat list, overridden by `FeatureAgent` for per-layer buckets); `outline_for_layer(layer)` (default: `self.outline`, overridden by `FeatureAgent` for per-layer outlines); `trim_beam(beam, layer)` / `trim_plate(plate)` / `cull_element_at_point(point, layer)` resolve their boundary via `outline_for_layer(layer)`; `trim_elements()` is a concrete base method that iterates `_trim_layers()` and trims every peer agent's same-layer elements — no per-subclass override required.
 * **`LayerAgent`** (abstract) — adds a single `layer` reference and a `beam_from_category` convenience that defaults `layer` to `self.layer`.  Subclasses: `EdgePopulatorAgent`, `StudPopulatorAgent`, `PlatePopulatorAgent`, `RecessPopulatorAgent`, `PanelBoundaryPopulatorAgent`.
-* **`FeatureAgent`** (abstract) — for agents that span multiple layers (openings, etc.).  Tracks per-layer elements in `_elements_by_layer` and per-layer outlines in `_outline_by_layer`; overrides `elements_for_layer` / `set_elements_for_layer` / `outline_for_layer` to use those buckets, and overrides `_trim_layers()` to return `framing_layers + trimming_layers`.  Subclass: `OpeningPopulatorAgent`.
+* **`FeatureAgent`** (abstract) — for agents that span multiple layers (openings, etc.).  Tracks per-layer elements in `_elements_by_layer` and per-layer outlines in `_outline_by_layer`; overrides `elements_for_layer` / `set_elements_for_layer` / `outline_for_layer` to use those buckets, and overrides `_trim_layers()` to return `element_layers + trimming_layers`.  Subclass: `OpeningPopulatorAgent`.
 * **Same-layer trim scoping** — `LayerAgent.trim_elements()` only ever touches the portion of a peer's elements that live on the same layer (via `agent.elements_for_layer(self.layer)`), so a layer agent never cuts framing that belongs to a different layer.
 * **Per-layer outline & extension** — `OpeningPopulatorAgent.generate_elements_for_layer` writes its outline into `_outline_by_layer[layer.layer_index]`; `OpeningPopulatorAgent.extend_elements` extends each layer's king/jack studs only against that layer's peer agents, fixing a cross-layer extension leak.
 * **Edge corner joints** — `EdgePopulatorAgent._edge_joint_rule` dispatches by geometry: perpendicular (clean vertical) edges use `get_direct_rule_from_elements` so `internal_joint_overrides` apply; sloped/chamfered edges fall through to the geometric `_create_edge_beam_joint_rule` that computes miter/butt cut planes from the bevel.
@@ -57,7 +113,7 @@ A new `timber_design.populators` package replaces the old wall-populator module 
 * **`CT: RecessPanel`** — `recess_panel()` wrapper.  Same shape as `CT: StudPanel` with recess-specific inputs.
 * **`CT: PopulatorConfig`** — wraps `PanelPopulatorConfig` directly for fully custom layer stacks.  Applies `joint_rule_overrides` via `config.route_rule_overrides(...)` after construction.
 * **`CT: PopulatorAgent`** — dynamic configurator for `LayerAgentConfig` subclasses; output nickname selects the agent type at runtime.  Permanent inputs: `internal_joint_overrides`, `external_joint_overrides`.
-* **`CT: FeatureAgentConfig`** — dynamic configurator for `FeatureAgentConfig` subclasses.  Permanent inputs: `framing_layers`, `trimming_layers`, `internal_joint_overrides`, `external_joint_overrides`.
+* **`CT: FeatureAgentConfig`** — dynamic configurator for `FeatureAgentConfig` subclasses.  Permanent inputs: `element_layers`, `trimming_layers`, `internal_joint_overrides`, `external_joint_overrides`.
 * **`CT: PopulatorLayer`** — `LayerConfig` wrapper (thickness, name, `agent_configs`, sublayers).
 * **`CT: Panel`** — creates a `Panel` from a closed polyline outline, thickness, optional normal vector, and optional `Opening` features.
 * **`CT: PlateFromBrep`** — creates a `Plate` from an arbitrary Brep.

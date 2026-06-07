@@ -49,13 +49,6 @@ class CollectionDef(object):
         return "Collection with %s items." % len(self.objs)
 
 
-class ContainerDefinition(object):
-    """Holds a pair of panel and its configuration set if available."""
-
-    def __init__(self, panel, config_set=None):
-        self.panel = panel
-        self.config_set = config_set
-
 
 class JointRuleSolver(object):
     """A class that holds a set of rules for joining elements.

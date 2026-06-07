@@ -113,14 +113,6 @@ class LayerAgent(PopulatorAgent, ABC):
         """
         return self.layer.center_height if self.layer is not None else None
 
-    @property
-    def panel(self):
-        """The panel geometry for this layer (``Layer`` IS a ``Panel``)."""
-        return self.layer
-
-    def _agent_layers(self):
-        return [self.layer] if self.layer is not None else []
-
     def beam_from_category(self, centerline, category, layer=None, **kwargs):
         """Create a beam, defaulting *layer* to ``self.layer``.
 
@@ -133,16 +125,8 @@ class LayerAgent(PopulatorAgent, ABC):
         :class:`FeatureAgent` subclasses must pass *layer* explicitly because
         they operate across multiple layers.
         """
-        return super().beam_from_category(centerline, category, layer=layer or self.layer, **kwargs)
+        return super().beam_from_category(centerline, category, layer= self.layer, **kwargs)
 
-    def is_on_layer(self, layer):
-        """Tests whether this agent is active on *layer*.
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-            The layer to check.
-        """
-        return layer is self.layer
 
     def is_on_panel(self, panel):
         """Tests whether this agent is active on *layer*.

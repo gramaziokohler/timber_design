@@ -225,7 +225,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         king_offset = self.beam_widths["king_stud"] / 2
         layer_elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", layer=layer, name="left_king_stud"))
         layer_elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", layer=layer, name="right_king_stud"))
-
         header_offset = self.beam_widths["header"] / 2
         header = self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", layer=layer, name="header")
         layer_elements.append(header)
@@ -279,19 +278,28 @@ class OpeningPopulatorAgent(FeatureAgent):
         return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
 
     def _create_frame_polylines(self, opening: Opening, layer) -> tuple[Polyline, Polyline]:
+        
         if "king_stud" not in self.beam_widths:
             raise ValueError("Beam width for 'king_stud' not set — use get_agent_from_feature() to construct this agent so beam widths are filled automatically.")
-        lines = [Line(pt_a, pt_b) for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points)]
-        opening_a = Polyline([intersection_line_plane(line, layer.planes[0]) for line in lines])
-        opening_b = Polyline([intersection_line_plane(line, layer.planes[1]) for line in lines])
-        box_a = Box.from_points(opening_a.points)
-        box_b = Box.from_points(opening_b.points)
+        opening_a_pts = []
+        opening_b_pts = [] 
+        for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points):
+            
+            line = Line(pt_a, pt_b) 
+            int_a = intersection_line_plane(line, Plane(layer.outline_a[0], [0,0,1]))
+            int_b = intersection_line_plane(line, Plane(layer.outline_b[0], [0,0,1]))
+            if int_a:
+                opening_a_pts.append(int_a)
+            if int_b:
+                opening_b_pts.append(int_b)     
+        box_a = Box.from_points(opening_a_pts)
+        box_b = Box.from_points(opening_b_pts)
         frame_polyline_a = Polyline([box_a.corner(0), box_a.corner(1), box_a.corner(2), box_a.corner(3), box_a.corner(0)])
         frame_polyline_b = Polyline([box_b.corner(0), box_b.corner(1), box_b.corner(2), box_b.corner(3), box_b.corner(0)])
         return frame_polyline_a, frame_polyline_b
 
     def _create_frame_polyline(self, frame_polyline_a: Polyline, frame_polyline_b: Polyline, layer) -> Polyline:
-        """Bounding rectangle aligned orthogonal to the panel_populator.orientation."""
+        """Bounding rectangle aligned orthogonal to the panel.orientation."""
         center_height = layer.center_height
         return Polyline(
             [
@@ -303,15 +311,15 @@ class OpeningPopulatorAgent(FeatureAgent):
             ]
         )
 
-    def extend_elements(self):
+    def extend_elements(self, layer_agents):
         """Extend king/jack studs to neighboring boundaries — one layer at a time.
 
         The opening may frame on several layers.  Each layer's king/jack studs
         are extended only against the peer agents *on that same layer*, so a
         stud is never extended to a boundary that belongs to a different layer.
         """
-        for layer in self.element_layers:
-            layer_elements = self.elements_for_layer(layer)
+        for layer in layer_agents:
+            layer_elements = self.elements_by_layer.get(layer, [])
             king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
             jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
             if not (king_studs or jack_studs):

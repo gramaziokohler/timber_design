@@ -123,25 +123,15 @@ class PopulatorAgent(Data, ABC):
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
     def __init__(self, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Optional[list], Optional[list]) -> None
-        # Initialise the compas ``Data`` base so ``guid`` / ``name`` exist and the
-        # agent participates in COMPAS JSON serialization (json_dump / json_load).
         super().__init__()
-        # ``beam_widths`` starts empty; concrete subclasses populate it from their
-        # explicit per-category constructor kwargs (e.g. ``edge_stud_width``,
-        # ``stud_width``).
         self.beam_widths: dict[str, float] = {}
         self.internal_rules = self._apply_overrides(self.INTERNAL_JOINT_RULES, internal_joint_overrides)
         self.external_rules = self._apply_overrides(self.EXTERNAL_JOINT_RULES, external_joint_overrides)
-        # Raw overrides kept separately from the merged rule lists: ``external_overrides``
-        # so cross-agent joint resolution can give a per-agent override precedence over
-        # *another* agent's base rule for the same pair regardless of agent ordering,
-        # and both so ``__data__`` can round-trip the agent through its constructor.
         self.internal_overrides = list(internal_joint_overrides) if internal_joint_overrides else []
         self.external_overrides = list(external_joint_overrides) if external_joint_overrides else []
         self.joint_defs = []
-        self.elements = []
-        self.outline = None
+        self.elements_by_layer = {}
+        self.outline_by_layer = {}
 
     @property
     def __data__(self):
@@ -155,6 +145,11 @@ class PopulatorAgent(Data, ABC):
             "internal_joint_overrides": self.internal_overrides or None,
             "external_joint_overrides": self.external_overrides or None,
         }
+
+    @property
+    def elements(self):
+        return [e for lst in self.elements_by_layer.values() for e in lst]
+
 
     @property
     def aabb(self):
@@ -173,35 +168,6 @@ class PopulatorAgent(Data, ABC):
             return None
         return AABB2D.from_points(pts)
 
-    def elements_for_layer(self, layer):
-        """Return the elements this agent has placed on *layer*.
-
-        Single-layer agents (every :class:`LayerAgent`) hold one flat element
-        list and ignore *layer*.  :class:`FeatureAgent` overrides this to return
-        the elements bucketed under that layer.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-
-        Returns
-        -------
-        list
-        """
-        return self.elements
-
-    def set_elements_for_layer(self, layer, elements):
-        """Replace this agent's element list for *layer*.
-
-        Single-layer agents replace the whole flat list; :class:`FeatureAgent`
-        overrides this to update only the bucket for *layer*.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-        elements : list
-        """
-        self.elements = elements
 
     @staticmethod
     def _apply_overrides(base_rules: list[CategoryRule], overrides: Optional[list[CategoryRule]]) -> list[CategoryRule]:
@@ -314,20 +280,9 @@ class PopulatorAgent(Data, ABC):
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
 
-    def outline_for_layer(self, layer):
-        """Return the boundary outline that applies on *layer*.
-
-        Single-layer agents (every :class:`LayerAgent`) have one boundary, so
-        the base implementation ignores *layer* and returns :attr:`outline`.
-        Multi-layer agents (:class:`FeatureAgent`) override this to return the
-        outline they generated on each specific layer, so trimming/culling on
-        one layer never uses another layer's boundary.
-        """
-        return self.outline
-
     def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
-        outline = self.outline_for_layer(layer)
+        outline = self.outline_by_layer.get(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return False
         if outline is None:
@@ -350,7 +305,7 @@ class PopulatorAgent(Data, ABC):
         skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
         """Split *beam* at this agent's boundary on *layer* and return the surviving segments."""
-        outline = self.outline_for_layer(layer)
+        outline = self.outline_by_layer.get(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return [beam]
         if outline is None:
@@ -392,42 +347,6 @@ class PopulatorAgent(Data, ABC):
 
         return beam_segs
 
-    def _agent_layers(self):
-        """Return the layers this agent is directly registered on.
-
-        Overridden by :class:`LayerAgent` (returns ``[self.layer]``) and
-        :class:`FeatureAgent` (returns ``self.registered_layers``).
-        """
-        return []
-
-    def is_on_layer(self, layer):
-        """Return ``True`` if this agent operates on *layer* or any ancestor/descendant.
-
-        Checks whether any of the agent's registered layers is *layer* itself,
-        an ancestor of *layer*, or a descendant of *layer*.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-
-        Returns
-        -------
-        bool
-        """
-        for agent_layer in self._agent_layers():
-            if agent_layer is layer:
-                return True
-            # layer is an ancestor of agent_layer?
-            current = agent_layer.parent_layer
-            while current is not None:
-                if current is layer:
-                    return True
-                current = current.parent_layer
-            # layer is a descendant of agent_layer?
-            for desc in agent_layer.iter_subtree():
-                if desc is layer:
-                    return True
-        return False
 
     def create_joint_candidates(self):
         """Return joint candidates for overlapping beam pairs within this agent.
@@ -435,17 +354,19 @@ class PopulatorAgent(Data, ABC):
         Subclasses override this to iterate the appropriate element collection.
         The base implementation iterates ``self.elements`` directly, which is
         correct for :class:`LayerAgent`.  :class:`FeatureAgent` overrides it
-        to iterate ``_elements_by_layer`` per layer.
+        to iterate ``elements_by_layer`` per layer.
         """
         candidates = []
-        solver = ConnectionSolver2D()
-        beam_elements = [e for e in self.elements if isinstance(e, Beam2D)]
-        pairs = solver.find_intersecting_pairs(beam_elements)
-        for element_a, element_b in pairs:
-            topo_result = solver.find_topology(element_a, element_b)
-            if topo_result is not None:
-                candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                candidates.append(candidate)
+        for layer in self.element_layers:
+            elements = self.elements_by_layer.get(layer, [])
+            solver = ConnectionSolver2D()
+            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
+            pairs = solver.find_intersecting_pairs(beam_elements)
+            for element_a, element_b in pairs:
+                topo_result = solver.find_topology(element_a, element_b)
+                if topo_result is not None:
+                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
+                    candidates.append(candidate)
         return candidates
 
     def trim_agent_elements(self, other_agent):
@@ -464,26 +385,25 @@ class PopulatorAgent(Data, ABC):
             The layer whose elements are trimmed.
         """
         trimmed_elements = []
-        trimming_layers = set(self.trimming_layers, other_agent.element_layers)
+        trimming_layers = set(self.trimming_layers) & set(other_agent.element_layers)
         for layer in trimming_layers:
-            for element in other_agent.elements_for_layer(layer):
+            for element in other_agent.elements_by_layer.get(layer, []):
                 if element.is_plate:
                     trimmed_elements.extend(self.trim_plate(element))
                 if element.is_beam:
                     trimmed_elements.extend(self.trim_beam(element, layer))
-        other_agent.set_elements_for_layer(layer, trimmed_elements)
+            other_agent.elements_by_layer[layer] = trimmed_elements
 
-    @abstractmethod
     def generate_elements(self):
         """Generate all elements for this agent's layer."""
         for layer in self.element_layers:
-            self.outline = None
+            # self.outline = None
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
             self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
 
 
-    def extend_elements(self) -> None:
+    def extend_elements(self, layer_elements) -> None:
         pass
 
     def create_joint_defs(self) -> list[DirectRule]:

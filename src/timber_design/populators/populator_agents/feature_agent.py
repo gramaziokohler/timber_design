@@ -31,7 +31,7 @@ class FeatureAgent(PopulatorAgent):
     Element tracking
     ----------------
     - ``self.elements`` — flat list of **all** elements across all layers.
-    - ``self._elements_by_layer`` — ``{layer_index: [elements]}`` dict for
+    - ``self.elements_by_layer`` — ``{layer_index: [elements]}`` dict for
       per-layer trim and joint passes.
 
     Parameters
@@ -54,16 +54,10 @@ class FeatureAgent(PopulatorAgent):
         # type: (object, list, list, Optional[list], Optional[list]) -> None
         super().__init__(internal_joint_overrides, external_joint_overrides)
         self.feature = feature
+        print("EL",element_layers)
         self.element_layers = element_layers or []
         self.trimming_layers = trimming_layers or []
-        # Per-layer element tracking.  Populated during generate_elements.
-        self.elements_by_layer = {}
-        # Per-layer boundary outline.  A feature agent frames on several layers,
-        # so it has one boundary per layer; trimming/culling on a given layer
-        # must use that layer's outline (see outline_for_layer).
-        self.outline_by_layer = {}
-        # Layers this agent has registered itself on during generate_elements.
-        self.registered_layers = []
+
 
     @property
     def __data__(self):
@@ -73,12 +67,6 @@ class FeatureAgent(PopulatorAgent):
         data["trimming_layers"] = self.trimming_layers or None
         return data
 
-    # ------------------------------------------------------------------
-    # Layer membership
-    # ------------------------------------------------------------------
-
-    def _agent_layers(self):
-        return list(self.registered_layers)
 
     def create_joint_candidates(self):
         """Return joint candidates per layer, using the per-layer element dict."""
@@ -89,7 +77,7 @@ class FeatureAgent(PopulatorAgent):
 
         candidates = []
         solver = ConnectionSolver2D()
-        for elements in self._elements_by_layer.values():
+        for elements in self.elements_by_layer.values():
             beam_elements = [e for e in elements if isinstance(e, Beam2D)]
             pairs = solver.find_intersecting_pairs(beam_elements)
             for element_a, element_b in pairs:
@@ -98,68 +86,6 @@ class FeatureAgent(PopulatorAgent):
                     candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
                     candidates.append(candidate)
         return candidates
-
-    # ------------------------------------------------------------------
-    # Unified element API (overrides LayerAgent defaults)
-    # ------------------------------------------------------------------
-
-    def elements_for_layer(self, layer):
-        """Return the elements this agent placed on *layer*.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-
-        Returns
-        -------
-        list
-        """
-        return self._elements_by_layer.get(layer, [])
-
-    def outline_for_layer(self, layer):
-        """Return the boundary outline this agent generated on *layer*.
-
-        A feature agent frames on multiple layers and stores one outline per
-        layer (see :meth:`generate_elements`), so a peer trimming on a given
-        layer always uses that layer's boundary rather than the last one
-        generated.
-        """
-        if layer is None:
-            return self.outline
-        return self._outline_by_layer.get(layer)
-
-    def set_elements_for_layer(self, layer, elements):
-        """Replace the element list for *layer* and rebuild ``self.elements``.
-
-        Called by :meth:`~PopulatorAgent.trim_elements` after trimming so that
-        both the per-layer dict and the flat list stay consistent.
-
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-        elements : list
-        """
-        self._elements_by_layer[layer] = elements
-        # Rebuild flat list from all layer buckets, preserving insertion order.
-
-
-    @property
-    def elements(self):
-        return [e for lst in self._elements_by_layer.values() for e in lst]
-
-
-    # ------------------------------------------------------------------
-    # Layer registration
-    # ------------------------------------------------------------------
-
-    def is_on_layer(self, layer):
-        """Tests whether this agent is active on *layer*.
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-            The layer to check.
-        """
-        return layer in self.element_layers + self.trimming_layers
 
 
     def is_on_panel(self, panel):

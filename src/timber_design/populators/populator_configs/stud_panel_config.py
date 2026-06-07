@@ -21,7 +21,6 @@ def stud_panel(
     bottom_plate_beam_width=None,
     standard_beam_width_increment=None,
     # Panel-level
-    orientation=None,
     sheeting_outside=0,
     sheeting_inside=0,
     joint_rule_overrides=None,
@@ -66,8 +65,7 @@ def stud_panel(
     standard_beam_width_increment : float, optional
         Rounding increment for edge-beam widths (each edge beam's width is
         rounded *up* to the next multiple of this value).
-    orientation : :class:`compas.geometry.Vector`, optional
-        Desired stud orientation in world space.
+
     sheeting_outside : float, optional
         Thickness of the external sheathing plate.  ``0`` disables it.
     sheeting_inside : float, optional
@@ -148,10 +146,6 @@ def stud_panel(
     if instance_feature_agents:
         agents.extend(instance_feature_agents)
 
-    # NOTE: ``orientation`` is no longer consumed by PanelPopulator — the stud
-    # direction is baked into the panel's local frame at construction time
-    # (``Panel.from_outlines(..., orientation=...)``).  Build the panel with the
-    # desired orientation upstream of this factory.
     return PanelPopulator(
         panel=panel,
         standard_beam_width=standard_beam_width,

@@ -1,9 +1,10 @@
-from itertools import product
+from itertools import combinations, product
 
 from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.model import TimberModel
+from compas_timber.panel_features import Layer
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
@@ -103,6 +104,7 @@ class PanelPopulator:
         self.agents = agents
 
         # Config-time setup that does NOT depend on the panel's final geometry.
+        self.layers = panel.layers
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
         self.route_rule_overrides(joint_rule_overrides)
@@ -206,7 +208,6 @@ class PanelPopulator:
             if prototype is None:
                 continue
             agent = type(prototype)(**prototype.__data__)
-            
             agent.feature = feature
             self.agents.append(agent)
 
@@ -214,30 +215,6 @@ class PanelPopulator:
     def elements(self):
         """List of all elements placed by all agents."""
         return [e for e in self.model.elements() if not e.children]
-
-    @property
-    def layers(self):
-        """The (detached, panel-local) layers the agents operate on."""
-        seen = []
-        for agent in self.agents:
-            for layer in agent._agent_layers():
-                if layer not in seen:
-                    seen.append(layer)
-        return seen
-
-    def _element_to_layer(self):
-        """Build ``{element: layer}`` for every element an agent placed.
-
-        For a :class:`LayerAgent` every element belongs to its single layer; for
-        a :class:`FeatureAgent` elements are taken from each registered layer's
-        bucket.  Used to parent each element under the correct layer.
-        """
-        mapping = {}
-        for agent in self.agents:
-            for layer in agent._agent_layers():
-                for element in agent.elements_for_layer(layer):
-                    mapping[element] = layer
-        return mapping
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.original_panel)
@@ -262,8 +239,10 @@ class PanelPopulator:
 
     def extend_elements(self):
         """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
-        for agent in self.agents:
-            agent.extend_elements()
+        for layer in self.layers:
+            layer_agents = [a for a in self.agents if layer in a.element_layers]
+            for agent in layer_agents:
+                agent.extend_elements(layer_agents)
 
     def trim_elements(self):
         """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
@@ -275,12 +254,10 @@ class PanelPopulator:
         — a legal geometric configuration that produces a zero-length residual
         segment that would otherwise crash downstream joint processing.
         """
-        for agent in self.agents:
-            if agent is self:
-                continue
-            if aabb_overlap(self, agent):
-                self.trim_agent_elements(agent)
-        self._drop_degenerate_beams()
+        for agent_a, agent_b in combinations(self.agents,2):
+            if aabb_overlap(agent_a, agent_b):
+                agent_a.trim_agent_elements(agent_b)
+                agent_b.trim_agent_elements(agent_a)
 
     def _drop_degenerate_beams(self):
         """Remove zero-length :class:`~timber_design.populators.Beam2D` elements from all agents."""
@@ -298,15 +275,11 @@ class PanelPopulator:
         :meth:`merge_with_model` only has to move the layer subtree back under
         the original panel — no per-element transform.
         """
-        element_layer = self._element_to_layer()
         for agent in self.agents:
-            for element in agent.elements:
-                layer = element_layer.get(element)
-                if layer is None:
-                    self.model.add_element(element)
+            for layer, elements in agent.elements_by_layer.items():
+                for element in elements:
+                    self.model.add_element(element, parent=layer)
                     continue
-                element.transformation = layer.transformation_to_local() * element.transformation
-                self.model.add_element(element, parent=layer)
 
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
@@ -318,16 +291,7 @@ class PanelPopulator:
         self.create_cross_agent_joints()
 
     def create_agent_joints(self):
-        """Create joints between elements that belong to the same agent (stage 5a).
-
-        Iterates every layer and, for each agent registered on that layer,
-        detects internal joint candidates using only the elements that agent
-        placed on *that* layer via
-        :meth:`~timber_design.populators.LayerAgent.elements_for_layer`.
-        This prevents a :class:`~timber_design.populators.FeatureAgent`
-        (which registers on multiple layers) from creating joints between
-        elements that live on different layers.
-
+        """Create joints between elements that belong to the same agent.
         ``agent.joint_defs`` is cleared after each layer pass so that a
         multi-layer agent is not double-applied on subsequent layers.
         """
@@ -337,22 +301,14 @@ class PanelPopulator:
                 j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
 
     def create_cross_agent_joints(self):
-        """Create joints between elements of different agents on the same layer (stage 5b).
-
-        For each overlapping agent pair the solver enumerates cross-product
-        element pairs, restricting each agent's contribution to the elements
-        it placed on *this* layer via
-        :meth:`~timber_design.populators.LayerAgent.elements_for_layer`.
-        This keeps joints from being created between, say, king studs generated
-        by a :class:`~timber_design.populators.FeatureAgent` on one layer and
-        plate beams on a different layer.
+        """Create joints between elements of different agents on the same layer.
         """
         solver = ConnectionSolver2D()
-        for layer in self.layers:
-            agents = [a for a in self.agents if a.elements_for_layer(layer)]
+        for layer in self.model.panels:
+            agents = [a for a in self.agents if a.elements_by_layer[layer]]
             for agent_a, agent_b in solver.find_intersecting_agent_pairs(agents):
-                elements_a = agent_a.elements_for_layer(layer)
-                elements_b = agent_b.elements_for_layer(layer)
+                elements_a = agent_a.elements_by_layer.get(layer, [])
+                elements_b = agent_b.elements_by_layer.get(layer, [])
                 candidates = []
                 for element_a, element_b in product(elements_a, elements_b):
                     topo_result = solver.find_topology(element_a, element_b)
@@ -397,6 +353,7 @@ class PanelPopulator:
         # TODO: use @chenkasirer s merge_model functionality when added to CT
         if clear_panel:
             for element in self.original_panel.children[:]:
+                print("removing element", element.attributes.get("category"))
                 model.remove_element(element)
 
         merge_model_into_model(self.model, model, parent=self.original_panel)
@@ -439,6 +396,7 @@ def _detach_subtree(model, parent):
             for child in children:
                 walk(child, is_kept_root=False)
         if not is_kept_root and model.has_element(element):
+            _reset_caches(element)
             model.remove_element(element)
 
     if parent is not None:
@@ -462,6 +420,7 @@ def _attach_subtree(tuples, model, root_element=None):
     for parent, children in tuples:
         target_parent = parent or root_element # when parent is None, re-root under *root_element* instead
         for child in children:
+            print(child.attributes.get("category", type(child)))
             model.add_element(child, parent=target_parent)
             child.reset_computed_properties()
 
@@ -488,7 +447,6 @@ def extract_model_from_parent(parent):
     :class:`TimberModel`
         A new model containing *parent*'s former subtree.
     """
-    print("extracting model from parent", type(parent))
     tuples = _detach_subtree(parent.model, parent)
     new_model = TimberModel()
     _attach_subtree(tuples, new_model)
@@ -518,4 +476,5 @@ def merge_model_into_model(model, target_model, parent=None):
     tuples = _detach_subtree(model, None)
     _attach_subtree(tuples, target_model, root_element=parent)
     for joint in joints:
+        print([e.attributes.get("category") for e in joint.elements])
         target_model.add_joint(joint)

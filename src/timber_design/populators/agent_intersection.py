@@ -199,7 +199,7 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 # =============================================================================
 
 
-def extend_beam_to_closest_agents(beam, agents, only_start=False, only_end=False, layer=None):
+def extend_beam_to_closest_agents(beam, agents, layer, only_start=False, only_end=False):
     # type: (Beam2D, list[LayerAgent], bool, bool, object) -> None
     """Extend *beam* in-place so its ends reach the nearest agent outlines.
 
@@ -211,18 +211,15 @@ def extend_beam_to_closest_agents(beam, agents, only_start=False, only_end=False
         Only extend toward the beam start (negative dot direction).
     only_end : bool
         Only extend toward the beam end (positive dot direction).
-    layer : :class:`~timber_design.populators.Layer`, optional
-        The layer *beam* lives on.  Each agent's boundary is resolved for this
-        layer via :meth:`~PopulatorAgent.outline_for_layer`, so a multi-layer
-        peer (e.g. another feature agent) contributes only its boundary on this
-        layer.  When ``None`` each agent's single :attr:`outline` is used.
+    layer : :class:`~timber_design.populators.Layer`, 
+        The layer *beam* lives on.  Only agents that are active on this layer are considered for intersection.
     """
     if only_end and only_start:
         raise ValueError("Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam))
 
     intersections = []
     for agent in agents:
-        outline = agent.outline_for_layer(layer) if layer is not None else agent.outline
+        outline = agent.outline_by_layer.get(layer)
         if outline is not None:
             intersections.extend(find_beam_outline_crossings(beam, outline, limit_to_segments=False))
 

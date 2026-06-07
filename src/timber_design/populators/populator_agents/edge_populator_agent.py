@@ -121,8 +121,7 @@ class EdgePopulatorAgent(LayerAgent):
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this agent
         for i, (seg, width) in enumerate(zip(segs, widths)):
-            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i)
-            self._set_edge_beam_category(edge_beam, i)
+            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i, category=self._get_segment_category(i))
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
             elements.append(edge_beam)
             vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, i)
@@ -130,7 +129,6 @@ class EdgePopulatorAgent(LayerAgent):
         extend_line_segments(edges, close_loop=True)
         outline = join_polyline_segments(edges, close_loop=True)[0][0]
         return elements, outline
-
 
     def _get_segment_category(self, segment_index: int) -> str:
         """Return the beam category for the outline segment at *segment_index*.
@@ -173,9 +171,6 @@ class EdgePopulatorAgent(LayerAgent):
         offset = width / 2
         return outer_segment.translated(-perp_vector * offset), width
 
-    def _set_edge_beam_category(self, beam: Beam2D, index: int) -> None:
-        beam.attributes["category"] = self._get_segment_category(index)
-
     def _apply_linear_cut_to_edge_beam(self, beam: Beam2D, edge_index: int) -> None:
         """Trim the edge beams to fit between the plate beams."""
         plane = self.layer.edge_planes[edge_index]
@@ -210,6 +205,7 @@ class EdgePopulatorAgent(LayerAgent):
         """
         edge_a = beam_a.attributes["edge_index"]
         edge_b = beam_b.attributes["edge_index"]
+        
         if self._edge_plane_is_perpendicular(edge_a) and self._edge_plane_is_perpendicular(edge_b):
             return self.get_direct_rule_from_elements(beam_a, beam_b)
         return self._create_edge_beam_joint_rule(beam_a, beam_b)

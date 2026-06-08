@@ -143,7 +143,16 @@ def stud_panel(
         default_feature_agents[Opening] = prototype
 
     # Instance feature agents are already feature-bound; add them directly.
+    # The caller builds them without knowing this panel's layer structure, so
+    # bind their framing/trimming layers here (only when unset) the same way the
+    # default prototype above does — otherwise ``element_layers`` stays empty and
+    # the agent generates nothing.
     if instance_feature_agents:
+        for agent in instance_feature_agents:
+            if not getattr(agent, "element_layers", None):
+                agent.element_layers = [panel.core_layer]
+            if not getattr(agent, "trimming_layers", None):
+                agent.trimming_layers = trimming_layers
         agents.extend(instance_feature_agents)
 
     return PanelPopulator(

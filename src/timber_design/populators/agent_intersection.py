@@ -199,8 +199,8 @@ def find_beam_outline_crossings(beam, outline, limit_to_segments=True, skip_notc
 # =============================================================================
 
 
-def extend_beam_to_closest_agents(beam, agents, layer, only_start=False, only_end=False):
-    # type: (Beam2D, list[LayerAgent], bool, bool, object) -> None
+def extend_beam_to_closest_agent_outlines(beam, outlines, only_start=False, only_end=False):
+    # type: (Beam2D, list[Polyline], bool, bool) -> None
     """Extend *beam* in-place so its ends reach the nearest agent outlines.
 
     Parameters
@@ -218,8 +218,7 @@ def extend_beam_to_closest_agents(beam, agents, layer, only_start=False, only_en
         raise ValueError("Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam))
 
     intersections = []
-    for agent in agents:
-        outline = agent.outline_by_layer.get(layer)
+    for outline in outlines:
         if outline is not None:
             intersections.extend(find_beam_outline_crossings(beam, outline, limit_to_segments=False))
 

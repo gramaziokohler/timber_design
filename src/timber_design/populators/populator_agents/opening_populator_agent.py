@@ -18,7 +18,7 @@ from compas_timber.panel_features import Opening
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.agent_intersection import extend_beam_to_closest_agents
+from timber_design.populators.agent_intersection import extend_beam_to_closest_agent_outlines
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.connection_solver_2d import aabb_overlap_x
@@ -311,33 +311,29 @@ class OpeningPopulatorAgent(FeatureAgent):
             ]
         )
 
-    def extend_elements(self, layer_agents):
+    def extend_elements(self, layer_agents, layer):
         """Extend king/jack studs to neighboring boundaries — one layer at a time.
 
         The opening may frame on several layers.  Each layer's king/jack studs
         are extended only against the peer agents *on that same layer*, so a
         stud is never extended to a boundary that belongs to a different layer.
         """
-        for layer in layer_agents:
-            layer_elements = self.elements_by_layer.get(layer, [])
-            king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
-            jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
-            if not (king_studs or jack_studs):
-                continue
-            peer_agents = [a for a in layer.agents if a is not self and aabb_overlap_x(self, a)]
-            if not peer_agents:
-                continue
-            self._extend_studs(king_studs, jack_studs, peer_agents, layer)
-
-    def _extend_studs(self, king_studs, jack_studs, intersecting_agents: list[LayerAgent], layer) -> None:
-        """Extend the given king and jack studs in-place to the nearest neighboring boundaries on *layer*."""
+        layer_elements = self.elements_by_layer.get(layer, [])
+        king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
+        jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
+        agent_layer_boundaries = [a.outline_by_layer[layer] for a in layer_agents]
+        if not (king_studs or jack_studs):
+            return
         for king_stud in king_studs:
             if king_stud is not None:
-                extend_beam_to_closest_agents(king_stud, intersecting_agents, layer=layer)
+                print("extending_king_stud")
+                extend_beam_to_closest_agent_outlines(king_stud, agent_layer_boundaries)
 
         for jack_stud in jack_studs:
             if jack_stud is not None:
-                extend_beam_to_closest_agents(jack_stud, intersecting_agents, only_start=True, layer=layer)
+                print("extending_king_stud")
+
+                extend_beam_to_closest_agent_outlines(jack_stud, agent_layer_boundaries, only_start=True)
 
     # ==========================================================================
     # Cross-layer trimming

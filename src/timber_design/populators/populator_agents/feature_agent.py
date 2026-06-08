@@ -54,9 +54,12 @@ class FeatureAgent(PopulatorAgent):
         # type: (object, list, list, Optional[list], Optional[list]) -> None
         super().__init__(internal_joint_overrides, external_joint_overrides)
         self.feature = feature
-        print("EL",element_layers)
-        self.element_layers = element_layers or []
-        self.trimming_layers = trimming_layers or []
+        # Coerce to a real Python list: GH passes inputs as a .NET
+        # ``System.Collections.Generic.List``; storing that directly makes
+        # ``set(...)`` / identity logic and ``__data__`` round-tripping behave
+        # inconsistently downstream.
+        self.element_layers = list(element_layers) if element_layers else []
+        self.trimming_layers = list(trimming_layers) if trimming_layers else []
 
 
     @property

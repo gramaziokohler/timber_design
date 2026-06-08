@@ -4,7 +4,7 @@ from .beam2d import Beam2D
 from .populator import PanelPopulator
 
 from .agent_intersection import BeamOutlineIntersectionData
-from .agent_intersection import extend_beam_to_closest_agents
+from .agent_intersection import extend_beam_to_closest_agent_outlines
 from .agent_intersection import find_beam_outline_crossings
 
 from .connection_solver_2d import ConnectionSolver2D
@@ -42,7 +42,7 @@ __all__ = [
     "ConnectionSolver2D",
     "aabb_overlap_x",
     "aabb_overlap",
-    "extend_beam_to_closest_agents",
+    "extend_beam_to_closest_agent_outlines",
     "find_beam_outline_crossings",
     "PopulatorAgent",
 ]

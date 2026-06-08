@@ -280,9 +280,30 @@ class PopulatorAgent(Data, ABC):
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
 
+    def outline_for_layer(self, layer):
+        """Return this agent's boundary outline applicable to *layer*.
+
+        Returns the outline this agent generated on *layer* directly; if the
+        agent has no outline there (e.g. *layer* is a **sublayer** of a layer the
+        agent framed/trims on), it falls back to the outline of the nearest
+        ancestor layer whose subtree contains *layer*.  This lets a feature
+        agent trim peer beams on the sublayers of its framing/trimming layers,
+        where its footprint is the same shape but no per-sublayer outline was
+        generated.
+        """
+        outline = self.outline_by_layer.get(layer)
+        if outline is not None:
+            return outline
+        for source, source_outline in self.outline_by_layer.items():
+            if source_outline is None or not hasattr(source, "iter_subtree"):
+                continue
+            if any(sublayer is layer for sublayer in source.iter_subtree()):
+                return source_outline
+        return None
+
     def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
-        outline = self.outline_by_layer.get(layer)
+        outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return False
         if outline is None:
@@ -305,7 +326,7 @@ class PopulatorAgent(Data, ABC):
         skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
         """Split *beam* at this agent's boundary on *layer* and return the surviving segments."""
-        outline = self.outline_by_layer.get(layer)
+        outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
             return [beam]
         if outline is None:
@@ -369,30 +390,56 @@ class PopulatorAgent(Data, ABC):
                     candidates.append(candidate)
         return candidates
 
-    def trim_agent_elements(self, other_agent):
-        """Trim *other_agent*'s elements **on *layer*** against this agent's boundary.
+    def layers_to_trim(self):
+        """Layers on which this agent trims peer elements.
 
-        Each of the peer's elements on that layer is cut by this agent's
-        boundary (plates via :meth:`trim_plate`, beams via :meth:`trim_beam`),
-        and the surviving segments are written back with
-        :meth:`set_elements_for_layer`.
+        These are the agent's own framing layers (:attr:`element_layers`) plus
+        its :attr:`trimming_layers`, with each trimming layer **expanded to
+        include every sublayer beneath it** (depth-first via
+        :meth:`~compas_timber.panel_features.Layer.iter_subtree`).  So declaring
+        a layer as a trimming layer also trims any elements nested on its
+        sublayers.  Duplicates are removed while preserving order.
+        """
+        layers = []
+        seen = set()
+
+        def add(layer):
+            if id(layer) not in seen:
+                seen.add(id(layer))
+                layers.append(layer)
+
+        for layer in self.element_layers:
+            add(layer)
+        for layer in self.trimming_layers:
+            subtree = layer.iter_subtree() if hasattr(layer, "iter_subtree") else [layer]
+            for sublayer in subtree:
+                add(sublayer)
+        return layers
+
+    def trim_agent_elements(self, other_agent, layer):
+        """Trim *other_agent*'s elements against this agent's boundary.
+
+        For every layer this agent trims (see :meth:`layers_to_trim` — its
+        framing layers plus its trimming layers and *their sublayers*) on which
+        *other_agent* placed elements, each of the peer's elements is cut by this
+        agent's boundary (plates via :meth:`trim_plate`, beams via
+        :meth:`trim_beam`) and the surviving segments are written back.
 
         Parameters
         ----------
         other_agent : :class:`~timber_design.populators.PopulatorAgent`
-            The peer whose elements on *layer* receive the cut.
-        layer : :class:`~timber_design.populators.Layer`
-            The layer whose elements are trimmed.
+            The peer whose elements receive the cut.
         """
+        # Reset per layer — otherwise one layer's surviving segments leak into
+        # the next layer's bucket, putting the same element object under two
+        # layers (which then gets added to the model twice / under the wrong parent).
         trimmed_elements = []
-        trimming_layers = set(self.trimming_layers) & set(other_agent.element_layers)
-        for layer in trimming_layers:
-            for element in other_agent.elements_by_layer.get(layer, []):
-                if element.is_plate:
-                    trimmed_elements.extend(self.trim_plate(element))
-                if element.is_beam:
-                    trimmed_elements.extend(self.trim_beam(element, layer))
-            other_agent.elements_by_layer[layer] = trimmed_elements
+        for element in other_agent.elements_by_layer[layer]:
+            if element.is_plate:
+                trimmed_elements.extend(self.trim_plate(element))
+            if element.is_beam:
+                trimmed_elements.extend(self.trim_beam(element, layer))
+        other_agent.elements_by_layer[layer] = trimmed_elements
 
     def generate_elements(self):
         """Generate all elements for this agent's layer."""
@@ -403,7 +450,7 @@ class PopulatorAgent(Data, ABC):
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
 
 
-    def extend_elements(self, layer_elements) -> None:
+    def extend_elements(self, layer_elements, layer) -> None:
         pass
 
     def create_joint_defs(self) -> list[DirectRule]:

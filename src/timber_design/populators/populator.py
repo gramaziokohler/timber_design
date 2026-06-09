@@ -109,7 +109,8 @@ class PanelPopulator:
         self.agents = list(agents)
 
         # Config-time setup that does NOT depend on the panel's final geometry.
-        self.layers = panel.layers
+        # Snapshot as a list (panel.layers is a live view over the layer tree).
+        self.layers = list(panel.layers)
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
         self.route_rule_overrides(joint_rule_overrides)
@@ -238,9 +239,23 @@ class PanelPopulator:
         self.add_elements_to_model()
 
     def generate_elements(self):
-        """Ask each agent to create its beams and plates (stage 1)."""
+        """Ask each agent to create its beams and plates, layer by layer (stage 1).
+
+        Mirrors :meth:`extend_elements` / :meth:`trim_elements`: iterate
+        :attr:`layers`, select the agents that frame on each layer, and run the
+        agent's per-layer action.
+        """
+        for layer in self.layers:
+            for agent in self._agents_framing_on(layer):
+                agent.generate_elements(layer)
+        # Feature agents define their footprint outline on every layer they trim
+        # (beyond the ones they frame) so peer beams there can be culled.
         for agent in self.agents:
-            agent.generate_elements()
+            agent.define_trimming_outlines()
+
+    def _agents_framing_on(self, layer):
+        """Agents whose :attr:`element_layers` includes *layer* (they frame there)."""
+        return [a for a in self.agents if layer in a.element_layers]
 
     def extend_elements(self):
         """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
@@ -287,12 +302,11 @@ class PanelPopulator:
         :meth:`merge_with_model` only has to move the layer subtree back under
         the original panel — no per-element transform.
         """
-        for agent in self.agents:
-            for layer, elements in agent.elements_by_layer.items():
-                for element in elements:
+        for layer in self.layers:
+            for agent in self._agents_framing_on(layer):
+                for element in agent.elements_by_layer.get(layer, []):
                     element.transform(layer.transformation_to_local())
                     self.model.add_element(element, parent=layer)
-                    continue
 
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
@@ -304,14 +318,19 @@ class PanelPopulator:
         self.create_cross_agent_joints()
 
     def create_agent_joints(self):
-        """Create joints between elements that belong to the same agent.
-        ``agent.joint_defs`` is cleared after each layer pass so that a
-        multi-layer agent is not double-applied on subsequent layers.
+        """Create within-agent joints, layer by layer.
+
+        Mirrors the other layer-driven stages: iterate :attr:`layers`, select the
+        agents with elements on each layer, and build/apply that agent's joint
+        defs for that layer.  ``create_joint_defs(layer)`` resets and returns the
+        per-layer defs, so a multi-layer agent is never double-applied.
         """
-        for agent in self.agents:
-            agent.create_joint_defs()
-            for j_def in agent.joint_defs:
-                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+        for layer in self.layers:
+            for agent in self.agents:
+                if not agent.elements_by_layer.get(layer):
+                    continue
+                for j_def in agent.create_joint_defs(layer):
+                    j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
 
     def create_cross_agent_joints(self):
         """Create joints between elements of different agents on the same layer.
@@ -365,14 +384,30 @@ class PanelPopulator:
         """
         # TODO: use @chenkasirer s merge_model functionality when added to CT
         if clear_panel:
-            for element in self.original_panel.children[:]:
-                model.remove_element(element)
+            # Remove each existing child *subtree* leaves-first.  Removing a layer
+            # directly would drop its treenode subtree but leave its beam children
+            # in the model dict (orphaned ghost geometry), so recurse to leaves.
+            for element in list(self.original_panel.children):
+                _remove_element_subtree(model, element)
 
         merge_model_into_model(self.model, model, parent=self.original_panel)
 
 # =============================================================================
 # Model sub-tree surgery
 # =============================================================================
+
+def _remove_element_subtree(model, element):
+    """Remove *element* and all its descendants from *model*, leaves-first.
+
+    ``Model.remove_element`` drops a node's whole treenode subtree but only one
+    guid from the element dict, so removing a non-leaf directly orphans its
+    descendants.  Recursing to leaves keeps the model consistent.
+    """
+    for child in list(element.children):
+        _remove_element_subtree(model, child)
+    if model.has_element(element):
+        model.remove_element(element)
+
 
 def _reset_caches(element):
     """Invalidate an element's computed-geometry caches after a tree move.
@@ -382,7 +417,8 @@ def _reset_caches(element):
     Null the caches so geometry recomputes against the new parent (``_blank``
     is a Beam-specific cache, ``_planes`` a Panel/Layer one).
     """
-    for attr in ("_elementgeometry", "_aabb", "_obb", "_blank", "_planes"):
+    for attr in ("_modelgeometry", "_aabb", "_obb", "_blank", "_planes"):
+        print("resetting cached properties")
         if hasattr(element, attr):
             setattr(element, attr, None)
 

@@ -29,15 +29,13 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def component(self):
         return ghenv.Component  # type: ignore
 
-    def RunScript(
-        self,
-        Elements: System.Collections.Generic.List[object],
-        Populators: System.Collections.Generic.List[object],
-        JointRules: System.Collections.Generic.List[object],
-        Features: System.Collections.Generic.List[object],
-        MaxDistance: float,
-        CreateGeometry: bool,
-    ):
+    def RunScript(self,
+            Elements: System.Collections.Generic.List[object],
+            Populators: System.Collections.Generic.List[object],
+            JointRules: System.Collections.Generic.List[object],
+            Features: System.Collections.Generic.List[object],
+            MaxDistance: float,
+            CreateGeometry: bool):
         # this used to be default behavior in Rhino7.. I think..
         Elements = Elements or []
         Populators = Populators or []
@@ -174,6 +172,14 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         scene = Scene()
         errors = []
         for element in Model.elements():
+            # Skip panels and their layers.  These are
+            # structural containers, not physical parts — they are represented by
+            # the framing (beams) and sheathing (plates) generated inside them.
+            # Drawing them too would overlay solid, uncut plate ghosts on top of
+            # the real framing.
+            # TODO: create UI for deciding level of detail to display 
+            if isinstance(element, Panel):
+                continue
             if CreateGeometry:
                 scene.add(element.geometry)
                 if getattr(element, "debug_info", False):

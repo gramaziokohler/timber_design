@@ -248,9 +248,27 @@ class OpeningPopulatorAgent(FeatureAgent):
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, header, is_joinery=False)
             header.add_features(long_cut)
 
+        return layer_elements, self._compute_outline_for_layer(layer)
+
+    def _compute_outline_for_layer(self, layer):
+        """Compute this opening's footprint outline on *layer* (no beams generated).
+
+        The footprint is the opening's frame polyline at the layer's
+        through-thickness position, so it is recomputed per layer (correct even
+        for openings whose two faces differ in plan).  Used both for the framing
+        layer's outline and — via :meth:`define_trimming_outlines` — for every
+        layer the opening only trims.
+        """
+        frame_polyline_a, frame_polyline_b = self._create_frame_polylines(self.feature, layer)
+        frame_polyline = self._create_frame_polyline(frame_polyline_a, frame_polyline_b, layer)
+        if self.opening_type == "door":
+            frame_polyline.points[0].y -= 100  # offset to avoid z-fighting
+            frame_polyline.points[3].y -= 100
+            frame_polyline.points[4].y -= 100
+        segments = [line for line in frame_polyline.lines]
+        segments[2].flip()  # align to panel populator stud direction
         extend_line_segments(segments, close_loop=True)
-        outline = join_polyline_segments(segments, close_loop=True)[0][0]
-        return layer_elements, outline
+        return join_polyline_segments(segments, close_loop=True)[0][0]
 
     @property
     def header(self):
@@ -326,13 +344,10 @@ class OpeningPopulatorAgent(FeatureAgent):
             return
         for king_stud in king_studs:
             if king_stud is not None:
-                print("extending_king_stud")
                 extend_beam_to_closest_agent_outlines(king_stud, agent_layer_boundaries)
 
         for jack_stud in jack_studs:
             if jack_stud is not None:
-                print("extending_king_stud")
-
                 extend_beam_to_closest_agent_outlines(jack_stud, agent_layer_boundaries, only_start=True)
 
     # ==========================================================================

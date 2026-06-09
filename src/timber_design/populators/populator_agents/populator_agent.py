@@ -281,25 +281,25 @@ class PopulatorAgent(Data, ABC):
         return False
 
     def outline_for_layer(self, layer):
-        """Return this agent's boundary outline applicable to *layer*.
+        """Return this agent's boundary outline on *layer*, or ``None``.
 
-        Returns the outline this agent generated on *layer* directly; if the
-        agent has no outline there (e.g. *layer* is a **sublayer** of a layer the
-        agent framed/trims on), it falls back to the outline of the nearest
-        ancestor layer whose subtree contains *layer*.  This lets a feature
-        agent trim peer beams on the sublayers of its framing/trimming layers,
-        where its footprint is the same shape but no per-sublayer outline was
-        generated.
+        ``outline_by_layer`` is kept clean: an entry exists only where the agent
+        explicitly defined an outline.  Layer agents define one only where they
+        frame; feature agents (see :meth:`define_trimming_outlines`) define their
+        footprint on every layer they frame *or* trim — including sublayers — so
+        their beams are culled everywhere they act and ``None`` everywhere else.
         """
-        outline = self.outline_by_layer.get(layer)
-        if outline is not None:
-            return outline
-        for source, source_outline in self.outline_by_layer.items():
-            if source_outline is None or not hasattr(source, "iter_subtree"):
-                continue
-            if any(sublayer is layer for sublayer in source.iter_subtree()):
-                return source_outline
-        return None
+        return self.outline_by_layer.get(layer)
+
+    def define_trimming_outlines(self):
+        """Define this agent's boundary outline on every layer it trims.
+
+        No-op for layer agents (they only have an outline where they frame).
+        Feature agents override this to compute their footprint outline on the
+        layers they trim but do not frame, so peer beams there can be culled the
+        same way :meth:`trim_plate` already cuts plates there.
+        """
+        pass
 
     def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
@@ -369,16 +369,15 @@ class PopulatorAgent(Data, ABC):
         return beam_segs
 
 
-    def create_joint_candidates(self):
+    def create_joint_candidates(self, layer=None):
         """Return joint candidates for overlapping beam pairs within this agent.
 
-        Subclasses override this to iterate the appropriate element collection.
-        The base implementation iterates ``self.elements`` directly, which is
-        correct for :class:`LayerAgent`.  :class:`FeatureAgent` overrides it
-        to iterate ``elements_by_layer`` per layer.
+        With *layer* given, only that layer's elements are paired; otherwise
+        every framing layer in :attr:`element_layers` is considered.
         """
         candidates = []
-        for layer in self.element_layers:
+        layers = [layer] if layer is not None else list(self.element_layers)
+        for layer in layers:
             elements = self.elements_by_layer.get(layer, [])
             solver = ConnectionSolver2D()
             beam_elements = [e for e in elements if isinstance(e, Beam2D)]
@@ -434,6 +433,8 @@ class PopulatorAgent(Data, ABC):
         # the next layer's bucket, putting the same element object under two
         # layers (which then gets added to the model twice / under the wrong parent).
         trimmed_elements = []
+        print("trimming agent is ", self)
+        print("other_agent is", other_agent)
         for element in other_agent.elements_by_layer[layer]:
             if element.is_plate:
                 trimmed_elements.extend(self.trim_plate(element))
@@ -441,29 +442,35 @@ class PopulatorAgent(Data, ABC):
                 trimmed_elements.extend(self.trim_beam(element, layer))
         other_agent.elements_by_layer[layer] = trimmed_elements
 
-    def generate_elements(self):
-        """Generate all elements for this agent's layer."""
-        for layer in self.element_layers:
-            # self.outline = None
+    def generate_elements(self, layer=None):
+        """Generate (and store) this agent's elements.
+
+        With *layer* given, generates only on that layer; otherwise on every
+        framing layer in :attr:`element_layers`.  The populator drives this one
+        layer at a time (mirroring :meth:`trim_agent_elements` /
+        :meth:`extend_elements`), but the no-argument form is kept for callers
+        that want the whole agent generated at once.
+        """
+        layers = [layer] if layer is not None else list(self.element_layers)
+        for layer in layers:
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
             self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
 
-
     def extend_elements(self, layer_elements, layer) -> None:
         pass
 
-    def create_joint_defs(self) -> list[DirectRule]:
-        """Return :class:`~timber_design.workflow.DirectRule` objects for element pairs within this agent.
+    def create_joint_defs(self, layer=None) -> list[DirectRule]:
+        """Build within-agent :class:`~timber_design.workflow.DirectRule` joint defs.
 
-        Parameters
-        ----------
-        model : :class:`~compas_timber.model.TimberModel`
-        elements : list, optional
-            Restrict joint detection to this element subset.  Forwarded
-            directly to :meth:`create_joint_candidates`; see its docstring.
+        With *layer* given, only element pairs on that layer are considered;
+        otherwise every framing layer is.  :attr:`joint_defs` is reset on each
+        call and the freshly built list is returned, so the populator can drive
+        this per layer without defs accumulating across layers.
         """
-        for candidate in self.create_joint_candidates():
+        self.joint_defs = []
+        for candidate in self.create_joint_candidates(layer):
             rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
+        return self.joint_defs

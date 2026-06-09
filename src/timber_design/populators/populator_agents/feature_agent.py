@@ -70,9 +70,35 @@ class FeatureAgent(PopulatorAgent):
         data["trimming_layers"] = self.trimming_layers or None
         return data
 
+    def define_trimming_outlines(self):
+        """Define this feature's footprint outline on every layer it trims.
 
-    def create_joint_candidates(self):
-        """Return joint candidates per layer, using the per-layer element dict."""
+        ``generate_elements`` already sets the outline on the layers the feature
+        frames on.  This fills in the remaining layers in :meth:`layers_to_trim`
+        (trimming layers and their sublayers that the feature does not frame), so
+        the feature culls peer beams there just as :meth:`trim_plate` already
+        cuts plates there.  Layers that already have an outline are left as-is.
+        """
+        for layer in self.layers_to_trim():
+            if self.outline_by_layer.get(layer) is None:
+                self.outline_by_layer[layer] = self._compute_outline_for_layer(layer)
+
+    def _compute_outline_for_layer(self, layer):
+        """Return this feature's footprint outline on *layer*.
+
+        Subclasses implement the feature-specific footprint (e.g. the opening
+        frame).  Called for both framing and trimming layers, so it must not
+        depend on elements having been generated on *layer*.
+        """
+        raise NotImplementedError
+
+    def create_joint_candidates(self, layer=None):
+        """Return within-agent joint candidates, pairing beams per layer.
+
+        With *layer* given, only that layer's bucket is paired; otherwise every
+        layer this agent has elements on.  Pairs are always formed *within* a
+        single layer so a beam on one layer is never joined to one on another.
+        """
         from compas_timber.connections import JointCandidate
 
         from timber_design.populators.beam2d import Beam2D
@@ -80,7 +106,9 @@ class FeatureAgent(PopulatorAgent):
 
         candidates = []
         solver = ConnectionSolver2D()
-        for elements in self.elements_by_layer.values():
+        layers = [layer] if layer is not None else list(self.elements_by_layer.keys())
+        for layer in layers:
+            elements = self.elements_by_layer.get(layer, [])
             beam_elements = [e for e in elements if isinstance(e, Beam2D)]
             pairs = solver.find_intersecting_pairs(beam_elements)
             for element_a, element_b in pairs:

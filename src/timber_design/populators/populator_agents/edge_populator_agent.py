@@ -182,12 +182,14 @@ class EdgePopulatorAgent(LayerAgent):
     # methods for creating beam joints
     # ==========================================================================
 
-    def create_joint_defs(self) -> list[DirectRule]:
-        """Generate the joint definitions for the panel edges."""
-        for candidate in self.create_joint_candidates():
+    def create_joint_defs(self, layer=None) -> list[DirectRule]:
+        """Generate the joint definitions for the panel edges (optionally one layer)."""
+        self.joint_defs = []
+        for candidate in self.create_joint_candidates(layer):
             rule = self._edge_joint_rule(*candidate.elements)
             if rule is not None:
                 self.joint_defs.append(rule)
+        return self.joint_defs
 
     def _edge_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
         """Return the joint rule for two edge beams.

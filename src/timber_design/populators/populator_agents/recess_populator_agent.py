@@ -147,7 +147,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-    def create_joint_defs(self):
+    def create_joint_defs(self, layer=None):
         """Generate joint definitions for both edge beams and recess beams.
 
         Edge-beam pairs (both elements have ``edge_index``) are handled by the
@@ -158,7 +158,8 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         :attr:`~PopulatorAgent.INTERNAL_JOINT_RULES` by category name and finds
         the ``CategoryRule(LMiterJoint, "recess", "recess")`` entry.
         """
-        for candidate in self.create_joint_candidates():
+        self.joint_defs = []
+        for candidate in self.create_joint_candidates(layer):
             edge_a = candidate.element_a.attributes.get("edge_index")
             edge_b = candidate.element_b.attributes.get("edge_index")
             if edge_a is not None and edge_b is not None:
@@ -169,3 +170,4 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
                 rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
             if rule is not None:
                 self.joint_defs.append(rule)
+        return self.joint_defs

@@ -433,8 +433,6 @@ class PopulatorAgent(Data, ABC):
         # the next layer's bucket, putting the same element object under two
         # layers (which then gets added to the model twice / under the wrong parent).
         trimmed_elements = []
-        print("trimming agent is ", self)
-        print("other_agent is", other_agent)
         for element in other_agent.elements_by_layer[layer]:
             if element.is_plate:
                 trimmed_elements.extend(self.trim_plate(element))

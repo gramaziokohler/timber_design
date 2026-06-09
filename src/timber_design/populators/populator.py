@@ -418,7 +418,6 @@ def _reset_caches(element):
     is a Beam-specific cache, ``_planes`` a Panel/Layer one).
     """
     for attr in ("_modelgeometry", "_aabb", "_obb", "_blank", "_planes"):
-        print("resetting cached properties")
         if hasattr(element, attr):
             setattr(element, attr, None)
 

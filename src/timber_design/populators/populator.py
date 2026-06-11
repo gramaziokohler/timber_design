@@ -338,7 +338,7 @@ class PanelPopulator:
         solver = ConnectionSolver2D()
         for layer in self.layers:
             agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
-            for agent_a, agent_b in solver.find_intersecting_agent_pairs(agents):
+            for agent_a, agent_b in solver.find_intersecting_pairs(agents):
                 elements_a = agent_a.elements_by_layer.get(layer, [])
                 elements_b = agent_b.elements_by_layer.get(layer, [])
                 candidates = []

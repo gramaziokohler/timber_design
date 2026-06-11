@@ -1,3 +1,4 @@
+from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Polygon
 from compas.geometry import Polyline
@@ -46,12 +47,22 @@ class AABB2D(object):
             Point(self.xmin, self.ymax, 0),
         ]
 
+    @property
+    def geometry(self):
+        return Polyline(        [
+            Point(self.xmin, self.ymin, 0),
+            Point(self.xmax, self.ymin, 0),
+            Point(self.xmax, self.ymax, 0),
+            Point(self.xmin, self.ymax, 0),
+            Point(self.xmin, self.ymin, 0),
+        ])
+
 
 class Beam2D(Beam):
     """A :class:`~compas_timber.elements.Beam` extended with 2D blank geometry.
 
     Adds lazy properties for the beam's projected blank edges and polygon,
-    used by :class:`~timber_design.populators.BeamOutlineIntersectionData` and
+    used by :class:`~timber_design.populators.Beam2DPolylineIntersectionResult` and
     :meth:`~timber_design.populators.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
@@ -104,14 +115,19 @@ class Beam2D(Beam):
 
     @property
     def edge_b(self):
-        """The ``+yaxis`` long blank edge.
+        """The ``+yaxis`` long blank edge, oriented start→end (same as beam axis).
+
+        ``blank_outline.lines[2]`` runs ``tr→tl`` (CCW outline order); this
+        property flips it to ``tl→tr`` so both long edges share the same
+        orientation as the centreline.
 
         Returns
         -------
         :class:`compas.geometry.Line`
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
-        return self.edges[2]
+        line = self.blank_outline.lines[2]  # tr→tl in CCW outline
+        return Line(line.end, line.start)   # flip to tl→tr
 
     @property
     def start_segment(self):
@@ -199,7 +215,7 @@ class Beam2D(Beam):
     # Point containment
     # ------------------------------------------------------------------
 
-    def contains_point(self, point, tolerance=1.0):
+    def contains_point(self, point, tolerance=0.0):
         """Return ``True`` if *point* lies within (or on) the 2D blank rectangle.
 
         Uses a fast axis-aligned projection test in the beam's local frame.

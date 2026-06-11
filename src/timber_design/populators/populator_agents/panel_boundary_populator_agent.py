@@ -57,12 +57,13 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
     def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
         # type: (Layer, Optional[list], Optional[list]) -> None
         super(PanelBoundaryPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        self._outline = None
 
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
     def generate_elements_for_layer(self, layer=None):
-        pass
+        return [], self.outline if layer is self.layer else None
 
     def generate_boundaries(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""
@@ -74,7 +75,7 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
             outer_segs.append(outer_seg)
         extend_line_segments(inner_segs, close_loop=True)
         extend_line_segments(outer_segs, close_loop=True)
-        self.outline = join_polyline_segments(inner_segs, close_loop=True)[0][0]
+        return join_polyline_segments(outer_segs, close_loop=True)[0][0]
 
     def _get_inner_and_outer_segments(self, segment_index) -> tuple[Line, float]:
         perp_vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, segment_index)
@@ -91,10 +92,15 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
             return projected_a, projected_b
 
     @property
+    def outline(self):
+        if not self._outline:
+            self._outline = self.generate_boundaries()
+        return self._outline
+
+    @property
     def aabb(self):
         """Get the axis-aligned bounding box of the agent's outline."""
-        if not self.outline:
-            self.generate_boundaries()
+
         aabb2d = AABB2D.from_points(self.outline.points)
         return aabb2d
 

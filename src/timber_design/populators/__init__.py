@@ -3,12 +3,11 @@ from .beam2d import Beam2D
 
 from .populator import PanelPopulator
 
-from .agent_intersection import BeamOutlineIntersectionData
-from .agent_intersection import extend_beam_to_closest_agent_outlines
-from .agent_intersection import find_beam_outline_crossings
-
+from .connection_solver_2d import Beam2DPolylineIntersectionResult
+from .connection_solver_2d import Beam2DSolverResult
+from .connection_solver_2d import Cluster2DFinder
 from .connection_solver_2d import ConnectionSolver2D
-from .connection_solver_2d import aabb_overlap_x
+from .connection_solver_2d import JointCluster2D
 from .connection_solver_2d import aabb_overlap
 
 from .populator_agents.layer_agent import LayerAgent
@@ -38,11 +37,11 @@ __all__ = [
     "OpeningPopulatorAgent",
     "RecessPopulatorAgent",
     "PanelBoundaryPopulatorAgent",
-    "BeamOutlineIntersectionData",
+    "Beam2DPolylineIntersectionResult",
+    "Beam2DSolverResult",
+    "Cluster2DFinder",
     "ConnectionSolver2D",
-    "aabb_overlap_x",
+    "JointCluster2D",
     "aabb_overlap",
-    "extend_beam_to_closest_agent_outlines",
-    "find_beam_outline_crossings",
     "PopulatorAgent",
 ]

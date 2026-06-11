@@ -18,10 +18,9 @@ from compas_timber.panel_features import Opening
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.agent_intersection import extend_beam_to_closest_agent_outlines
 from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
-from timber_design.populators.connection_solver_2d import aabb_overlap_x
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
@@ -344,11 +343,11 @@ class OpeningPopulatorAgent(FeatureAgent):
             return
         for king_stud in king_studs:
             if king_stud is not None:
-                extend_beam_to_closest_agent_outlines(king_stud, agent_layer_boundaries)
+                ConnectionSolver2D.extend_beam_to_polylines(king_stud, agent_layer_boundaries)
 
         for jack_stud in jack_studs:
             if jack_stud is not None:
-                extend_beam_to_closest_agent_outlines(jack_stud, agent_layer_boundaries, only_start=True)
+                ConnectionSolver2D.extend_beam_to_polylines(jack_stud, agent_layer_boundaries, only_start=True)
 
     # ==========================================================================
     # Cross-layer trimming
@@ -356,7 +355,12 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     def _cull_stud(self, stud: Beam2D) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
-        return any([aabb_overlap(b, stud) for b in self.king_studs + self.jack_studs])
+        for b in self.king_studs + self.jack_studs:
+            if aabb_overlap(b, stud):
+                if stud.length<300:
+                    print(b, stud)
+                return True
+        return False
 
     def trim_plate(self, plate: Plate) -> None:
         """Apply the opening contour to the given plate.

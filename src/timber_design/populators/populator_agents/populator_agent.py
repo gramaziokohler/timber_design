@@ -13,10 +13,9 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
-from timber_design.populators.agent_intersection import BeamOutlineIntersectionData
-from timber_design.populators.agent_intersection import find_beam_outline_crossings
 from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.beam2d import Beam2D
+from timber_design.populators.connection_solver_2d import Beam2DPolylineIntersectionResult
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.workflow import CategoryRule
@@ -322,8 +321,6 @@ class PopulatorAgent(Data, ABC):
         self,
         beam: Beam2D,
         layer=None,
-        skip_notches: Optional[bool] = True,
-        skip_laps: Optional[bool] = True,
     ) -> list[Beam2D]:
         """Split *beam* at this agent's boundary on *layer* and return the surviving segments."""
         outline = self.outline_for_layer(layer)
@@ -332,7 +329,7 @@ class PopulatorAgent(Data, ABC):
         if outline is None:
             return [beam]
 
-        crossings = find_beam_outline_crossings(beam, outline, skip_notches=skip_notches, skip_laps=skip_laps)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         if not crossings:
             # No outline crossings — keep or cull the whole beam, preserving object identity.
             # cull_element_at_point handles the in/out-of-boundary test; cull_beam_segment
@@ -343,8 +340,8 @@ class PopulatorAgent(Data, ABC):
             return [beam]
 
         intersections = [
-            BeamOutlineIntersectionData(start_dot=0.0),
-            BeamOutlineIntersectionData(end_dot=beam.length),
+            Beam2DPolylineIntersectionResult(start_dot=0.0),
+            Beam2DPolylineIntersectionResult(end_dot=beam.length),
         ]
         intersections.extend(crossings)
 
@@ -454,6 +451,10 @@ class PopulatorAgent(Data, ABC):
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
             self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
+
+    @abstractmethod
+    def generate_elements_for_layer(self, layer):
+        """generates the elements for this agent on the given layer""" 
 
     def extend_elements(self, layer_elements, layer) -> None:
         pass

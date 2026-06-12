@@ -275,7 +275,7 @@ class PopulatorAgent(Data, ABC):
             rule_kwargs.update(kwargs)
             return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
 
-    def cull_beam_segment(self, beam: Beam2D) -> bool:
+    def cull_beam_segment(self, beam: Beam2D, layer=None) -> bool:
         """Determines whether the beam segment should be culled by the populator agent."""
         return False
 
@@ -317,53 +317,48 @@ class PopulatorAgent(Data, ABC):
         """Apply the agent to the plate based on the populator agent."""
         return [plate]
 
-    def trim_beam(
-        self,
-        beam: Beam2D,
-        layer=None,
-    ) -> list[Beam2D]:
-        """Split *beam* at this agent's boundary on *layer* and return the surviving segments."""
+    def split_beam(self, beam: Beam2D, layer=None) -> list[Beam2D]:
+        """Split *beam* at this agent's outline boundary and return all resulting segments.
+
+        No culling is applied — every segment produced by outline crossings is
+        returned.  Use :meth:`cull_beam` afterwards to discard out-of-zone
+        segments, or call :meth:`trim_beam` which composes both steps.
+        """
         outline = self.outline_for_layer(layer)
-        if self.BOUNDARY_TYPE == AgentBoundaryType.NONE:
-            return [beam]
-        if outline is None:
+        if self.BOUNDARY_TYPE == AgentBoundaryType.NONE or outline is None:
             return [beam]
 
-        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
-        if not crossings:
-            # No outline crossings — keep or cull the whole beam, preserving object identity.
-            # cull_element_at_point handles the in/out-of-boundary test; cull_beam_segment
-            # handles agent-specific culls (e.g. studs overlapping an opening's king/jack
-            # studs) that are independent of the boundary outline.
-            if self.cull_element_at_point(beam.centerline.midpoint, layer) or self.cull_beam_segment(beam):
-                return []
+        intersections = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
+        if not intersections:
             return [beam]
 
-        intersections = [
+        # add intersections at start and end to include end segments when splitting.
+        intersections.extend([
             Beam2DPolylineIntersectionResult(start_dot=0.0),
             Beam2DPolylineIntersectionResult(end_dot=beam.length),
-        ]
-        intersections.extend(crossings)
-
+        ])
         intersections.sort(key=lambda x: x.average_dot)
-        beam_segs = []
+
+        segments = []
         for pair in pairwise(intersections):
             seg_start = min(pair[0].all_dots)
             seg_end = max(pair[1].all_dots)
-
-            # Skip degenerate segments that arise when a crossing lands exactly
-            # at the beam start/end or two crossings are at the same position.
+            # Skip degenerate segments.
             if seg_end - seg_start < 0.000001:
                 continue
+            segments.append(beam.get_beam_segment(seg_start, seg_end))
+        return segments
 
-            beam_seg = beam.get_beam_segment(seg_start, seg_end)
-            if self.cull_element_at_point(beam_seg.centerline.midpoint, layer):
-                continue
-            if self.cull_beam_segment(beam_seg):
-                continue
-            beam_segs.append(beam_seg)
+    def cull_beam(self, beam: Beam2D, layer=None) -> bool:
+        """Return ``True`` if *beam* should be removed by this agent on *layer*.
 
-        return beam_segs
+        Checks both the midpoint-in-zone test (:meth:`cull_element_at_point`)
+        and any agent-specific override (:meth:`cull_beam_segment`).
+        """
+        return bool(
+            self.cull_element_at_point(beam.centerline.midpoint, layer)
+            or self.cull_beam_segment(beam, layer)
+        )
 
 
     def create_joint_candidates(self, layer=None):
@@ -412,37 +407,40 @@ class PopulatorAgent(Data, ABC):
                 add(sublayer)
         return layers
 
-    def trim_agent_elements(self, other_agent, layer):
-        """Trim *other_agent*'s elements against this agent's boundary.
+    def split_agent_elements(self, other_agent, layer):
+        """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
 
-        For every layer this agent trims (see :meth:`layers_to_trim` — its
-        framing layers plus its trimming layers and *their sublayers*) on which
-        *other_agent* placed elements, each of the peer's elements is cut by this
-        agent's boundary (plates via :meth:`trim_plate`, beams via
-        :meth:`trim_beam`) and the surviving segments are written back.
-
-        Parameters
-        ----------
-        other_agent : :class:`~timber_design.populators.PopulatorAgent`
-            The peer whose elements receive the cut.
+        Each beam is split at outline crossings; all resulting segments are kept.
+        Plates receive the agent's feature via :meth:`trim_plate` (which modifies
+        them in-place rather than splitting).  Call :meth:`cull_agent_elements`
+        in a second pass to discard out-of-zone segments.
         """
-        # Reset per layer — otherwise one layer's surviving segments leak into
-        # the next layer's bucket, putting the same element object under two
-        # layers (which then gets added to the model twice / under the wrong parent).
-        trimmed_elements = []
-        for element in other_agent.elements_by_layer[layer]:
+        result = []
+        for element in other_agent.elements_by_layer.get(layer, []):
             if element.is_plate:
-                trimmed_elements.extend(self.trim_plate(element))
+                result.extend(self.trim_plate(element))
             if element.is_beam:
-                trimmed_elements.extend(self.trim_beam(element, layer))
-        other_agent.elements_by_layer[layer] = trimmed_elements
+                result.extend(self.split_beam(element, layer))
+        other_agent.elements_by_layer[layer] = result
+
+    def cull_agent_elements(self, other_agent, layer):
+        """Remove *other_agent*'s elements on *layer* that this agent's zone would discard.
+
+        Applies :meth:`cull_beam` to every beam; elements that return ``True``
+        are dropped.  Non-beam elements (plates) are always kept — their trimming
+        is handled geometrically by :meth:`split_agent_elements`.
+        """
+        other_agent.elements_by_layer[layer] = [
+            element for element in other_agent.elements_by_layer.get(layer, [])
+            if not (element.is_beam and self.cull_beam(element, layer))
+        ]
 
     def generate_elements(self, layer=None):
         """Generate (and store) this agent's elements.
 
         With *layer* given, generates only on that layer; otherwise on every
         framing layer in :attr:`element_layers`.  The populator drives this one
-        layer at a time (mirroring :meth:`trim_agent_elements` /
+        layer at a time (mirroring :meth:`split_agent_elements` /
         :meth:`extend_elements`), but the no-argument form is kept for callers
         that want the whole agent generated at once.
         """

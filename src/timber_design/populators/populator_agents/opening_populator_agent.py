@@ -76,18 +76,6 @@ class OpeningPopulatorAgent(FeatureAgent):
     split_bottom_plate_beam : bool
         For doors: if ``True`` the bottom plate is L-butted to the king/jack
         studs rather than T-butted, allowing it to be split at the opening.
-    header : :class:`~timber_design.populators.Beam2D`
-        The header beam (read-only property).
-    sill : :class:`~timber_design.populators.Beam2D` or None
-        The sill beam (``None`` for door openings).
-    king_studs : list[:class:`~timber_design.populators.Beam2D`]
-        Both king studs.
-    jack_studs : list[:class:`~timber_design.populators.Beam2D`]
-        Jack studs (empty list when ``lintel_posts`` is ``False``).
-    left_king_stud : :class:`~timber_design.populators.Beam2D` or None
-        King stud with the smaller X coordinate.
-    right_king_stud : :class:`~timber_design.populators.Beam2D` or None
-        King stud with the larger X coordinate.
     """
 
     FEATURE_TYPE = Opening
@@ -188,7 +176,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         self.internal_rules = [r for r in self.internal_rules if not (r.category_a == main and r.category_b == "bottom_plate_beam")]
         self.internal_rules.append(CategoryRule(LButtJoint, main, "bottom_plate_beam"))
 
-    def cull_beam_segment(self, beam: Beam) -> bool:
+    def cull_beam_segment(self, beam: Beam, layer=None) -> bool:
         """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
 
         Only called from :meth:`trim_elements` on segments that already
@@ -199,7 +187,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         """
         if beam.attributes.get("category") != "stud":
             return False
-        return self._cull_stud(beam)
+        return self._cull_stud(beam, layer)
 
     def generate_elements_for_layer(self, layer):
         self._apply_split_bottom_plate_rules()
@@ -235,8 +223,7 @@ class OpeningPopulatorAgent(FeatureAgent):
             sill = self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", layer=layer, name="sill")
             layer_elements.append(sill)
 
-        # Apply longitudinal cuts for angled sills / headers (use local vars —
-        # self.sill / self.header search self.elements which is not yet updated).
+        # Apply longitudinal cuts for angled sills / headers.
         if sill is not None and not TOL.is_zero(frame_polyline_a[0][1] - frame_polyline_b[0][1]):
             plane = Plane.from_points([frame_polyline_a[3], frame_polyline_a[4], frame_polyline_b[3]])
             long_cut = LongitudinalCutProxy.from_plane_and_beam(plane, sill, is_joinery=False)
@@ -268,31 +255,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         segments[2].flip()  # align to panel populator stud direction
         extend_line_segments(segments, close_loop=True)
         return join_polyline_segments(segments, close_loop=True)[0][0]
-
-    @property
-    def header(self):
-        return [b for b in self.elements if b.attributes.get("category") == "header"][0]
-
-    @property
-    def sill(self):
-        sills = [b for b in self.elements if b.attributes.get("category") == "sill"]
-        return sills[0] if sills else None
-
-    @property
-    def king_studs(self):
-        return [b for b in self.elements if b.attributes.get("category") == "king_stud"]
-
-    @property
-    def jack_studs(self):
-        return [b for b in self.elements if b.attributes.get("category") == "jack_stud"]
-
-    @property
-    def left_king_stud(self):
-        return min(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
-
-    @property
-    def right_king_stud(self):
-        return max(self.king_studs, key=lambda s: s.frame.point[0]) if self.king_studs else None
 
     def _create_frame_polylines(self, opening: Opening, layer) -> tuple[Polyline, Polyline]:
         
@@ -353,12 +315,12 @@ class OpeningPopulatorAgent(FeatureAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-    def _cull_stud(self, stud: Beam2D) -> bool:
+    def _cull_stud(self, stud: Beam2D, layer=None) -> bool:
         """Determine whether a stud coincides with a king or jack stud and should be culled."""
-        for b in self.king_studs + self.jack_studs:
+        layer_elements = self.elements_by_layer.get(layer, []) if layer is not None else self.elements
+        king_and_jack = [b for b in layer_elements if b.attributes.get("category") in ("king_stud", "jack_stud")]
+        for b in king_and_jack:
             if aabb_overlap(b, stud):
-                if stud.length<300:
-                    print(b, stud)
                 return True
         return False
 

@@ -26,7 +26,7 @@ class PanelPopulator:
     2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
     3. **trim_elements** — each agent applies its boundary to its peer agents'
        same-layer elements via
-       :meth:`~timber_design.populators.PopulatorAgent.trim_agent_elements`.
+       :meth:`~timber_design.populators.PopulatorAgent.split_agent_elements`.
        Single-layer agents act on their own layer; feature agents act on every
        layer they frame or trim.
 
@@ -235,7 +235,8 @@ class PanelPopulator:
         self.model = extract_model_from_parent(self.original_panel) 
         self.generate_elements()
         self.extend_elements()
-        self.trim_elements()
+        self.split_elements()
+        self.cull_elements()
         self.add_elements_to_model()
 
     def generate_elements(self):
@@ -265,26 +266,86 @@ class PanelPopulator:
             for agent in element_agents:
                 agent.extend_elements([a for a in boundary_agents if a is not agent], layer)
 
-    def trim_elements(self):
-        """Split beams at agent boundaries and discard out-of-zone segments (stage 3).
+    # ------------------------------------------------------------------
+    # Layer-aware agent / element accessors
+    # ------------------------------------------------------------------
 
-        After all agents have trimmed their elements, degenerate
-        :class:`~timber_design.populators.Beam2D` instances whose length is
-        zero (or below floating-point tolerance) are silently removed.  These
-        can arise when an agent boundary exactly coincides with a beam endpoint
-        — a legal geometric configuration that produces a zero-length residual
-        segment that would otherwise crash downstream joint processing.
+    def get_trimming_agents_for_layer(self, layer):
+        """Agents that trim elements on *layer*, including agents on parent layers.
+
+        An agent on a parent layer declares the parent as a trimming layer and
+        :meth:`~PopulatorAgent.layers_to_trim` expands that to include all
+        sublayers, so parent agents automatically appear here for every child
+        layer they cover.  Child-layer agents never appear for parent layers,
+        enforcing the one-way parent→child trimming direction.
+        """
+        return [a for a in self.agents if layer in a.layers_to_trim()]
+
+    def get_element_agents_for_layer(self, layer):
+        """Agents that have elements on *layer* or any of its sublayers.
+
+        A parent layer query also picks up agents that only frame on child
+        layers.  Child layers never pull in parent-layer agents.
+        """
+        target = set(layer.iter_subtree()) 
+        return [a for a in self.agents if any(a.elements_by_layer.get(l) for l in target)]
+
+    def get_agent_elements_for_layer(self, layer):
+        """All elements placed by any agent on *layer* or any of its sublayers.
+
+        Returns a flat list; does not include elements on parent layers.
+        """
+        target = list(layer.iter_subtree()) 
+        return [e for a in self.agents for l in target for e in a.elements_by_layer.get(l, [])]
+
+    # ------------------------------------------------------------------
+    # Split and cull stages
+    # ------------------------------------------------------------------
+
+    def split_elements(self):
+        """Geometrically split beams at agent boundaries (stage 3a).
+
+        Every trimming agent cuts each peer's beams at outline crossings,
+        producing sub-segments.  No segments are discarded here — that is the
+        job of :meth:`cull_elements`.  Plates receive their boundary feature
+        (e.g. a FreeContour) during this pass.
+
+        Parent-layer agents trim child-layer elements; the reverse never
+        occurs because :meth:`get_trimming_agents_for_layer` only returns
+        agents whose :meth:`~PopulatorAgent.layers_to_trim` covers the queried
+        layer (which expands downward through sublayers, never upward).
         """
         for layer in self.layers:
-            # Match on layers_to_trim() (framing + trimming layers, the latter
-            # expanded to their sublayers) so an agent also trims peers on the
-            # sublayers of its trimming layers.
-            trimming_agents = [a for a in self.agents if layer in a.layers_to_trim()]
+            trimming_agents = self.get_trimming_agents_for_layer(layer)
+            element_agents = self.get_element_agents_for_layer(layer)
             for agent in trimming_agents:
-                other_agents = [a for a in self.agents if a.elements_by_layer.get(layer) and a is not agent]
-                for other_agent in other_agents:
+                for other_agent in element_agents:
+                    if other_agent is agent:
+                        continue
                     if aabb_overlap(agent, other_agent):
-                        agent.trim_agent_elements(other_agent, layer)
+                        agent.split_agent_elements(other_agent, layer)
+
+    def cull_elements(self):
+        """Discard out-of-zone beam segments after splitting (stage 3b).
+
+        Each trimming agent removes segments from peer agents' element lists
+        that fall inside an EXCLUSIVE zone or outside an INCLUSIVE zone, as
+        well as any agent-specific culls (e.g. studs coinciding with king
+        studs).  All splitting must be complete before this pass runs.
+        """
+        for layer in self.layers:
+            trimming_agents = self.get_trimming_agents_for_layer(layer)
+            element_agents = self.get_element_agents_for_layer(layer)
+            for agent in trimming_agents:
+                for other_agent in element_agents:
+                    if other_agent is agent:
+                        continue
+                    if aabb_overlap(agent, other_agent):
+                        agent.cull_agent_elements(other_agent, layer)
+
+
+
+
 
     def _drop_degenerate_beams(self):
         """Remove zero-length :class:`~timber_design.populators.Beam2D` elements from all agents."""
@@ -417,7 +478,7 @@ def _reset_caches(element):
     Null the caches so geometry recomputes against the new parent (``_blank``
     is a Beam-specific cache, ``_planes`` a Panel/Layer one).
     """
-    for attr in ("_modelgeometry", "_aabb", "_obb", "_blank", "_planes"):
+    for attr in ("_modelgeometry", "_aabb", "_obb", "_blank", "_planes", "_blank_outline"):
         if hasattr(element, attr):
             setattr(element, attr, None)
 

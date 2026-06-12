@@ -65,7 +65,7 @@ class LayerAgent(PopulatorAgent, ABC):
         The panel geometry for this layer.  Shortcut for ``self.layer``.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         All elements created by this agent.  Populated by :meth:`generate_elements`
-        and mutated by :meth:`trim_elements` / :meth:`trim_agent_elements`.
+        and mutated by :meth:`trim_elements` / :meth:`split_agent_elements`.
     outline : :class:`~compas.geometry.Polyline` or None
         Closed boundary polyline in populator space.  Set by :meth:`generate_elements`.
     internal_rules : list[:class:`~timber_design.workflow.CategoryRule`]

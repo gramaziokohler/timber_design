@@ -280,7 +280,7 @@ class ConnectionSolver2D:
         if abs(abs(dot_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis)) - 1.0) < 1e-6:
             perp_vec = beam_a.frame.yaxis
             for ea, eb in product([beam_a.edge_a, beam_a.edge_b], [beam_b.edge_a, beam_b.edge_b]):
-                dist = distance_line_point(ea, eb.start)
+                dist = distance_point_line(eb.start, ea)
                 if dist <= self.max_distance:
                     dot_a = dot_vectors(Vector.from_start_end(ea.start, beam_a.frame.point), perp_vec)
                     dot_b = dot_vectors(Vector.from_start_end(ea.start, beam_b.frame.point), perp_vec)

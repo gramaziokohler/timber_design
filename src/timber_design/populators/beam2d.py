@@ -259,10 +259,10 @@ class Beam2D(Beam):
             raise ValueError(
                 "get_beam_segment called with degenerate range [{}, {}] on beam '{}' (length={})".format(start_length, end_length, self.attributes.get("name", "?"), self.length)
             )
-        beam_seg = self.copy()
+        beam_seg = Beam2D(**self.__data__)
         # copy() deep-copies any cached _blank_outline/_blank_polygon which would
         # be stale after the translate + length change below — clear them first.
-        beam_seg._invalidate_blank_cache()
+        # beam_seg._invalidate_blank_cache()
         beam_seg.transform(Translation.from_vector(self.frame.xaxis * start_length))
         beam_seg.length = seg_length
         for feature in self.features:

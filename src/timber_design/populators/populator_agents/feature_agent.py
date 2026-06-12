@@ -20,7 +20,7 @@ class FeatureAgent(PopulatorAgent):
     - :attr:`element_layers` — if non-empty, only these layers are passed to
       :meth:`generate_elements_for_layer`.  Falls back to
       ``layer.is_framing_layer`` when empty.
-    - :attr:`trimming_layers` — if non-empty, :meth:`trim_agent_elements`
+    - :attr:`trimming_layers` — if non-empty, :meth:`split_agent_elements`
       restricts itself to agents whose layer is in this list.  When empty the
       subclass's own default logic applies.
 

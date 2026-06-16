@@ -147,7 +147,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
     # Cross-layer trimming
     # ==========================================================================
 
-    def create_joint_defs(self, layer=None):
+    def create_joint_defs(self):
         """Generate joint definitions for both edge beams and recess beams.
 
         Edge-beam pairs (both elements have ``edge_index``) are handled by the
@@ -159,15 +159,16 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         the ``CategoryRule(LMiterJoint, "recess", "recess")`` entry.
         """
         self.joint_defs = []
-        for candidate in self.create_joint_candidates(layer):
-            edge_a = candidate.element_a.attributes.get("edge_index")
-            edge_b = candidate.element_b.attributes.get("edge_index")
-            if edge_a is not None and edge_b is not None:
-                # Edge-beam pairs: geometric joint by default, rule-based when
-                # the pair was overridden (see EdgePopulatorAgent._edge_joint_rule).
-                rule = self._edge_joint_rule(*candidate.elements)
-            else:
-                rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
-            if rule is not None:
-                self.joint_defs.append(rule)
+        for layer in self.element_layers:
+            for candidate in self.create_joint_candidates(layer):
+                edge_a = candidate.element_a.attributes.get("edge_index")
+                edge_b = candidate.element_b.attributes.get("edge_index")
+                if edge_a is not None and edge_b is not None:
+                    # Edge-beam pairs: geometric joint by default, rule-based when
+                    # the pair was overridden (see EdgePopulatorAgent._edge_joint_rule).
+                    rule = self._edge_joint_rule(*candidate.elements)
+                else:
+                    rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
+                if rule is not None:
+                    self.joint_defs.append(rule)
         return self.joint_defs

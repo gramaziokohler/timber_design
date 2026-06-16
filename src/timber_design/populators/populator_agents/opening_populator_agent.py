@@ -290,7 +290,7 @@ class OpeningPopulatorAgent(FeatureAgent):
             ]
         )
 
-    def extend_elements(self, layer_agents, layer):
+    def extend_elements(self, boundary_agents, layer):
         """Extend king/jack studs to neighboring boundaries — one layer at a time.
 
         The opening may frame on several layers.  Each layer's king/jack studs
@@ -300,7 +300,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         layer_elements = self.elements_by_layer.get(layer, [])
         king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
         jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
-        agent_layer_boundaries = [a.outline_by_layer[layer] for a in layer_agents]
+        agent_layer_boundaries = [a.outline_by_layer[layer] for a in boundary_agents]
         if not (king_studs or jack_studs):
             return
         for king_stud in king_studs:

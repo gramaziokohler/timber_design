@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from itertools import combinations, product
+from typing import TYPE_CHECKING
 
 from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.model import TimberModel
-from compas_timber.panel_features import Layer
+
+if TYPE_CHECKING:
+    from compas_timber.elements import Layer  # noqa: F401
 
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
@@ -224,6 +229,50 @@ class PanelPopulator:
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.original_panel)
+    
+    # ------------------------------------------------------------------
+    # Layer-aware agent / element accessors
+    # ------------------------------------------------------------------
+
+    def get_element_agents_for_layer(self, layer):
+        child_layers = self.get_child_layers(layer)
+        agents = []
+        for cl in child_layers:
+            for agent in self.agents:
+                if cl in agent.element_layers:
+                    agents.append(agent)
+        return agents
+
+    def get_boundary_agents_for_layer(self, layer):
+        ancestor_layers = self.get_ancestor_layers(layer)
+        agents = []
+        for al in ancestor_layers:
+            for agent in self.agents:
+                if layer in agent.trimming_layers:
+                    agents.append(agent)
+        return agents
+
+
+    def get_ancestor_layers(self, layer):
+        ancestors = []
+        def walk(layer):
+            parent = layer.parent
+            if not parent:
+                return
+            ancestors.append(parent)
+            walk(parent)
+
+        return ancestors
+
+    def get_child_layers(self, layer):
+        sublayers = []
+        def walk(layer):
+            if not layer.sublayers:
+                return
+            sublayers.extend(layer.sublayers)
+            for sl in layer.sublayers:
+                walk(sl)
+        return sublayers
 
     def populate_elements(self):
         """Execute stages 1–4: generate, extend, trim, and add elements to the model.
@@ -232,7 +281,7 @@ class PanelPopulator:
         complete the population workflow.
         """
         # model extracted here to ensure the latest version of panel and layer geometry
-        self.model = extract_model_from_parent(self.original_panel) 
+        self.model = self.original_panel.model.extract_model_from_parent(self.original_panel) 
         self.generate_elements()
         self.extend_elements()
         self.split_elements()
@@ -246,61 +295,21 @@ class PanelPopulator:
         :attr:`layers`, select the agents that frame on each layer, and run the
         agent's per-layer action.
         """
-        for layer in self.layers:
-            for agent in self._agents_framing_on(layer):
-                agent.generate_elements(layer)
-        # Feature agents define their footprint outline on every layer they trim
-        # (beyond the ones they frame) so peer beams there can be culled.
         for agent in self.agents:
-            agent.define_trimming_outlines()
-
-    def _agents_framing_on(self, layer):
-        """Agents whose :attr:`element_layers` includes *layer* (they frame there)."""
-        return [a for a in self.agents if layer in a.element_layers]
+            agent.generate_elements()
 
     def extend_elements(self):
-        """Ask each agent to extend its elements toward adjacent boundaries (stage 2)."""
-        for layer in self.layers:
-            element_agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
-            boundary_agents = [a for a in self.agents if a.outline_by_layer.get(layer)]
-            for agent in element_agents:
-                agent.extend_elements([a for a in boundary_agents if a is not agent], layer)
+        """Ask each agent to extend its elements toward adjacent boundaries (stage 2).
 
-    # ------------------------------------------------------------------
-    # Layer-aware agent / element accessors
-    # ------------------------------------------------------------------
-
-    def get_trimming_agents_for_layer(self, layer):
-        """Agents that trim elements on *layer*, including agents on parent layers.
-
-        An agent on a parent layer declares the parent as a trimming layer and
-        :meth:`~PopulatorAgent.layers_to_trim` expands that to include all
-        sublayers, so parent agents automatically appear here for every child
-        layer they cover.  Child-layer agents never appear for parent layers,
-        enforcing the one-way parent→child trimming direction.
+        Boundary agents are collected from the element's own layer **and** from
+        every ancestor layer (via ``layer.parent_layer``), so that elements on a
+        sublayer extend toward plates or edges defined on the parent layer.
         """
-        return [a for a in self.agents if layer in a.layers_to_trim()]
+        for agent in self.agents:
+            for layer in agent.element_layers:
+                boundary_agents = [ a for a in self.get_boundary_agents_for_layer(layer) if a is not agent]
+                agent.extend_elements(boundary_agents, layer)
 
-    def get_element_agents_for_layer(self, layer):
-        """Agents that have elements on *layer* or any of its sublayers.
-
-        A parent layer query also picks up agents that only frame on child
-        layers.  Child layers never pull in parent-layer agents.
-        """
-        target = set(layer.iter_subtree()) 
-        return [a for a in self.agents if any(a.elements_by_layer.get(l) for l in target)]
-
-    def get_agent_elements_for_layer(self, layer):
-        """All elements placed by any agent on *layer* or any of its sublayers.
-
-        Returns a flat list; does not include elements on parent layers.
-        """
-        target = list(layer.iter_subtree()) 
-        return [e for a in self.agents for l in target for e in a.elements_by_layer.get(l, [])]
-
-    # ------------------------------------------------------------------
-    # Split and cull stages
-    # ------------------------------------------------------------------
 
     def split_elements(self):
         """Geometrically split beams at agent boundaries (stage 3a).
@@ -315,13 +324,10 @@ class PanelPopulator:
         agents whose :meth:`~PopulatorAgent.layers_to_trim` covers the queried
         layer (which expands downward through sublayers, never upward).
         """
-        for layer in self.layers:
-            trimming_agents = self.get_trimming_agents_for_layer(layer)
-            element_agents = self.get_element_agents_for_layer(layer)
-            for agent in trimming_agents:
-                for other_agent in element_agents:
-                    if other_agent is agent:
-                        continue
+        for agent in self.agents:
+            for layer in agent.trimming_layers:
+                agents_to_trim = [a for a in self.get_element_agents_for_layer(layer) if a is not agent]
+                for other_agent in agents_to_trim:
                     if aabb_overlap(agent, other_agent):
                         agent.split_agent_elements(other_agent, layer)
 
@@ -333,24 +339,13 @@ class PanelPopulator:
         well as any agent-specific culls (e.g. studs coinciding with king
         studs).  All splitting must be complete before this pass runs.
         """
-        for layer in self.layers:
-            trimming_agents = self.get_trimming_agents_for_layer(layer)
-            element_agents = self.get_element_agents_for_layer(layer)
-            for agent in trimming_agents:
-                for other_agent in element_agents:
-                    if other_agent is agent:
-                        continue
+        for agent in self.agents:
+            for layer in agent.trimming_layers:
+                agents_to_trim = [a for a in self.get_element_agents_for_layer(layer) if a is not agent]
+                for other_agent in agents_to_trim:
                     if aabb_overlap(agent, other_agent):
                         agent.cull_agent_elements(other_agent, layer)
 
-
-
-
-
-    def _drop_degenerate_beams(self):
-        """Remove zero-length :class:`~timber_design.populators.Beam2D` elements from all agents."""
-        for agent in self.agents:
-            agent.elements = [e for e in agent.elements if not (isinstance(e, Beam2D) and e.length < TOL.absolute)]
 
     def add_elements_to_model(self):
         """Add every generated element to :attr:`model` under its (detached) layer (stage 4).
@@ -363,11 +358,12 @@ class PanelPopulator:
         :meth:`merge_with_model` only has to move the layer subtree back under
         the original panel — no per-element transform.
         """
-        for layer in self.layers:
-            for agent in self._agents_framing_on(layer):
-                for element in agent.elements_by_layer.get(layer, []):
-                    element.transform(layer.transformation_to_local())
-                    self.model.add_element(element, parent=layer)
+        for agent in self.agents:
+            for layer, elements in agent.elements_by_layer.items():
+                if elements:
+                    for element in elements:
+                        element.transform(layer.transformation_to_local())
+                        self.model.add_element(element, parent=layer)
 
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
@@ -386,12 +382,9 @@ class PanelPopulator:
         defs for that layer.  ``create_joint_defs(layer)`` resets and returns the
         per-layer defs, so a multi-layer agent is never double-applied.
         """
-        for layer in self.layers:
-            for agent in self.agents:
-                if not agent.elements_by_layer.get(layer):
-                    continue
-                for j_def in agent.create_joint_defs(layer):
-                    j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
+        for agent in self.agents:
+            for j_def in agent.create_joint_defs():
+                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
 
     def create_cross_agent_joints(self):
         """Create joints between elements of different agents on the same layer.
@@ -443,188 +436,6 @@ class PanelPopulator:
             (and their joints) from *model* before merging.  Use this to
             re-populate a panel that has already been processed.
         """
-        # TODO: use @chenkasirer s merge_model functionality when added to CT
         if clear_panel:
-            # Remove each existing child *subtree* leaves-first.  Removing a layer
-            # directly would drop its treenode subtree but leave its beam children
-            # in the model dict (orphaned ghost geometry), so recurse to leaves.
-            for element in list(self.original_panel.children):
-                _remove_element_subtree(model, element)
-
-        merge_model_into_model(self.model, model, parent=self.original_panel)
-
-# =============================================================================
-# Model sub-tree surgery
-# =============================================================================
-
-def _remove_element_subtree(model, element):
-    """Remove *element* and all its descendants from *model*, leaves-first.
-
-    ``Model.remove_element`` drops a node's whole treenode subtree but only one
-    guid from the element dict, so removing a non-leaf directly orphans its
-    descendants.  Recursing to leaves keeps the model consistent.
-    """
-    for child in list(element.children):
-        _remove_element_subtree(model, child)
-    if model.has_element(element):
-        model.remove_element(element)
-
-
-def _reset_caches(element):
-    """Invalidate an element's computed-geometry caches after a tree move.
-
-    Re-parenting changes ``modeltransformation`` but does not touch
-    ``transformation``, so the ``@reset_computed`` setter hook never fires.
-    Null the caches so geometry recomputes against the new parent (``_blank``
-    is a Beam-specific cache, ``_planes`` a Panel/Layer one).
-    """
-    for attr in ("_modelgeometry", "_aabb", "_obb", "_blank", "_planes", "_blank_outline"):
-        if hasattr(element, attr):
-            setattr(element, attr, None)
-
-def _detach_subtree(model, parent):
-    # type: (TimberModel, Element | None) -> list
-    """Remove a subtree from *model*, returning ``(parent, [children])`` tuples.
-
-    When *parent* is an element it is **kept** in *model* and only its descendants
-    are removed; its direct children are recorded under ``None`` so they can be
-    re-rooted elsewhere.  When *parent* is ``None`` every top-level element of
-    *model* (and its subtree) is removed, also recorded under ``None``.
-
-    Removal is leaves-first (so each removed node is a tree leaf, which
-    ``remove_element`` handles cleanly); the returned tuples are ordered
-    parents-before-children for re-insertion.
-    """
-    tuples = []
-
-    def walk(element, is_kept_root):
-        children = list(element.children)
-        if children:
-            tuples.append((None if is_kept_root else element, children))
-            for child in children:
-                walk(child, is_kept_root=False)
-        if not is_kept_root and model.has_element(element):
-            _reset_caches(element)
-            model.remove_element(element)
-
-    if parent is not None:
-        walk(parent, is_kept_root=True)
-    else:
-        tops = [element for element in model.elements() if element.parent is None]
-        tuples.append((None, tops))
-        for top in tops:
-            walk(top, is_kept_root=False)
-    return tuples
-
-
-def _attach_subtree(tuples, model, root_element=None):
-    # type: (list, TimberModel, Element | None) -> None
-    """Re-add ``(parent, [children])`` tuples into *model* (parents before children).
-
-    Tuples whose recorded parent is ``None`` are attached under *root_element*.  Each
-    re-added element has its computed properties reset so geometry recomputes
-    against the new tree.
-    """
-    for parent, children in tuples:
-        target_parent = parent or root_element # when parent is None, re-root under *root_element* instead
-        for child in children:
-            model.add_element(child, parent=target_parent)
-            child.reset_computed_properties()
-
-
-def extract_model_from_parent(parent):
-    # type: (Element) -> TimberModel
-    """Detach *parent*'s child subtree into a new, standalone :class:`TimberModel`.
-
-    The *parent* element itself stays in its current model; its descendants are
-    removed from that model and re-rooted (hierarchy preserved) in a fresh
-    :class:`TimberModel`, which is returned.
-
-    A child element detached from its parent reports its geometry in the
-    parent's local frame — convenient for operating on, e.g., a panel's layers
-    in isolation, then merging them back with :func:`merge_model_into_model`.
-
-    Parameters
-    ----------
-    parent : :class:`~compas_model.elements.Element`
-        The element whose children are extracted.  Must be in a model.
-
-    Returns
-    -------
-    :class:`TimberModel`
-        A new model containing *parent*'s former subtree.
-    """
-    tuples = _detach_subtree(parent.model, parent)
-    new_model = TimberModel()
-    _attach_subtree(tuples, new_model)
-    return new_model
-
-
-def merge_model_into_model(model, target_model, parent=None):
-    # type: (TimberModel, TimberModel, Element | None) -> None
-    """Move every element (and joints) of *model* into *target_model* under *parent*.
-
-    All of *model*'s top-level elements and their subtrees are detached and
-    re-added beneath *parent* in *target_model* (or under the root when *parent*
-    is ``None``), preserving the hierarchy and resetting each moved element's
-    computed properties.  Joints defined on *model* are copied across.
-
-    Parameters
-    ----------
-    model : :class:`TimberModel`
-        The source model whose contents are moved out.
-    target_model : :class:`TimberModel`
-        The model to merge *model*'s elements into.
-    parent : :class:`~compas_model.elements.Element`, optional
-        The element under which the moved elements are re-rooted.  ``None``
-        attaches them under the target model's root.
-    """
-    joints = list(model.joints)
-
-    # Drive the move from the model's authoritative element set (its element
-    # dict) rather than a tree walk.  A children-based walk silently drops any
-    # element that is in the model but orphaned from the tree (e.g. left with a
-    # stale parent pointer after a parent was removed); a joint referencing such
-    # an element would then fail to re-add with a cryptic "add both elements to
-    # the model first" error at ``add_joint``.
-    elements = list(model.elements())
-    element_set = set(elements)
-
-    # Snapshot each element's parent *within the moving set* before detaching.
-    # A parent outside the set (or a stale/None parent on an orphan) maps to
-    # None, so the element is re-rooted under *parent*.
-    parent_of = {element: (element.parent if element.parent in element_set else None) for element in elements}
-
-    def depth(element):
-        d = 0
-        p = parent_of[element]
-        while p is not None:
-            d += 1
-            p = parent_of[p]
-        return d
-
-    # Detach deepest-first so ``remove_element`` only ever drops tree leaves and
-    # never orphans a subtree in the source model.
-    for element in sorted(elements, key=depth, reverse=True):
-        if model.has_element(element):
-            _reset_caches(element)
-            model.remove_element(element)
-
-    # Re-attach shallowest-first so every parent exists before its children.
-    for element in sorted(elements, key=depth):
-        target_parent = parent_of[element] if parent_of[element] is not None else parent
-        target_model.add_element(element, parent=target_parent)
-        element.reset_computed_properties()
-
-    for joint in joints:
-        missing = [e for e in joint.elements if not target_model.has_element(e)]
-        if missing:
-            raise ValueError(
-                "Cannot re-add {} joint during merge: element(s) {} are not in the source model, so they were "
-                "never merged. This usually means the joint references an element owned by a different "
-                "panel/populator (shared agent or layer across panels).".format(
-                    type(joint).__name__,
-                    [e.attributes.get("category", type(e).__name__) for e in missing],
-                )
-            )
-        target_model.add_joint(joint)
+            model.remove_element_subtree(self.original_panel)
+        model.merge_model(self.model, parent=self.original_panel)

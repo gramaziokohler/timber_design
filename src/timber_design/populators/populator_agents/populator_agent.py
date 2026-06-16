@@ -290,15 +290,6 @@ class PopulatorAgent(Data, ABC):
         """
         return self.outline_by_layer.get(layer)
 
-    def define_trimming_outlines(self):
-        """Define this agent's boundary outline on every layer it trims.
-
-        No-op for layer agents (they only have an outline where they frame).
-        Feature agents override this to compute their footprint outline on the
-        layers they trim but do not frame, so peer beams there can be culled the
-        same way :meth:`trim_plate` already cuts plates there.
-        """
-        pass
 
     def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
@@ -381,31 +372,7 @@ class PopulatorAgent(Data, ABC):
                     candidates.append(candidate)
         return candidates
 
-    def layers_to_trim(self):
-        """Layers on which this agent trims peer elements.
 
-        These are the agent's own framing layers (:attr:`element_layers`) plus
-        its :attr:`trimming_layers`, with each trimming layer **expanded to
-        include every sublayer beneath it** (depth-first via
-        :meth:`~compas_timber.panel_features.Layer.iter_subtree`).  So declaring
-        a layer as a trimming layer also trims any elements nested on its
-        sublayers.  Duplicates are removed while preserving order.
-        """
-        layers = []
-        seen = set()
-
-        def add(layer):
-            if id(layer) not in seen:
-                seen.add(id(layer))
-                layers.append(layer)
-
-        for layer in self.element_layers:
-            add(layer)
-        for layer in self.trimming_layers:
-            subtree = layer.iter_subtree() if hasattr(layer, "iter_subtree") else [layer]
-            for sublayer in subtree:
-                add(sublayer)
-        return layers
 
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
@@ -435,7 +402,7 @@ class PopulatorAgent(Data, ABC):
             if not (element.is_beam and self.cull_beam(element, layer))
         ]
 
-    def generate_elements(self, layer=None):
+    def generate_elements(self):
         """Generate (and store) this agent's elements.
 
         With *layer* given, generates only on that layer; otherwise on every
@@ -444,8 +411,7 @@ class PopulatorAgent(Data, ABC):
         :meth:`extend_elements`), but the no-argument form is kept for callers
         that want the whole agent generated at once.
         """
-        layers = [layer] if layer is not None else list(self.element_layers)
-        for layer in layers:
+        for layer in self.element_layers:
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
             self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
@@ -457,7 +423,7 @@ class PopulatorAgent(Data, ABC):
     def extend_elements(self, layer_elements, layer) -> None:
         pass
 
-    def create_joint_defs(self, layer=None) -> list[DirectRule]:
+    def create_joint_defs(self) -> list[DirectRule]:
         """Build within-agent :class:`~timber_design.workflow.DirectRule` joint defs.
 
         With *layer* given, only element pairs on that layer are considered;
@@ -466,8 +432,9 @@ class PopulatorAgent(Data, ABC):
         this per layer without defs accumulating across layers.
         """
         self.joint_defs = []
-        for candidate in self.create_joint_candidates(layer):
-            rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
-            if rule is not None:
-                self.joint_defs.append(rule)
+        for layer in self.element_layers:
+            for candidate in self.create_joint_candidates(layer):
+                rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
+                if rule is not None:
+                    self.joint_defs.append(rule)
         return self.joint_defs

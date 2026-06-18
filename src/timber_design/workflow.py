@@ -12,6 +12,8 @@ from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
 
+from timber_design.composite_joint import CompositeJoint
+
 
 def _joint_type_to_name(joint_type):
     """Serialize a joint *class* to its name for COMPAS JSON serialization.
@@ -82,6 +84,7 @@ class JointRuleSolver(object):
     def _sort_rules(rules, use_default_topo=False):
         """Sorts the rules by their priority."""
         direct_rules = []
+        composite_rules = []
         category_rules = []
         if use_default_topo:
             topo_rules = {
@@ -96,11 +99,13 @@ class JointRuleSolver(object):
         for rule in rules:
             if isinstance(rule, DirectRule):
                 direct_rules.append(rule)
+            if isinstance(rule, CompositeJointRule):
+                composite_rules.append(rule)
             if isinstance(rule, CategoryRule):
                 category_rules.append(rule)
             if isinstance(rule, TopologyRule):
                 topo_rules[rule.topology_type] = TopologyRule(rule.topology_type, rule.joint_type, rule.max_distance, **rule.kwargs)
-        return direct_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
+        return direct_rules + composite_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
 
     def apply_rules_to_model(self, model, handled_pairs=None):
         """Adds joints to model based on the given rules and elements.
@@ -362,6 +367,34 @@ class DirectRule(JointRule):
                 )
         return True
 
+    def create_instance(self, cluster, max_distance=None):
+        """Returns a joint instance if the cluster matches this rule, without registering it in a model.
+
+        Raises :class:`~compas_timber.errors.BeamJoiningError` if the cluster matches by elements
+        but fails a compliance check.  Returns ``None`` if the cluster does not match at all.
+
+        Parameters
+        ----------
+        cluster : :class:`~compas_timber.connections.Cluster`
+            The cluster of elements to match.
+        max_distance : float, optional
+            The maximum distance to consider two elements as intersecting.
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.Joint` or None
+        """
+        max_distance = self.max_distance or max_distance or TOL.absolute
+        if not self._matches_cluster(cluster):
+            return None
+        self._comply_element_count(cluster, raise_error=True)
+        self._comply_topology(cluster, raise_error=True)
+        self._comply_element_order(cluster, raise_error=True)
+        self._comply_distance(cluster, raise_error=True, max_distance=max_distance)
+        self.joint_type.check_elements_compatibility(self.elements, raise_error=True)
+        candidate = cluster.joints[0]
+        return self.joint_type(*self.elements, topology=candidate.topology, location=candidate.location, **self.kwargs)
+
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a Joint if the given cluster's elements comply with this DirectRule.
 
@@ -377,25 +410,18 @@ class DirectRule(JointRule):
 
         Returns
         -------
-        :class:`~compas_timber.connections.Joint`
-            The joint created from the elements and the joint type.
+        :class:`~compas_timber.connections.Joint` or None
         :class:`~compas_timber.errors.BeamJoiningError` or None
-            Error that occurred during joint creation.
 
         """
-        max_distance = self.max_distance or max_distance or TOL.absolute
         joint = None
         error = None
-        if self._matches_cluster(cluster):
-            try:
-                self._comply_element_count(cluster, raise_error=True)
-                self._comply_topology(cluster, raise_error=True)
-                self._comply_element_order(cluster, raise_error=True)
-                self._comply_distance(cluster, raise_error=True, max_distance=max_distance)
-                self.joint_type.check_elements_compatibility(self.elements, raise_error=True)
-                joint = self.joint_type.promote_cluster(model, cluster, reordered_elements=self.elements, **self.kwargs)
-            except BeamJoiningError as bje:
-                error = bje
+        try:
+            joint = self.create_instance(cluster, max_distance)
+            if joint:
+                model.add_joint(joint)
+        except BeamJoiningError as bje:
+            error = bje
         return joint, error
 
 
@@ -509,6 +535,39 @@ class CategoryRule(JointRule):
             elements.reverse()
         return elements
 
+    def create_instance(self, cluster, max_distance=None):
+        """Returns a joint instance if the cluster matches this rule, without registering it in a model.
+
+        Returns ``None`` if any compliance check fails.
+
+        Parameters
+        ----------
+        cluster : :class:`~compas_timber.connections.Cluster`
+            The cluster of elements to match.
+        max_distance : float, optional
+            The maximum distance to consider two elements as intersecting.
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.Joint` or None
+        """
+        max_distance = self.max_distance or max_distance or TOL.absolute
+        if not self._comply_categories(cluster):
+            return None
+        if not self._comply_element_count(cluster):
+            return None
+        if not self._comply_topology(cluster):
+            return None
+        if not self._comply_category_order(cluster):
+            return None
+        if not self._comply_distance(cluster, max_distance=max_distance):
+            return None
+        elements = self._get_ordered_elements(cluster)
+        if not self.joint_type.check_elements_compatibility(elements):
+            return None
+        candidate = cluster.joints[0]
+        return self.joint_type(*elements, topology=candidate.topology, location=candidate.location, **self.kwargs)
+
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a Joint if the given cluster's elements comply with this CategoryRule.
 
@@ -525,30 +584,15 @@ class CategoryRule(JointRule):
         Returns
         -------
         :class:`~compas_timber.connections.Joint` or None
-            The joint created from the elements if the elements comply with the rule,
         :class:`~compas_timber.errors.BeamJoiningError` or None
-            The error raised if the elements do not comply with the rule.
 
         """
-        max_distance = self.max_distance or max_distance or TOL.absolute
-
         joint = None
         error = None
-        if not self._comply_categories(cluster):
-            return None, None
-        if not self._comply_element_count(cluster):
-            return None, None
-        if not self._comply_topology(cluster):
-            return None, None
-        if not self._comply_category_order(cluster):
-            return None, None
-        if not self._comply_distance(cluster, max_distance=max_distance):
-            return None, None
-        elements = self._get_ordered_elements(cluster)
-        if not self.joint_type.check_elements_compatibility(elements):
-            return None, None
         try:
-            joint = self.joint_type.promote_cluster(model, cluster, reordered_elements=elements, **self.kwargs)
+            joint = self.create_instance(cluster, max_distance)
+            if joint:
+                model.add_joint(joint)
         except BeamJoiningError as bje:
             error = bje
         return joint, error
@@ -600,11 +644,36 @@ class TopologyRule(JointRule):
             self.joint_type,
         )
 
+    def create_instance(self, cluster, max_distance=None):
+        """Returns a joint instance if the cluster matches this rule, without registering it in a model.
+
+        Returns ``None`` if any compliance check fails.
+
+        Parameters
+        ----------
+        cluster : :class:`~compas_timber.connections.Cluster`
+            The cluster of elements to match.
+        max_distance : float, optional
+            The maximum distance to consider two elements as intersecting.
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.Joint` or None
+        """
+        max_distance = self.max_distance or max_distance or TOL.absolute
+        if not self._comply_element_count(cluster):
+            return None
+        if not self._comply_topology(cluster):
+            return None
+        if not self._comply_distance(cluster, max_distance=max_distance):
+            return None
+        if not self.joint_type.check_elements_compatibility(list(cluster.elements)):
+            return None
+        candidate = cluster.joints[0]
+        return self.joint_type(*candidate.elements, topology=candidate.topology, location=candidate.location, **self.kwargs)
+
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a Joint if the given cluster's elements comply with this TopologyRule.
-        It checks:
-        that the max_distance is not exceeded,
-        that the joint supports the topology of the elements.
 
         Parameters
         ----------
@@ -619,27 +688,127 @@ class TopologyRule(JointRule):
         Returns
         -------
         :class:`~compas_timber.connections.Joint` or None
-            The joint created from the elements if the elements comply with the rule,
         :class:`~compas_timber.errors.BeamJoiningError` or None
-            The error raised if the elements do not comply with the rule.
         """
-        max_distance = self.max_distance or max_distance or TOL.absolute
-
         joint = None
         error = None
-        if not self._comply_element_count(cluster):
-            return None, None
-        if not self._comply_topology(cluster):
-            return None, None
-        if not self._comply_distance(cluster, max_distance=max_distance):
-            return None, None
-        if not self.joint_type.check_elements_compatibility(list(cluster.elements)):
-            return None, None
         try:
-            joint = self.joint_type.promote_cluster(model, cluster, **self.kwargs)
+            joint = self.create_instance(cluster, max_distance)
+            if joint:
+                model.add_joint(joint)
         except BeamJoiningError as bje:
             error = bje
         return joint, error
+
+
+class CompositeJointRule(JointRule):
+    """A joint rule that combines multiple sub-rules to handle clusters of 3 or more elements.
+
+    The solver splits the cluster into pairwise sub-clusters (one per joint candidate) and
+    tries each sub-rule against each pair in priority order (Direct → Category → Topology).
+    All pairs must be matched for the composite rule to succeed; if any pair is unmatched the
+    rule returns ``(None, None)`` and the solver falls back to individual pairwise rules.
+
+    On success, the matched sub-joint instances are bundled into a single
+    :class:`~timber_design.composite_joint.CompositeJoint` that is registered in the model.
+
+    Parameters
+    ----------
+    rules : list[:class:`~timber_design.workflow.JointRule`]
+        The sub-rules applied to pairwise candidates within the cluster.
+    max_distance : float, optional
+        The maximum distance to consider two elements as intersecting.
+
+    Attributes
+    ----------
+    rules : list[:class:`~timber_design.workflow.JointRule`]
+        The sub-rules applied to pairwise candidates.
+    """
+
+    def __init__(self, rules, topo=None, min_element_count=None, max_element_count=None, max_distance=None):
+        super(CompositeJointRule, self).__init__(CompositeJoint, max_distance=max_distance)
+        self.rules = rules
+        self.topo = topo
+        self.min_element_count = min_element_count
+        self.max_element_count = max_element_count
+
+    @property
+    def __data__(self):
+        data = super().__data__
+        data["rules"] = self.rules
+        data["topo"] = self.topo
+        data["min_element_count"] = self.min_element_count
+        data["max_element_count"] = self.max_element_count
+        return data
+
+    @classmethod
+    def __from_data__(cls, data):
+        return cls(
+            data.get("rules") or [],
+            topos=data.get("topo"),
+            min_element_count=data.get("min_element_count"),
+            max_element_count=data.get("max_element_count"),
+            max_distance=data.get("max_distance"),
+        )
+
+    def ToString(self):
+        return repr(self)
+
+    def __repr__(self):
+        return "{}({} rules)".format(CompositeJointRule.__name__, len(self.rules))
+
+    def try_create_joint(self, model, cluster, max_distance=None):
+        """Returns a CompositeJoint if all pairwise candidates in the cluster are matched by sub-rules.
+
+        Parameters
+        ----------
+        model : :class:`~compas_timber.model.TimberModel`
+            The model to register the resulting joint in.
+        cluster : :class:`~compas_timber.connections.Cluster`
+            The cluster of elements to join.
+        max_distance : float, optional
+            The maximum distance to consider two elements as intersecting.
+
+        Returns
+        -------
+        :class:`~timber_design.composite_joint.CompositeJoint` or None
+        :class:`~compas_timber.errors.BeamJoiningError` or None
+        """
+        n = len(cluster.elements)
+        min_count = self.min_element_count if self.min_element_count is not None else 3
+        if n < min_count:
+            return None, None
+        if self.max_element_count is not None and n > self.max_element_count:
+            return None, None
+        if self.topo and cluster.topology is not self.topo:
+            return None, None
+        if len(cluster.joints) < 2:
+            return None, None
+
+        max_distance = self.max_distance or max_distance or TOL.absolute
+        sorted_rules = JointRuleSolver._sort_rules(self.rules)
+
+        matched_joints = []
+        for candidate in cluster.joints:
+            sub_cluster = Cluster([candidate])
+            matched = False
+            for rule in sorted_rules:
+                try:
+                    joint = rule.create_instance(sub_cluster, max_distance)
+                except BeamJoiningError as e:
+                    return None, e
+                if joint:
+                    matched_joints.append(joint)
+                    matched = True
+                    break
+            if not matched:
+                return None, None
+
+        try:
+            composite = CompositeJoint.create(model, joints=matched_joints)
+        except BeamJoiningError as e:
+            return None, e
+        return composite, None
 
 
 class Attribute:

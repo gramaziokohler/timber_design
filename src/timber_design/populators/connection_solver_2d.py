@@ -14,6 +14,7 @@ from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
 from compas.geometry import distance_point_line
+from compas_timber.connections import Cluster
 from compas_timber.connections.solver import JointTopology
 from compas_timber.utils import StrEnum
 
@@ -189,6 +190,11 @@ class Beam2DSolverResult:
         self.location = location
         self.dot_range_on_a = dot_range_on_a
         self.dot_range_on_b = dot_range_on_b
+
+    @property
+    def elements(self) -> tuple:
+        """The two beams as a tuple, so this result can serve as a joint in a :class:`~compas_timber.connections.Cluster`."""
+        return (self.beam_a, self.beam_b)
 
     def __repr__(self) -> str:
         return "Beam2DSolverResult(topology={}, beam_a={!r}, beam_b={!r})".format(
@@ -578,7 +584,7 @@ class ConnectionSolver2D:
                 results.append(result)
         return results
 
-    def find_joint_clusters(self, beams) -> list[JointCluster2D]:
+    def find_joint_clusters(self, beams) -> list["Cluster2D"]:
         """Find pairwise results and cluster multi-beam corners.
 
         Convenience wrapper that calls :meth:`find_joint_candidates` then
@@ -590,96 +596,10 @@ class ConnectionSolver2D:
 
         Returns
         -------
-        list[:class:`JointCluster2D`]
+        list[:class:`Cluster2D`]
         """
         results = self.find_joint_candidates(beams)
         return Cluster2DFinder(endpoint_tolerance=self.max_distance).find_clusters(results)
-
-
-class JointCluster2D:
-    """A group of pairwise :class:`Beam2DSolverResult`s sharing a common spatial corner.
-
-    Parameters
-    ----------
-    results : list[:class:`Beam2DSolverResult`]
-        Pairwise results forming this cluster.
-    endpoint_tolerance : float
-        Dot-product distance from a beam endpoint within which an intersection
-        is considered "at an endpoint" for Y/K classification.  Defaults to
-        ``1.0``.
-
-    Attributes
-    ----------
-    results : list[:class:`Beam2DSolverResult`]
-    endpoint_tolerance : float
-    """
-
-    def __init__(self, results: list[Beam2DSolverResult], endpoint_tolerance: float = 0.0) -> None:
-        self.results = results
-        self.endpoint_tolerance = endpoint_tolerance
-
-    def __repr__(self) -> str:
-        return "JointCluster2D(topology={}, n_results={}, n_beams={})".format(
-            JointTopology.get_name(self.topology),
-            len(self.results),
-            len(self.beams),
-        )
-
-    @property
-    def beams(self) -> list:
-        """All unique beams in this cluster (identity-deduplicated)."""
-        seen: dict[int, object] = {}
-        for r in self.results:
-            seen[id(r.beam_a)] = r.beam_a
-            seen[id(r.beam_b)] = r.beam_b
-        return list(seen.values())
-
-    @property
-    def topology(self) -> int:
-        """Topology of this cluster.
-
-        For single-result clusters (two-beam pairs) returns the pairwise
-        topology directly (e.g. ``TOPO_L``, ``TOPO_T``, ``TOPO_X``).
-
-        For multi-result clusters returns
-        :attr:`~compas_timber.connections.JointTopology.TOPO_Y` if every
-        intersection touches an endpoint of its respective beam, or
-        :attr:`~compas_timber.connections.JointTopology.TOPO_K` otherwise.
-        """
-        if len(self.results) == 1:
-            return self.results[0].topology
-        tol = self.endpoint_tolerance
-
-        # Collect all dot ranges per beam, merge overlapping ones, then check each
-        # merged interval for endpoint proximity.  Merging only overlapping ranges
-        # (not all ranges blindly) means a T_TOPO whose range overlaps an L_TOPO
-        # anchored to an endpoint is promoted to "at endpoint", while a separate
-        # non-overlapping range in the same cluster is still checked independently.
-        beam_ranges: dict[int, list[tuple[float, float]]] = {}
-        beam_map: dict[int, object] = {}
-        for result in self.results:
-            for beam, dot_range in (
-                (result.beam_a, result.dot_range_on_a),
-                (result.beam_b, result.dot_range_on_b),
-            ):
-                if dot_range is None:
-                    continue
-                bid = id(beam)
-                beam_map[bid] = beam
-                beam_ranges.setdefault(bid, []).append(dot_range)
-
-        for bid, ranges in beam_ranges.items():
-            beam = beam_map[bid]
-            for d_min, d_max in _merge_intervals(ranges):
-                if not (d_min <= tol or d_max >= beam.length - tol):
-                    return JointTopology.TOPO_K
-        return JointTopology.TOPO_Y
-
-    @property
-    def location(self) -> Optional[Point]:
-        """Average location of all constituent results."""
-        pts = [r.location for r in self.results if r.location is not None]
-        return _average_point(pts) if pts else None
 
 
 class Cluster2DFinder:
@@ -687,14 +607,14 @@ class Cluster2DFinder:
 
     Two results are **adjacent** if they share a beam and their dot-product
     ranges on that shared beam overlap.  Connected components of this adjacency
-    graph with two or more results are returned as :class:`JointCluster2D`
-    objects; isolated pairwise results are excluded.
+    graph are returned as :class:`Cluster2D` objects.
 
     Parameters
     ----------
     endpoint_tolerance : float
-        Forwarded to :class:`JointCluster2D` for Y/K classification.
-        Defaults to ``1.0`` (matches the default ``max_distance`` of
+        Dot-product distance from a beam endpoint within which an intersection
+        is considered "at an endpoint" for Y/K classification.  Defaults to
+        ``0.0`` (matches the default ``max_distance`` of
         :class:`ConnectionSolver2D`).
 
     Attributes
@@ -705,8 +625,8 @@ class Cluster2DFinder:
     def __init__(self, endpoint_tolerance: float = 0.0) -> None:
         self.endpoint_tolerance = endpoint_tolerance
 
-    def find_clusters(self, results: list[Beam2DSolverResult]) -> list[JointCluster2D]:
-        """Find multi-beam corner clusters in *results*.
+    def find_clusters(self, results: list[Beam2DSolverResult]) -> list["Cluster2D"]:
+        """Find corner clusters in *results*.
 
         Parameters
         ----------
@@ -714,7 +634,7 @@ class Cluster2DFinder:
 
         Returns
         -------
-        list[:class:`JointCluster2D`]
+        list[:class:`Cluster2D`]
         """
         n = len(results)
         if n == 0:
@@ -735,7 +655,7 @@ class Cluster2DFinder:
                     adjacency[j].add(i)
 
         visited: set[int] = set()
-        clusters: list[JointCluster2D] = []
+        clusters: list[Cluster2D] = []
         for start in range(n):
             if start in visited:
                 continue
@@ -749,13 +669,44 @@ class Cluster2DFinder:
                 component.append(node)
                 stack.extend(adjacency[node] - visited)
             clusters.append(
-                JointCluster2D(
+                Cluster2D(
                     [results[i] for i in component],
                     endpoint_tolerance=self.endpoint_tolerance,
                 )
             )
 
         return clusters
+
+    @staticmethod
+    def _compute_topology(results: list[Beam2DSolverResult], endpoint_tolerance: float = 0.0) -> int:
+        """Determine cluster topology using dot-range endpoint analysis.
+
+        For a single result, returns that result's topology directly.
+        For multi-result clusters, returns :attr:`~compas_timber.connections.JointTopology.TOPO_Y`
+        if every intersection range touches a beam endpoint (within *endpoint_tolerance*),
+        or :attr:`~compas_timber.connections.JointTopology.TOPO_K` otherwise.
+        """
+        if len(results) == 1:
+            return results[0].topology
+        tol = endpoint_tolerance
+        beam_ranges: dict[int, list[tuple[float, float]]] = {}
+        beam_map: dict[int, object] = {}
+        for result in results:
+            for beam, dot_range in (
+                (result.beam_a, result.dot_range_on_a),
+                (result.beam_b, result.dot_range_on_b),
+            ):
+                if dot_range is None:
+                    continue
+                bid = id(beam)
+                beam_map[bid] = beam
+                beam_ranges.setdefault(bid, []).append(dot_range)
+        for bid, ranges in beam_ranges.items():
+            beam = beam_map[bid]
+            for d_min, d_max in _merge_intervals(ranges):
+                if not (d_min <= tol or d_max >= beam.length - tol):
+                    return JointTopology.TOPO_K
+        return JointTopology.TOPO_Y
 
     @staticmethod
     def _shared_beam(r1: Beam2DSolverResult, r2: Beam2DSolverResult):
@@ -780,3 +731,42 @@ class Cluster2DFinder:
     def _ranges_overlap(r1: tuple[float, float], r2: tuple[float, float]) -> bool:
         """Return ``True`` if the two 1-D intervals overlap (inclusive)."""
         return r1[0] <= r2[1] and r2[0] <= r1[1]
+
+
+class Cluster2D(Cluster):
+    """A :class:`~compas_timber.connections.Cluster` whose topology is determined
+    by dot-range endpoint analysis on the constituent :class:`Beam2DSolverResult`s.
+
+    Unlike the base :class:`~compas_timber.connections.Cluster`, which derives
+    topology purely from pairwise joint types, this subclass uses
+    :meth:`Cluster2DFinder._compute_topology` to distinguish Y from K based on
+    whether each intersection range touches a beam endpoint.
+
+    Parameters
+    ----------
+    results : list[:class:`Beam2DSolverResult`]
+        Pairwise results forming this cluster.
+    endpoint_tolerance : float
+        Dot-product distance from a beam endpoint considered "at endpoint".
+    """
+
+    def __init__(self, results: list[Beam2DSolverResult], endpoint_tolerance: float = 0.0) -> None:
+        super().__init__(results)
+        self._topology = Cluster2DFinder._compute_topology(results, endpoint_tolerance)
+
+    def __repr__(self) -> str:
+        return "Cluster2D(topology={}, n_joints={}, n_elements={})".format(
+            JointTopology.get_name(self._topology),
+            len(self.joints),
+            len(self.elements),
+        )
+
+    @property
+    def topology(self) -> int:
+        return self._topology
+
+    @property
+    def location(self) -> Optional[Point]:
+        """Average location of all constituent results."""
+        pts = [r.location for r in self.joints if r.location is not None]
+        return _average_point(pts) if pts else None

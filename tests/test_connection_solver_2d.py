@@ -30,9 +30,9 @@ from timber_design.populators.beam2d import AABB2D
 from timber_design.populators.beam2d import Beam2D
 from timber_design.populators.connection_solver_2d import Beam2DPolylineIntersectionResult
 from timber_design.populators.connection_solver_2d import Beam2DSolverResult
+from timber_design.populators.connection_solver_2d import Cluster2D
 from timber_design.populators.connection_solver_2d import Cluster2DFinder
 from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import JointCluster2D
 from timber_design.populators.connection_solver_2d import _merge_intervals
 from timber_design.populators.connection_solver_2d import aabb_overlap
 
@@ -727,12 +727,12 @@ class TestFindIntersectingPairs:
 
 
 # =============================================================================
-# JointCluster2D and Cluster2DFinder
+# Cluster2D topology and properties
 # =============================================================================
 
 
-class TestJointCluster2D:
-    """Tests for JointCluster2D.topology property."""
+class TestCluster2DTopology:
+    """Tests for Cluster2D using the dot-range topology algorithm."""
 
     def test_single_result_inherits_topology(self):
         """A cluster with one result reports that result's topology directly."""
@@ -740,7 +740,7 @@ class TestJointCluster2D:
         beam_b = make_beam(2, -2, 2, 0)
         result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T,
                                     dot_a=(0.0, 2.0), dot_b=(1.5, 2.5))
-        cluster = JointCluster2D([result])
+        cluster = Cluster2D([result])
         assert cluster.topology == JointTopology.TOPO_T
 
     def test_three_beams_all_ending_at_junction_gives_topo_y(self):
@@ -749,35 +749,26 @@ class TestJointCluster2D:
         v1 ends at origin, v2 and v3 start at origin — all three have an
         endpoint in the overlap zone, so the cluster is TOPO_Y.
         """
-        # v1: horizontal, ends at (0,0).  length=4, junction at END (dot=4).
         v1 = make_beam(-4, 0, 0, 0)    # length=4
-        # v2: diagonal up-right, starts at (0,0).  length≈3, junction at START (dot=0).
         v2 = make_beam(0, 0, 2, 2)     # length≈2.83
-        # v3: diagonal down-right, starts at (0,0).
         v3 = make_beam(0, 0, 2, -2)    # length≈2.83
-
-        # Pairwise results — the junction dot range on each beam must be at its endpoint.
-        # v1 is at END (dot near 4.0), v2/v3 are at START (dot near 0.0).
         r1 = make_solver_result(v1, v2, JointTopology.TOPO_L,
                                 dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
         r2 = make_solver_result(v1, v3, JointTopology.TOPO_L,
                                 dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
-        cluster = JointCluster2D([r1, r2], endpoint_tolerance=0.5)
+        cluster = Cluster2D([r1, r2], endpoint_tolerance=0.5)
         assert cluster.topology == JointTopology.TOPO_Y
 
     def test_mid_body_junction_gives_topo_k(self):
         """A result whose dot range does not touch either beam endpoint → TOPO_K."""
         h1 = make_beam(0, 0, 10, 0)  # length=10
         h2 = make_beam(0, 2, 10, 2)  # length=10
-        v = make_beam(5, 0, 5, 2, width=0.5)  # connects mid-body of both
-        # v hits h1 at its END (dot ~2) and h2 at its START (dot ~0) — both are endpoints of v
-        # But h1 and h2 have their hit NOT at endpoints: dot 4.75..5.25 is mid-body (length=10)
+        v = make_beam(5, 0, 5, 2, width=0.5)
         r1 = make_solver_result(v, h1, JointTopology.TOPO_T,
                                 dot_a=(0.0, 0.25), dot_b=(4.75, 5.25))
         r2 = make_solver_result(v, h2, JointTopology.TOPO_T,
                                 dot_a=(1.75, 2.0), dot_b=(4.75, 5.25))
-        cluster = JointCluster2D([r1, r2], endpoint_tolerance=0.5)
-        # h1 and h2's ranges (4.75..5.25) don't reach either endpoint (0 or 10) → TOPO_K
+        cluster = Cluster2D([r1, r2], endpoint_tolerance=0.5)
         assert cluster.topology == JointTopology.TOPO_K
 
     def test_location_is_average_of_results(self):
@@ -788,19 +779,18 @@ class TestJointCluster2D:
                                 Point(1, 0, 0), (0, 1), (1, 2))
         r2 = Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T,
                                 Point(3, 0, 0), (0, 1), (3, 4))
-        cluster = JointCluster2D([r1, r2])
-        loc = cluster.location
-        assert loc.x == pytest.approx(2.0)
+        cluster = Cluster2D([r1, r2])
+        assert cluster.location.x == pytest.approx(2.0)
 
-    def test_beams_deduplicated(self):
-        """cluster.beams contains each beam once, even when shared across results."""
+    def test_elements_deduplicated(self):
+        """cluster.elements contains each beam once, even when shared across results."""
         h = make_beam(0, 0, 4, 0)
         v1 = make_beam(1, -2, 1, 0)
         v2 = make_beam(3, -2, 3, 0)
         r1 = make_solver_result(v1, h, JointTopology.TOPO_T, (0, 1), (0.75, 1.25))
         r2 = make_solver_result(v2, h, JointTopology.TOPO_T, (0, 1), (2.75, 3.25))
-        cluster = JointCluster2D([r1, r2])
-        assert len(cluster.beams) == 3  # h, v1, v2 — h appears in both but counted once
+        cluster = Cluster2D([r1, r2])
+        assert len(cluster.elements) == 3  # h, v1, v2 — h appears in both but counted once
 
 
 class TestCluster2DFinder:
@@ -817,7 +807,7 @@ class TestCluster2DFinder:
                                     dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
         clusters = Cluster2DFinder().find_clusters([result])
         assert len(clusters) == 1
-        assert clusters[0].results[0] is result
+        assert clusters[0].joints[0] is result
 
     def test_two_overlapping_results_merged_into_one_cluster(self):
         """Two results sharing a beam with overlapping dot ranges → one cluster."""
@@ -830,7 +820,18 @@ class TestCluster2DFinder:
                                 dot_a=(0.0, 1.0), dot_b=(0.95, 1.45))
         clusters = Cluster2DFinder().find_clusters([r1, r2])
         assert len(clusters) == 1
-        assert len(clusters[0].results) == 2
+        assert len(clusters[0].joints) == 2
+
+    def test_find_clusters_returns_cluster2d(self):
+        """find_clusters() returns Cluster2D instances (subclass of Cluster)."""
+        from compas_timber.connections import Cluster
+        beam_a = make_beam(0, 0, 4, 0)
+        beam_b = make_beam(2, -2, 2, 0)
+        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T,
+                                    dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
+        clusters = Cluster2DFinder().find_clusters([result])
+        assert isinstance(clusters[0], Cluster2D)
+        assert isinstance(clusters[0], Cluster)
 
     def test_two_non_overlapping_results_stay_separate(self):
         """Two T-results on the same face beam but far apart → two clusters."""

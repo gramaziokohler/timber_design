@@ -8,11 +8,11 @@ from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
+from compas_timber.connections import CompositeJoint
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
 
-from timber_design.composite_joint import CompositeJoint
 
 
 def _joint_type_to_name(joint_type):

@@ -21,8 +21,6 @@ def stud_panel(
     bottom_plate_beam_width=None,
     standard_beam_width_increment=None,
     # Panel-level
-    sheeting_outside=0,
-    sheeting_inside=0,
     joint_rule_overrides=None,
     default_feature_agents=None,
     instance_feature_agents=None,
@@ -65,11 +63,6 @@ def stud_panel(
     standard_beam_width_increment : float, optional
         Rounding increment for edge-beam widths (each edge beam's width is
         rounded *up* to the next multiple of this value).
-
-    sheeting_outside : float, optional
-        Thickness of the external sheathing plate.  ``0`` disables it.
-    sheeting_inside : float, optional
-        Thickness of the internal sheathing plate.  ``0`` disables it.
     joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
         Joint-rule overrides routed automatically to whichever agents own the
         rule's categories (see
@@ -97,9 +90,6 @@ def stud_panel(
     panel.define_core_layer(core_start, core_end)
 
     agents = []
-    # define_core_layer only creates the exterior/interior layer when its face
-    # has sheeting (non-zero thickness); key the plate agents off existence so
-    # a missing layer is simply skipped.
     if panel.exterior_layer:  # the [0, sheeting_inside] slice
         agents.append(PlatePopulatorAgent(panel.exterior_layer))
     if panel.interior_layer:  # the [thickness - sheeting_outside, thickness] slice

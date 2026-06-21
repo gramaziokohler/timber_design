@@ -1,7 +1,8 @@
-"""Tests for agent_intersection.py.
+"""Tests for beam–polyline intersection and beam extension utilities.
 
-Covers ``BeamOutlineIntersectionData``, ``find_beam_outline_crossings``,
-and ``extend_beam_to_closest_agents``.
+Covers ``Beam2DPolylineIntersectionResult``,
+``ConnectionSolver2D.intersection_beam2d_polyline``, and
+``ConnectionSolver2D.extend_beam_to_polylines``.
 
 All beams lie in the XY plane (z=0) following the same convention as the
 connection-solver tests.
@@ -16,9 +17,8 @@ from compas.geometry import Vector
 from compas.tolerance import TOL
 
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.populators.agent_intersection import BeamOutlineIntersectionData
-from timber_design.populators.agent_intersection import extend_beam_to_closest_agents
-from timber_design.populators.agent_intersection import find_beam_outline_crossings
+from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 
 
 # =============================================================================
@@ -55,73 +55,73 @@ class MockAgent(object):
 
 
 # =============================================================================
-# BeamOutlineIntersectionData
+# Beam2DPolylineIntersectionResult
 # =============================================================================
 
 
-class TestBeamOutlineIntersectionData:
+class TestBeam2DPolylineIntersectionResult:
     def test_all_dots_excludes_none(self):
-        data = BeamOutlineIntersectionData(start_dot=1.0, end_dot=None, internal_dots=[2.0])
+        data = Beam2DPolylineIntersectionResult(start_dot=1.0, end_dot=None, internal_dots=[2.0])
         assert data.all_dots == [1.0, 2.0]
 
     def test_all_dots_all_present(self):
-        data = BeamOutlineIntersectionData(start_dot=0.5, end_dot=1.5, internal_dots=[0.9])
+        data = Beam2DPolylineIntersectionResult(start_dot=0.5, end_dot=1.5, internal_dots=[0.9])
         assert set(data.all_dots) == {0.5, 1.5, 0.9}
 
     def test_average_dot_basic(self):
-        data = BeamOutlineIntersectionData(start_dot=1.0, end_dot=3.0)
+        data = Beam2DPolylineIntersectionResult(start_dot=1.0, end_dot=3.0)
         assert TOL.is_close(data.average_dot, 2.0)
 
     def test_average_dot_with_internal(self):
-        data = BeamOutlineIntersectionData(start_dot=0.0, end_dot=4.0, internal_dots=[2.0])
+        data = Beam2DPolylineIntersectionResult(start_dot=0.0, end_dot=4.0, internal_dots=[2.0])
         assert TOL.is_close(data.average_dot, 2.0)
 
     def test_average_dot_zero_start_not_none(self):
         """0.0 start_dot must not be excluded."""
-        data = BeamOutlineIntersectionData(start_dot=0.0, end_dot=2.0)
+        data = Beam2DPolylineIntersectionResult(start_dot=0.0, end_dot=2.0)
         assert data.average_dot is not None
         assert TOL.is_close(data.average_dot, 1.0)
 
     def test_average_dot_no_dots_returns_none(self):
-        data = BeamOutlineIntersectionData()
+        data = Beam2DPolylineIntersectionResult()
         assert data.average_dot is None
 
     def test_all_dots_empty_when_no_values(self):
-        data = BeamOutlineIntersectionData()
+        data = Beam2DPolylineIntersectionResult()
         assert data.all_dots == []
 
     def test_internal_dots_default_empty(self):
-        data = BeamOutlineIntersectionData(start_dot=1.0, end_dot=2.0)
+        data = Beam2DPolylineIntersectionResult(start_dot=1.0, end_dot=2.0)
         assert data.internal_dots == []
 
 
 # =============================================================================
-# find_beam_outline_crossings
+# ConnectionSolver2D.intersection_beam2d_polyline
 # =============================================================================
 
 
-class TestFindBeamOutlineCrossings:
+class TestIntersectionBeam2dPolyline:
     def test_transverse_crossing_detected(self):
         """Outline crossing both long beam edges → at least one crossing.
 
         y-offset of ±2 ensures the outline start is >1 unit outside the beam
-        blank (y=±0.25) so ``contains_point`` with tolerance=1.0 does not
-        falsely classify the start as 'inside'.
+        blank (y=±0.25) so ``contains_point`` does not falsely classify the
+        start as 'inside'.
         """
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(2, -2, 6, 2)
-        crossings = find_beam_outline_crossings(beam, outline)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         assert len(crossings) >= 1
 
     def test_no_intersection_returns_empty(self):
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(10, -2, 14, 2)
-        assert find_beam_outline_crossings(beam, outline) == []
+        assert ConnectionSolver2D.intersection_beam2d_polyline(beam, outline) == []
 
     def test_crossing_has_start_and_end_dot(self):
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(2, -2, 6, 2)
-        crossings = find_beam_outline_crossings(beam, outline)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         for c in crossings:
             assert c.start_dot is not None
             assert c.end_dot is not None
@@ -130,13 +130,13 @@ class TestFindBeamOutlineCrossings:
         """Outline rectangle the beam passes fully through → two crossings."""
         beam = make_beam(0, 0, 6, 0, width=0.5)
         outline = rect_outline(1, -2, 3, 2)
-        crossings = find_beam_outline_crossings(beam, outline)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         assert len(crossings) == 2
 
     def test_dot_values_within_beam_range(self):
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(1, -2, 3, 2)
-        for c in find_beam_outline_crossings(beam, outline):
+        for c in ConnectionSolver2D.intersection_beam2d_polyline(beam, outline):
             for d in c.all_dots:
                 assert -0.01 <= d <= 4.01  # small tolerance for float rounding
 
@@ -155,37 +155,37 @@ class TestFindBeamOutlineCrossings:
                 Point(2, 0, 0),
             ]
         )
-        crossings = find_beam_outline_crossings(beam, outline)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         assert isinstance(crossings, list)
 
-    def test_returns_intersection_data_instances(self):
+    def test_returns_intersection_result_instances(self):
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(2, -1, 6, 1)
-        for c in find_beam_outline_crossings(beam, outline):
-            assert isinstance(c, BeamOutlineIntersectionData)
+        for c in ConnectionSolver2D.intersection_beam2d_polyline(beam, outline):
+            assert isinstance(c, Beam2DPolylineIntersectionResult)
 
     def test_limit_to_segments_false_detects_beyond_beam_end(self):
         """limit_to_segments=False finds crossings outside current beam extents."""
         beam = make_beam(0, 0, 1, 0, width=0.5)  # short beam, ends at x=1
         outline = rect_outline(2, -2, 6, 2)  # outline starts at x=2 (y-offset >1 to stay outside blank)
         # With segment limits: no crossing
-        assert find_beam_outline_crossings(beam, outline, limit_to_segments=True) == []
+        assert ConnectionSolver2D.intersection_beam2d_polyline(beam, outline, limit_to_segments=True) == []
         # Without limits: crossing found
-        extended = find_beam_outline_crossings(beam, outline, limit_to_segments=False)
+        extended = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline, limit_to_segments=False)
         assert len(extended) >= 1
 
     def test_crossing_start_dot_less_than_end_dot(self):
         """For a clean transverse crossing start_dot < end_dot."""
         beam = make_beam(0, 0, 4, 0, width=0.5)
         outline = rect_outline(2, -1, 6, 1)
-        crossings = find_beam_outline_crossings(beam, outline)
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         for c in crossings:
             if c.start_dot is not None and c.end_dot is not None:
                 assert c.start_dot <= c.end_dot
 
 
 # =============================================================================
-# extend_beam_to_closest_agents
+# ConnectionSolver2D.extend_beam_to_polylines (via agent outlines)
 # =============================================================================
 
 
@@ -193,14 +193,14 @@ class TestExtendBeam:
     def test_no_agents_no_change(self):
         beam = make_beam(0, 0, 2, 0, width=0.5)
         original_length = beam.length
-        extend_beam_to_closest_agents(beam, [])
+        ConnectionSolver2D.extend_beam_to_polylines(beam, [])
         assert TOL.is_close(beam.length, original_length)
 
     def test_extends_toward_end(self):
         """Agent outline beyond the beam end → beam grows in length."""
         beam = make_beam(0, 0, 1, 0, width=0.5)
         agent = MockAgent(rect_outline(2, -2, 6, 2))
-        extend_beam_to_closest_agents(beam, [agent], only_end=True)
+        ConnectionSolver2D.extend_beam_to_polylines(beam, [agent.outline], only_end=True)
         assert beam.length > 1.0
 
     def test_extends_toward_start(self):
@@ -208,20 +208,20 @@ class TestExtendBeam:
         beam = make_beam(3, 0, 5, 0, width=0.5)
         agent = MockAgent(rect_outline(-2, -2, 2, 2))
         original_length = beam.length
-        extend_beam_to_closest_agents(beam, [agent], only_start=True)
+        ConnectionSolver2D.extend_beam_to_polylines(beam, [agent.outline], only_start=True)
         assert beam.length > original_length
 
     def test_only_start_and_only_end_raises(self):
         beam = make_beam(0, 0, 2, 0)
         with pytest.raises(ValueError):
-            extend_beam_to_closest_agents(beam, [], only_start=True, only_end=True)
+            ConnectionSolver2D.extend_beam_to_polylines(beam, [], only_start=True, only_end=True)
 
     def test_agent_with_none_outline_ignored(self):
         """Agent whose outline is None must not affect the beam."""
         beam = make_beam(0, 0, 2, 0, width=0.5)
         original_length = beam.length
         agent = MockAgent(None)
-        extend_beam_to_closest_agents(beam, [agent])
+        ConnectionSolver2D.extend_beam_to_polylines(beam, [agent.outline])
         assert TOL.is_close(beam.length, original_length)
 
     def test_multiple_agents_picks_nearest(self):
@@ -229,7 +229,7 @@ class TestExtendBeam:
         beam = make_beam(0, 0, 1, 0, width=0.5)
         agent_near = MockAgent(rect_outline(2, -2, 4, 2))  # nearest boundary at x≈2
         agent_far = MockAgent(rect_outline(5, -2, 8, 2))  # nearest boundary at x≈5
-        extend_beam_to_closest_agents(beam, [agent_near, agent_far], only_end=True)
+        ConnectionSolver2D.extend_beam_to_polylines(beam, [agent_near.outline, agent_far.outline], only_end=True)
         # Beam should reach into the near agent, not all the way to the far one
         assert beam.length < 5.0
 
@@ -255,9 +255,9 @@ class TestBeam2DHelpers:
         assert beam.contains_point(Point(2, 0.5, 0), tolerance=1.0) is True
 
     def test_contains_point_default_tolerance(self):
-        """Default tolerance=1.0 accepts a point just outside the blank edge."""
+        """Default tolerance=0.0 rejects a point just outside the blank edge."""
         beam = make_beam(0, 0, 4, 0, width=1.0)
-        assert beam.contains_point(Point(2, 0.6, 0)) is True  # 0.6 > 0.5 but within tol=1.0
+        assert beam.contains_point(Point(2, 0.6, 0)) is False  # 0.6 > 0.5, outside with tol=0
 
     def test_get_beam_segment_correct_length(self):
         beam = make_beam(0, 0, 4, 0, width=0.5)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from itertools import combinations, product
+from itertools import combinations
+from itertools import product
 from typing import TYPE_CHECKING
 from typing import Optional
 
@@ -10,13 +11,14 @@ if TYPE_CHECKING:
 from compas.geometry import Point
 from compas.geometry import Translation
 from compas.geometry import Vector
+from compas.geometry import distance_point_line
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_line_segment
 from compas.geometry import intersection_segment_segment
-from compas.geometry import distance_point_line
 from compas_timber.connections import Cluster
 from compas_timber.connections.solver import JointTopology
 from compas_timber.utils import StrEnum
+
 
 def _average_point(points: list[Point]) -> Point:
     n = len(points)
@@ -83,6 +85,7 @@ def aabb_overlap(a, b, tolerance: float = 0.0) -> bool:
 # 3  tl→bl   start cap          (beam start)
 _LONG_FACE_INDICES = frozenset({0, 2})
 
+
 class BeamEnd(StrEnum):
     START = "start"
     END = "end"
@@ -125,9 +128,7 @@ class Beam2DPolylineIntersectionResult:
         self.internal_dots = internal_dots or []
 
     def __repr__(self) -> str:
-        return "Beam2DPolylineIntersectionResult(start_dot={}, end_dot={}, internal_dots={})".format(
-            self.start_dot, self.end_dot, self.internal_dots
-        )
+        return "Beam2DPolylineIntersectionResult(start_dot={}, end_dot={}, internal_dots={})".format(self.start_dot, self.end_dot, self.internal_dots)
 
     @property
     def all_dots(self) -> list[float]:
@@ -197,9 +198,7 @@ class Beam2DSolverResult:
         return (self.beam_a, self.beam_b)
 
     def __repr__(self) -> str:
-        return "Beam2DSolverResult(topology={}, beam_a={!r}, beam_b={!r})".format(
-            JointTopology.get_name(self.topology), self.beam_a, self.beam_b
-        )
+        return "Beam2DSolverResult(topology={}, beam_a={!r}, beam_b={!r})".format(JointTopology.get_name(self.topology), self.beam_a, self.beam_b)
 
 
 class ConnectionSolver2D:
@@ -244,12 +243,9 @@ class ConnectionSolver2D:
             if aabb_overlap(item_a, item_b, tolerance=self.max_distance):
                 yield item_a, item_b
 
-
     # ------------------------------------------------------------------
     # Topology classification
     # ------------------------------------------------------------------
-
-    
 
     def find_topology(self, beam_a, beam_b) -> Optional[Beam2DSolverResult]:
         """Return the 2D blank-overlap topology between *beam_a* and *beam_b*.
@@ -293,7 +289,10 @@ class ConnectionSolver2D:
                     if dot_a * dot_b < 0:
                         dot_pts = [ea.start, ea.end, eb.start, eb.end]
                         return Beam2DSolverResult(
-                            beam_a, beam_b, dist, JointTopology.TOPO_FACE_FACE,
+                            beam_a,
+                            beam_b,
+                            dist,
+                            JointTopology.TOPO_FACE_FACE,
                             _average_point(dot_pts),
                             _dot_range(beam_a, dot_pts),
                             _dot_range(beam_b, dot_pts),
@@ -301,13 +300,13 @@ class ConnectionSolver2D:
 
         # Corner containment: which end of each beam is at the joint?
         b_contains_a_start = any(beam_b.contains_point(p) for p in (beam_a.edge_a.start, beam_a.edge_b.start))
-        b_contains_a_end   = any(beam_b.contains_point(p) for p in (beam_a.edge_a.end,   beam_a.edge_b.end))
+        b_contains_a_end = any(beam_b.contains_point(p) for p in (beam_a.edge_a.end, beam_a.edge_b.end))
         a_contains_b_start = any(beam_a.contains_point(p) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
-        a_contains_b_end   = any(beam_a.contains_point(p) for p in (beam_b.edge_a.end,   beam_b.edge_b.end))
+        a_contains_b_end = any(beam_a.contains_point(p) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
 
-        if (b_contains_a_start and b_contains_a_end):
+        if b_contains_a_start and b_contains_a_end:
             raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
-        if  (a_contains_b_start and a_contains_b_end):
+        if a_contains_b_start and a_contains_b_end:
             raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
@@ -367,8 +366,6 @@ class ConnectionSolver2D:
         if beam_b_end:
             return Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T, loc, beam_b_dots, beam_a_dots)
         return Beam2DSolverResult(beam_a, beam_b, 0.0, JointTopology.TOPO_X, loc, beam_a_dots, beam_b_dots)
-
-
 
     # ------------------------------------------------------------------
     # Beam–polyline intersection
@@ -511,16 +508,12 @@ class ConnectionSolver2D:
             Only extend toward the beam end (positive dot direction).
         """
         if only_end and only_start:
-            raise ValueError(
-                "Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam)
-            )
+            raise ValueError("Beam is overconstrained; only one of `only_start` and `only_end` can be True: {}".format(beam))
 
         intersections: list[Beam2DPolylineIntersectionResult] = []
         for outline in outlines:
             if outline is not None:
-                intersections.extend(
-                    ConnectionSolver2D.intersection_beam2d_polyline(beam, outline, limit_to_segments=False)
-                )
+                intersections.extend(ConnectionSolver2D.intersection_beam2d_polyline(beam, outline, limit_to_segments=False))
 
         if not intersections:
             return
@@ -536,9 +529,7 @@ class ConnectionSolver2D:
                 return None
             return min(max(neg, key=_avg).all_dots)
 
-        def _get_top_dot(
-            beam, intersections: list[Beam2DPolylineIntersectionResult]
-        ) -> Optional[float]:
+        def _get_top_dot(beam, intersections: list[Beam2DPolylineIntersectionResult]) -> Optional[float]:
             pos = [x for x in intersections if x.all_dots and _avg(x) >= beam.length]
             if not pos:
                 return None
@@ -555,8 +546,7 @@ class ConnectionSolver2D:
         new_length = end - start
         if new_length <= 0:
             raise ValueError(
-                "extend_beam_to_polylines produced degenerate length {} "
-                "(bottom_dot={}, top_dot={}, original_length={}) on beam '{}'".format(
+                "extend_beam_to_polylines produced degenerate length {} (bottom_dot={}, top_dot={}, original_length={}) on beam '{}'".format(
                     new_length, bottom_dot, top_dot, beam.length, beam.attributes.get("name", "?")
                 )
             )
@@ -717,9 +707,7 @@ class Cluster2DFinder:
         return None
 
     @staticmethod
-    def _dot_range_for_beam(
-        result: Beam2DSolverResult, beam
-    ) -> Optional[tuple[float, float]]:
+    def _dot_range_for_beam(result: Beam2DSolverResult, beam) -> Optional[tuple[float, float]]:
         """Return the dot-range stored in *result* for the given *beam*."""
         if result.beam_a is beam:
             return result.dot_range_on_a

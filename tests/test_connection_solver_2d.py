@@ -28,7 +28,6 @@ from compas_timber.connections.solver import JointTopology
 
 from timber_design.connections_2d.beam2d import AABB2D
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
 from timber_design.connections_2d.connection_solver_2d import Beam2DSolverResult
 from timber_design.connections_2d.connection_solver_2d import Cluster2D
 from timber_design.connections_2d.connection_solver_2d import Cluster2DFinder
@@ -125,8 +124,8 @@ class TestBeam2DGeometry:
         assert len(pts) == 5
         assert pts[0].x == pytest.approx(0.0) and pts[0].y == pytest.approx(-0.5)  # bl
         assert pts[1].x == pytest.approx(4.0) and pts[1].y == pytest.approx(-0.5)  # br
-        assert pts[2].x == pytest.approx(4.0) and pts[2].y == pytest.approx(0.5)   # tr
-        assert pts[3].x == pytest.approx(0.0) and pts[3].y == pytest.approx(0.5)   # tl
+        assert pts[2].x == pytest.approx(4.0) and pts[2].y == pytest.approx(0.5)  # tr
+        assert pts[3].x == pytest.approx(0.0) and pts[3].y == pytest.approx(0.5)  # tl
         assert pts[4].x == pytest.approx(pts[0].x) and pts[4].y == pytest.approx(pts[0].y)  # closed
 
     def test_blank_outline_cached(self):
@@ -207,21 +206,21 @@ class TestBeam2DContainsPoint:
 
     def test_corner_is_inside(self):
         beam = make_beam(0, 0, 4, 0, width=1.0)
-        assert beam.contains_point(Point(0, -0.5, 0))   # bl corner
-        assert beam.contains_point(Point(4, 0.5, 0))    # tr corner
+        assert beam.contains_point(Point(0, -0.5, 0))  # bl corner
+        assert beam.contains_point(Point(4, 0.5, 0))  # tr corner
 
     def test_outside_returns_false(self):
         beam = make_beam(0, 0, 4, 0, width=1.0)
-        assert not beam.contains_point(Point(5, 0, 0))    # beyond x end
+        assert not beam.contains_point(Point(5, 0, 0))  # beyond x end
         assert not beam.contains_point(Point(2, 1.0, 0))  # beyond y top
 
     def test_exactly_on_edge_included(self):
         """A point sitting exactly on the blank boundary (zero tolerance) is inside."""
         beam = make_beam(0, 0, 4, 0, width=1.0)
-        assert beam.contains_point(Point(2, 0.5, 0))    # on top face
-        assert beam.contains_point(Point(2, -0.5, 0))   # on bottom face
-        assert beam.contains_point(Point(0, 0, 0))      # on start cap
-        assert beam.contains_point(Point(4, 0, 0))      # on end cap
+        assert beam.contains_point(Point(2, 0.5, 0))  # on top face
+        assert beam.contains_point(Point(2, -0.5, 0))  # on bottom face
+        assert beam.contains_point(Point(0, 0, 0))  # on start cap
+        assert beam.contains_point(Point(4, 0, 0))  # on end cap
 
     def test_tolerance_expands_boundary(self):
         """A point just outside the blank is inside with a matching tolerance."""
@@ -350,7 +349,7 @@ class TestAabbOverlap:
 
     def test_gap_smaller_than_tolerance_overlaps(self):
         """A gap of 0.1 is considered overlapping with tolerance=0.2."""
-        a = make_beam(0, 0, 2, 0, width=1.0)   # xmax=2.0
+        a = make_beam(0, 0, 2, 0, width=1.0)  # xmax=2.0
         b = make_beam(2.1, 0, 4, 0, width=1.0)  # xmin=2.1 — gap=0.1
         assert not aabb_overlap(a, b, tolerance=0.0)
         assert aabb_overlap(a, b, tolerance=0.1)
@@ -410,14 +409,16 @@ class TestIntersectionBeam2dPolyline:
         """A zigzag polyline that enters and exits the beam twice → two crossings."""
         beam = make_beam(0, 0, 4, 0, width=1.0)  # blank y=±0.5
         # Goes: outside → inside → outside → inside → outside
-        outline = Polyline([
-            Point(1, -2, 0),
-            Point(1, 0, 0),   # enters at x=1
-            Point(1, 2, 0),   # exits
-            Point(3, 2, 0),
-            Point(3, 0, 0),   # enters at x=3
-            Point(3, -2, 0),  # exits
-        ])
+        outline = Polyline(
+            [
+                Point(1, -2, 0),
+                Point(1, 0, 0),  # enters at x=1
+                Point(1, 2, 0),  # exits
+                Point(3, 2, 0),
+                Point(3, 0, 0),  # enters at x=3
+                Point(3, -2, 0),  # exits
+            ]
+        )
         results = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
         assert len(results) == 2
 
@@ -442,18 +443,20 @@ class TestExtendBeamToPolylines:
     """Tests for ConnectionSolver2D.extend_beam_to_polylines."""
 
     def _rect_outline(self, xmin, xmax, ymin, ymax):
-        return Polyline([
-            Point(xmin, ymin, 0),
-            Point(xmax, ymin, 0),
-            Point(xmax, ymax, 0),
-            Point(xmin, ymax, 0),
-            Point(xmin, ymin, 0),
-        ])
+        return Polyline(
+            [
+                Point(xmin, ymin, 0),
+                Point(xmax, ymin, 0),
+                Point(xmax, ymax, 0),
+                Point(xmin, ymax, 0),
+                Point(xmin, ymin, 0),
+            ]
+        )
 
     def test_extend_start_to_outline(self):
         """Beam start is pushed to reach the boundary outline."""
         beam = make_beam(1, 0, 4, 0, width=0.5)  # starts at x=1
-        boundary = self._rect_outline(-1, 5, -2, 2)   # left edge at x=−1
+        boundary = self._rect_outline(-1, 5, -2, 2)  # left edge at x=−1
         orig_length = beam.length
         ConnectionSolver2D.extend_beam_to_polylines(beam, [boundary])
         assert beam.frame.point.x == pytest.approx(-1.0)
@@ -462,9 +465,9 @@ class TestExtendBeamToPolylines:
     def test_extend_end_to_outline(self):
         """Beam end is pushed to reach the boundary outline."""
         beam = make_beam(0, 0, 3, 0, width=0.5)  # ends at x=3
-        boundary = self._rect_outline(-1, 5, -2, 2)   # right edge at x=5
+        boundary = self._rect_outline(-1, 5, -2, 2)  # right edge at x=5
         ConnectionSolver2D.extend_beam_to_polylines(beam, [boundary])
-        assert beam.length == pytest.approx(6.0)   # 0→(-1) start + up to x=5 end
+        assert beam.length == pytest.approx(6.0)  # 0→(-1) start + up to x=5 end
 
     def test_only_end_flag(self):
         """only_end=True: only the end side is extended, start is unchanged."""
@@ -671,11 +674,7 @@ class TestFindIntersectingPairs:
     def test_no_overlapping_beams(self):
         """Beams all separated → empty result."""
         solver = ConnectionSolver2D()
-        pairs = list(
-            solver.find_intersecting_pairs(
-                [make_beam(0, 0, 1, 0), make_beam(5, 0, 6, 0), make_beam(10, 0, 11, 0)]
-            )
-        )
+        pairs = list(solver.find_intersecting_pairs([make_beam(0, 0, 1, 0), make_beam(5, 0, 6, 0), make_beam(10, 0, 11, 0)]))
         assert pairs == []
 
     def test_each_pair_yielded_once(self):
@@ -738,8 +737,7 @@ class TestCluster2DTopology:
         """A cluster with one result reports that result's topology directly."""
         beam_a = make_beam(0, 0, 4, 0)
         beam_b = make_beam(2, -2, 2, 0)
-        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T,
-                                    dot_a=(0.0, 2.0), dot_b=(1.5, 2.5))
+        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T, dot_a=(0.0, 2.0), dot_b=(1.5, 2.5))
         cluster = Cluster2D([result])
         assert cluster.topology == JointTopology.TOPO_T
 
@@ -749,13 +747,11 @@ class TestCluster2DTopology:
         v1 ends at origin, v2 and v3 start at origin — all three have an
         endpoint in the overlap zone, so the cluster is TOPO_Y.
         """
-        v1 = make_beam(-4, 0, 0, 0)    # length=4
-        v2 = make_beam(0, 0, 2, 2)     # length≈2.83
-        v3 = make_beam(0, 0, 2, -2)    # length≈2.83
-        r1 = make_solver_result(v1, v2, JointTopology.TOPO_L,
-                                dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
-        r2 = make_solver_result(v1, v3, JointTopology.TOPO_L,
-                                dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
+        v1 = make_beam(-4, 0, 0, 0)  # length=4
+        v2 = make_beam(0, 0, 2, 2)  # length≈2.83
+        v3 = make_beam(0, 0, 2, -2)  # length≈2.83
+        r1 = make_solver_result(v1, v2, JointTopology.TOPO_L, dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
+        r2 = make_solver_result(v1, v3, JointTopology.TOPO_L, dot_a=(3.75, 4.0), dot_b=(0.0, 0.25))
         cluster = Cluster2D([r1, r2], endpoint_tolerance=0.5)
         assert cluster.topology == JointTopology.TOPO_Y
 
@@ -764,10 +760,8 @@ class TestCluster2DTopology:
         h1 = make_beam(0, 0, 10, 0)  # length=10
         h2 = make_beam(0, 2, 10, 2)  # length=10
         v = make_beam(5, 0, 5, 2, width=0.5)
-        r1 = make_solver_result(v, h1, JointTopology.TOPO_T,
-                                dot_a=(0.0, 0.25), dot_b=(4.75, 5.25))
-        r2 = make_solver_result(v, h2, JointTopology.TOPO_T,
-                                dot_a=(1.75, 2.0), dot_b=(4.75, 5.25))
+        r1 = make_solver_result(v, h1, JointTopology.TOPO_T, dot_a=(0.0, 0.25), dot_b=(4.75, 5.25))
+        r2 = make_solver_result(v, h2, JointTopology.TOPO_T, dot_a=(1.75, 2.0), dot_b=(4.75, 5.25))
         cluster = Cluster2D([r1, r2], endpoint_tolerance=0.5)
         assert cluster.topology == JointTopology.TOPO_K
 
@@ -775,10 +769,8 @@ class TestCluster2DTopology:
         """Cluster location is the centroid of all constituent result locations."""
         beam_a = make_beam(0, 0, 4, 0)
         beam_b = make_beam(2, -2, 2, 0)
-        r1 = Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T,
-                                Point(1, 0, 0), (0, 1), (1, 2))
-        r2 = Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T,
-                                Point(3, 0, 0), (0, 1), (3, 4))
+        r1 = Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T, Point(1, 0, 0), (0, 1), (1, 2))
+        r2 = Beam2DSolverResult(beam_b, beam_a, 0.0, JointTopology.TOPO_T, Point(3, 0, 0), (0, 1), (3, 4))
         cluster = Cluster2D([r1, r2])
         assert cluster.location.x == pytest.approx(2.0)
 
@@ -803,8 +795,7 @@ class TestCluster2DFinder:
     def test_single_result_becomes_single_cluster(self):
         beam_a = make_beam(0, 0, 4, 0)
         beam_b = make_beam(2, -2, 2, 0)
-        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T,
-                                    dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
+        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T, dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
         clusters = Cluster2DFinder().find_clusters([result])
         assert len(clusters) == 1
         assert clusters[0].joints[0] is result
@@ -814,10 +805,8 @@ class TestCluster2DFinder:
         h = make_beam(0, 0, 4, 0)
         v1 = make_beam(1, -2, 1, 0)
         v2 = make_beam(1.2, -2, 1.2, 0)  # very close to v1, shares region on h
-        r1 = make_solver_result(v1, h, JointTopology.TOPO_T,
-                                dot_a=(0.0, 1.0), dot_b=(0.75, 1.45))
-        r2 = make_solver_result(v2, h, JointTopology.TOPO_T,
-                                dot_a=(0.0, 1.0), dot_b=(0.95, 1.45))
+        r1 = make_solver_result(v1, h, JointTopology.TOPO_T, dot_a=(0.0, 1.0), dot_b=(0.75, 1.45))
+        r2 = make_solver_result(v2, h, JointTopology.TOPO_T, dot_a=(0.0, 1.0), dot_b=(0.95, 1.45))
         clusters = Cluster2DFinder().find_clusters([r1, r2])
         assert len(clusters) == 1
         assert len(clusters[0].joints) == 2
@@ -825,10 +814,10 @@ class TestCluster2DFinder:
     def test_find_clusters_returns_cluster2d(self):
         """find_clusters() returns Cluster2D instances (subclass of Cluster)."""
         from compas_timber.connections import Cluster
+
         beam_a = make_beam(0, 0, 4, 0)
         beam_b = make_beam(2, -2, 2, 0)
-        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T,
-                                    dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
+        result = make_solver_result(beam_b, beam_a, JointTopology.TOPO_T, dot_a=(0.0, 2.0), dot_b=(1.75, 2.25))
         clusters = Cluster2DFinder().find_clusters([result])
         assert isinstance(clusters[0], Cluster2D)
         assert isinstance(clusters[0], Cluster)
@@ -838,9 +827,7 @@ class TestCluster2DFinder:
         h = make_beam(0, 0, 10, 0)
         v1 = make_beam(1, -2, 1, 0)
         v2 = make_beam(8, -2, 8, 0)
-        r1 = make_solver_result(v1, h, JointTopology.TOPO_T,
-                                dot_a=(0.0, 1.0), dot_b=(0.75, 1.25))
-        r2 = make_solver_result(v2, h, JointTopology.TOPO_T,
-                                dot_a=(0.0, 1.0), dot_b=(7.75, 8.25))
+        r1 = make_solver_result(v1, h, JointTopology.TOPO_T, dot_a=(0.0, 1.0), dot_b=(0.75, 1.25))
+        r2 = make_solver_result(v2, h, JointTopology.TOPO_T, dot_a=(0.0, 1.0), dot_b=(7.75, 8.25))
         clusters = Cluster2DFinder().find_clusters([r1, r2])
         assert len(clusters) == 2

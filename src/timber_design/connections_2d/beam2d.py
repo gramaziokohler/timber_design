@@ -49,13 +49,15 @@ class AABB2D(object):
 
     @property
     def geometry(self):
-        return Polyline(        [
-            Point(self.xmin, self.ymin, 0),
-            Point(self.xmax, self.ymin, 0),
-            Point(self.xmax, self.ymax, 0),
-            Point(self.xmin, self.ymax, 0),
-            Point(self.xmin, self.ymin, 0),
-        ])
+        return Polyline(
+            [
+                Point(self.xmin, self.ymin, 0),
+                Point(self.xmax, self.ymin, 0),
+                Point(self.xmax, self.ymax, 0),
+                Point(self.xmin, self.ymax, 0),
+                Point(self.xmin, self.ymin, 0),
+            ]
+        )
 
 
 class Beam2D(Beam):
@@ -127,7 +129,7 @@ class Beam2D(Beam):
             Centerline translated by ``+width / 2`` along ``frame.yaxis``.
         """
         line = self.blank_outline.lines[2]  # tr→tl in CCW outline
-        return Line(line.end, line.start)   # flip to tl→tr
+        return Line(line.end, line.start)  # flip to tl→tr
 
     @property
     def start_segment(self):

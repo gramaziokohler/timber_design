@@ -26,7 +26,7 @@ from timber_design.populators import PlatePopulatorAgent
 from timber_design.populators import PlatePopulatorAgentConfig
 from timber_design.populators import StudPopulatorAgent
 from timber_design.populators import StudPopulatorAgentConfig
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.workflow import CategoryRule
@@ -126,7 +126,7 @@ class TestEdgePopulatorAgent:
         assert gen.outline is not None
 
     def test_aabb_covers_all_elements(self, gen):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         assert gen.aabb is not None
         assert isinstance(gen.aabb, AABB2D)

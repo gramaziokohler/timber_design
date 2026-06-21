@@ -27,7 +27,7 @@ from compas_timber.model import TimberModel
 
 from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 
 # ---------------------------------------------------------------------------
 # Optional import: Opening lives in the local compas_timber source tree but
@@ -608,7 +608,7 @@ class TestAABB2D:
     """Unit tests for the lightweight 2D bounding box."""
 
     def test_from_points_correct_bounds(self):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         pts = [Point(1, 2, 0), Point(5, 3, 0), Point(3, 0, 0)]
         aabb = AABB2D.from_points(pts)
@@ -618,14 +618,14 @@ class TestAABB2D:
         assert aabb.ymax == 3.0
 
     def test_from_single_point(self):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         aabb = AABB2D.from_points([Point(3, 7, 0)])
         assert aabb.xmin == aabb.xmax == 3.0
         assert aabb.ymin == aabb.ymax == 7.0
 
     def test_points_property_returns_four_corners(self):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         aabb = AABB2D(0.0, 4.0, 1.0, 3.0)
         corners = aabb.points
@@ -636,13 +636,13 @@ class TestAABB2D:
         assert ys == {1.0, 3.0}
 
     def test_bool_always_true(self):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         assert bool(AABB2D(0, 1, 0, 1)) is True
 
     def test_overlap_detected(self):
-        from timber_design.populators.connection_solver_2d import aabb_overlap
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.connection_solver_2d import aabb_overlap
+        from timber_design.connections_2d.beam2d import AABB2D
 
         class Box:
             def __init__(self, aabb):
@@ -653,8 +653,8 @@ class TestAABB2D:
         assert aabb_overlap(a, b) is True
 
     def test_no_overlap_detected(self):
-        from timber_design.populators.connection_solver_2d import aabb_overlap
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.connection_solver_2d import aabb_overlap
+        from timber_design.connections_2d.beam2d import AABB2D
 
         class Box:
             def __init__(self, aabb):
@@ -665,8 +665,8 @@ class TestAABB2D:
         assert aabb_overlap(a, b) is False
 
     def test_tolerance_bridges_gap(self):
-        from timber_design.populators.connection_solver_2d import aabb_overlap
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.connection_solver_2d import aabb_overlap
+        from timber_design.connections_2d.beam2d import AABB2D
 
         class Box:
             def __init__(self, aabb):

@@ -12,7 +12,7 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import AgentBoundaryType
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design.workflow import CategoryRule
 

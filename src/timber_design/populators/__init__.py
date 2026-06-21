@@ -1,14 +1,4 @@
-from .beam2d import AABB2D
-from .beam2d import Beam2D
-
 from .populator import PanelPopulator
-
-from .connection_solver_2d import Beam2DPolylineIntersectionResult
-from .connection_solver_2d import Beam2DSolverResult
-from .connection_solver_2d import Cluster2D
-from .connection_solver_2d import Cluster2DFinder
-from .connection_solver_2d import ConnectionSolver2D
-from .connection_solver_2d import aabb_overlap
 
 from .populator_agents.layer_agent import LayerAgent
 from .populator_agents.populator_agent import AgentBoundaryType
@@ -20,8 +10,6 @@ from .populator_agents.edge_populator_agent import EdgePopulatorAgent
 from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
 from .populator_agents.recess_populator_agent import RecessPopulatorAgent
 from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
-
-
 
 
 __all__ = [

@@ -11,9 +11,9 @@ from compas_timber.model import TimberModel
 if TYPE_CHECKING:
     from compas_timber.elements import Layer  # noqa: F401
 
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
 from timber_design.workflow import JointRuleSolver
 

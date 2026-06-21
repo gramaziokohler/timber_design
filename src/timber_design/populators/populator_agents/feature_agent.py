@@ -89,8 +89,8 @@ class FeatureAgent(PopulatorAgent):
         """
         from compas_timber.connections import JointCandidate
 
-        from timber_design.populators.beam2d import Beam2D
-        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+        from timber_design.connections_2d.beam2d import Beam2D
+        from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 
         candidates = []
         solver = ConnectionSolver2D()

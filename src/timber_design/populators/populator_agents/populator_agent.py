@@ -13,11 +13,11 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
-from timber_design.populators.beam2d import AABB2D
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import Beam2DPolylineIntersectionResult
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import AABB2D
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 

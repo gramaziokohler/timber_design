@@ -15,7 +15,7 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.populators.agent_intersection import BeamOutlineIntersectionData
 from timber_design.populators.agent_intersection import extend_beam_to_closest_agents
 from timber_design.populators.agent_intersection import find_beam_outline_crossings
@@ -301,7 +301,7 @@ class TestBeam2DHelpers:
         assert beam.blank_outline.points[0].x > 0.5
 
     def test_aabb_covers_blank(self):
-        from timber_design.populators.beam2d import AABB2D
+        from timber_design.connections_2d.beam2d import AABB2D
 
         beam = make_beam(0, 0, 4, 0, width=1.0)
         aabb = beam.aabb

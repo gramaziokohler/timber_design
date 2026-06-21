@@ -18,9 +18,9 @@ from compas_timber.panel_features import Opening
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent

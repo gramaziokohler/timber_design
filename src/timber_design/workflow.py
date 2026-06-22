@@ -743,7 +743,7 @@ class CompositeJointRule(JointRule):
     def __from_data__(cls, data):
         return cls(
             data.get("rules") or [],
-            topos=data.get("topo"),
+            topo=data.get("topo"),
             min_element_count=data.get("min_element_count"),
             max_element_count=data.get("max_element_count"),
             max_distance=data.get("max_distance"),

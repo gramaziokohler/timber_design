@@ -9,9 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* `CompositeJointRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
+* `CT_Composite_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
+* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeJointRule`.
+* `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`.
+
 ### Changed
 
+* `get_clusters_from_model` no longer calls `connect_adjacent_beams` / `connect_adjacent_plates` internally. Callers must connect the model before calling `apply_rules_to_model`.
+* `_joints_from_rules_and_clusters` renamed to `joints_from_rules_and_clusters` (now public).
+* compas_timber dependency bumped to >=2.1.2.
+
 ### Removed
+
+* `ContainerDefinition` class (dead code).
+* `max_cluster_size` parameter from `get_clusters_from_model`.
 
 
 ## [0.2.0] 2026-04-01

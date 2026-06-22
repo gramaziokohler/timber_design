@@ -241,17 +241,21 @@ def test_all_topos_covered_succeeds(K_beams):
 
 def test_sub_rule_error_propagated(Y_beams):
     """A BeamJoiningError raised by a matching sub-rule should be returned as the error."""
-    # DirectRule pointing at wrong elements will match by element set but fail compliance
-    wrong_pair = [Y_beams[0], Y_beams[1]]
-    # Use a DirectRule for a pair that exists but with wrong topology (LMiterJoint on TOPO_L is fine
-    # but we need it to *fail*; use TButtJoint which requires TOPO_T on an L pair)
-    bad_rule = DirectRule(TButtJoint, wrong_pair)
-    rule = CompositeJointRule([bad_rule])
-    model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
+    # Inspect the cluster first so we can target the first candidate reliably regardless of ordering.
+    model = _make_model_with_clusters(Y_beams)
     clusters = get_clusters_from_model(model)
-    joint, error = rule.try_create_joint(model, clusters[0])
+    first_pair = list(clusters[0].joints[0].elements)
+
+    # DirectRule targets the first candidate's elements but requests TOPO_T — those beams are TOPO_L,
+    # so _comply_topology raises BeamJoiningError when that candidate is processed.
+    bad_rule = DirectRule(TButtJoint, first_pair)
+    rule = CompositeJointRule([bad_rule])
+
+    model2 = _make_model_with_clusters(Y_beams)
+    clusters2 = get_clusters_from_model(model2)
+    joint, error = rule.try_create_joint(model2, clusters2[0])
     assert joint is None
     assert error is not None
 

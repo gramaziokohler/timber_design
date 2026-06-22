@@ -1,5 +1,4 @@
 # r: timber_design>=0.1.0
-# venv: td_migration
 """Creates an Model"""
 
 import Grasshopper

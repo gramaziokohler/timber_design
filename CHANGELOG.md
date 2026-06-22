@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `get_clusters_from_model` no longer calls `connect_adjacent_beams` / `connect_adjacent_plates` internally. Callers must connect the model before calling `apply_rules_to_model`.
 * `_joints_from_rules_and_clusters` renamed to `joints_from_rules_and_clusters` (now public).
 * compas_timber dependency bumped to >=2.1.2.
+* Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
+
+### Changed
+
+* Renamed `CT: Beam` to `CT: BeamFromLineCurve`.
 
 ### Removed
 

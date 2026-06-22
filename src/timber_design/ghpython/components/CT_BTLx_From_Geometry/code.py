@@ -1,5 +1,3 @@
-# r: timber_design>=0.1.0
-# venv: td_migration
 """Generates a feature from BTLx type and input geometry."""
 
 # flake8: noqa

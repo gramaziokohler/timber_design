@@ -2,17 +2,16 @@ import compas_timber.connections as _ct_connections
 from compas.data import Data
 from compas.tolerance import TOL
 from compas_timber.connections import Cluster
+from compas_timber.connections import CompositeJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import PlateMiterJoint
 from compas_timber.connections import PlateTButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.connections import XLapJoint
-from compas_timber.connections import CompositeJoint
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.errors import BeamJoiningError
 from compas_timber.utils import intersection_line_line_param
-
 
 
 def _joint_type_to_name(joint_type):
@@ -49,7 +48,6 @@ class CollectionDef(object):
 
     def __str__(self):
         return "Collection with %s items." % len(self.objs)
-
 
 
 class JointRuleSolver(object):
@@ -896,7 +894,8 @@ def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
     """
     # model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    candidates = model.joint_candidates if not ignore_joints else model.unpromoted_joint_candidates
+    # TODO: implement ignore_joints once model.unpromoted_joint_clusters implemented
+    candidates = model.joint_candidates
     clusters = get_clusters_from_joint_candidates(candidates, max_distance=max_distance)
     return clusters
 

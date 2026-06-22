@@ -1,9 +1,8 @@
 # r: timber_design>=0.1.0
 """Generates a composite joint rule for clusters of 3 or more elements."""
 
-import System  # type: ignore
-
 import Grasshopper  # type: ignore
+import System  # type: ignore
 from compas_timber.connections import JointTopology
 
 from timber_design.ghpython import rename_cpython_gh_output

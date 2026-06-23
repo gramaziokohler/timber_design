@@ -218,6 +218,9 @@ class PanelPopulator:
             prototype = default_feature_agents.get(type(feature))
             if prototype is None:
                 continue
+            data = prototype.__data__
+            data["element_layers"] = [l for l in prototype.element_layers if l in self.original_panel.layers]
+            data["trimming_layers"] = [l for l in prototype.trimming_layers if l in self.original_panel.layers]
             agent = type(prototype)(**prototype.__data__)
             agent.feature = feature
             self.agents.append(agent)
@@ -281,6 +284,7 @@ class PanelPopulator:
         complete the population workflow.
         """
         # model extracted here to ensure the latest version of panel and layer geometry
+        print(self.original_panel.model.tree)
         self.original_panel.merge_layer_tree(self.original_panel.model)
         self.model = self.original_panel.model.extract_model_from_parent(self.original_panel)
         self.generate_elements()

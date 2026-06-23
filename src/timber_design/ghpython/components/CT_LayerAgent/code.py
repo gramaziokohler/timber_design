@@ -19,10 +19,10 @@ _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 class LayerPopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(LayerPopulatorAgentComponent, self).__init__()
-        self.panel_types = {}
+        self.agent_types = {}
         for pt in get_nonabstract_subclasses(LayerAgent):
-            self.panel_types[pt.__name__] = pt
-        self.panel_type = self.panel_types.get(ghenv.Component.Params.Output[0].NickName, None)
+            self.agent_types[pt.__name__] = pt
+        self.agent_type = self.agent_types.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(
         self,
@@ -31,9 +31,9 @@ class LayerPopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
         external_joint_overrides: System.Collections.Generic.List[object],
         *args,
     ):
-        if not self.panel_type:
+        if not self.agent_type:
             return
-        ghenv.Component.Message = self.panel_type.__name__
+        ghenv.Component.Message = self.agent_type.__name__
         kwargs = {"layer":layer}
         if internal_joint_overrides:
             kwargs["internal_joint_overrides"] = list(internal_joint_overrides)
@@ -43,23 +43,23 @@ class LayerPopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args):
             if val is not None and i < len(names):
                 kwargs[names[i]] = val
-        return self.panel_type(**kwargs)
+        return self.agent_type(**kwargs)
 
     def arg_names(self):
         # Exclude fields handled as permanent inputs or incompatible with item-access dynamic params.
         skip = _PERMANENT_PARAM_NAMES
-        names = inspect.getfullargspec(self.panel_type.__init__).args[1:]
+        names = inspect.getfullargspec(self.agent_type.__init__).args[1:]
         return [n for n in names if n not in skip]
 
     def AppendAdditionalMenuItems(self, menu):
-        for name in self.panel_types.keys():
+        for name in self.agent_types.keys():
             item = menu.Items.Add(name, None, self.on_item_click)
-            if self.panel_type and name == self.panel_type.__name__:
+            if self.agent_type and name == self.agent_type.__name__:
                 item.Checked = True
 
     def on_item_click(self, sender, event_info):
-        self.panel_type = self.panel_types[str(sender)]
-        rename_cpython_gh_output(self.panel_type.__name__, 0, ghenv)
+        self.agent_type = self.agent_types[str(sender)]
+        rename_cpython_gh_output(self.agent_type.__name__, 0, ghenv)
         manage_cpython_dynamic_params(self.arg_names(), ghenv, rename_count=0, permanent_param_count=_PERMANENT_PARAM_COUNT)
         ghenv.Component.ExpireSolution(True)
 

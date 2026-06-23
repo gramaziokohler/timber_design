@@ -23,7 +23,6 @@ from timber_design.populators.connection_solver_2d import ConnectionSolver2D
 from timber_design.populators.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
-from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
 
 

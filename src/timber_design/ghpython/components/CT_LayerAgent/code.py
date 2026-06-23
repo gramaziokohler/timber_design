@@ -4,11 +4,10 @@
 # venv: td_migration
 # flake8: noqa
 import inspect
-import ctypes
 import Grasshopper
 import System
 
-from timber_design.populators import LayerAgentConfig
+from timber_design.populators import LayerAgent
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
@@ -17,16 +16,17 @@ _PERMANENT_PARAM_NAMES = ["external_joint_overrides", "internal_joint_overrides"
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
-class LayerAgent(Grasshopper.Kernel.GH_ScriptInstance):
+class LayerPopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
-        super().__init__()
+        super(LayerPopulatorAgentComponent, self).__init__()
         self.panel_types = {}
-        for pt in get_nonabstract_subclasses(LayerAgentConfig):
+        for pt in get_nonabstract_subclasses(LayerAgent):
             self.panel_types[pt.__name__] = pt
         self.panel_type = self.panel_types.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(
         self,
+        layer,
         internal_joint_overrides: System.Collections.Generic.List[object],
         external_joint_overrides: System.Collections.Generic.List[object],
         *args,
@@ -34,7 +34,7 @@ class LayerAgent(Grasshopper.Kernel.GH_ScriptInstance):
         if not self.panel_type:
             return
         ghenv.Component.Message = self.panel_type.__name__
-        kwargs = {}
+        kwargs = {"layer":layer}
         if internal_joint_overrides:
             kwargs["internal_joint_overrides"] = list(internal_joint_overrides)
         if external_joint_overrides:

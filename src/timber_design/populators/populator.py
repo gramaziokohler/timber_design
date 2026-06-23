@@ -281,7 +281,8 @@ class PanelPopulator:
         complete the population workflow.
         """
         # model extracted here to ensure the latest version of panel and layer geometry
-        self.model = self.original_panel.model.extract_model_from_parent(self.original_panel) 
+        self.original_panel.merge_layer_tree(self.original_panel.model)
+        self.model = self.original_panel.model.extract_model_from_parent(self.original_panel)
         self.generate_elements()
         self.extend_elements()
         self.split_elements()
@@ -358,6 +359,7 @@ class PanelPopulator:
         :meth:`merge_with_model` only has to move the layer subtree back under
         the original panel — no per-element transform.
         """
+
         for agent in self.agents:
             for layer, elements in agent.elements_by_layer.items():
                 if elements:

@@ -11,9 +11,11 @@ from compas.tolerance import Tolerance
 # from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
 from compas_timber.elements import Panel
+from compas_timber.elements import Layer
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
+from compas_timber.connections import PanelJoint
 
 from timber_design.ghpython import error
 from timber_design.ghpython import warning
@@ -36,74 +38,30 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             Features: System.Collections.Generic.List[object],
             MaxDistance: float,
             CreateGeometry: bool):
-        # this used to be default behavior in Rhino7.. I think..
-        Elements = Elements or []
-        Populators = Populators or []
-        JointRules = JointRules or []
-        Features = Features or []
 
+        # parse inputs
         if not Elements:
             warning(self.component, "Input parameter Elements failed to collect data")
-        if not JointRules:
-            warning(self.component, "Input parameter JointRules failed to collect data")
-        if not Elements:  # shows beams even if no joints are found
             return
+        if not JointRules:
+            warning(self.component, "Input parameter JointRules failed to collect data")            
         if MaxDistance is None:
             MaxDistance = TOL.ABSOLUTE  # compared to calculted distance, so shouldn't be just 0.0
 
+        # setup model
         tol = self.get_tol()
         Model = TimberModel(tolerance=tol)
         debug_info = DebugInfomation()
 
-        JointRules = [j for j in JointRules if j is not None]
-        solver = JointRuleSolver(JointRules, max_distance=MaxDistance) if JointRules else None
-
-        ##### 1. Add elements (panels carry their pre-defined layer structure) #####
+        #process model
         self.add_elements_to_model(Model, Elements)
+        self.join_panels(Model, JointRules, debug_info, MaxDistance)
+        self.handle_populators(Populators, Model)
+        self.join_timber_elements(Model, JointRules, debug_info, MaxDistance)
+        self.handle_features(Features, debug_info)
 
-        ##### 2. Panel joinery FIRST #####
-        # Connect adjacent panels, promote panel-joint candidates via the rules,
-        # then process_panel_joinery() so each PanelJoint extends its per-layer
-        # `layer_panels` (and adds interfaces).  This must happen before the
-        # populators run so the agents generate against the *final*, extended
-        # layer geometry.
-        Model.connect_adjacent_panels(max_distance=solver.max_distance if solver else MaxDistance)
-        if solver:
-            solver.apply_rules_to_model(Model)
-        panel_errors = Model.process_panel_joinery()
-        for pe in panel_errors:
-            debug_info.add_joint_error(pe)
-
-        ##### 3. Populate the (now extended) layers with framing #####
-        if Populators:
-            self.handle_populators(Populators, Model)
-
-        ##### 4. Beam / plate joinery between the generated elements #####
-        if solver:
-            Model.connect_adjacent_beams(max_distance=solver.max_distance)
-            Model.connect_adjacent_plates(max_distance=solver.max_distance)
-            joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
-            for je in joint_errors:
-                debug_info.add_joint_error(je)
-
-        ##### 5. Apply extensions + features for non-panel joints #####
-        # Panel joinery was already processed in step 2; skip it here so its
-        # (non-idempotent) layer extensions are not applied twice.
-        bje = Model.process_joinery(include_panels=False)
-        if bje:
-            debug_info.add_joint_error(bje)
-
-        ##### 6. Handle user features #####
-        if Features:
-            feature_errors = self.handle_features(Features)
-            debug_info.add_feature_error(feature_errors)
-
-        ##### Visualization #####
-        Geometry, errors = self.handle_geometry(Model, CreateGeometry)
-        for geo_error in errors:
-            debug_info.add_feature_error(geo_error)
-
-        ##### Error Handling #####
+        # get outputs
+        Geometry = self.get_geometry(Model, CreateGeometry, debug_info)
         if debug_info.has_errors:
             warning(self.component, "Error found during joint creation. See DebugInfo output for details.")
 
@@ -135,17 +93,24 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             element.reset()
             model.add_element(element)
 
+    def join_panels(self, Model, JointRules, debug_info, MaxDistance=None):
+        if not JointRules:
+            return
+        panel_rules = [r for r in JointRules if isinstance(r.joint_type, PanelJoint)]
+        if not panel_rules:
+            return
+        solver = JointRuleSolver(panel_rules, max_distance=MaxDistance)
+        Model.connect_adjacent_panels(max_distance=solver.max_distance if solver else MaxDistance)
+        solver.apply_rules_to_model(Model)
+        panel_errors = Model.process_panel_joinery()
+        for pe in panel_errors:
+            debug_info.add_joint_error(pe)
+
     def handle_populators(self, populators, model, max_distance=None):
         """Run each :class:`~timber_design.populators.PanelPopulator`.
-
-        ``PanelConfigs`` now carries fully-built :class:`PanelPopulator`
-        instances (the old ``PanelPopulatorConfig`` was merged into the
-        populator).  Each populator builds its own populator-space panel and
-        mirrored layers lazily on the first ``populate_elements`` call
-        (``PanelPopulator.prepare``), so it reads whatever layer geometry the
-        panel has *now* — i.e. after step-2 panel-joinery extensions.  Generated
-        framing is then merged back under the matching original-panel layers.
         """
+        if not populators:
+            return
         for pop in populators:
             if pop is None:
                 continue
@@ -153,8 +118,28 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             pop.join_elements()
             pop.merge_with_model(model)
 
-    def handle_features(self, features):
-        feature_errors = []
+    def join_timber_elements(self, Model, JointRules, debug_info, MaxDistance=None):
+        """Join the timber elements, ignoring PanelJoints"""
+        if not JointRules:
+            return
+        timber_rules = [r for r in JointRules if not isinstance(r.joint_type, PanelJoint)]
+        if not timber_rules:
+            return
+        solver = JointRuleSolver(timber_rules, max_distance=MaxDistance)
+        Model.connect_adjacent_beams(max_distance=solver.max_distance)
+        Model.connect_adjacent_plates(max_distance=solver.max_distance)
+        joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
+        for je in joint_errors:
+            debug_info.add_joint_error(je)
+
+        # Apply extensions + features
+        bje = Model.process_joinery()
+        if bje:
+            debug_info.add_joint_error(bje)
+
+    def handle_features(self, features, debug_info):
+        if not features:
+            return
         features = [f for f in features if f is not None]
         for f_def in features:
             if not f_def.elements:
@@ -165,25 +150,20 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
                 try:
                     element.add_features(f_def.feature_from_element(element))
                 except FeatureApplicationError as ex:
-                    feature_errors.append(ex)
-        return feature_errors
+                    debug_info.add_feature_error(ex)
 
-    def handle_geometry(self, Model, CreateGeometry):
+    def get_geometry(self, Model, CreateGeometry, debug_info):
         scene = Scene()
-        errors = []
         for element in Model.elements():
-            # Skip panels and their layers.  These are
-            # structural containers, not physical parts — they are represented by
-            # the framing (beams) and sheathing (plates) generated inside them.
-            # Drawing them too would overlay solid, uncut plate ghosts on top of
-            # the real framing.
             # TODO: create UI for deciding level of detail to display 
             if isinstance(element, Panel):
+                continue
+            if isinstance(element, Layer):
                 continue
             if CreateGeometry:
                 scene.add(element.geometry)
                 if getattr(element, "debug_info", False):
-                    errors.append(element.debug_info)
+                    debug_info.add_feature_error(element.debug_info)
             else:
                 if isinstance(element, Beam):
                     scene.add(element.blank)
@@ -191,4 +171,4 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
                     scene.add(element.shape)
                 else:
                     scene.add(element.geometry)
-        return scene.draw(), errors
+        return scene.draw()

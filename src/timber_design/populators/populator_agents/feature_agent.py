@@ -1,5 +1,6 @@
 from abc import abstractmethod
 
+from compas_timber.elements import Layer
 from .populator_agent import PopulatorAgent
 
 
@@ -51,24 +52,67 @@ class FeatureAgent(PopulatorAgent):
     FEATURE_TYPE = None
 
     def __init__(self, feature, element_layers=None, trimming_layers=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (object, list, list, Optional[list], Optional[list]) -> None
+        # type: (object, Optional[list], Optional[list], Optional[list], Optional[list]) -> None
         super().__init__(internal_joint_overrides, external_joint_overrides)
         self.feature = feature
-        # Coerce to a real Python list: GH passes inputs as a .NET
-        # ``System.Collections.Generic.List``; storing that directly makes
-        # ``set(...)`` / identity logic and ``__data__`` round-tripping behave
-        # inconsistently downstream.
-        self.element_layers = list(element_layers) if element_layers else []
-        self.trimming_layers = list(trimming_layers) if trimming_layers else []
+        self.element_layer_paths = []
+        for el in element_layers or []:
+            if isinstance(el, Layer):
+                self.element_layer_paths.append(el.layer_path)
+            else:
+                self.element_layer_paths.append(el)
 
+        self.trimming_layer_paths = []
+        for tl in trimming_layers or []:
+            if isinstance(tl, Layer):
+                self.trimming_layer_paths.append(tl.layer_path)
+            else:
+                self.trimming_layer_paths.append(tl)
+
+        self._element_layers = []
+        self._trimming_layers = []
+
+
+    @property
+    def element_layers(self):
+        return self._element_layers
+
+    @property
+    def trimming_layers(self):
+        return self._trimming_layers
+
+
+    def repoint_to_layer_tree(self, tree):
+        """Rebind this agent's layer references to the current panel's layer tree by path."""
+        if self.element_layer_paths:
+            self._element_layers = [tree[p] for p in self.element_layer_paths if p in tree]
+        if self.trimming_layer_paths:
+            self._trimming_layers = [tree[p] for p in self.trimming_layer_paths if p in tree]
 
     @property
     def __data__(self):
         data = super().__data__
         data["feature"] = self.feature
-        data["element_layers"] = self.element_layers or None
-        data["trimming_layers"] = self.trimming_layers or None
+        data["element_layers"] = self.element_layer_paths
+        data["trimming_layers"] = self.trimming_layer_paths
         return data
+
+    def generate_elements(self):
+        """Generate (and store) this agent's elements.
+
+        With *layer* given, generates only on that layer; otherwise on every
+        framing layer in :attr:`element_layers`.  The populator drives this one
+        layer at a time (mirroring :meth:`split_agent_elements` /
+        :meth:`extend_elements`), but the no-argument form is kept for callers
+        that want the whole agent generated at once.
+        """
+        # Clear stale entries from previous solves before regenerating.
+        self.elements_by_layer.clear()
+        self.outline_by_layer.clear()
+        for layer in self.element_layers:
+            layer_elements, layer_outline = self.generate_elements_for_layer(layer)
+            self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
+            self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
 
 
     def _compute_outline_for_layer(self, layer):
@@ -89,8 +133,8 @@ class FeatureAgent(PopulatorAgent):
         """
         from compas_timber.connections import JointCandidate
 
-        from timber_design.populators.beam2d import Beam2D
-        from timber_design.populators.connection_solver_2d import ConnectionSolver2D
+        from timber_design.connections_2d.beam2d import Beam2D
+        from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 
         candidates = []
         solver = ConnectionSolver2D()

@@ -55,14 +55,15 @@ class StudPopulatorAgent(LayerAgent):
 
     def __init__(
         self,
-        layer,
+        layer=None,
         stud_width: Optional[float] = None,
         internal_joint_overrides=None,
         external_joint_overrides=None,
         stud_spacing=None,
+        **kwargs,
     ):
         # type: (Layer, Optional[float], Optional[list], Optional[list], Optional[float]) -> None
-        super(StudPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        super(StudPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
         self.beam_widths["stud"] = stud_width
         # Stored as-is; the default (``stud_width * 8``) is resolved in
         # :meth:`generate_elements` once ``PanelPopulator.resolve_beam_widths``
@@ -76,7 +77,7 @@ class StudPopulatorAgent(LayerAgent):
         data["stud_spacing"] = self.stud_spacing
         return data
 
-    def generate_elements_for_layer(self, layer=None):
+    def generate_layer_elements(self):
         """Populate the layer with stud beams at ``stud_spacing`` intervals."""
         spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_widths["stud"] * 8
         if spacing <= 0:

@@ -1,0 +1,50 @@
+{
+    "name": "PanelLayerDefinition",
+    "nickname": "PanelLayerDef",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Creates panel-free Layer definitions for exterior, core, and interior layers. Pass the output to CT_Panel's 'layers' input.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "core_start",
+                "description": "Offset from the panel face where the core layer begins.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "core_end",
+                "description": "Offset from the panel face where the core layer ends.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "exterior_name",
+                "description": "(Optional) Name for the exterior layer. Defaults to 'Exterior Layer'.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "core_name",
+                "description": "(Optional) Name for the core layer. Defaults to 'Core Layer'.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "interior_name",
+                "description": "(Optional) Name for the interior layer. Defaults to 'Interior Layer'.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "layers",
+                "description": "List of Layer definitions (exterior, core, interior) with layer_path set."
+            }
+        ]
+    }
+}

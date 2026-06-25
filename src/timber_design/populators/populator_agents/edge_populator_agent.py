@@ -19,7 +19,7 @@ from compas_timber.utils import get_interior_corner_indices
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
@@ -81,15 +81,16 @@ class EdgePopulatorAgent(LayerAgent):
 
     def __init__(
         self,
-        layer,
+        layer=None,
         edge_stud_width: Optional[float] = None,
         top_plate_beam_width: Optional[float] = None,
         bottom_plate_beam_width: Optional[float] = None,
         internal_joint_overrides=None,
         external_joint_overrides=None,
         standard_beam_width_increment=None,
+        **kwargs,
     ):
-        super(EdgePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        super(EdgePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
         self.beam_widths["edge_stud"] = edge_stud_width
         self.beam_widths["top_plate_beam"] = top_plate_beam_width
         self.beam_widths["bottom_plate_beam"] = bottom_plate_beam_width
@@ -108,7 +109,7 @@ class EdgePopulatorAgent(LayerAgent):
     # private methods for creating edge beams
     # ==========================================================================
 
-    def generate_elements_for_layer(self, layer=None):
+    def generate_layer_elements(self):
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
         elements = []
@@ -121,6 +122,8 @@ class EdgePopulatorAgent(LayerAgent):
         extend_line_segments(segs, close_loop=True)
         edges: list[Line] = []  # boundaries of this agent
         for i, (seg, width) in enumerate(zip(segs, widths)):
+            if seg.length < TOL.absolute:
+                continue
             edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i, category=self._get_segment_category(i))
             self._apply_linear_cut_to_edge_beam(edge_beam, i)
             elements.append(edge_beam)

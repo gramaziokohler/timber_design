@@ -7,7 +7,7 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.beam2d import AABB2D
+from timber_design.connections_2d.beam2d import AABB2D
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 
@@ -54,16 +54,20 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
     NAME = "PanelBoundaryPopulatorAgent"
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 
-    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+    def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None, **kwargs):
         # type: (Layer, Optional[list], Optional[list]) -> None
-        super(PanelBoundaryPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
+        super(PanelBoundaryPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
         self._outline = None
+
+    def repoint_to_layer_tree(self, tree):
+        super().repoint_to_layer_tree(tree)
+        self._outline = None  # invalidate cached boundary when layer changes
 
     # ==========================================================================
     # private methods for creating edge beams
     # ==========================================================================
-    def generate_elements_for_layer(self, layer=None):
-        return [], self.outline if layer is self.layer else None
+    def generate_layer_elements(self):
+        return [], self.outline
 
     def generate_boundaries(self) -> None:
         """Get the edge beams for the outer polyline of the panel."""

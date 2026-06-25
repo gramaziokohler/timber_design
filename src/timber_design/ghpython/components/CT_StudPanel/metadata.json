@@ -3,7 +3,7 @@
     "nickname": "StudPanel",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Create a stud-framed PanelPopulatorConfig.  Opening-specific options (lintel_posts, split_bottom_plate_beam, header_width, ...) live on an OpeningPopulatorAgentConfig that you wire through default_feature_configs or instance_feature_configs.",
+    "description": "Create a stud-framed PanelPopulator. If the panel has layers (from CT_Panel_Layer_Definition), they are used directly for sheeting and framing. Without layers, a single full-thickness framing layer is created and no sheeting plates are generated.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -11,7 +11,7 @@
         "inputParameters": [
             {
                 "name": "panel",
-                "description": "Panel geometry or element.",
+                "description": "Panel element. If it already owns layers (from CT_Panel_Layer_Definition), those layers drive sheeting and framing.",
                 "typeHintID": "none",
                 "scriptParamAccess": 0
             },
@@ -58,38 +58,20 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "orientation",
-                "description": "Optional orientation vector.",
-                "typeHintID": "vector",
-                "scriptParamAccess": 0
-            },
-            {
-                "name": "sheeting_outside",
-                "description": "Outside sheeting thickness.",
-                "typeHintID": "float",
-                "scriptParamAccess": 0
-            },
-            {
-                "name": "sheeting_inside",
-                "description": "Inside sheeting thickness.",
-                "typeHintID": "float",
-                "scriptParamAccess": 0
-            },
-            {
                 "name": "joint_rule_overrides",
-                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories (internal vs external is inferred).",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "default_feature_configs",
-                "description": "List of FeatureAgentConfig instances (one per feature type) registered under their FEATURE_TYPE class. Pass an OpeningPopulatorAgentConfig here to enable lintel_posts / split_bottom_plate_beam / custom header / sill widths.",
+                "description": "List of FeatureAgent prototypes (one per feature type). Pass an OpeningPopulatorAgent here to customise opening framing.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "instance_feature_configs",
-                "description": "List of per-feature-instance FeatureAgentConfig overrides.",
+                "description": "List of per-feature-instance FeatureAgent overrides, already bound to specific panel features.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             }
@@ -97,7 +79,7 @@
         "outputParameters": [
             {
                 "name": "Config",
-                "description": "PanelPopulatorConfig"
+                "description": "PanelPopulator"
             }
         ]
     }

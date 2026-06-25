@@ -28,6 +28,18 @@
                 "scriptParamAccess": 1
             },
             {
+                "name": "layers",
+                "description": "(Optional) Layer definitions from CT_Panel_Layer_Definition.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "identify_doors",
+                "description": "If True, openings that reach the bottom edge of the panel are classified as doors.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
                 "name": "category",
                 "description": "Category of the panel.",
                 "typeHintID": "str",

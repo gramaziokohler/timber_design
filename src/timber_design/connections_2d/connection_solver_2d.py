@@ -299,15 +299,18 @@ class ConnectionSolver2D:
                         )
 
         # Corner containment: which end of each beam is at the joint?
-        b_contains_a_start = any(beam_b.contains_point(p) for p in (beam_a.edge_a.start, beam_a.edge_b.start))
-        b_contains_a_end = any(beam_b.contains_point(p) for p in (beam_a.edge_a.end, beam_a.edge_b.end))
-        a_contains_b_start = any(beam_a.contains_point(p) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
-        a_contains_b_end = any(beam_a.contains_point(p) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
+        # Use self.max_distance as tolerance so endpoints landing exactly on a face
+        # (e.g. after splitting) are not rejected by floating-point epsilon.
+        tol = self.max_distance
+        b_contains_a_start = any(beam_b.contains_point(p, tolerance=tol) for p in (beam_a.edge_a.start, beam_a.edge_b.start))
+        b_contains_a_end = any(beam_b.contains_point(p, tolerance=tol) for p in (beam_a.edge_a.end, beam_a.edge_b.end))
+        a_contains_b_start = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
+        a_contains_b_end = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
 
         if b_contains_a_start and b_contains_a_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
+            return None
         if a_contains_b_start and a_contains_b_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
+            return None
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
             beam_a_end = BeamEnd.START
@@ -325,7 +328,7 @@ class ConnectionSolver2D:
         points: list[Point] = []
         for i, seg_a in enumerate(beam_a.blank_outline.lines):
             for j, seg_b in enumerate(beam_b.blank_outline.lines):
-                result = intersection_segment_segment(seg_a, seg_b)
+                result = intersection_segment_segment(seg_a, seg_b, tol=tol)
                 if result[0]:
                     points.append(Point(*result[0]))
                     if beam_a_end is None:

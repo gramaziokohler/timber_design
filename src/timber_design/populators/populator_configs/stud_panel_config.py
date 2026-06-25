@@ -21,103 +21,75 @@ def stud_panel(
     bottom_plate_beam_width=None,
     standard_beam_width_increment=None,
     # Panel-level
-    sheeting_outside=0,
-    sheeting_inside=0,
     joint_rule_overrides=None,
     default_feature_configs=None,
     instance_feature_configs=None,
 ):
     """Create a config for a standard stud-framed wall panel.
 
-    All cross-section beam widths produced by the frame agents
-    (:class:`~timber_design.populators.EdgePopulatorAgent`,
-    :class:`~timber_design.populators.StudPopulatorAgent`) are exposed as
-    explicit keyword arguments.  Opening-specific options (lintel posts,
-    split bottom plate, header / sill / king-stud / jack-stud widths, etc.)
-    are configured on an :class:`~timber_design.populators.OpeningPopulatorAgentConfig`
-    that you pass via ``default_feature_configs`` or
-    ``instance_feature_configs``.
+    If the panel already owns layers (set via ``CT_Panel_Layer_Definition``),
+    those layers are used directly: the exterior and interior sheeting layers
+    receive :class:`~timber_design.populators.PlatePopulatorAgent`s and the
+    core layer receives the framing agents.  If the panel has no layers, a
+    single core layer spanning the full panel thickness is created and no
+    sheeting plates are generated.
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`, optional
+    panel : :class:`compas_timber.elements.Panel`
         The panel to populate.
     standard_beam_width : float, optional
         Default width for every framing beam category not given an explicit
-        width below.  When ``None``, defaults to half the panel thickness at
-        populate time.
+        width below.
     stud_spacing : float, optional
-        On-centre spacing between studs.  When ``None``, defaults to
-        ``stud_width * 8`` at populate time.  Pass ``0`` to suppress studs
-        entirely (edge-only panel).
+        On-centre spacing between studs.  ``None`` → ``stud_width * 8``.
+        ``0`` → no studs.
     stud_width : float, optional
-        Explicit width for intermediate stud beams.  When ``None``,
-        *standard_beam_width* is used.
+        Explicit width for intermediate stud beams.
     edge_stud_width : float, optional
-        Explicit width for vertical edge studs.  When ``None``,
-        *standard_beam_width* is used.
+        Explicit width for vertical edge studs.
     top_plate_beam_width : float, optional
-        Explicit width for top plate beams.  When ``None``,
-        *standard_beam_width* is used.
+        Explicit width for top plate beams.
     bottom_plate_beam_width : float, optional
-        Explicit width for bottom plate beams.  When ``None``,
-        *standard_beam_width* is used.
+        Explicit width for bottom plate beams.
     standard_beam_width_increment : float, optional
-        Rounding increment for edge-beam widths (each edge beam's width is
-        rounded *up* to the next multiple of this value).
-    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`], optional
-        Joint-rule overrides routed automatically to whichever agents own the
-        rule's categories (see
-        :meth:`~timber_design.populators.PanelPopulatorConfig.route_rule_overrides`):
-        a rule whose pair lies entirely inside one agent's
-        ``BEAM_CATEGORY_NAMES`` is appended to that agent's
-        ``internal_joint_overrides``; a rule that straddles two agents is
-        appended to each agent's ``external_joint_overrides``.  Callers do not
-        need to know which agent owns a pair.
+        Rounding increment for edge-beam widths.
+    joint_rule_overrides : list, optional
+        Joint-rule overrides routed to the agents that own each rule's categories.
     default_feature_configs : dict, optional
-        Mapping from panel feature class to a ``FeatureAgentConfig`` instance.
-        If the user does not register a config for :class:`~compas_timber.panel_features.Opening`,
-        a default :class:`~timber_design.populators.OpeningPopulatorAgentConfig`
-        is wired up automatically (with no lintel posts and no split bottom
-        plate).  Pass your own
-        :class:`~timber_design.populators.OpeningPopulatorAgentConfig`
-        (``lintel_posts=True``, ``split_bottom_plate_beam=True``,
-        ``header_width=...``, etc.) under the ``Opening`` key to customise.
+        Mapping from panel feature class to a ``FeatureAgent`` prototype.
     instance_feature_configs : list, optional
-        Per-instance feature config overrides.
+        Per-instance feature agents, already bound to specific features.
     """
 
-    core_start = sheeting_inside or 0
-    core_end = panel.thickness - (sheeting_outside or 0)
-    panel.define_core_layer(core_start, core_end)
+    if not panel.layers:
+        panel.define_core_layer(0, panel.thickness)
 
     agents = []
-    if panel.exterior_layer:  # the [0, sheeting_inside] slice
+    if panel.exterior_layer:
         agents.append(PlatePopulatorAgent(panel.exterior_layer))
-    if panel.interior_layer:  # the [thickness - sheeting_outside, thickness] slice
+    if panel.interior_layer:
         agents.append(PlatePopulatorAgent(panel.interior_layer))
 
-    agents.append(EdgePopulatorAgent(panel.core_layer, 
-            standard_beam_width_increment=standard_beam_width_increment,
-            edge_stud_width=edge_stud_width,
-            top_plate_beam_width=top_plate_beam_width,
-            bottom_plate_beam_width=bottom_plate_beam_width,
-        ))
-    
+    agents.append(EdgePopulatorAgent(
+        panel.core_layer,
+        standard_beam_width_increment=standard_beam_width_increment,
+        edge_stud_width=edge_stud_width,
+        top_plate_beam_width=top_plate_beam_width,
+        bottom_plate_beam_width=bottom_plate_beam_width,
+    ))
+
     if stud_spacing is None or stud_spacing:
-        # spacing=0 → no studs; spacing=None → default (stud_width * 8) at populate time.
-        agents.append(
-            StudPopulatorAgent(panel.core_layer,
-                stud_width=stud_width,
-                stud_spacing=stud_spacing,
-            )
-        )
+        agents.append(StudPopulatorAgent(
+            panel.core_layer,
+            stud_width=stud_width,
+            stud_spacing=stud_spacing,
+        ))
 
-
+    trimming_layers = [la for la in (panel.exterior_layer, panel.core_layer, panel.interior_layer) if la]
 
     # Build a fresh dict so we don't mutate the caller's mapping when GH (or
     # any caller) reuses the same dict across multiple panels.
-    trimming_layers = [la for la in (panel.interior_layer, panel.core_layer, panel.exterior_layer) if la]
     default_feature_configs = dict(default_feature_configs) if default_feature_configs else {}
     if Opening not in default_feature_configs:
         default_feature_configs[Opening] = OpeningPopulatorAgent(

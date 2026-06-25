@@ -12,7 +12,7 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.populators import AgentBoundaryType
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design.workflow import CategoryRule
 
@@ -60,7 +60,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
 
     def __init__(
         self,
-        layer,
+        layer=None,
         recess_width: Optional[float] = None,
         edge_stud_width: Optional[float] = None,
         top_plate_beam_width: Optional[float] = None,
@@ -70,6 +70,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
         standard_beam_width_increment=None,
         recess_beam_height=None,
         sheeting_recess=None,
+        **kwargs,
     ):
         super(RecessPopulatorAgent, self).__init__(
             layer,
@@ -79,6 +80,7 @@ class RecessPopulatorAgent(EdgePopulatorAgent):
             internal_joint_overrides=internal_joint_overrides,
             external_joint_overrides=external_joint_overrides,
             standard_beam_width_increment=standard_beam_width_increment,
+            **kwargs,
         )
         self.beam_widths["recess"] = recess_width
         self.recess_beam_height = recess_beam_height

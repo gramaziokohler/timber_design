@@ -7,15 +7,17 @@ from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.model import TimberModel
+from compas_timber.elements import Layer
 
 if TYPE_CHECKING:
     from compas_timber.elements import Layer  # noqa: F401
 
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
 from timber_design.workflow import JointRuleSolver
+from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 
 
 class PanelPopulator:
@@ -116,6 +118,7 @@ class PanelPopulator:
         # Config-time setup that does NOT depend on the panel's final geometry.
         # Snapshot as a list (panel.layers is a live view over the layer tree).
         self.layers = list(panel.layers)
+        self.layer_tree = {k:v for k, v in panel.layer_tree.items()}
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
         self.route_rule_overrides(joint_rule_overrides)
@@ -196,16 +199,21 @@ class PanelPopulator:
                     agent.external_rules = agent._apply_overrides(agent.external_rules, [rule])
                     agent.external_overrides = agent._apply_overrides(agent.external_overrides, [rule])
 
+    def _repoint_agents(self):
+        """Rebind all agents to the current panel's layer tree using stored paths."""
+        tree = self.original_panel.layer_tree
+        for agent in self.agents:
+            agent.repoint_to_layer_tree(tree)
+
+
     def parse_default_feature_agents(self, default_feature_agents):
         """Instantiate a feature agent for every panel feature lacking one.
 
         Walks ``original_panel.features``; for any feature that no existing agent
         already handles, looks up a prototype agent in *default_feature_agents*
         (keyed by feature class), copies it, binds the feature, and appends it to
-        :attr:`agents`.  The prototype already carries its ``element_layers`` /
-        ``trimming_layers`` (set by the factory against the original panel's
-        layers); :meth:`repoint_agents_to_populator_layers` rebinds those to the
-        populator mirror during :meth:`prepare`.
+        :attr:`agents`.  The prototype's ``element_layer_paths`` / ``trimming_layer_paths``
+        are filtered to paths present in this panel's layer tree.
 
         Parameters
         ----------
@@ -218,9 +226,7 @@ class PanelPopulator:
             prototype = default_feature_agents.get(type(feature))
             if prototype is None:
                 continue
-            data = prototype.__data__
-            data["element_layers"] = [l for l in prototype.element_layers if l in self.original_panel.layers]
-            data["trimming_layers"] = [l for l in prototype.trimming_layers if l in self.original_panel.layers]
+
             agent = type(prototype)(**prototype.__data__)
             agent.feature = feature
             self.agents.append(agent)
@@ -240,18 +246,19 @@ class PanelPopulator:
     def get_element_agents_for_layer(self, layer):
         child_layers = self.get_child_layers(layer)
         agents = []
-        for cl in child_layers:
+        
+        for cl in child_layers + [layer]:
             for agent in self.agents:
                 if cl in agent.element_layers:
                     agents.append(agent)
         return agents
 
     def get_boundary_agents_for_layer(self, layer):
-        ancestor_layers = self.get_ancestor_layers(layer)
+        relevant_layers = [layer] + self.get_ancestor_layers(layer)
         agents = []
-        for al in ancestor_layers:
+        for rl in relevant_layers:
             for agent in self.agents:
-                if layer in agent.trimming_layers:
+                if rl in agent.element_layers:
                     agents.append(agent)
         return agents
 
@@ -264,7 +271,7 @@ class PanelPopulator:
                 return
             ancestors.append(parent)
             walk(parent)
-
+        walk(layer)
         return ancestors
 
     def get_child_layers(self, layer):
@@ -275,7 +282,15 @@ class PanelPopulator:
             sublayers.extend(layer.sublayers)
             for sl in layer.sublayers:
                 walk(sl)
+        walk(layer)
         return sublayers
+
+    def build_populator_model(self):
+        model = self.original_panel.model.extract_model_from_parent(self.original_panel)
+        for element in list(model.elements()):
+            if not isinstance(element, Layer):
+                model.remove_element(element)
+        return model
 
     def populate_elements(self):
         """Execute stages 1–4: generate, extend, trim, and add elements to the model.
@@ -284,9 +299,9 @@ class PanelPopulator:
         complete the population workflow.
         """
         # model extracted here to ensure the latest version of panel and layer geometry
-        print(self.original_panel.model.tree)
-        self.original_panel.merge_layer_tree(self.original_panel.model)
-        self.model = self.original_panel.model.extract_model_from_parent(self.original_panel)
+        self.model = self.build_populator_model()
+        self._repoint_agents()
+        self.layers = list(self.original_panel.layers)
         self.generate_elements()
         self.extend_elements()
         self.split_elements()
@@ -325,16 +340,22 @@ class PanelPopulator:
         (e.g. a FreeContour) during this pass.
 
         Parent-layer agents trim child-layer elements; the reverse never
-        occurs because :meth:`get_trimming_agents_for_layer` only returns
-        agents whose :meth:`~PopulatorAgent.layers_to_trim` covers the queried
-        layer (which expands downward through sublayers, never upward).
+        occurs because trimming_layers is only expanded downward (children),
+        never upward.
         """
         for agent in self.agents:
-            for layer in agent.trimming_layers:
-                agents_to_trim = [a for a in self.get_element_agents_for_layer(layer) if a is not agent]
-                for other_agent in agents_to_trim:
-                    if aabb_overlap(agent, other_agent):
-                        agent.split_agent_elements(other_agent, layer)
+            for trimming_layer in agent.trimming_layers:
+                affected_layers = [trimming_layer] + self.get_child_layers(trimming_layer)
+                for layer in affected_layers:
+                    if layer not in agent.outline_by_layer:
+                        try:
+                            agent.outline_by_layer[layer] = agent._compute_outline_for_layer(layer)
+                        except (NotImplementedError, AttributeError):
+                            agent.outline_by_layer[layer] = agent.outline_by_layer.get(trimming_layer)
+                    agents_to_trim = [a for a in self.agents if layer in a.element_layers and a is not agent]
+                    for other_agent in agents_to_trim:
+                        if aabb_overlap(agent, other_agent):
+                            agent.split_agent_elements(other_agent, layer)
 
     def cull_elements(self):
         """Discard out-of-zone beam segments after splitting (stage 3b).
@@ -345,11 +366,13 @@ class PanelPopulator:
         studs).  All splitting must be complete before this pass runs.
         """
         for agent in self.agents:
-            for layer in agent.trimming_layers:
-                agents_to_trim = [a for a in self.get_element_agents_for_layer(layer) if a is not agent]
-                for other_agent in agents_to_trim:
-                    if aabb_overlap(agent, other_agent):
-                        agent.cull_agent_elements(other_agent, layer)
+            for trimming_layer in agent.trimming_layers:
+                affected_layers = [trimming_layer] + self.get_child_layers(trimming_layer)
+                for layer in affected_layers:
+                    agents_to_trim = [a for a in self.agents if layer in a.element_layers and a is not agent]
+                    for other_agent in agents_to_trim:
+                        if aabb_overlap(agent, other_agent):
+                            agent.cull_agent_elements(other_agent, layer)
 
 
     def add_elements_to_model(self):
@@ -395,7 +418,7 @@ class PanelPopulator:
     def create_cross_agent_joints(self):
         """Create joints between elements of different agents on the same layer.
         """
-        solver = ConnectionSolver2D()
+        solver = ConnectionSolver2D(max_distance=1.0)
         for layer in self.layers:
             agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
             for agent_a, agent_b in solver.find_intersecting_pairs(agents):

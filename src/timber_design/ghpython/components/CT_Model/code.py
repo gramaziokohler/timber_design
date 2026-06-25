@@ -33,7 +33,6 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self,
             Elements: System.Collections.Generic.List[object],
-            Populators: System.Collections.Generic.List[object],
             JointRules: System.Collections.Generic.List[object],
             Features: System.Collections.Generic.List[object],
             MaxDistance: float,
@@ -55,9 +54,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
         #process model
         self.add_elements_to_model(Model, Elements)
-        self.join_panels(Model, JointRules, debug_info, MaxDistance)
-        self.handle_populators(Populators, Model)
-        self.join_timber_elements(Model, JointRules, debug_info, MaxDistance)
+        self.join_elements(Model, JointRules, debug_info, MaxDistance)
         self.handle_features(Features, debug_info)
 
         # get outputs
@@ -92,42 +89,28 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         for element in elements:
             element.reset()
             model.add_element(element)
+            if isinstance(element, Panel):
+                self._register_panel_layers(model, element)
 
-    def join_panels(self, Model, JointRules, debug_info, MaxDistance=None):
-        if not JointRules:
-            return
-        panel_rules = [r for r in JointRules if isinstance(r.joint_type, PanelJoint)]
-        if not panel_rules:
-            return
-        solver = JointRuleSolver(panel_rules, max_distance=MaxDistance)
-        Model.connect_adjacent_panels(max_distance=solver.max_distance if solver else MaxDistance)
-        solver.apply_rules_to_model(Model)
-        panel_errors = Model.process_panel_joinery()
-        for pe in panel_errors:
-            debug_info.add_joint_error(pe)
+    def _register_panel_layers(self, model, panel):
+        """Add panel layers to model tree as children so populate_elements can extract them."""
+        def _add_layer(layer, parent):
+            model.add_element(layer, parent=parent)
+            for sublayer in layer.sublayers:
+                _add_layer(sublayer, layer)
+        for root_layer in panel.layers:
+            _add_layer(root_layer, panel)
 
-    def handle_populators(self, populators, model, max_distance=None):
-        """Run each :class:`~timber_design.populators.PanelPopulator`.
-        """
-        if not populators:
-            return
-        for pop in populators:
-            if pop is None:
-                continue
-            pop.populate_elements()
-            pop.join_elements()
-            pop.merge_with_model(model)
 
-    def join_timber_elements(self, Model, JointRules, debug_info, MaxDistance=None):
+    def join_elements(self, Model, JointRules, debug_info, MaxDistance=None):
         """Join the timber elements, ignoring PanelJoints"""
         if not JointRules:
             return
-        timber_rules = [r for r in JointRules if not isinstance(r.joint_type, PanelJoint)]
-        if not timber_rules:
-            return
-        solver = JointRuleSolver(timber_rules, max_distance=MaxDistance)
+
+        solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
         Model.connect_adjacent_beams(max_distance=solver.max_distance)
         Model.connect_adjacent_plates(max_distance=solver.max_distance)
+        Model.connect_adjacent_panels(max_distance=solver.max_distance)
         joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
         for je in joint_errors:
             debug_info.add_joint_error(je)

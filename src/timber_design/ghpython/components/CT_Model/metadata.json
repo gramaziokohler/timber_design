@@ -17,13 +17,6 @@
                 "flatten": true
             },
             {
-                "name": "PanelConfigs",
-                "description": "PanelConfigs settings for panel population",
-                "typeHintID": "none",
-                "scriptParamAccess": 1,
-                "flatten": true
-            },
-            {
                 "name": "JointRules",
                 "description": "Collection of joint rules.",
                 "typeHintID": "none",

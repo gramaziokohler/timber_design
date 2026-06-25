@@ -45,7 +45,7 @@ class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             return CategoryRule(self.joint_type, cat_a, cat_b)
 
     def arg_names(self):
-        names = inspect.getargspec(self.joint_type.__init__)[0][1:3]
+        names = inspect.getfullargspec(self.joint_type.__init__).args[1:3]
         for i in range(2):
             names[i] += "_category"
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]

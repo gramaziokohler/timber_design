@@ -1,4 +1,6 @@
-from abc import ABC
+from abc import ABC, abstractmethod
+
+from compas_timber.elements import Layer
 
 from .populator_agent import AgentBoundaryType
 from .populator_agent import PopulatorAgent
@@ -91,48 +93,72 @@ class LayerAgent(PopulatorAgent, ABC):
     EXTERNAL_JOINT_RULES = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
-    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+    def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None):
         # type: (Layer, Optional[list], Optional[list]) -> None
         super(LayerAgent, self).__init__(internal_joint_overrides, external_joint_overrides)
-        self.layer = layer
-        self.element_layers = [layer]  # default to only generating on this agent's layer; override in subclass if needed
-        self.trimming_layers = [layer]  # default to only trimming on this agent's layer; override in subclass if needed
+        self._layer = None
+        if isinstance(layer, Layer):
+            self.layer_path = layer.layer_path
+        else:
+            self.layer_path = layer
+
+    @property
+    def layer(self):
+        return self._layer
+
+    def repoint_to_layer_tree(self, tree):
+        """Rebind this agent's layer references to the current panel's layer tree by path.
+
+        If no paths were recorded at construction (layer had no layer_path yet),
+        the existing direct references are left unchanged.
+        """
+        if self.layer_path is not None:
+            self._layer = tree.get(self.layer_path)
+
 
     @property
     def __data__(self):
         data = super().__data__
-        data["layer"] = self.layer
+        data["layer"] = self.layer_path
         return data
 
     @property
     def layer_center_height(self):
-        """Z coordinate of the centre of this agent's layer (populator space).
-
-        Computed from :attr:`layer` rather than cached, so re-pointing the agent
-        onto a different layer (e.g. the populator-panel copy) stays consistent.
-        """
+        """Z coordinate of the centre of this agent's layer (populator space)."""
         return self.layer.center_height if self.layer is not None else None
 
-    def beam_from_category(self, centerline, category, layer=None, **kwargs):
-        """Create a beam, defaulting *layer* to ``self.layer``.
+    @property
+    def element_layers(self):
+        return [self.layer]
 
-        Delegates to :meth:`~PopulatorAgent.beam_from_category` with
-        ``layer`` set to ``self.layer`` when the caller omits it.  This lets
-        :class:`LayerAgent` subclasses call
-        ``self.beam_from_category(line, "stud")`` without explicitly passing
-        the layer every time.
+    @property
+    def trimming_layers(self):
+        return [self.layer]
 
-        :class:`FeatureAgent` subclasses must pass *layer* explicitly because
-        they operate across multiple layers.
+    def generate_elements(self):
+        """Generate (and store) this agent's elements.
+
+        With *layer* given, generates only on that layer; otherwise on every
+        framing layer in :attr:`element_layers`.  The populator drives this one
+        layer at a time (mirroring :meth:`split_agent_elements` /
+        :meth:`extend_elements`), but the no-argument form is kept for callers
+        that want the whole agent generated at once.
         """
-        return super().beam_from_category(centerline, category, layer= self.layer, **kwargs)
+        # Clear stale entries from previous solves before regenerating.
+        self.elements_by_layer.clear()
+        self.outline_by_layer.clear()
+        elements, outline = self.generate_layer_elements()
+        self.elements_by_layer[self.layer] = elements  # add to dict
+        self.outline_by_layer[self.layer] = outline  # capture boundary
 
+    @abstractmethod
+    def generate_layer_elements(self):
+        """Generate the elements for the LayerAgent.layer"""
+        raise NotImplementedError
+
+    def beam_from_category(self, centerline, category, layer=None, **kwargs):
+        """Create a beam, defaulting *layer* to ``self.layer``."""
+        return super().beam_from_category(centerline, category, layer=self.layer, **kwargs)
 
     def is_on_panel(self, panel):
-        """Tests whether this agent is active on *layer*.
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-            The layer to check.
-        """
-        return self.layer in panel.layers
+        return self.layer_path in panel.layer_tree

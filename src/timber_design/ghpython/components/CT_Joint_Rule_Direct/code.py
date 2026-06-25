@@ -49,7 +49,7 @@ class DirectJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         return Rules
 
     def arg_names(self):
-        return inspect.getargspec(self.joint_type.__init__)[0][1:] + ["max_distance"]
+        return inspect.getfullargspec(self.joint_type.__init__).args[1:] + ["max_distance"]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

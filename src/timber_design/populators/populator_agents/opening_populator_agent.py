@@ -18,9 +18,9 @@ from compas_timber.panel_features import Opening
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
@@ -122,9 +122,10 @@ class OpeningPopulatorAgent(FeatureAgent):
         external_joint_overrides=None,
         lintel_posts: bool = False,
         split_bottom_plate_beam: bool = False,
+        **kwargs,
     ):
         # type: (Opening, list, list, Optional[float], Optional[float], Optional[float], Optional[float], Optional[list], Optional[list], bool, bool) -> None
-        super().__init__(feature, element_layers, trimming_layers, internal_joint_overrides, external_joint_overrides)
+        super().__init__(feature, element_layers, trimming_layers, internal_joint_overrides, external_joint_overrides, **kwargs)
         self.beam_widths["header"] = header_width
         self.beam_widths["sill"] = sill_width
         self.beam_widths["king_stud"] = king_stud_width
@@ -133,10 +134,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         self.split_bottom_plate_beam = split_bottom_plate_beam
         self.sill_angle = 0.0
         self.header_angle = 0.0
-        # Feature-dependent rule setup is deferred until the feature is bound and
-        # generation starts (see _apply_split_bottom_plate_rules): this agent is
-        # often constructed as a prototype with ``feature=None`` and the concrete
-        # feature is assigned later, so nothing here may dereference ``feature``.
         self._split_rules_applied = False
 
     @property

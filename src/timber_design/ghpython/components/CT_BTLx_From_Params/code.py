@@ -60,7 +60,7 @@ class BTLxFromParams(Grasshopper.Kernel.GH_ScriptInstance):
             return deferred_processings, scene.draw()
 
     def arg_names(self):
-        return inspect.getargspec(self.processing_type.__init__)[0][1:]
+        return inspect.getfullargspec(self.processing_type.__init__).args[1:]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

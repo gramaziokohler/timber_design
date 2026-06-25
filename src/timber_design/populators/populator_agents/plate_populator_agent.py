@@ -36,12 +36,13 @@ class PlatePopulatorAgent(LayerAgent):
     BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
     NAME = "PlatePopulatorAgent"
 
-    def __init__(self, layer, internal_joint_overrides=None, external_joint_overrides=None):
+    def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None, **kwargs):
         # type: (Layer, Optional[list], Optional[list]) -> None
-        super(PlatePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides)
-        self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
+        super(PlatePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
+        if layer is not None:
+            self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 
-    def generate_elements_for_layer(self, layer=None):
+    def generate_layer_elements(self):
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer."""
         category = "{}_plate".format(self.layer.name)
         plate = Plate.from_outlines(

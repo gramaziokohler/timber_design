@@ -38,7 +38,7 @@ class L_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         return TopologyRule(JointTopology.TOPO_L, self.joint_type, **kwargs)
 
     def arg_names(self):
-        names = inspect.getargspec(self.joint_type.__init__)[0][3:]
+        names = inspect.getfullargspec(self.joint_type.__init__).args[3:]
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]
 
     def AppendAdditionalMenuItems(self, menu):

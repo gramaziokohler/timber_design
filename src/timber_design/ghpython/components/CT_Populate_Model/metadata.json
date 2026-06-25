@@ -1,0 +1,37 @@
+{
+    "name": "PopulateModel",
+    "nickname": "PopulateModel",
+    "category": "Timber Design",
+    "subcategory": "07 Model",
+    "description": "Populates an existing TimberModel with panel framing elements from panel populators.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "Model",
+                "description": "TimberModel to populate.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "Populators",
+                "description": "List of PanelPopulator objects.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1,
+                "flatten": true
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Model",
+                "description": "Populated TimberModel."
+            },
+            {
+                "name": "DebugInfo",
+                "description": "Debug information."
+            }
+        ]
+    }
+}

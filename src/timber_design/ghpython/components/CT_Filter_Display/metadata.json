@@ -1,0 +1,45 @@
+{
+    "name": "FilterDisplay",
+    "nickname": "FilterDisplay",
+    "category": "Timber Design",
+    "subcategory": "07 Model",
+    "description": "Filters and displays elements from a TimberModel by level or layer path.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "Model",
+                "description": "TimberModel to display.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "filter_paths",
+                "description": "Optional list of Elements or layer_path tuples to filter geometry output.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1,
+                "flatten": true
+            },
+            {
+                "name": "display_level",
+                "description": "What level of the hierarchy to display: 'panel', 'layer', or unset for framing elements.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "CreateGeometry",
+                "description": "If True, full geometry is created. Otherwise blank/shape.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Geometry",
+                "description": "Filtered and displayed geometry."
+            }
+        ]
+    }
+}

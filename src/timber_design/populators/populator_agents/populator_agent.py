@@ -13,11 +13,11 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
 
-from timber_design.populators.beam2d import AABB2D
-from timber_design.populators.beam2d import Beam2D
-from timber_design.populators.connection_solver_2d import Beam2DPolylineIntersectionResult
-from timber_design.populators.connection_solver_2d import ConnectionSolver2D
-from timber_design.populators.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.beam2d import AABB2D
+from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
 
@@ -402,23 +402,15 @@ class PopulatorAgent(Data, ABC):
             if not (element.is_beam and self.cull_beam(element, layer))
         ]
 
-    def generate_elements(self):
-        """Generate (and store) this agent's elements.
-
-        With *layer* given, generates only on that layer; otherwise on every
-        framing layer in :attr:`element_layers`.  The populator drives this one
-        layer at a time (mirroring :meth:`split_agent_elements` /
-        :meth:`extend_elements`), but the no-argument form is kept for callers
-        that want the whole agent generated at once.
-        """
-        for layer in self.element_layers:
-            layer_elements, layer_outline = self.generate_elements_for_layer(layer)
-            self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
-            self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
-
     @abstractmethod
-    def generate_elements_for_layer(self, layer):
-        """generates the elements for this agent on the given layer""" 
+    def generate_elements(self):
+        """Generate (and store) this agent's elements and optionally boundary outline.
+        """
+        raise NotImplementedError
+
+    def repoint_to_layer_tree(self, tree):
+        """Rebind this agent to the current panel layer tree. No-op for agents with no layer refs."""
+        pass
 
     def extend_elements(self, layer_elements, layer) -> None:
         pass

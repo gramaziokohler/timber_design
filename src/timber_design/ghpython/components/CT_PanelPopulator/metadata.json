@@ -1,0 +1,50 @@
+{
+    "name": "PanelPopulatorConfigurator",
+    "nickname": "PopulatorConfig",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a PanelPopulator from a panel and a list of agents.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "agents",
+                "description": "List of PopulatorAgents to assign to this panel.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Standard beam width for generators.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "List of default feature agent prototypes, keyed by feature type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "populator",
+                "description": "PanelPopulator instance ready to populate."
+            }
+        ]
+    }
+}

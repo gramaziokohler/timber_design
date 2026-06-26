@@ -93,8 +93,8 @@ def stud_panel(
     default_feature_configs = dict(default_feature_configs) if default_feature_configs else {}
     if Opening not in default_feature_configs:
         default_feature_configs[Opening] = OpeningPopulatorAgent(
-            element_layers=[panel.core_layer],
-            trimming_layers=trimming_layers,
+            element_layer_paths=[panel.core_layer],
+            trimming_layer_paths=trimming_layers,
         )
     else:
         # The user-supplied prototype may be a single instance shared across
@@ -102,8 +102,8 @@ def stud_panel(
         # wired into a CT_StudPanel component that processes a list of panels).
         # Shallow-copy it so each call binds its own layer references.
         prototype = copy.copy(default_feature_configs[Opening])
-        prototype.element_layers = [panel.core_layer]
-        prototype.trimming_layers = trimming_layers
+        prototype.element_layer_paths = [(1,)]
+        prototype.trimming_layer_paths = [(0,),(1,),(2,)]
         default_feature_configs[Opening] = prototype
 
     # Instance feature agents are already feature-bound; add them directly.
@@ -111,8 +111,8 @@ def stud_panel(
     # new Layer objects each call, so any previously-stored refs would be stale.
     if instance_feature_configs:
         for agent in instance_feature_configs:
-            agent.element_layers = [panel.core_layer]
-            agent.trimming_layers = trimming_layers
+            agent.element_layer_paths = [(1,)]
+            agent.trimming_layer_paths = [(0,),(1,),(2,)]
         agents.extend(instance_feature_configs)
 
     return PanelPopulator(

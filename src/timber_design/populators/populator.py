@@ -3,21 +3,16 @@ from __future__ import annotations
 from itertools import combinations, product
 from typing import TYPE_CHECKING
 
-from compas.tolerance import TOL
 from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
-from compas_timber.model import TimberModel
 from compas_timber.elements import Layer
+from compas_timber.elements import Panel
 
-if TYPE_CHECKING:
-    from compas_timber.elements import Layer  # noqa: F401
 
-from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
 from timber_design.workflow import JointRuleSolver
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 
 
 class PanelPopulator:
@@ -106,17 +101,15 @@ class PanelPopulator:
         standard_beam_width=None,
         joint_rule_overrides=None,
     ):
-        self.original_panel = panel
+        
         self.model = None
-        # Copy the caller's list: parse_default_feature_agents appends the
-        # per-feature agents, and we must not mutate (or share) the caller's
-        # list — otherwise a list reused across panels accumulates every
-        # panel's agents, and each populator ends up trying to join other
-        # panels' elements in its own model.
         self.agents = list(agents)
-
-        # Config-time setup that does NOT depend on the panel's final geometry.
-        # Snapshot as a list (panel.layers is a live view over the layer tree).
+        if isinstance(panel, Panel):
+            self.panel_guid = panel.guid
+            self.original_panel = panel
+        else:
+           self.panel_guid = panel
+           self.original_panel = panel
         self.layers = list(panel.layers)
         self.layer_tree = {k:v for k, v in panel.layer_tree.items()}
         self.parse_default_feature_agents(default_feature_agents or {})
@@ -205,6 +198,8 @@ class PanelPopulator:
         for agent in self.agents:
             agent.repoint_to_layer_tree(tree)
 
+    def update_panel_from_model(self, model):
+        self.original_panel = model.element_by_guid(str(self.panel_guid))
 
     def parse_default_feature_agents(self, default_feature_agents):
         """Instantiate a feature agent for every panel feature lacking one.
@@ -266,7 +261,7 @@ class PanelPopulator:
     def get_ancestor_layers(self, layer):
         ancestors = []
         def walk(layer):
-            parent = layer.parent
+            parent = layer.__dict__.get('parent_layer')
             if not parent:
                 return
             ancestors.append(parent)
@@ -290,6 +285,13 @@ class PanelPopulator:
         for element in list(model.elements()):
             if not isinstance(element, Layer):
                 model.remove_element(element)
+        # Seed the pop model with layers that exist on the panel but were not
+        # yet in the main model (first run, or layers defined outside CT_Model).
+        in_model = set(id(e) for e in model.elements())
+        for layer in self.original_panel.layers:
+            if id(layer) not in in_model:
+                model.add_element(layer)
+                in_model.add(id(layer))
         return model
 
     def populate_elements(self):

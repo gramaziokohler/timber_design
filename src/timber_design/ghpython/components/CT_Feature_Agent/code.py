@@ -1,7 +1,4 @@
-"""makes rule to apply joint type to L topology. Defualts to LMiterJoint"""
-
 # r: timber_design>=0.1.0
-# venv: td_migration
 # flake8: noqa
 import inspect
 import Grasshopper
@@ -12,13 +9,13 @@ from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_pa
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 # Number of permanent (non-dynamic) input parameters that always appear first.
-_PERMANENT_PARAM_NAMES = ["feature", "framing_layers","trimming_layers","external_joint_overrides", "internal_joint_overrides"]
+_PERMANENT_PARAM_NAMES = ["feature", "element_layers","trimming_layers","external_joint_overrides", "internal_joint_overrides"]
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
-class FeaturePopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class FeaturePopulatorAgent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
-        super(FeaturePopulatorAgentComponent,self).__init__()
+        super(FeaturePopulatorAgent,self).__init__()
         self.agent_types = {}
         for at in get_nonabstract_subclasses(FeatureAgent):
             self.agent_types[at.__name__] = at
@@ -49,6 +46,8 @@ class FeaturePopulatorAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args):
             if val is not None and i < len(names):
                 kwargs[names[i]] = val
+        print(names)
+        print(kwargs)
         return self.agent_type(**kwargs)
 
     def arg_names(self):

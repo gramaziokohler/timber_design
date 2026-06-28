@@ -62,9 +62,6 @@ def stud_panel(
         Per-instance feature agents, already bound to specific features.
     """
 
-    if not panel.layers:
-        panel.define_core_layer(0, panel.thickness)
-
     agents = []
     if panel.exterior_layer:
         agents.append(PlatePopulatorAgent(panel.exterior_layer))
@@ -106,9 +103,6 @@ def stud_panel(
         prototype.trimming_layer_paths = [(0,),(1,),(2,)]
         default_feature_configs[Opening] = prototype
 
-    # Instance feature agents are already feature-bound; add them directly.
-    # Always update element_layers and trimming_layers: define_core_layer creates
-    # new Layer objects each call, so any previously-stored refs would be stale.
     if instance_feature_configs:
         for agent in instance_feature_configs:
             agent.element_layer_paths = [(1,)]

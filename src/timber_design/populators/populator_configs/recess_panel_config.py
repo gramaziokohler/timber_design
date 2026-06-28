@@ -1,3 +1,5 @@
+from compas_timber.elements.layer import LayerStructure
+
 from timber_design.populators import PanelPopulator
 from timber_design.populators import PlatePopulatorAgent
 from timber_design.populators import RecessPopulatorAgent
@@ -68,12 +70,17 @@ def recess_panel(
 
     core_start = sheeting_inside or 0
     core_end = panel.thickness - (sheeting_outside or 0)
-    panel.define_core_layer(core_start, core_end)
+
+    sublayers = []
+    if core_start > 0:
+        sublayers.append(LayerStructure("exterior", core_start))
+    sublayers.append(LayerStructure("core"))  # fills remaining after exterior and interior
+    if core_end < panel.thickness:
+        sublayers.append(LayerStructure("interior", panel.thickness - core_end))
+    panel.layer_structure = LayerStructure(sublayers=sublayers)
 
     agents = []
-    # define_core_layer only creates the exterior/interior layer when its face
-    # has sheeting (non-zero thickness); key the plate agents off existence so
-    # a missing layer is simply skipped.
+    # exterior/interior layers only exist when sheeting thickness > 0; skip agents when absent.
     if panel.exterior_layer:  # the [0, sheeting_inside] slice
         agents.append(PlatePopulatorAgent(panel.exterior_layer))
     if panel.interior_layer:  # the [thickness - sheeting_outside, thickness] slice

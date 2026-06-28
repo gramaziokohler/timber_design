@@ -9,13 +9,12 @@ from compas.scene import Scene
 from compas_rhino.conversions import brep_to_compas
 
 from compas_timber.elements import Panel as CTPanel
-from compas_timber.elements.layer import build_layers_from_defs
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
 
 class PanelFromBrep(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, brep, layers: System.Collections.Generic.List[object], identify_doors: bool, category: str, updateRefObj: bool):
+    def RunScript(self, brep, layer_structure, identify_doors: bool, category: str, updateRefObj: bool):
         if not item_input_valid_cpython(ghenv, brep, "Brep"):
             return
         scene = Scene()
@@ -27,8 +26,8 @@ class PanelFromBrep(Grasshopper.Kernel.GH_ScriptInstance):
         panel.attributes["rhino_guid"] = str(guid) if guid else None
         panel.attributes["category"] = category
 
-        if layers:
-            panel.layers = build_layers_from_defs(panel, list(layers), panel.thickness)
+        if layer_structure:
+            panel.layer_structure = layer_structure
 
         if panel.layers:
             for l in panel.get_leaf_layers():

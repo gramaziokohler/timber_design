@@ -1,39 +1,31 @@
 # r: timber_design>=0.1.0
-"""Creates panel-free Layer definitions for exterior, core, and interior layers."""
+"""Creates a LayerStructure definition for a panel cross-section."""
 
 # flake8: noqa
 import Grasshopper
+import System
 
-from compas_timber.elements import Layer
+from compas_timber.elements.layer import LayerStructure
 
 
 class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, core_start: float, core_end: float, exterior_name: str, core_name: str, interior_name: str):
-        if core_start is None or core_end is None:
-            return None
+    def RunScript(
+        self,
+        exterior_thickness: float,
+        core_thickness: float,
+        interior_thickness: float,
+        exterior_name: str,
+        core_name: str,
+        interior_name: str,
+    ):
+        sublayers = []
 
-        layer_defs = []
+        if exterior_thickness:
+            sublayers.append(LayerStructure(name=exterior_name or "exterior", thickness=float(exterior_thickness)))
 
-        if core_start > 0:
-            layer_defs.append(Layer(
-                start_level=0.0,
-                end_level=core_start,
-                name=exterior_name or "Exterior Layer",
-                layer_path=(0,),
-            ))
+        sublayers.append(LayerStructure(name=core_name or "core", thickness=float(core_thickness) if core_thickness else None))
 
-        layer_defs.append(Layer(
-            start_level=core_start,
-            end_level=core_end,
-            name=core_name or "Core Layer",
-            layer_path=(1,),
-        ))
+        if interior_thickness:
+            sublayers.append(LayerStructure(name=interior_name or "interior", thickness=float(interior_thickness)))
 
-        layer_defs.append(Layer(
-            start_level=core_end,
-            end_level=None,  # sentinel: Panel.define_layers fills from panel.thickness
-            name=interior_name or "Interior Layer",
-            layer_path=(2,),
-        ))
-
-        return layer_defs
+        return LayerStructure(sublayers=sublayers)

@@ -11,7 +11,6 @@ from compas_rhino.conversions import polyline_to_compas
 from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Panel as CTPanel
-from compas_timber.elements.layer import build_layers_from_defs
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
@@ -22,7 +21,7 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
             thickness: float,
             orientation: Rhino.Geometry.Vector3d,
             openings: System.Collections.Generic.List[object],
-            layers: System.Collections.Generic.List[object],
+            layer_structure,
             identify_doors: bool,
             category: str,
             updateRefObj: bool):
@@ -45,8 +44,8 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
         panel.attributes["rhino_guid"] = str(guid) if guid else None
         panel.attributes["category"] = category
 
-        if layers:
-            panel.layers = build_layers_from_defs(panel, list(layers), thickness)
+        if layer_structure:
+            panel.layer_structure = layer_structure
 
         if panel.layers:
             for l in panel.get_leaf_layers():

@@ -9,6 +9,21 @@ from compas_timber.elements import Layer
 from compas_timber.elements import Panel
 
 
+def _build_layer_tree(panel):
+    """Build a ``{layer_path: Layer}`` dict from *panel*'s layer hierarchy."""
+    tree = {}
+    def _walk(layer):
+        path = layer.layer_path
+        if path is not None:
+            tree[path] = layer
+        for sublayer in layer.sublayers:
+            _walk(sublayer)
+
+    for layer in panel.layers:
+        _walk(layer)
+    return tree
+
+
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
@@ -103,15 +118,13 @@ class PanelPopulator:
     ):
         
         self.model = None
-        self.agents = list(agents)
+        self.agents = list(agents) if agents else None
         if isinstance(panel, Panel):
             self.panel_guid = panel.guid
             self.original_panel = panel
         else:
            self.panel_guid = panel
            self.original_panel = panel
-        self.layers = list(panel.layers)
-        self.layer_tree = {k:v for k, v in panel.layer_tree.items()}
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
         self.route_rule_overrides(joint_rule_overrides)
@@ -194,9 +207,8 @@ class PanelPopulator:
 
     def _repoint_agents(self):
         """Rebind all agents to the current panel's layer tree using stored paths."""
-        tree = self.original_panel.layer_tree
         for agent in self.agents:
-            agent.repoint_to_layer_tree(tree)
+            agent.repoint_to_layer_tree(self.layer_tree)
 
     def update_panel_from_model(self, model):
         self.original_panel = model.element_by_guid(str(self.panel_guid))
@@ -231,6 +243,10 @@ class PanelPopulator:
         """List of all elements placed by all agents."""
         return [e for e in self.model.elements() if not e.children]
 
+    @property
+    def layer_tree(self):
+        return {l.layer_path: l for l in self.model.layers}
+
     def __repr__(self):
         return "PanelPopulator({})".format(self.original_panel)
     
@@ -260,13 +276,14 @@ class PanelPopulator:
 
     def get_ancestor_layers(self, layer):
         ancestors = []
-        def walk(layer):
-            parent = layer.__dict__.get('parent_layer')
-            if not parent:
-                return
-            ancestors.append(parent)
-            walk(parent)
-        walk(layer)
+        path = layer.layer_path
+        if path is None:
+            return ancestors
+        while len(path) > 1:
+            path = path[:-1]
+            parent = self.layer_tree.get(path)
+            if parent is not None:
+                ancestors.append(parent)
         return ancestors
 
     def get_child_layers(self, layer):
@@ -282,16 +299,13 @@ class PanelPopulator:
 
     def build_populator_model(self):
         model = self.original_panel.model.extract_model_from_parent(self.original_panel)
+        # elements on layers will be removed. Elements with parent == original_panel will be kept.
         for element in list(model.elements()):
+            #skip elements at root-level. these are not on a layer
+            if element.parent is None:
+                continue
             if not isinstance(element, Layer):
                 model.remove_element(element)
-        # Seed the pop model with layers that exist on the panel but were not
-        # yet in the main model (first run, or layers defined outside CT_Model).
-        in_model = set(id(e) for e in model.elements())
-        for layer in self.original_panel.layers:
-            if id(layer) not in in_model:
-                model.add_element(layer)
-                in_model.add(id(layer))
         return model
 
     def populate_elements(self):
@@ -303,7 +317,6 @@ class PanelPopulator:
         # model extracted here to ensure the latest version of panel and layer geometry
         self.model = self.build_populator_model()
         self._repoint_agents()
-        self.layers = list(self.original_panel.layers)
         self.generate_elements()
         self.extend_elements()
         self.split_elements()
@@ -421,7 +434,7 @@ class PanelPopulator:
         """Create joints between elements of different agents on the same layer.
         """
         solver = ConnectionSolver2D(max_distance=1.0)
-        for layer in self.layers:
+        for layer in self.model.layers:
             agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
             for agent_a, agent_b in solver.find_intersecting_pairs(agents):
                 elements_a = agent_a.elements_by_layer.get(layer, [])

@@ -3,35 +3,41 @@
     "nickname": "SubdivideLayer",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Subdivides a layer definition into child layers by thickness. Pass the output (along with the parent layer) to CT_Panel's 'layers' input.",
+    "description": "Subdivides a node in a LayerStructure tree at the given path. Returns a modified copy of the root LayerStructure with sublayers inserted at the target node.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
             {
-                "name": "layer",
-                "description": "Parent layer definition to subdivide.",
+                "name": "path",
+                "description": "Path into the LayerStructure tree identifying the node to subdivide (e.g. {1} for the core sublayer of a 3-layer structure).",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "layer_structure",
+                "description": "Root LayerStructure to modify (from CT_Panel_Layer_Definition).",
                 "typeHintID": "none",
                 "scriptParamAccess": 0
             },
             {
                 "name": "thicknesses",
-                "description": "List of sublayer thicknesses (from exterior face). Must sum to <= parent thickness.",
+                "description": "Sublayer thicknesses from exterior to interior. One value may be None to absorb remaining thickness.",
                 "typeHintID": "float",
                 "scriptParamAccess": 1
             },
             {
                 "name": "names",
-                "description": "(Optional) Names for each sublayer.",
+                "description": "(Optional) Names for each new sublayer.",
                 "typeHintID": "str",
                 "scriptParamAccess": 1
             }
         ],
         "outputParameters": [
             {
-                "name": "sublayers",
-                "description": "List of child Layer definitions with paths derived from parent."
+                "name": "layer_structure",
+                "description": "Modified copy of the root LayerStructure with the target node subdivided. Connect to CT_Panel's 'layer_structure' input."
             }
         ]
     }

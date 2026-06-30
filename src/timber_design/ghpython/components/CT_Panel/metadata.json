@@ -22,7 +22,7 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "vector",
+                "name": "orientation",
                 "description": "Determines direction of the panel extrusion",
                 "typeHintID": "vector",
                 "scriptParamAccess": 0
@@ -34,10 +34,10 @@
                 "scriptParamAccess": 1
             },
             {
-                "name": "layers",
-                "description": "(Optional) Layer definitions from CT_Panel_Layer_Definition. When provided, creates bound panel layers from the defs.",
+                "name": "layer_structure",
+                "description": "(Optional) LayerStructure from CT_Panel_Layer_Definition or CT_Subdivide_Layer. When provided, creates bound panel layers.",
                 "typeHintID": "none",
-                "scriptParamAccess": 1
+                "scriptParamAccess": 0
             },
             {
                 "name": "identify_doors",

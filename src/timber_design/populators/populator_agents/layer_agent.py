@@ -159,6 +159,3 @@ class LayerAgent(PopulatorAgent, ABC):
     def beam_from_category(self, centerline, category, layer=None, **kwargs):
         """Create a beam, defaulting *layer* to ``self.layer``."""
         return super().beam_from_category(centerline, category, layer=self.layer, **kwargs)
-
-    def is_on_panel(self, panel):
-        return self.layer_path in panel.layer_tree

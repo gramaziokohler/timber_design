@@ -33,14 +33,8 @@ class PlatePopulatorAgent(LayerAgent):
         Configuration carrying the sheeting thickness (informational).
     """
 
-    BEAM_CATEGORY_NAMES = []  # set per-instance in __init__
+    BEAM_CATEGORY_NAMES = ["plate"]  # set per-instance in __init__
     NAME = "PlatePopulatorAgent"
-
-    def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None, **kwargs):
-        # type: (Layer, Optional[list], Optional[list]) -> None
-        super(PlatePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
-        if layer is not None:
-            self.BEAM_CATEGORY_NAMES = ["{}_plate".format(layer.name)]
 
     def generate_layer_elements(self):
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer."""

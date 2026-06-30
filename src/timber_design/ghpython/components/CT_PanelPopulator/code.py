@@ -16,7 +16,7 @@ class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):
             joint_rule_overrides: System.Collections.Generic.List[object]):
 
         populators = []
-        these_agents = [agent for agent in list(agents) if agent.is_on_panel(panel)]
+        these_agents = [a for a in agents if getattr(a, "feature") in panel.features]
         populators.append(PanelPopulator(
             panel=panel,
             standard_beam_width=standard_beam_width,

@@ -10,40 +10,46 @@
         "iconDisplay": 0,
         "inputParameters": [
             {
-                "name": "core_start",
-                "description": "Offset from the panel face where the core layer begins.",
+                "name": "exterior_thickness",
+                "description": "Thickness of the exterior layer. Omit to create a two-layer (core + interior) structure.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
-                "name": "core_end",
-                "description": "Offset from the panel face where the core layer ends.",
+                "name": "core_thickness",
+                "description": "Thickness of the core layer. Leave empty (None) to let it absorb remaining panel thickness.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "interior_thickness",
+                "description": "Thickness of the interior layer. Omit to create a two-layer (exterior + core) structure.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
                 "name": "exterior_name",
-                "description": "(Optional) Name for the exterior layer. Defaults to 'Exterior Layer'.",
+                "description": "(Optional) Name for the exterior layer. Defaults to 'exterior'.",
                 "typeHintID": "str",
                 "scriptParamAccess": 0
             },
             {
                 "name": "core_name",
-                "description": "(Optional) Name for the core layer. Defaults to 'Core Layer'.",
+                "description": "(Optional) Name for the core layer. Defaults to 'core'.",
                 "typeHintID": "str",
                 "scriptParamAccess": 0
             },
             {
                 "name": "interior_name",
-                "description": "(Optional) Name for the interior layer. Defaults to 'Interior Layer'.",
+                "description": "(Optional) Name for the interior layer. Defaults to 'interior'.",
                 "typeHintID": "str",
                 "scriptParamAccess": 0
             }
         ],
         "outputParameters": [
             {
-                "name": "layers",
-                "description": "List of Layer definitions (exterior, core, interior) with layer_path set."
+                "name": "layer_structure",
+                "description": "LayerStructure definition with exterior, core, and interior sublayers. Connect to CT_Panel's 'layer_structure' input or CT_Subdivide_Layer's 'layer_structure' input."
             }
         ]
     }

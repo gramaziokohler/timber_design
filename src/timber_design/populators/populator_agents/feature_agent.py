@@ -151,15 +151,6 @@ class FeatureAgent(PopulatorAgent):
         return candidates
 
 
-    def is_on_panel(self, panel):
-        """Tests whether this agent is active on *layer*.
-        Parameters
-        ----------
-        layer : :class:`~timber_design.populators.Layer`
-            The layer to check.
-        """
-        return self.feature in panel.features
-
     # ------------------------------------------------------------------
     # Cross-layer trimming
     # ------------------------------------------------------------------

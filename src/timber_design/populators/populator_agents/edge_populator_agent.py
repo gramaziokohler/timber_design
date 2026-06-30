@@ -10,6 +10,7 @@ from compas.geometry import dot_vectors
 from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
 from compas_timber.connections import LButtJoint
+from compas_timber.connections import CutPlaneSpec
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
 from compas_timber.fabrication import JackRafterCutProxy
@@ -255,8 +256,8 @@ class EdgePopulatorAgent(LayerAgent):
                 if not ppx or not ccx:
                     raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
                 miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
-
-                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane=miter_plane, clean=True)
+                miter_params = LMiterJoint.miter_plane_args(beam_a, beam_b, miter_plane)
+                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane_spec=miter_params, clean=True)
 
             else:
                 # HACK: these cuts should be tied to the Joint, but if the beams are copied or the features are cleared, the joint cannot currently re-generate these features.
@@ -265,18 +266,26 @@ class EdgePopulatorAgent(LayerAgent):
                 return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True, clean=True)
 
         else:
+            print("special butt")
             beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
             beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
             if interior_corner:
                 if beam_a_slope < beam_b_slope:  # b = main, a = cross
                     plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
-                    return DirectRule(LButtJoint, [beam_b, beam_a], butt_plane=plane)
+                    butt_spec = CutPlaneSpec.from_butt_plane(beam_b, beam_a, plane)
+                    return DirectRule(LButtJoint, [beam_b, beam_a], butt_plane_spec=butt_spec)
                 else:  # a = main, b = cross
                     plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
-                    return DirectRule(LButtJoint, [beam_a, beam_b], butt_plane=plane)
+                    butt_spec = CutPlaneSpec.from_butt_plane(beam_a, beam_b, plane)
+                    return DirectRule(LButtJoint, [beam_a, beam_b], butt_plane_spec=butt_spec)
             else:
+                print("exterior butt")
                 if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                    return DirectRule(LButtJoint, [beam_b, beam_a], back_plane=edge_plane_b)
+                    back_spec = CutPlaneSpec.from_back_plane(beam_b, beam_a, edge_plane_b)
+                    print(back_spec.angle)
+                    return DirectRule(LButtJoint, [beam_b, beam_a], back_plane_spec=back_spec)
                 else:  # a = main, b = cross
-                    return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=edge_plane_a)
+                    back_spec = CutPlaneSpec.from_back_plane(beam_a, beam_b, edge_plane_a)
+                    print(back_spec.angle)
+                    return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=back_spec)
 

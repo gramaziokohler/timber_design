@@ -15,16 +15,15 @@ class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
     def component(self):
         return ghenv.Component  # type: ignore
 
-    def RunScript(
-        self,
-        Model,
-        filter_paths: System.Collections.Generic.List[object],
-        display_level: str,
-        CreateGeometry: bool,
-    ):
+    def RunScript(self,
+            Model,
+            filter_paths: System.Collections.Generic.List[object],
+            display_level: str,
+            CreateGeometry: bool):
         if Model is None:
             return None
-
+        filter_paths = [f for f in filter_paths if f is not None]
+        Model.process_joinery()
         return get_geometry(Model, filter_paths, display_level, CreateGeometry)
 
 
@@ -49,14 +48,13 @@ def get_geometry(model, filter_paths, display_level, create_geometry):
         else:
             if is_panel or is_layer:
                 continue
-
         if create_geometry:
-            scene.add(element.geometry)
+            scene.add(element.modelgeometry)
         else:
             if isinstance(element, Beam):
                 scene.add(element.blank)
             else:
-                scene.add(element.geometry)
+                scene.add(element.modelgeometry)
 
     return scene.draw()
 
@@ -66,12 +64,12 @@ def get_filtered_elements(model, filter_paths):
     elements = []
     for fp in filter_paths:
         if isinstance(fp, Layer):
-            elements.append(fp)
-            lp = fp.layer_path
             for layer in model.layers:
-                if layer.layer_path == lp:
+                if layer.layer_path == fp.layer_path:
+                    elements.append(layer)
                     elements.extend(get_all_children(layer))
         elif isinstance(fp, Element):
+            fp = model.element_by_guid(str(fp.guid))
             elements.append(fp)
             elements.extend(get_all_children(fp))
         elif isinstance(fp, tuple):
@@ -79,17 +77,11 @@ def get_filtered_elements(model, filter_paths):
                 if layer.layer_path == fp:
                     elements.append(layer)
                     elements.extend(get_all_children(layer))
-        elif isinstance(fp, str):
-            for layer in model.layers:
-                if layer.name == fp:
-                    elements.append(layer)
-                    elements.extend(get_all_children(layer))
     return elements
 
 
 def get_all_children(element):
     elements = []
-
     def walk(p):
         for c in p.children:
             elements.append(c)

@@ -83,15 +83,15 @@ def stud_panel(
             stud_spacing=stud_spacing,
         ))
 
-    trimming_layers = [la for la in (panel.exterior_layer, panel.core_layer, panel.interior_layer) if la]
+    all_layers = [la for la in [panel.exterior_layer, panel.core_layer, panel.interior_layer] if la]
 
     # Build a fresh dict so we don't mutate the caller's mapping when GH (or
     # any caller) reuses the same dict across multiple panels.
     default_feature_configs = dict(default_feature_configs) if default_feature_configs else {}
     if Opening not in default_feature_configs:
         default_feature_configs[Opening] = OpeningPopulatorAgent(
-            element_layer_paths=[panel.core_layer],
-            trimming_layer_paths=trimming_layers,
+            element_layers=[panel.core_layer] if panel.core_layer else [],
+            trimming_layers=all_layers,
         )
     else:
         # The user-supplied prototype may be a single instance shared across
@@ -99,14 +99,14 @@ def stud_panel(
         # wired into a CT_StudPanel component that processes a list of panels).
         # Shallow-copy it so each call binds its own layer references.
         prototype = copy.copy(default_feature_configs[Opening])
-        prototype.element_layer_paths = [(1,)]
-        prototype.trimming_layer_paths = [(0,),(1,),(2,)]
+        prototype.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
+        prototype.trimming_layer_paths = [la.layer_path for la in all_layers]
         default_feature_configs[Opening] = prototype
 
     if instance_feature_configs:
         for agent in instance_feature_configs:
-            agent.element_layer_paths = [(1,)]
-            agent.trimming_layer_paths = [(0,),(1,),(2,)]
+            agent.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
+            agent.trimming_layer_paths = [la.layer_path for la in all_layers]
         agents.extend(instance_feature_configs)
 
     return PanelPopulator(

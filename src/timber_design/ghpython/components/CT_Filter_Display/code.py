@@ -8,6 +8,7 @@ from compas.scene import Scene
 from compas_timber.elements import Beam
 from compas_timber.elements import Layer
 from compas_timber.elements import Panel
+from compas_timber.base import TimberElement
 
 
 class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
@@ -38,15 +39,18 @@ def get_geometry(model, filter_paths, display_level, create_geometry):
     for element in elements:
         is_panel = isinstance(element, Panel)
         is_layer = isinstance(element, Layer)
-
+        is_timber = isinstance(element, TimberElement)
         if display_level == "panel":
             if not is_panel:
                 continue
         elif display_level == "layer":
             if not is_layer:
                 continue
+        elif display_level == "timber":
+            if not is_timber:
+                continue
         else:
-            if is_panel or is_layer:
+            if element.children:
                 continue
         if create_geometry:
             scene.add(element.modelgeometry)

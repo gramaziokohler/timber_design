@@ -39,8 +39,8 @@ class SubdivideLayer(Grasshopper.Kernel.GH_ScriptInstance):
         self,
         path,
         layer_structure,
-        thicknesses: System.Collections.Generic.List[object],
-        names: System.Collections.Generic.List[object],
+        thicknesses: System.Collections.Generic.List[float],
+        names: System.Collections.Generic.List[str],
     ):
         if layer_structure is None or path is None or not thicknesses:
             return None

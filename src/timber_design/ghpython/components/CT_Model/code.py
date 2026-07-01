@@ -65,8 +65,8 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
         elif units == "mm":
             return Tolerance(unit="MM", absolute=1e-3, relative=1e-3)
         else:
-            warning(self.component, f"Unsupported unit: {units}, some unexpected results may occur")
-            return Tolerance(unit= None, absolute=1e-6, relative=1e-6)
+            error(self.component, f"Unsupported unit: {units}")
+            return
 
     def add_elements_to_model(self, model, elements):
         elements = [e for e in elements if e is not None]
@@ -74,7 +74,16 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
             element.reset_joinery()
             model.add_element(element)
             if isinstance(element, Panel):
-                element.merge_layer_tree(model)
+                element.merge_layer_structure(model)
+
+    def _register_panel_layers(self, model, panel):
+        """Add panel layers to model tree so populate_elements can extract them."""
+        def _add_layer(layer, parent):
+            model.add_element(layer, parent=parent)
+            for sublayer in layer.sublayers:
+                _add_layer(sublayer, layer)
+        for root_layer in panel.layers:
+            _add_layer(root_layer, panel)
 
     def join_elements(self, Model, JointRules, debug_info, MaxDistance=None):
         if not JointRules:
@@ -83,6 +92,7 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
         Model.connect_adjacent_beams(max_distance=solver.max_distance)
         Model.connect_adjacent_plates(max_distance=solver.max_distance)
         Model.connect_adjacent_panels(max_distance=solver.max_distance)
+        print("JCs", Model.joint_candidates)
         joint_errors, _ = solver.apply_rules_to_model(Model)
         for je in joint_errors:
             debug_info.add_joint_error(je)

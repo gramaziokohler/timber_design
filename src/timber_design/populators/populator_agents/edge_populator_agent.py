@@ -266,7 +266,6 @@ class EdgePopulatorAgent(LayerAgent):
                 return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True, clean=True)
 
         else:
-            print("special butt")
             beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
             beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
             if interior_corner:
@@ -279,13 +278,10 @@ class EdgePopulatorAgent(LayerAgent):
                     butt_spec = CutPlaneSpec.from_butt_plane(beam_a, beam_b, plane)
                     return DirectRule(LButtJoint, [beam_a, beam_b], butt_plane_spec=butt_spec)
             else:
-                print("exterior butt")
                 if beam_a_slope < beam_b_slope:  # b = main, a = cross
                     back_spec = CutPlaneSpec.from_back_plane(beam_b, beam_a, edge_plane_b)
-                    print(back_spec.angle)
                     return DirectRule(LButtJoint, [beam_b, beam_a], back_plane_spec=back_spec)
                 else:  # a = main, b = cross
                     back_spec = CutPlaneSpec.from_back_plane(beam_a, beam_b, edge_plane_a)
-                    print(back_spec.angle)
                     return DirectRule(LButtJoint, [beam_a, beam_b], back_plane=back_spec)
 

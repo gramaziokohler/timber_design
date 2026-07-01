@@ -5,6 +5,7 @@ import System
 from compas_rhino.conversions import vector_to_compas
 
 from timber_design.populators import PanelPopulator
+from timber_design.populators import FeatureAgent
 
 
 class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):
@@ -16,13 +17,18 @@ class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):
             joint_rule_overrides: System.Collections.Generic.List[object]):
 
         populators = []
-        these_agents = [a for a in agents if getattr(a, "feature") in panel.features]
+        these_agents = []
+        for a in agents:
+            if not isinstance(a, FeatureAgent):
+                these_agents.append(a)
+            elif getattr(a, "feature", None) in panel.features:
+                these_agents.append(a)
         populators.append(PanelPopulator(
             panel=panel,
             standard_beam_width=standard_beam_width,
             agents=these_agents if these_agents else None,
             default_feature_agents={d.FEATURE_TYPE: d for d in default_feature_configs} if default_feature_configs else None,
-            joint_rule_overrides=[o for o in joint_rule_overrides]
+            joint_rule_overrides=[o for o in joint_rule_overrides] if joint_rule_overrides else None
         ))
 
         return populators

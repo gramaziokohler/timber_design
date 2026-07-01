@@ -49,7 +49,7 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
 
         if panel.layers:
             for l in panel.get_leaf_layers():
-                g = l.geometry.transformed(panel.transformation)
+                g=l.modelgeometry.transformed(panel.transformation)
                 scene.add(g)
         else:
             scene.add(panel.geometry)

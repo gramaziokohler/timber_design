@@ -75,11 +75,11 @@ class JointRuleSolver(object):
         else:
             topo_rules = {}
         for rule in rules:
-            if hasattr(rule, 'elements'):
+            if hasattr(rule, "elements"):
                 direct_rules.append(rule)
-            elif hasattr(rule, 'category_a'):
+            elif hasattr(rule, "category_a"):
                 category_rules.append(rule)
-            elif hasattr(rule, 'topology_type'):
+            elif hasattr(rule, "topology_type"):
                 topo_rules[rule.topology_type] = TopologyRule(rule.topology_type, rule.joint_type, rule.max_distance, **rule.kwargs)
         return direct_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
 

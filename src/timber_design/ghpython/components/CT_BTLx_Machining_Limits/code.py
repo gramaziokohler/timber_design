@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 
 """Creates a BTLx MachiningLimits object from boolean inputs for each face limit."""

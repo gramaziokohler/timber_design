@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 import inspect
 
@@ -24,8 +23,8 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
                 isinstance(cls, type)
                 and issubclass(cls, PanelJoint)
                 and cls is not PanelJoint
-                and getattr(cls, 'SUPPORTED_TOPOLOGY', 0) != 0
-                and getattr(cls, 'MAX_ELEMENT_COUNT', 0) == 2
+                and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
+                and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2
             ):
                 self.classes[cls.__name__] = cls
 

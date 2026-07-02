@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 from System.Windows.Forms import ToolStripSeparator
 
@@ -18,12 +17,7 @@ def _get_panel_joint_classes(topology):
     result = {}
     for name in dir(_ct_connections):
         cls = getattr(_ct_connections, name)
-        if (
-            isinstance(cls, type)
-            and issubclass(cls, PanelJoint)
-            and cls is not PanelJoint
-            and getattr(cls, 'SUPPORTED_TOPOLOGY', None) == topology
-        ):
+        if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology:
             result[cls.__name__] = cls
     return result
 

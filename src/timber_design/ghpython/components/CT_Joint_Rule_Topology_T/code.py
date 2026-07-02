@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 import inspect
 
@@ -35,7 +34,7 @@ class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args):
             if val is not None:
                 name = self.arg_names()[i]
-                if name == 'step_shape':
+                if name == "step_shape":
                     val = getattr(StepShapeType, str(val), val)
                 kwargs[name] = val
         return TopologyRule(JointTopology.TOPO_T, self.joint_type, **kwargs)

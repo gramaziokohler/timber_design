@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 import inspect
 from collections import OrderedDict
@@ -23,12 +22,7 @@ class CategoryPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         self.classes = {}
         for name in dir(_ct_connections):
             cls = getattr(_ct_connections, name)
-            if (
-                isinstance(cls, type)
-                and issubclass(cls, PanelJoint)
-                and cls is not PanelJoint
-                and getattr(cls, 'SUPPORTED_TOPOLOGY', 0) != 0
-            ):
+            if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0:
                 self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)

@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Creates a Panel from a polyline outline and thickness."""
 
 # flake8: noqa

@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Generates a direct joint between two elements. This overrides other joint rules."""
 
 import inspect
@@ -27,8 +26,8 @@ class DirectPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
                 and issubclass(cls, PlateJoint)
                 and not issubclass(cls, PanelJoint)
                 and cls is not PlateJoint
-                and getattr(cls, 'SUPPORTED_TOPOLOGY', 0) != 0
-                and getattr(cls, 'MAX_ELEMENT_COUNT', 0) == 2
+                and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
+                and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2
             ):
                 self.classes[cls.__name__] = cls
 

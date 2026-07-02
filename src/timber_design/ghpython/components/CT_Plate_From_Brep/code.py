@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Creates a Plate from a Brep."""
 
 # flake8: noqa
@@ -30,4 +29,3 @@ class PlateFromBrep(Grasshopper.Kernel.GH_ScriptInstance):
         scene.add(plate.geometry)
         geo = scene.draw()
         return plate, geo
-

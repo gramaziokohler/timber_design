@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Creates a data-tree structure of Beams from edges of a Mesh."""
 
 # flake8: noqa

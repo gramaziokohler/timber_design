@@ -1,12 +1,7 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 """Creates an Model"""
 
 import sys
-
-for _k in list(sys.modules):
-    if _k.startswith('timber_design'):
-        del sys.modules[_k]
 
 import Grasshopper
 import Rhino
@@ -63,7 +58,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         debug_info = DebugInfomation()
 
         self.add_elements_to_model(Model, Elements)
-        if hasattr(Model, 'connect_adjacent_panels'):
+        if hasattr(Model, "connect_adjacent_panels"):
             Model.connect_adjacent_panels(max_distance=MaxDistance)
 
         JointRules = [j for j in JointRules if j is not None]
@@ -132,6 +127,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
                     # TimberElement._geometry is not cleared by reset_computed, so element.geometry
                     # returns stale pre-joint geometry for Plates. Force fresh computation so
                     # extension planes set by add_extensions() are reflected in the output.
+                    # TODO: this is probably a bug that needs to be fixed in compas_timber, but for now we can work around it here.
                     geo = element.compute_modelgeometry()
                 else:
                     geo = element.geometry

@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 import Grasshopper
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint

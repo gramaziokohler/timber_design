@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Defines which Joint type will be applied in the Automatic Joints component for connecting Beams with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
 
 # flake8: noqa
@@ -26,13 +25,7 @@ class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         self.classes = {}
         for name in dir(_ct_connections):
             cls = getattr(_ct_connections, name)
-            if (
-                isinstance(cls, type)
-                and issubclass(cls, PlateJoint)
-                and not issubclass(cls, PanelJoint)
-                and cls is not PlateJoint
-                and getattr(cls, 'SUPPORTED_TOPOLOGY', 0) != 0
-            ):
+            if isinstance(cls, type) and issubclass(cls, PlateJoint) and not issubclass(cls, PanelJoint) and cls is not PlateJoint and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0:
                 self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)

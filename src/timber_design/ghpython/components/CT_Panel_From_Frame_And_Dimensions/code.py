@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Creates a Panel from a frame and dimensions."""
 
 # flake8: noqa
@@ -25,7 +24,16 @@ def _curve_to_polyline(curve):
 
 
 class PanelFromFrameAndDimensions(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, frame: System.Collections.Generic.List[object], length: float, width: float, thickness: float, openings: System.Collections.Generic.List[object], category: str, updateRefObj: bool):
+    def RunScript(
+        self,
+        frame: System.Collections.Generic.List[object],
+        length: float,
+        width: float,
+        thickness: float,
+        openings: System.Collections.Generic.List[object],
+        category: str,
+        updateRefObj: bool,
+    ):
         if not list_input_valid_cpython(ghenv, frame, "frame"):
             return
         if not item_input_valid_cpython(ghenv, length, "length"):

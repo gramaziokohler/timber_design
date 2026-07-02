@@ -1,4 +1,3 @@
-# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 from System.Windows.Forms import ToolStripSeparator
 
@@ -24,7 +23,7 @@ def _get_plate_joint_classes(topology):
             and issubclass(cls, PlateJoint)
             and not issubclass(cls, PanelJoint)
             and cls is not PlateJoint
-            and getattr(cls, 'SUPPORTED_TOPOLOGY', None) == topology
+            and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology
         ):
             result[cls.__name__] = cls
     return result

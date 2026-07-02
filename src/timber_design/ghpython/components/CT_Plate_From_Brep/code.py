@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Creates a Plate from a Brep."""
 
 # flake8: noqa
@@ -30,4 +29,3 @@ class PlateFromBrep(Grasshopper.Kernel.GH_ScriptInstance):
         scene.add(plate.geometry)
         geo = scene.draw()
         return plate, geo
-

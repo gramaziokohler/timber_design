@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Creates a Plate from a Outline."""
 
 # flake8: noqa
@@ -13,6 +12,7 @@ from compas_rhino.conversions import vector_to_compas
 from compas_timber.elements import Plate as CTPlate
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
+
 
 class Plate(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(self, outline, thickness: float, vector: Rhino.Geometry.Vector3d, openings: System.Collections.Generic.List[object], category: str, updateRefObj: bool):

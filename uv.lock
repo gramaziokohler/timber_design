@@ -3532,7 +3532,7 @@ requires-dist = [
     { name = "bump-my-version", marker = "extra == 'dev'" },
     { name = "compas-invocations2", marker = "extra == 'gh'" },
     { name = "compas-invocations2", extras = ["mkdocs"], marker = "extra == 'dev'", specifier = ">=1.0.2" },
-    { name = "compas-timber", specifier = ">=2.1.1rc1" },
+    { name = "compas-timber", specifier = ">=2.1.1" },
     { name = "invoke", marker = "extra == 'dev'", specifier = ">=0.14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'" },

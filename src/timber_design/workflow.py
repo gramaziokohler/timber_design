@@ -95,13 +95,13 @@ class JointRuleSolver(object):
         else:
             topo_rules = {}
         for rule in rules:
-            if isinstance(rule, DirectRule):
+            if hasattr(rule, "elements"):
                 direct_rules.append(rule)
             if isinstance(rule, CompositeJointRule):
                 composite_rules.append(rule)
             if isinstance(rule, CategoryRule):
                 category_rules.append(rule)
-            if isinstance(rule, TopologyRule):
+            elif hasattr(rule, "topology_type"):
                 topo_rules[rule.topology_type] = TopologyRule(rule.topology_type, rule.joint_type, rule.max_distance, **rule.kwargs)
         return direct_rules + composite_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
 
@@ -894,6 +894,7 @@ def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
     """
     # model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    model.connect_adjacent_panels(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # TODO: implement ignore_joints once model.unpromoted_joint_clusters implemented
     candidates = model.joint_candidates
     clusters = get_clusters_from_joint_candidates(candidates, max_distance=max_distance)

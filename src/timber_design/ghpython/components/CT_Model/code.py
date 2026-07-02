@@ -1,5 +1,7 @@
-# r: timber_design>=0.1.0
+# flake8: noqa
 """Creates an Model"""
+
+import sys
 
 import Grasshopper
 import Rhino
@@ -7,8 +9,6 @@ import System
 from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
-
-# from timber_design.workflow import WallPopulator - breaks the GH Component
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
@@ -31,66 +31,57 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def RunScript(
         self,
         Elements: System.Collections.Generic.List[object],
-        Containers: System.Collections.Generic.List[object],
         JointRules: System.Collections.Generic.List[object],
         Features: System.Collections.Generic.List[object],
         MaxDistance: float,
         CreateGeometry: bool,
     ):
-        # this used to be default behavior in Rhino7.. I think..
         Elements = Elements or []
-        Containers = Containers or []
         JointRules = JointRules or []
         Features = Features or []
 
+        # CPython GH doesn't auto-unwrap custom Python objects from GH_Goo wrappers
+        JointRules = [getattr(j, "Value", j) for j in JointRules]
+        Features = [getattr(f, "Value", f) for f in Features]
+
         if not Elements:
-            warning(self.component, "Input parameter Beams failed to collect data")
+            warning(self.component, "Input parameter Elements failed to collect data")
         if not JointRules:
             warning(self.component, "Input parameter JointRules failed to collect data")
-        if not (Elements or Containers):  # shows beams even if no joints are found
+        if not Elements:
             return
         if MaxDistance is None:
-            MaxDistance = TOL.ABSOLUTE  # compared to calculted distance, so shouldn't be just 0.0
+            MaxDistance = TOL.ABSOLUTE
 
         tol = self.get_tol()
         Model = TimberModel(tolerance=tol)
         debug_info = DebugInfomation()
 
-        ##### Adding elements #####
-        self.add_elements_to_model(Model, Elements, Containers)
+        self.add_elements_to_model(Model, Elements)
+        if hasattr(Model, "connect_adjacent_panels"):
+            Model.connect_adjacent_panels(max_distance=MaxDistance)
 
-        ##### Wall populating #####
-        handled_pairs, wall_joints = self.handle_populators(Model, Containers, MaxDistance)
-
-        ##### Handle joinery #####
-        # checks elements compatibility and generates Joints
         JointRules = [j for j in JointRules if j is not None]
-
         if JointRules:
             Model.connect_adjacent_beams()
             Model.connect_adjacent_plates()
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
-            joint_errors, _ = solver.apply_rules_to_model(Model)  # TODO: figure out best way to pass out unjoined_clusters
-
+            joint_errors, _ = solver.apply_rules_to_model(Model)
             for je in joint_errors:
                 debug_info.add_joint_error(je)
 
-        # applies extensions and features resulting from joints
         bje = Model.process_joinery()
         if bje:
             debug_info.add_joint_error(bje)
 
-        ##### Handle user features #####
         if Features:
             feature_errors = self.handle_features(Features)
             debug_info.add_feature_error(feature_errors)
 
-        ##### Visualization #####
         Geometry, errors = self.handle_geometry(Model, CreateGeometry)
         for geo_error in errors:
             debug_info.add_feature_error(geo_error)
 
-        ##### Error Handling #####
         if debug_info.has_errors:
             warning(self.component, "Error found during joint creation. See DebugInfo output for details.")
 
@@ -106,39 +97,14 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             error(self.component, f"Unsupported unit: {units}")
             return
 
-    def add_elements_to_model(self, model, elements, containers):
-        """Adds elements to the model and groups them by slab."""
+    def add_elements_to_model(self, model, elements):
         elements = [e for e in elements if e is not None]
         for element in elements:
+            saved_features = list(getattr(element, "_features", []))
             element.reset()
+            if saved_features and hasattr(element, "_features"):
+                element._features.extend(saved_features)
             model.add_element(element)
-
-        containers = [c for c in containers if c is not None]
-
-        for index, c_def in enumerate(containers):
-            slab = c_def.slab
-            model.add_group_element(slab, name=slab.name + str(index))
-
-    def handle_populators(self, model, containers, max_distance):
-        # Handle wall populators
-        model.connect_adjacent_walls()
-        config_sets = [c_def.config_set for c_def in containers]
-        populators = []
-        if any(config_sets):
-            populators = WallPopulator.from_model(model, config_sets)
-
-        handled_pairs = []
-        wall_joints = []
-        for populator, slab in zip(populators, list(model.slabs)):
-            elements = populator.create_elements()
-            model.add_elements(elements, parent=slab.name)
-            joint_definitions = populator.create_joints(elements, max_distance)
-            wall_joints.extend(joint_definitions)
-            for j_def in joint_definitions:
-                element_a, element_b = j_def.elements
-                handled_pairs.append({element_a, element_b})
-
-        return handled_pairs, wall_joints
 
     def handle_features(self, features):
         feature_errors = []
@@ -147,7 +113,6 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             if not f_def.elements:
                 warning(self.component, "Features defined in model must have elements defined. Features without elements will be ignored")
                 continue
-
             for element in f_def.elements:
                 try:
                     element.add_features(f_def.feature_from_element(element))
@@ -160,14 +125,22 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         errors = []
         for element in Model.elements():
             if CreateGeometry:
-                scene.add(element.geometry)
+                if isinstance(element, Plate):
+                    # TimberElement._geometry is not cleared by reset_computed, so element.geometry
+                    # returns stale pre-joint geometry for Plates. Force fresh computation so
+                    # extension planes set by add_extensions() are reflected in the output.
+                    # TODO: this is probably a bug that needs to be fixed in compas_timber, but for now we can work around it here.
+                    geo = element.compute_modelgeometry()
+                else:
+                    geo = element.geometry
+                scene.add(geo)
                 if getattr(element, "debug_info", False):
                     errors.append(element.debug_info)
             else:
                 if isinstance(element, Beam):
                     scene.add(element.blank)
                 elif isinstance(element, Plate):
-                    scene.add(element.shape)
+                    scene.add(element.blank)
                 else:
                     scene.add(element.geometry)
         return scene.draw(), errors

@@ -1,0 +1,54 @@
+{
+    "name": "Panel From Top and Bottom",
+    "nickname": "PanelFromTopBottom",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Creates a Panel from two polyline outlines.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "top",
+                "description": "Top outline of the panel.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom",
+                "description": "Bottom outline of the panel.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "openings",
+                "description": "List of polyline openings (windows) in the panel.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "category",
+                "description": "Category of the panel.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "updateRefObj",
+                "description": "(optional) If True, attributes in the referenced object will be updated.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Panel",
+                "description": "Panel object."
+            },
+            {
+                "name": "Geometry",
+                "description": "Shape of the panel."
+            }
+        ]
+    }
+}

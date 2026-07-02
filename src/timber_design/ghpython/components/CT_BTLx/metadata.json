@@ -2,7 +2,7 @@
     "name": "WriteBTLx",
     "nickname": "WriteBTLx",
     "category": "Timber Design",
-    "subcategory": "10 Fabrication",
+    "subcategory": "11 Fabrication",
     "description": "Writes a BTLx file for machining of model parts.",
     "exposure": 4,
     "ghpython": {

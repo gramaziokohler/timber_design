@@ -2,7 +2,7 @@
     "name": "ShowTopologyTypes",
     "nickname": "ShowTopo",
     "category": "Timber Design",
-    "subcategory": "08 Show",
+    "subcategory": "09 Show",
     "description": "Shows the names of the connection topology types.",
     "exposure": 4,
     "ghpython": {

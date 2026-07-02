@@ -1,26 +1,39 @@
-# r: timber_design>=0.1.0
+# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
-import inspect
 from System.Windows.Forms import ToolStripSeparator
 
 import Grasshopper
+import compas_timber.connections as _ct_connections
 
 from compas_timber.connections import PlateJoint
+from compas_timber.connections import PanelJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import PlateMiterJoint
 from timber_design.workflow import TopologyRule
-from timber_design.ghpython.ghcomponent_helpers import get_leaf_subclasses
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+
+
+def _get_plate_joint_classes(topology):
+    """Return PlateJoint subclasses with given topology, excluding PanelJoint subclasses."""
+    result = {}
+    for name in dir(_ct_connections):
+        cls = getattr(_ct_connections, name)
+        if (
+            isinstance(cls, type)
+            and issubclass(cls, PlateJoint)
+            and not issubclass(cls, PanelJoint)
+            and cls is not PlateJoint
+            and getattr(cls, 'SUPPORTED_TOPOLOGY', None) == topology
+        ):
+            result[cls.__name__] = cls
+    return result
 
 
 class EdgeEdgeTopologyPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(EdgeEdgeTopologyPlateJointRule, self).__init__()
-        self.classes = {}
-        for cls in get_leaf_subclasses(PlateJoint):
-            if cls.SUPPORTED_TOPOLOGY == JointTopology.TOPO_EDGE_EDGE:
-                self.classes[cls.__name__] = cls
+        self.classes = _get_plate_joint_classes(JointTopology.TOPO_EDGE_EDGE)
         self.joint_type = self.classes.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(self, *args):
@@ -34,7 +47,6 @@ class EdgeEdgeTopologyPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             for i, val in enumerate(args):
                 if val is not None:
                     kwargs[self.arg_names()[i]] = val
-            ghenv.Component.Message = self.joint_type.__name__
             return TopologyRule(JointTopology.TOPO_EDGE_EDGE, self.joint_type, **kwargs)
 
     def AppendAdditionalMenuItems(self, menu):

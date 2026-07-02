@@ -1,4 +1,4 @@
-# r: timber_design>=0.1.0
+# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 
 """Generates a feature from BTLx parameters."""
@@ -60,7 +60,7 @@ class BTLxFromParams(Grasshopper.Kernel.GH_ScriptInstance):
             return deferred_processings, scene.draw()
 
     def arg_names(self):
-        return inspect.getargspec(self.processing_type.__init__)[0][1:]
+        return inspect.getfullargspec(self.processing_type.__init__)[0][1:]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

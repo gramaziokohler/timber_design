@@ -2,7 +2,7 @@
     "name": "ShowFeatureErrors",
     "nickname": "FeatureErrors",
     "category": "Timber Design",
-    "subcategory": "08 Show",
+    "subcategory": "09 Show",
     "description": "Shows information useful for debugging feature application errors.",
     "exposure": 8,
     "ghpython": {

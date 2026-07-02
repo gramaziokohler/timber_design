@@ -1,0 +1,38 @@
+{
+    "name": "Category Panel Joint Rules",
+    "nickname": "PanelJointsByCategory",
+    "category": "Timber Design",
+    "subcategory": "06 Panel Joint Rules",
+    "description": "Defines which Panel Joint type will be applied for connecting Panels with the given Category attributes. This overrides Topological Panel Joint rules and is overridden by Direct Panel Joint rules.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel_a_category",
+                "description": "Panel A category.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "panel_b_category",
+                "description": "Panel B category.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum distance between panels to be considered connected.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Rule",
+                "description": "A category joint rule."
+            }
+        ]
+    }
+}

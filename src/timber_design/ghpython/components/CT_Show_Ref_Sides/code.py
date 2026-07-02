@@ -1,4 +1,4 @@
-# r: timber_design>=0.1.0
+# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 # flake8: noqa
 import Grasshopper
 import System
@@ -31,7 +31,7 @@ class ShowElementFaces(Grasshopper.Kernel.GH_ScriptInstance):
             for side_index in range(len(b.ref_sides)):
                 surface = b.side_as_surface(side_index)
                 frame = b.ref_sides[side_index]
-                frame.point = surface.point_at(0, ht / 4.0)
+                frame.point = surface.point_at(0, 0)
 
                 self.pl.append(frame_to_rhino(frame))
                 self.txt.append(surface.name)

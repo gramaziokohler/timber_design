@@ -1,4 +1,4 @@
-# r: timber_design>=0.1.0
+# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 """Extracts main geometric characteristics of a Beam."""
 
 # flake8: noqa
@@ -46,7 +46,7 @@ class BeamDecompose(Grasshopper.Kernel.GH_ScriptInstance):
                 self.shapes.append(box_to_rhino(b.shape))
                 self.width.append(b.width)
                 self.height.append(b.height)
-                self.faces.append(b.faces)
+                self.faces.append(b.ref_sides)
 
             return self.rhino_frames, self.centerline, self.shapes, self.width, self.height
 

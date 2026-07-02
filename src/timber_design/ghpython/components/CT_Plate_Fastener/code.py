@@ -1,4 +1,4 @@
-# r: timber_design>=0.1.0
+# env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
 import Grasshopper
 import Rhino
 import System

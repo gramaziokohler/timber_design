@@ -1,7 +1,7 @@
 {
     "name": "Direct Panel Joint Rules",
     "nickname": "DirectPanelJoints",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "06 Panel Joint Rules",
     "description": "Generates a direct joint between two panels. This overrides other joint rules.",
     "exposure": 4,

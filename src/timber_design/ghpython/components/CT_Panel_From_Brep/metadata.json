@@ -1,7 +1,7 @@
 {
     "name": "Panel From Brep",
     "nickname": "PanelFromBrep",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "03 Panels",
     "description": "Creates a Panel from a Brep. Automatically detects the two parallel faces as top and bottom.",
     "exposure": 4,

@@ -1,7 +1,7 @@
 {
     "name": "ShowJointTypes",
     "nickname": "ShowJointTypes",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "09 Show",
     "description": "Shows the names of the defined Joints.",
     "exposure": 4,

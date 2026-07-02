@@ -1,7 +1,7 @@
 {
     "name": "Panel From Frame And Dimensions",
     "nickname": "PanelFromFrameAndDimensions",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "03 Panels",
     "description": "Creates a Panel from a frame (plane) and dimensions.",
     "exposure": 4,

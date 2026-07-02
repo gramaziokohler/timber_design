@@ -1,7 +1,7 @@
 {
     "name": "ShowFeatureErrors",
     "nickname": "FeatureErrors",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "09 Show",
     "description": "Shows information useful for debugging feature application errors.",
     "exposure": 8,

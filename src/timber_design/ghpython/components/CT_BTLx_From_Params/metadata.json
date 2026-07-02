@@ -1,7 +1,7 @@
 {
     "name": "BTLx From Parameters",
     "nickname": "BTLxFromParams",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "07 Features",
     "description": "Generates a feature from BTLx parameters.",
     "exposure": 2,

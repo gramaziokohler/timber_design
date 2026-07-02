@@ -1,7 +1,7 @@
 {
     "name": "ShowTopologyTypes",
     "nickname": "ShowTopo",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "09 Show",
     "description": "Shows the names of the connection topology types.",
     "exposure": 4,

@@ -1,0 +1,23 @@
+{
+    "name": "InstallDependencies",
+    "nickname": "InstallDeps",
+    "category": "Timber Design",
+    "subcategory": "00 Setup",
+    "description": "Installs and updates required external dependencies in the active Rhino CPython environment.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "versions",
+                "description": "Installed versions for required dependencies."
+            },
+            {
+                "name": "log",
+                "description": "Dependency status and guidance text."
+            }
+        ]
+    }
+}

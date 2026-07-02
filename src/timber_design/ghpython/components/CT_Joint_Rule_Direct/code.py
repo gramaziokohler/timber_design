@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Generates a direct joint between two elements. This overrides other joint rules."""
 
 import inspect

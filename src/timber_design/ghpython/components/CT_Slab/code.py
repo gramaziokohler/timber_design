@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Creates a Slab from a Brep Surface."""
 
 # flake8: noqa

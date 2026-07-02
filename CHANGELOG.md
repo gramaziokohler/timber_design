@@ -19,10 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
+* Added `InstallDependencies` GH component for consistent package versions in the GHPython env.
 
 ### Changed
 
 * Renamed `CT: Beam` to `CT: BeamFromLineCurve`.
+* Removed `venv` and `r` from GH components since this will be run once with `InstallDependencies`.
 
 ### Removed
 

@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 # flake8: noqa
 import inspect
 from System.Windows.Forms import ToolStripSeparator

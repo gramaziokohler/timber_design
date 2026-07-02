@@ -1,5 +1,4 @@
-# r: timber_design>=0.1.0
-"""Creates a Plate from a Outline."""
+"""Creates a Plate from a Polyline and Thickness."""
 
 # flake8: noqa
 import Grasshopper

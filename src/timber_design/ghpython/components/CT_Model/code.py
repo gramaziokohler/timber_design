@@ -1,7 +1,9 @@
 # env: C:\Users\Admin\OneDrive\Documents\01_ETH\04_Repositories\timber_design\src
+# flake8: noqa
 """Creates an Model"""
 
 import sys
+
 for _k in list(sys.modules):
     if _k.startswith('timber_design'):
         del sys.modules[_k]
@@ -12,7 +14,6 @@ import System
 from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
-
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError

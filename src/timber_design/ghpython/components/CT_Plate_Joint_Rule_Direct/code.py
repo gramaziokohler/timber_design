@@ -3,10 +3,10 @@
 
 import inspect
 
-import Grasshopper  # type: ignore
 import compas_timber.connections as _ct_connections
-from compas_timber.connections import PlateJoint
+import Grasshopper  # type: ignore
 from compas_timber.connections import PanelJoint
+from compas_timber.connections import PlateJoint
 from System.Windows.Forms import ToolStripSeparator
 
 from timber_design.ghpython import item_input_valid_cpython

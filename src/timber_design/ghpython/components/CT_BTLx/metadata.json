@@ -4,7 +4,7 @@
     "category": "Timber Design",
     "subcategory": "10 Fabrication",
     "description": "Writes a BTLx file for machining of model parts.",
-    "exposure": 4,
+    "exposure": 8,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
@@ -18,6 +18,12 @@
             {
                 "name": "path",
                 "description": "Filepath for new BTLx.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "nesting",
+                "description": "Nesting result.",
                 "typeHintID": "none",
                 "scriptParamAccess": 0
             },

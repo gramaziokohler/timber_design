@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
+* Added `CT: PlateStocks` and `CT: NestPlates` GH components.
+* Added `Nesting` input parameter to `CT_BTLx` GH component.
 
 ### Changed
 

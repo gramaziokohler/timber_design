@@ -46,8 +46,6 @@ class FeaturePopulatorAgent(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args):
             if val is not None and i < len(names):
                 kwargs[names[i]] = val
-        print(names)
-        print(kwargs)
         return self.agent_type(**kwargs)
 
     def arg_names(self):

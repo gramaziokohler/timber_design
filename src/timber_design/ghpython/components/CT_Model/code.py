@@ -92,7 +92,6 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
         Model.connect_adjacent_beams(max_distance=solver.max_distance)
         Model.connect_adjacent_plates(max_distance=solver.max_distance)
         Model.connect_adjacent_panels(max_distance=solver.max_distance)
-        print("JCs", Model.joint_candidates)
         joint_errors, _ = solver.apply_rules_to_model(Model)
         for je in joint_errors:
             debug_info.add_joint_error(je)

@@ -43,7 +43,6 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args):
             if val is not None and i < len(names):
                 kwargs[names[i]] = val
-        print(self.panel_type)
         return self.panel_type(**kwargs)
 
     def arg_names(self):

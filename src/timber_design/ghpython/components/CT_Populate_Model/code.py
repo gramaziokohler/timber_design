@@ -21,8 +21,6 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
         model.process_joinery()
         for panel in model.panels:
             panel.apply_edge_extensions()
-        for l in model.layers:
-            print(l.aabb)
 
         for pop in Populators:
             if pop is None:

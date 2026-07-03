@@ -9,42 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
-
-### Removed
-
-
-## [0.3.0] 2026-07-02
-
-### Added
-
-### Changed
-
-### Removed
-
-
-## [0.2.1] 2026-07-01
-
-### Added
-
-### Changed
-
-### Removed
-
-
-## [0.3.0] 2026-07-02
-
-### Added
-
-### Changed
-
-### Removed
-
-
-## [0.2.1] 2026-07-01
-
-### Added
-
 * `CompositeJointRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
 * `CT_Composite_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
 * COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeJointRule`.
@@ -55,6 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `get_clusters_from_model` no longer calls `connect_adjacent_beams` / `connect_adjacent_plates` internally. Callers must connect the model before calling `apply_rules_to_model`.
 * `_joints_from_rules_and_clusters` renamed to `joints_from_rules_and_clusters` (now public).
 * compas_timber dependency bumped to >=2.1.2.
+
+### Removed
+
+* `ContainerDefinition` class (dead code).
+* `max_cluster_size` parameter from `get_clusters_from_model`.
+
+
+## [0.3.0] 2026-07-02
+
+### Added
+
+### Changed
+
+### Removed
+
+
+## [0.2.1] 2026-07-01
+
+### Added
+
 * Added `CT: PlateFromBrep` and `CT: BeamFromBox` GH components.
 * Added `CT: Panel From Brep`, `CT: Panel From Frame And Dimensions`, `CT: Panel From Outline`, and `CT: Panel From Top and Bottom` GH components for creating panel elements.
 * Added `CT: Plate From Frame And Dimensions` GH component.
@@ -76,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `CT: Model` — fixed `element.shape` → `element.blank` for Plates in `CreateGeometry=False` mode (`Plate` does not have a `shape` attribute).
 
 ### Removed
+
+* Removed `CT: Wall`, `CT: Slab`, and `CT: WallConfigSet` GH components.
 
 
 ## [0.2.0] 2026-04-01
@@ -101,4 +87,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed `OliGinaJoint` to `TOliGinaJoint` and `TenonMortiseJoint`to `LTenonMortiseJoint` and `TTenonMortiseJoint`for consistency wrt to the supported topology.
 
 ### Removed
-

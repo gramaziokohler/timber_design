@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Fixed `CT: L Topological Joint Rules`, `CT: Direct Joint Rules`, `CT: Joint Rules From List`, and `CT: Category Joints Rules` — selecting `LButtJoint` crashed the component.
+
 ### Removed
 
 

@@ -1,7 +1,7 @@
 {
     "name": "Category Panel Joint Rules",
     "nickname": "PanelJointsByCategory",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "06 Panel Joint Rules",
     "description": "Defines which Panel Joint type will be applied for connecting Panels with the given Category attributes. This overrides Topological Panel Joint rules and is overridden by Direct Panel Joint rules.",
     "exposure": 4,

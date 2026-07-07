@@ -1,7 +1,7 @@
 {
     "name": "Panel From Outline",
     "nickname": "PanelFromOutline",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "03 Panels",
     "description": "Creates a Panel from a polyline outline and thickness.",
     "exposure": 4,

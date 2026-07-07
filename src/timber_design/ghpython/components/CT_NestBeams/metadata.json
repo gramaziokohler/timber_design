@@ -1,7 +1,7 @@
 {
     "name": "NestBeams",
     "nickname": "NestBeams",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "11 Fabrication",
     "description": "Executes 1-D nesting of beams into stocks based on a given stock catalog. Outputs a NestingResult that can be optionally passed to the BTLxWriter.",
     "exposure": 2,

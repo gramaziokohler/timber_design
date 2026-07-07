@@ -1,7 +1,7 @@
 {
     "name": "Edge-to-Edge Topological Panel Joint Rules",
     "nickname": "EdgeEdgePanelTopo",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "06 Panel Joint Rules",
     "description": "Makes rule to apply joint type to edge-edge topology. Defaults to PanelMiterJoint.",
     "exposure": 2,

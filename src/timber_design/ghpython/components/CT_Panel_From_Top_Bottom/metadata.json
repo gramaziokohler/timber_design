@@ -1,7 +1,7 @@
 {
     "name": "Panel From Top and Bottom",
     "nickname": "PanelFromTopBottom",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "03 Panels",
     "description": "Creates a Panel from two polyline outlines.",
     "exposure": 4,

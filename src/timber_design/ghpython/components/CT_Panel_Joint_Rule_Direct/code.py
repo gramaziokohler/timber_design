@@ -1,6 +1,4 @@
 # flake8: noqa
-import inspect
-
 import Grasshopper
 import compas_timber.connections as _ct_connections
 from compas_timber.connections import PanelJoint
@@ -10,6 +8,8 @@ from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
+from timber_design.ghpython.joint_arg_mapping import build_joint_kwargs
+from timber_design.ghpython.joint_arg_mapping import get_gh_arg_names
 from timber_design.workflow import DirectRule
 
 
@@ -51,11 +51,12 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args[2:]):
             if val is not None:
                 kwargs[self.arg_names()[i + 2]] = val
+        kwargs = build_joint_kwargs(self.joint_type, kwargs, main_beam=panel_a, cross_beam=panel_b)
 
         return DirectRule(self.joint_type, [panel_a, panel_b], **kwargs)
 
     def arg_names(self):
-        return inspect.getfullargspec(self.joint_type.__init__)[0][1:3] + ["max_distance"]
+        return get_gh_arg_names(self.joint_type, DirectRule, expose_extra_kwargs=False)
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

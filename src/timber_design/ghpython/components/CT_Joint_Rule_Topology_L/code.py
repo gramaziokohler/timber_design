@@ -1,6 +1,4 @@
 # flake8: noqa
-import inspect
-
 import Grasshopper
 
 
@@ -11,6 +9,7 @@ from timber_design.workflow import TopologyRule
 from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+from timber_design.ghpython.joint_arg_mapping import get_gh_arg_names
 
 
 class L_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
@@ -37,8 +36,7 @@ class L_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         return TopologyRule(JointTopology.TOPO_L, self.joint_type, **kwargs)
 
     def arg_names(self):
-        names = inspect.getargspec(self.joint_type.__init__)[0][3:]
-        return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]
+        return get_gh_arg_names(self.joint_type, TopologyRule)
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

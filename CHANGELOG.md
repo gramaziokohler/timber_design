@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* `CT: Direct Joint Rules`, `CT: Joint Rules From List`, `CT: Direct Plate Joint Rules`, and `CT: Direct Panel Joint Rules` now expose `butt_plane`/`back_plane` (a `Plane`) instead of the underlying `butt_plane_spec`/`back_plane_spec` for `ButtJoint`-derived joint types (e.g. `LButtJoint`, `TButtJoint`), converting the given plane to a `CutPlaneSpec` against the picked beams automatically.
+* Added `timber_design.ghpython.joint_arg_mapping`, a module letting joint types register a per-joint-type override of how their constructor args map to GH inputs, with a fallback to plain introspection for joint types with no override.
+
 ### Changed
+
+* `CT: Category Joints Rules`, `CT: Category Plate Joints Rules`, `CT: Category Panel Joint Rules`, and `CT: L/T/X Topological Joint Rules` no longer expose `butt_plane_spec`/`back_plane_spec` (nor the new `butt_plane`/`back_plane`) as dynamic inputs, since the beam pair those planes are defined against isn't known until elements are resolved later in the workflow — the joint's default plane behavior is used for these rules instead.
+* Centralized joint-rule GH components' dynamic parameter-name logic (dropping `key`/`frame`, category-label suffixing, hiding not-yet-known elements for topology rules, appending `max_distance`) into `timber_design.ghpython.joint_arg_mapping.get_gh_arg_names`, replacing per-component `inspect.getargspec`/`getfullargspec` calls and duplicated logic.
 
 ### Removed
 

@@ -1,7 +1,6 @@
 """Defines which Joint type will be applied in the Automatic Joints component for connecting Beams with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
 
 # flake8: noqa
-import inspect
 from collections import OrderedDict
 
 import Grasshopper
@@ -16,6 +15,7 @@ from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
 from timber_design.ghpython import message
+from timber_design.ghpython.joint_arg_mapping import get_gh_arg_names
 
 
 class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
@@ -47,10 +47,7 @@ class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             return CategoryRule(self.joint_type, cat_a, cat_b)
 
     def arg_names(self):
-        names = inspect.getargspec(self.joint_type.__init__)[0][1:3]
-        for i in range(2):
-            names[i] += "_category"
-        return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]
+        return get_gh_arg_names(self.joint_type, CategoryRule, expose_extra_kwargs=False)
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

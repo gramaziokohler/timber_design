@@ -1,6 +1,4 @@
 # flake8: noqa
-import inspect
-
 import Grasshopper
 import System
 
@@ -11,6 +9,8 @@ from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.joint_arg_mapping import build_joint_kwargs
+from timber_design.ghpython.joint_arg_mapping import get_gh_arg_names
 
 
 class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
@@ -42,21 +42,24 @@ class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
             for i, val in enumerate(args[1:]):
                 if val is not None:
                     kwargs[self.arg_names[i]] = val
+            main_beam = elements[0] if len(elements) > 0 else None
+            cross_beam = elements[1] if len(elements) > 1 else None
+            kwargs = build_joint_kwargs(self.joint_type, kwargs, main_beam=main_beam, cross_beam=cross_beam)
 
             return DirectRule(self.joint_type, [e for e in elements], **kwargs)
 
     @property
     def arg_start_index(self):
         if self.joint_type.MAX_ELEMENT_COUNT is None:
-            return 2
+            return 1
         elif self.joint_type.MAX_ELEMENT_COUNT == self.joint_type.MIN_ELEMENT_COUNT:
-            return self.joint_type.MAX_ELEMENT_COUNT + 1
+            return self.joint_type.MAX_ELEMENT_COUNT
         else:
             raise Error("I don't know how to handle this joint type")
 
     @property
     def arg_names(self):
-        return inspect.getargspec(self.joint_type.__init__)[0][self.arg_start_index :] + ["max_distance"]
+        return get_gh_arg_names(self.joint_type, DirectRule)[self.arg_start_index :]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

@@ -1,7 +1,5 @@
 """Generates a direct joint between two elements. This overrides other joint rules."""
 
-import inspect
-
 import Grasshopper  # type: ignore
 from compas_timber.connections import PlateJoint
 
@@ -10,6 +8,8 @@ from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
+from timber_design.ghpython.joint_arg_mapping import build_joint_kwargs
+from timber_design.ghpython.joint_arg_mapping import get_gh_arg_names
 from timber_design.workflow import DirectRule
 
 
@@ -43,12 +43,13 @@ class DirectJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         for i, val in enumerate(args[2:]):
             if val is not None:
                 kwargs[self.arg_names()[i + 2]] = val
+        kwargs = build_joint_kwargs(self.joint_type, kwargs, main_beam=beam_a, cross_beam=beam_b)
 
         Rules = DirectRule(self.joint_type, [beam_a, beam_b], **kwargs)
         return Rules
 
     def arg_names(self):
-        return inspect.getargspec(self.joint_type.__init__)[0][1:] + ["max_distance"]
+        return get_gh_arg_names(self.joint_type, DirectRule)
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

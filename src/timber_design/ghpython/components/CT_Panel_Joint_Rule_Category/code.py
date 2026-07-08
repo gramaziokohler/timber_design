@@ -1,6 +1,3 @@
-# r: timber_design>=0.1.0
-"""Defines which Joint type will be applied in the Automatic Joints component for connecting Panels with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
-
 # flake8: noqa
 import inspect
 from collections import OrderedDict
@@ -8,9 +5,9 @@ from collections import OrderedDict
 import Grasshopper
 from System.Windows.Forms import ToolStripSeparator
 
+import compas_timber.connections as _ct_connections
 from compas_timber.connections import PanelJoint
 from timber_design.workflow import CategoryRule
-from timber_design.ghpython import get_leaf_subclasses
 from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
@@ -23,8 +20,10 @@ class CategoryPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         super(CategoryPanelJointRule, self).__init__()
 
         self.classes = {}
-        for cls in get_leaf_subclasses(PanelJoint):
-            self.classes[cls.__name__] = cls
+        for name in dir(_ct_connections):
+            cls = getattr(_ct_connections, name)
+            if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0:
+                self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)
 
@@ -45,7 +44,7 @@ class CategoryPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             return CategoryRule(self.joint_type, cat_a, cat_b)
 
     def arg_names(self):
-        names = inspect.getfullargspec(self.joint_type.__init__).args[1:3]
+        names = inspect.getfullargspec(self.joint_type.__init__)[0][1:3]
         for i in range(2):
             names[i] += "_category"
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]

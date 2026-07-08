@@ -1,0 +1,60 @@
+{
+    "name": "Panel From Outline",
+    "nickname": "PanelFromOutline",
+    "category": "COMPAS Timber",
+    "subcategory": "03 Panels",
+    "description": "Creates a Panel from a polyline outline and thickness.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "outline",
+                "description": "Polyline outline of the panel (top face).",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "thickness",
+                "description": "Thickness of the panel.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "vector",
+                "description": "(optional) Direction vector for the thickness. If not provided, derived from the outline normal.",
+                "typeHintID": "vector",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "openings",
+                "description": "List of polyline openings in the panel.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "category",
+                "description": "Category of the panel.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "updateRefObj",
+                "description": "(optional) If True, attributes in the referenced object will be updated.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Panel",
+                "description": "Panel object."
+            },
+            {
+                "name": "Geometry",
+                "description": "Shape of the panel."
+            }
+        ]
+    }
+}

@@ -1,13 +1,12 @@
-# r: timber_design>=0.1.0
 # flake8: noqa
 import inspect
 
 import Grasshopper
 
-
 from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import TButtJoint
+from compas_timber.fabrication.btlx import StepShapeType
 from timber_design.workflow import TopologyRule
 from timber_design.ghpython.ghcomponent_helpers import get_createable_joints
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
@@ -34,11 +33,14 @@ class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         kwargs = {}
         for i, val in enumerate(args):
             if val is not None:
-                kwargs[self.arg_names()[i]] = val
+                name = self.arg_names()[i]
+                if name == "step_shape":
+                    val = getattr(StepShapeType, str(val), val)
+                kwargs[name] = val
         return TopologyRule(JointTopology.TOPO_T, self.joint_type, **kwargs)
 
     def arg_names(self):
-        names = inspect.getfullargspec(self.joint_type.__init__).args[3:]
+        names = inspect.getfullargspec(self.joint_type.__init__)[0][3:]
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]
 
     def AppendAdditionalMenuItems(self, menu):

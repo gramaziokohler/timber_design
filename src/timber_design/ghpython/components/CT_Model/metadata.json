@@ -1,8 +1,8 @@
 {
     "name": "Model",
     "nickname": "Model",
-    "category": "Timber Design",
-    "subcategory": "07 Model",
+    "category": "COMPAS Timber",
+    "subcategory": "08 Model",
     "description": "Creates an Model",
     "exposure": 2,
     "ghpython": {
@@ -11,7 +11,7 @@
         "inputParameters": [
             {
                 "name": "Elements",
-                "description": "Collection of Beams",
+                "description": "Collection of Beams, Plates, and Panels.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1,
                 "flatten": true

@@ -1,26 +1,31 @@
-# r: timber_design>=0.1.0
 # flake8: noqa
-import inspect
 from System.Windows.Forms import ToolStripSeparator
 
 import Grasshopper
+import compas_timber.connections as _ct_connections
 
 from compas_timber.connections import PanelJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import PanelMiterJoint
 from timber_design.workflow import TopologyRule
-from timber_design.ghpython.ghcomponent_helpers import get_leaf_subclasses
 from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_params
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
+
+
+def _get_panel_joint_classes(topology):
+    """Return PanelJoint subclasses with given topology."""
+    result = {}
+    for name in dir(_ct_connections):
+        cls = getattr(_ct_connections, name)
+        if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology:
+            result[cls.__name__] = cls
+    return result
 
 
 class EdgeEdgeTopologyPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(EdgeEdgeTopologyPanelJointRule, self).__init__()
-        self.classes = {}
-        for cls in get_leaf_subclasses(PanelJoint):
-            if cls.SUPPORTED_TOPOLOGY == JointTopology.TOPO_EDGE_EDGE:
-                self.classes[cls.__name__] = cls
+        self.classes = _get_panel_joint_classes(JointTopology.TOPO_EDGE_EDGE)
         self.joint_type = self.classes.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(self, *args):

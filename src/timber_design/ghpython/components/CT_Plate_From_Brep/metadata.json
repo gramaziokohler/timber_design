@@ -1,7 +1,7 @@
 {
     "name": "Plate From Brep",
     "nickname": "PlateFromBrep",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "01 Timber elements",
     "description": "Creates a Plate from a Brep.",
     "exposure": 4,

@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 import Grasshopper
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint

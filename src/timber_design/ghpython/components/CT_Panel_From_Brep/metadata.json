@@ -1,9 +1,9 @@
 {
     "name": "Panel From Brep",
     "nickname": "PanelFromBrep",
-    "category": "Timber Design",
-    "subcategory": "01 Timber elements",
-    "description": "Creates a Panel from a Brep.",
+    "category": "COMPAS Timber",
+    "subcategory": "03 Panels",
+    "description": "Creates a Panel from a Brep. Automatically detects the two parallel faces as top and bottom.",
     "exposure": 4,
     "ghpython": {
         "isAdvancedMode": true,
@@ -11,20 +11,8 @@
         "inputParameters": [
             {
                 "name": "brep",
-                "description": "Brep geometry of the panel.",
+                "description": "Referenced brep in the active Rhino document.",
                 "typeHintID": "ghdoc",
-                "scriptParamAccess": 0
-            },
-            {
-                "name": "layers",
-                "description": "(Optional) Layer definitions from CT_Panel_Layer_Definition.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "identify_doors",
-                "description": "If True, openings that reach the bottom edge of the panel are classified as doors.",
-                "typeHintID": "bool",
                 "scriptParamAccess": 0
             },
             {
@@ -35,7 +23,7 @@
             },
             {
                 "name": "updateRefObj",
-                "description": "(optional) If True, the attributes in the referenced object will be updated/overwritten with the new values given here.",
+                "description": "(optional) If True, attributes in the referenced object will be updated.",
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             }
@@ -43,7 +31,7 @@
         "outputParameters": [
             {
                 "name": "Panel",
-                "description": "Panel object(s)."
+                "description": "Panel object."
             },
             {
                 "name": "Geometry",

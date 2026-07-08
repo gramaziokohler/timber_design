@@ -1,9 +1,9 @@
 {
     "name": "Panel From Top and Bottom",
     "nickname": "PanelFromTopBottom",
-    "category": "Timber Design",
-    "subcategory": "01 Timber elements",
-    "description": "Creates a Panel from two Polylines.",
+    "category": "COMPAS Timber",
+    "subcategory": "03 Panels",
+    "description": "Creates a Panel from two polyline outlines.",
     "exposure": 4,
     "ghpython": {
         "isAdvancedMode": true,
@@ -11,33 +11,21 @@
         "inputParameters": [
             {
                 "name": "top",
-                "description": "Top outline of panel. Referenced polyline, Guid of polyline in the active Rhino document.",
+                "description": "Top outline of the panel.",
                 "typeHintID": "ghdoc",
                 "scriptParamAccess": 0
             },
             {
                 "name": "bottom",
-                "description": "Bottom outline of panel. Referenced polyline, Guid of polyline in the active Rhino document.",
+                "description": "Bottom outline of the panel.",
                 "typeHintID": "ghdoc",
                 "scriptParamAccess": 0
             },
             {
                 "name": "openings",
-                "description": "List of openings in the panel.",
+                "description": "List of polyline openings (windows) in the panel.",
                 "typeHintID": "ghdoc",
                 "scriptParamAccess": 1
-            },
-            {
-                "name": "layers",
-                "description": "(Optional) Layer definitions from CT_Panel_Layer_Definition.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "identify_doors",
-                "description": "If True, openings that reach the bottom edge of the panel are classified as doors.",
-                "typeHintID": "bool",
-                "scriptParamAccess": 0
             },
             {
                 "name": "category",
@@ -47,7 +35,7 @@
             },
             {
                 "name": "updateRefObj",
-                "description": "(optional) If True, the attributes in the referenced object will be updated/overwritten with the new values given here.",
+                "description": "(optional) If True, attributes in the referenced object will be updated.",
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             }
@@ -55,7 +43,7 @@
         "outputParameters": [
             {
                 "name": "Panel",
-                "description": "Panel object(s)."
+                "description": "Panel object."
             },
             {
                 "name": "Geometry",

@@ -1,7 +1,7 @@
 {
     "name": "Category Plate Joints Rules ",
     "nickname": "PlateJointsByCategory",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "05 Plate Joint Rules",
     "description": "Defines which Plate Joint type will be applied for connecting Plates with the given Category attributes. This overrides Topological Plate Joint rules and is overriden by Direct Plate Joint rules",
     "exposure": 4,

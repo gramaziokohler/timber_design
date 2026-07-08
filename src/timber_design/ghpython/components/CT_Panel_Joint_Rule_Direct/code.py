@@ -1,13 +1,11 @@
-# r: timber_design>=0.1.0
-"""Generates a direct joint between two panels. This overrides other joint rules."""
-
+# flake8: noqa
 import inspect
 
-import Grasshopper  # type: ignore
+import Grasshopper
+import compas_timber.connections as _ct_connections
 from compas_timber.connections import PanelJoint
 from System.Windows.Forms import ToolStripSeparator
 
-from timber_design.ghpython import get_leaf_subclasses
 from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
@@ -19,15 +17,22 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(DirectPanelJointRule, self).__init__()
         self.classes = {}
-        for cls in get_leaf_subclasses(PanelJoint):
-            if cls.MAX_ELEMENT_COUNT == 2:
+        for name in dir(_ct_connections):
+            cls = getattr(_ct_connections, name)
+            if (
+                isinstance(cls, type)
+                and issubclass(cls, PanelJoint)
+                and cls is not PanelJoint
+                and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
+                and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2
+            ):
                 self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)
 
     @property
     def component(self):
-        return ghenv.Component  # type: ignore  # noqa: F821
+        return ghenv.Component  # type: ignore
 
     def RunScript(self, *args):
         if not self.joint_type:
@@ -50,7 +55,7 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         return DirectRule(self.joint_type, [panel_a, panel_b], **kwargs)
 
     def arg_names(self):
-        return inspect.getfullargspec(self.joint_type.__init__).args[1:3] + ["max_distance"]
+        return inspect.getfullargspec(self.joint_type.__init__)[0][1:3] + ["max_distance"]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

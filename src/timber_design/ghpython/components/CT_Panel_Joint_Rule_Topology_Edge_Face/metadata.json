@@ -1,9 +1,9 @@
 {
     "name": "Edge-to-Face Topological Panel Joint Rules",
-    "nickname": "PanelEdgeFaceTopo",
-    "category": "Timber Design",
+    "nickname": "EdgeFacePanelTopo",
+    "category": "COMPAS Timber",
     "subcategory": "06 Panel Joint Rules",
-    "description": "Makes a rule to apply a joint type to edge-face topology. Defaults to PanelTButtJoint.",
+    "description": "Makes rule to apply joint type to edge-face topology. Defaults to PanelTButtJoint.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,

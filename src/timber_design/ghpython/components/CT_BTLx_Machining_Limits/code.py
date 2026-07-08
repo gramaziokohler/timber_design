@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 # flake8: noqa
 
 """Creates a BTLx MachiningLimits object from boolean inputs for each face limit."""

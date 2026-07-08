@@ -1,5 +1,7 @@
-# r: timber_design>=0.1.0
-"""Creates a TimberModel from elements and joint rules."""
+# flake8: noqa
+"""Creates an Model"""
+
+import sys
 
 import Grasshopper
 import Rhino
@@ -7,40 +9,47 @@ import System
 from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
-
 from compas_timber.elements import Beam
-from compas_timber.elements import Panel
-from compas_timber.elements import Layer
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
-from compas_timber.connections import PanelJoint
 
 from timber_design.ghpython import error
 from timber_design.ghpython import warning
 from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRuleSolver
 
+# workaround for https://github.com/gramaziokohler/compas_timber/issues/280
 TOL.absolute = 1e-6
 
 
-class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
+class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     @property
     def component(self):
         return ghenv.Component  # type: ignore
 
-    def RunScript(self,
-            Elements: list[object],
-            JointRules: list[object],
-            Features: list[object],
-            MaxDistance,
-            CreateGeometry):
+    def RunScript(
+        self,
+        Elements: System.Collections.Generic.List[object],
+        JointRules: System.Collections.Generic.List[object],
+        Features: System.Collections.Generic.List[object],
+        MaxDistance: float,
+        CreateGeometry: bool,
+    ):
+        Elements = Elements or []
+        JointRules = JointRules or []
+        Features = Features or []
+
+        # CPython GH doesn't auto-unwrap custom Python objects from GH_Goo wrappers
+        JointRules = [getattr(j, "Value", j) for j in JointRules]
+        Features = [getattr(f, "Value", f) for f in Features]
 
         if not Elements:
             warning(self.component, "Input parameter Elements failed to collect data")
-            return
         if not JointRules:
             warning(self.component, "Input parameter JointRules failed to collect data")
+        if not Elements:
+            return
         if MaxDistance is None:
             MaxDistance = TOL.ABSOLUTE
 
@@ -49,10 +58,28 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
         debug_info = DebugInfomation()
 
         self.add_elements_to_model(Model, Elements)
-        self.join_elements(Model, JointRules, debug_info, MaxDistance)
-        self.handle_features(Features, debug_info)
+        if hasattr(Model, "connect_adjacent_panels"):
+            Model.connect_adjacent_panels(max_distance=MaxDistance)
 
-        Geometry = self.get_geometry(Model, CreateGeometry, debug_info)
+        JointRules = [j for j in JointRules if j is not None]
+        if JointRules:
+            solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
+            joint_errors, _ = solver.apply_rules_to_model(Model)
+            for je in joint_errors:
+                debug_info.add_joint_error(je)
+
+        bje = Model.process_joinery()
+        if bje:
+            debug_info.add_joint_error(bje)
+
+        if Features:
+            feature_errors = self.handle_features(Features)
+            debug_info.add_feature_error(feature_errors)
+
+        Geometry, errors = self.handle_geometry(Model, CreateGeometry)
+        for geo_error in errors:
+            debug_info.add_feature_error(geo_error)
+
         if debug_info.has_errors:
             warning(self.component, "Error found during joint creation. See DebugInfo output for details.")
 
@@ -71,62 +98,47 @@ class Script_Instance(Grasshopper.Kernel.GH_ScriptInstance):
     def add_elements_to_model(self, model, elements):
         elements = [e for e in elements if e is not None]
         for element in elements:
-            element.reset_joinery()
+            saved_features = list(getattr(element, "_features", []))
+            element.reset()
+            if saved_features and hasattr(element, "_features"):
+                element._features.extend(saved_features)
             model.add_element(element)
-            if isinstance(element, Panel):
-                element.merge_layer_structure(model)
 
-    def _register_panel_layers(self, model, panel):
-        """Add panel layers to model tree so populate_elements can extract them."""
-        def _add_layer(layer, parent):
-            model.add_element(layer, parent=parent)
-            for sublayer in layer.sublayers:
-                _add_layer(sublayer, layer)
-        for root_layer in panel.layers:
-            _add_layer(root_layer, panel)
-
-    def join_elements(self, Model, JointRules, debug_info, MaxDistance=None):
-        if not JointRules:
-            return
-        solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
-        Model.connect_adjacent_beams(max_distance=solver.max_distance)
-        Model.connect_adjacent_plates(max_distance=solver.max_distance)
-        Model.connect_adjacent_panels(max_distance=solver.max_distance)
-        joint_errors, _ = solver.apply_rules_to_model(Model)
-        for je in joint_errors:
-            debug_info.add_joint_error(je)
-        bje = Model.process_joinery()
-        if bje:
-            debug_info.add_joint_error(bje)
-
-    def handle_features(self, features, debug_info):
-        if not features:
-            return
+    def handle_features(self, features):
+        feature_errors = []
         features = [f for f in features if f is not None]
         for f_def in features:
             if not f_def.elements:
-                warning(self.component, "Features without elements will be ignored")
+                warning(self.component, "Features defined in model must have elements defined. Features without elements will be ignored")
                 continue
             for element in f_def.elements:
                 try:
                     element.add_features(f_def.feature_from_element(element))
                 except FeatureApplicationError as ex:
-                    debug_info.add_feature_error(ex)
+                    feature_errors.append(ex)
+        return feature_errors
 
-    def get_geometry(self, Model, CreateGeometry, debug_info):
+    def handle_geometry(self, Model, CreateGeometry):
         scene = Scene()
+        errors = []
         for element in Model.elements():
-            if element.children:
-                continue
             if CreateGeometry:
-                scene.add(element.geometry)
+                if isinstance(element, Plate):
+                    # TimberElement._geometry is not cleared by reset_computed, so element.geometry
+                    # returns stale pre-joint geometry for Plates. Force fresh computation so
+                    # extension planes set by add_extensions() are reflected in the output.
+                    # TODO: this is probably a bug that needs to be fixed in compas_timber, but for now we can work around it here.
+                    geo = element.compute_modelgeometry()
+                else:
+                    geo = element.geometry
+                scene.add(geo)
                 if getattr(element, "debug_info", False):
-                    debug_info.add_feature_error(element.debug_info)
+                    errors.append(element.debug_info)
             else:
                 if isinstance(element, Beam):
                     scene.add(element.blank)
                 elif isinstance(element, Plate):
-                    scene.add(element.shape)
+                    scene.add(element.blank)
                 else:
                     scene.add(element.geometry)
-        return scene.draw()
+        return scene.draw(), errors

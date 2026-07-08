@@ -190,7 +190,7 @@ class PanelPopulator:
             pair = {rule.category_a, rule.category_b}
             for agent in self.agents:
                 categories = set(agent.BEAM_CATEGORY_NAMES)
-                if not (pair and categories):
+                if not (pair & categories):
                     continue
                 if pair <= categories:
                     # Both categories owned by this agent → internal override.
@@ -455,7 +455,7 @@ class PanelPopulator:
                 # placed ahead of the (merged) base rule lists.
                 overrides = agent_a.external_overrides + agent_b.external_overrides
                 jrs = JointRuleSolver(overrides + agent_a.external_rules + agent_b.external_rules)
-                jrs.joints_from_rules_and_clusters(self.model, clusters=clusters)
+                jrs._joints_from_rules_and_clusters(self.model, jrs.rules, clusters)
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""

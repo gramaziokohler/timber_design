@@ -18,7 +18,6 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
             return Model, None
         debug_info = DebugInfomation()
         model = json_loads(json_dumps(Model)) #copy model
-        model.process_joinery()
         for panel in model.panels:
             panel.apply_edge_extensions()
 
@@ -27,9 +26,9 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
                 continue
 
             pop.update_panel_from_model(model)
-
             pop.populate_elements()
             pop.join_elements()
+            pop.model.process_joinery()
             pop.merge_with_model(model)
-        model.process_joinery()
+        
         return model, debug_info

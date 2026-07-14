@@ -7,7 +7,7 @@ Two helpers define the test patterns:
 
 * ``simulate_solve(panel, **kwargs)`` — matches the exact sequence CT_Model
   performs each Grasshopper solve: ``panel.reset()``, fresh ``TimberModel``,
-  ``model.add_element(panel)``, then full pipeline.  Running this several
+  ``add_panel(model, panel)``, then full pipeline.  Running this several
   times on the same panel object is the standard GH re-solve pattern and is
   the main scenario under test in ``TestMultiSolve``.
 
@@ -20,13 +20,14 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Translation
 from compas.geometry import Vector
+from compas_timber.elements import LayerDef
+from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
-from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
-from timber_design.populators.beam2d import Beam2D
+from timber_design.connections_2d.beam2d import Beam2D
 
 try:
     from compas_timber.panel_features.opening import Opening
@@ -50,20 +51,41 @@ T = 160.0
 def make_outline(xmin, ymin, xmax, ymax, z=0.0):
     return Polyline([
         Point(xmin, ymin, z),
-        Point(xmin, ymax, z),
-        Point(xmax, ymax, z),
         Point(xmax, ymin, z),
+        Point(xmax, ymax, z),
+        Point(xmin, ymax, z),
         Point(xmin, ymin, z),
     ])
 
 
-def make_panel(width=W, height=H, thickness=T):
-    return Panel.from_outline_thickness(make_outline(0, 0, width, height), thickness)
+def make_panel(width=W, height=H, thickness=T, sheeting_inside=0.0, sheeting_outside=0.0):
+    """Build a Panel; attach an exterior/core/interior layer_structure when sheeting is requested."""
+    panel = Panel.from_outline_thickness(make_outline(0, 0, width, height), thickness)
+    if sheeting_inside or sheeting_outside:
+        layer_defs = []
+        if sheeting_outside:
+            layer_defs.append(LayerDef(name="exterior", thickness=sheeting_outside))
+        layer_defs.append(LayerDef(name="core"))
+        if sheeting_inside:
+            layer_defs.append(LayerDef(name="interior", thickness=sheeting_inside))
+        panel.layer_structure = LayerStructure(layer_defs=layer_defs)
+    return panel
 
 
 # =============================================================================
 # Workflow helpers
 # =============================================================================
+
+
+def add_panel(model, panel):
+    """Add *panel* to *model* together with its layer_structure's Layer children.
+
+    ``model.add_element(panel)`` alone does not bring the panel's layers into
+    the model tree, so ``panel.core_layer`` / ``exterior_layer`` /
+    ``interior_layer`` resolve to ``None`` until ``merge_layer_structure`` runs.
+    """
+    model.add_element(panel)
+    panel.merge_layer_structure(model)
 
 
 def run_workflow(panel, **stud_kwargs):
@@ -73,7 +95,7 @@ def run_workflow(panel, **stud_kwargs):
     the exact GH re-solve sequence.
     """
     model = TimberModel()
-    model.add_element(panel)
+    add_panel(model, panel)
     pop = stud_panel(panel, **stud_kwargs)
     pop.populate_elements()
     pop.join_elements()
@@ -88,8 +110,8 @@ def simulate_solve(panel, config_fn=stud_panel, **kwargs):
     Sequence mirrors CT_Model.RunScript exactly:
         1. Fresh TimberModel
         2. panel.reset()
-        3. model.add_element(panel)
-        4. create populator (calls define_core_layer internally)
+        3. add_panel(model, panel)
+        4. create populator from the panel's existing layer_structure
         5. populate_elements / join_elements / process_joinery / merge_with_model
 
     Run this on the same panel object multiple times to reproduce the
@@ -97,7 +119,7 @@ def simulate_solve(panel, config_fn=stud_panel, **kwargs):
     """
     model = TimberModel()
     panel.reset()
-    model.add_element(panel)
+    add_panel(model, panel)
     pop = config_fn(panel, **kwargs)
     pop.populate_elements()
     pop.join_elements()
@@ -134,9 +156,9 @@ def framing_count(model):
 class TestMultiSolve:
     """Simulate multiple Grasshopper solves on the same Panel object.
 
-    GH caches element objects between solves.  Each solve calls define_core_layer
-    again, which must reuse existing Layer objects (not create new ones) so that
-    agent layer references stay valid.
+    GH caches element objects between solves.  Each solve must reuse the
+    panel's existing ``core_layer`` / ``exterior_layer`` / ``interior_layer``
+    objects (not create new ones) so that agent layer references stay valid.
     """
 
     KWARGS = dict(standard_beam_width=60.0, stud_spacing=625.0)
@@ -147,7 +169,7 @@ class TestMultiSolve:
             simulate_solve(panel, **self.KWARGS)
 
     def test_core_layer_object_preserved_on_second_solve(self):
-        """define_core_layer must reuse the same Layer object when dimensions match."""
+        """The panel's core_layer object must be reused across solves."""
         panel = make_panel()
         simulate_solve(panel, **self.KWARGS)
         layer_after_first = panel.core_layer
@@ -175,17 +197,9 @@ class TestMultiSolve:
 
     def test_multi_solve_with_sheeting(self):
         """Sheathing layers (exterior/interior) must also survive re-solve."""
-        panel = make_panel()
+        panel = make_panel(sheeting_inside=15.0, sheeting_outside=22.0)
         for _ in range(3):
-            simulate_solve(panel, standard_beam_width=60.0,
-                           sheeting_inside=15.0, sheeting_outside=22.0)
-
-    def test_recess_panel_multi_solve(self):
-        panel = make_panel()
-        for _ in range(3):
-            simulate_solve(panel, config_fn=recess_panel,
-                           standard_beam_width=60.0, recess_beam_width=40.0,
-                           recess_beam_height=80.0)
+            simulate_solve(panel, standard_beam_width=60.0)
 
 
 # =============================================================================
@@ -259,23 +273,23 @@ class TestEdgeOnlyWall:
 
 class TestSheathing:
     def test_inside_plate_created(self):
-        _, model = run_workflow(make_panel(), standard_beam_width=60.0, sheeting_inside=15.0)
+        _, model = run_workflow(make_panel(sheeting_inside=15.0), standard_beam_width=60.0)
         assert any(isinstance(e, Plate) for e in model.elements())
 
     def test_outside_plate_created(self):
-        _, model = run_workflow(make_panel(), standard_beam_width=60.0, sheeting_outside=22.0)
+        _, model = run_workflow(make_panel(sheeting_outside=22.0), standard_beam_width=60.0)
         assert any(isinstance(e, Plate) for e in model.elements())
 
     def test_both_plates_when_both_specified(self):
-        _, model = run_workflow(make_panel(), standard_beam_width=60.0,
-                                sheeting_inside=15.0, sheeting_outside=22.0)
+        _, model = run_workflow(make_panel(sheeting_inside=15.0, sheeting_outside=22.0),
+                                standard_beam_width=60.0)
         plates = [e for e in model.elements() if isinstance(e, Plate)]
         assert len(plates) >= 2
 
     def test_stud_height_equals_frame_thickness(self):
         si, so = 15.0, 22.0
-        _, model = run_workflow(make_panel(), standard_beam_width=60.0,
-                                sheeting_inside=si, sheeting_outside=so)
+        _, model = run_workflow(make_panel(sheeting_inside=si, sheeting_outside=so),
+                                standard_beam_width=60.0)
         frame_t = T - si - so
         for stud in by_category(model, "stud"):
             assert abs(stud.height - frame_t) < 1.0
@@ -298,7 +312,7 @@ class TestRepopulation:
 
         # Double run with clear_panel=True (simulate GH re-solve)
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         for _ in range(2):
             pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
             pop.populate_elements()
@@ -314,7 +328,7 @@ class TestRepopulation:
         ref_count = framing_count(ref)
 
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         for _ in range(3):
             pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
             pop.populate_elements()
@@ -338,7 +352,7 @@ class TestMultiPanelWorkflow:
         for i in range(3):
             p = make_panel()
             p.transform(Translation.from_vector(Vector(0, 0, i * (T + 10.0))))
-            model.add_element(p)
+            add_panel(model, p)
             panels.append(p)
         for p in panels:
             pop = stud_panel(p, standard_beam_width=60.0, stud_spacing=625.0)
@@ -359,36 +373,6 @@ class TestMultiPanelWorkflow:
 
 
 # =============================================================================
-# Recess panel
-# =============================================================================
-
-
-class TestRecessPanel:
-    @pytest.fixture(scope="class")
-    def recess_result(self):
-        panel = make_panel()
-        model = TimberModel()
-        model.add_element(panel)
-        pop = recess_panel(panel, standard_beam_width=60.0,
-                           recess_beam_width=40.0, recess_beam_height=80.0)
-        pop.populate_elements()
-        pop.join_elements()
-        pop.process_joinery()
-        pop.merge_with_model(model)
-        return model
-
-    def test_recess_beams_created(self, recess_result):
-        assert "recess" in categories(recess_result)
-
-    def test_no_intermediate_studs(self, recess_result):
-        assert "stud" not in categories(recess_result)
-
-    def test_recess_beams_positive_width(self, recess_result):
-        for beam in by_category(recess_result, "recess"):
-            assert beam.width > 0
-
-
-# =============================================================================
 # Window / door openings
 # =============================================================================
 
@@ -405,7 +389,7 @@ class TestWindowOpening:
         )
         panel.add_feature(opening)
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         pop = stud_panel(
             panel,
             standard_beam_width=60.0,
@@ -455,14 +439,14 @@ class TestRobustness:
     def test_populate_only_does_not_raise(self):
         panel = make_panel()
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0)
         pop.populate_elements()
 
     def test_internal_model_has_framing_after_populate(self):
         panel = make_panel()
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
         internal_cats = {e.attributes.get("category") for e in pop.model.elements()
@@ -481,7 +465,7 @@ class TestJointCreation:
 
         panel = make_panel()
         model = TimberModel()
-        model.add_element(panel)
+        add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
         pop.join_elements()

@@ -7,8 +7,8 @@ It is built around three layers:
 1. **PanelPopulatorConfig** — holds all configuration data and produces a
    `PanelPopulator` via
    :meth:`~timber_design.populators.PanelPopulatorConfig.create_populator`.
-   The convenience factory functions `stud_panel()` and `recess_panel()` return
-   a ready-made `PanelPopulatorConfig` for the two most common framing systems.
+   The convenience factory function `stud_panel()` returns a ready-made
+   `PanelPopulatorConfig` for the standard stud-framed wall panel.
 2. **LayerAgent** subclasses — each responsible for one logical group of
    elements (edge beams, studs, plates, opening surround, …).
 3. **ConnectionSolver2D** — 2D blank-outline topology solver used for trimming
@@ -70,8 +70,6 @@ populator.merge_with_model(model)
 
 ::: timber_design.populators.populator_configs.stud_panel_config.stud_panel
 
-::: timber_design.populators.populator_configs.recess_panel_config.recess_panel
-
 ---
 
 ## Populator agents
@@ -97,10 +95,6 @@ populator.merge_with_model(model)
 ::: timber_design.populators.populator_agents.plate_populator_agent.PlatePopulatorAgent
 
 ::: timber_design.populators.populator_agents.plate_populator_agent.PlatePopulatorAgentConfig
-
-::: timber_design.populators.populator_agents.recess_populator_agent.RecessPopulatorAgent
-
-::: timber_design.populators.populator_agents.recess_populator_agent.RecessPopulatorAgentConfig
 
 ::: timber_design.populators.populator_agents.opening_populator_agent.OpeningPopulatorAgent
 

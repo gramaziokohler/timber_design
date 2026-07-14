@@ -305,6 +305,11 @@ class PanelPopulator:
             if element.parent is None:
                 continue
             if not isinstance(element, Layer):
+                # Drop any joints left over from a previous populate_elements()
+                # call before removing the element itself, so process_joinery()
+                # never sees a joint whose beam has been detached from the tree.
+                for joint in model.get_joints_for_element(element):
+                    model.remove_joint(joint)
                 model.remove_element(element)
         return model
 

@@ -95,10 +95,10 @@ classDiagram
 ### Populator Config Factories
 
 `PanelPopulatorConfig` is the single concrete config class.  The
-`stud_panel()` and `recess_panel()` **factory functions** (not subclasses)
-build the right `LayerConfig` stack and agent configs for the two most common
-framing systems and return a `PanelPopulatorConfig`.  Custom configs are made
-by instantiating `PanelPopulatorConfig` directly with a `layer_defs` list.
+`stud_panel()` **factory function** (not a subclass) builds the right
+`LayerConfig` stack and agent configs for a standard stud-framed wall panel
+and returns a `PanelPopulatorConfig`.  Custom configs are made by
+instantiating `PanelPopulatorConfig` directly with a `layer_defs` list.
 
 ```mermaid
 classDiagram
@@ -138,25 +138,7 @@ classDiagram
         instance_feature_configs
     }
 
-    class recess_panel {
-        <<factory function>>
-        panel
-        standard_beam_width
-        recess_beam_width
-        recess_beam_height
-        standard_beam_width_increment
-        edge_stud_width
-        top_plate_beam_width
-        bottom_plate_beam_width
-        sheeting_outside
-        sheeting_inside
-        sheeting_recess
-        internal_joint_overrides
-        external_joint_overrides
-    }
-
     stud_panel ..> PanelPopulatorConfig : returns
-    recess_panel ..> PanelPopulatorConfig : returns
     PanelPopulatorConfig ..> LayerConfig : holds (root + sublayers)
     PanelPopulatorConfig ..> LayerAgentConfig : reads via default_feature_configs
 ```
@@ -321,16 +303,6 @@ classDiagram
         +trim_plate(plate)
     }
 
-    class RecessPopulatorAgent {
-        +BOUNDARY_TYPE = INCLUSIVE
-        +BEAM_CATEGORY_NAMES = ["recess", "edge_stud", "top_plate_beam", "bottom_plate_beam"]
-        +recess_beam_height : float
-        +sheeting_recess : float
-        +generate_elements()
-        +trim_plate(plate)
-        +create_joint_defs()
-    }
-
     class AgentBoundaryType {
         +NONE = "none"$
         +INCLUSIVE = "inclusive"$
@@ -342,7 +314,6 @@ classDiagram
     LayerAgent <|-- EdgePopulatorAgent
     LayerAgent <|-- StudPopulatorAgent
     LayerAgent <|-- PlatePopulatorAgent
-    EdgePopulatorAgent <|-- RecessPopulatorAgent
     FeatureAgent <|-- OpeningPopulatorAgent
 
     PopulatorAgent --> AgentBoundaryType : uses
@@ -417,19 +388,11 @@ classDiagram
         +jack_stud_width : float
     }
 
-    class RecessPopulatorAgentConfig {
-        +AGENT_TYPE = RecessPopulatorAgent$
-        +recess_beam_width : float
-        +recess_beam_height : float
-        +sheeting_recess : float
-    }
-
     PopulatorAgentConfig <|-- LayerAgentConfig
     PopulatorAgentConfig <|-- FeatureAgentConfig
     LayerAgentConfig <|-- EdgePopulatorAgentConfig
     LayerAgentConfig <|-- StudPopulatorAgentConfig
     LayerAgentConfig <|-- PlatePopulatorAgentConfig
-    EdgePopulatorAgentConfig <|-- RecessPopulatorAgentConfig
     FeatureAgentConfig <|-- OpeningPopulatorAgentConfig
 ```
 

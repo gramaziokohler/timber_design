@@ -13,6 +13,8 @@ import pytest
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas_timber.elements import Layer
+from compas_timber.elements import LayerDef
+from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 
@@ -48,15 +50,36 @@ STUD_SPACING = 600.0
 def _outline(x0, y0, x1, y1):
     return Polyline([
         Point(x0, y0, 0),
-        Point(x0, y1, 0),
-        Point(x1, y1, 0),
         Point(x1, y0, 0),
+        Point(x1, y1, 0),
+        Point(x0, y1, 0),
         Point(x0, y0, 0),
     ])
 
 
 def make_panel():
-    return Panel.from_outline_thickness(_outline(0, 0, W, H), T)
+    panel = Panel.from_outline_thickness(_outline(0, 0, W, H), T)
+    panel.layer_structure = LayerStructure(layer_defs=[
+        LayerDef(name="exterior", thickness=SO),
+        LayerDef(name="core"),
+        LayerDef(name="interior", thickness=SI),
+    ])
+    return panel
+
+
+# ---------------------------------------------------------------------------
+# Model helpers
+# ---------------------------------------------------------------------------
+
+def add_panel(model, panel):
+    """Add *panel* to *model* together with its layer_structure's Layer children.
+
+    ``model.add_element(panel)`` alone does not bring the panel's layers into
+    the model tree, so ``panel.core_layer`` / ``exterior_layer`` /
+    ``interior_layer`` resolve to ``None`` until ``merge_layer_structure`` runs.
+    """
+    model.add_element(panel)
+    panel.merge_layer_structure(model)
 
 
 # ---------------------------------------------------------------------------
@@ -67,8 +90,9 @@ def set_sublayers(panel):
     """Assign fresh sublayer objects to the exterior layer.
 
     Mirrors a GH CT_Layer component: new Python objects are created every
-    solve, but exterior_layer itself is preserved (reused) thanks to the
-    _keep_or_create fix in define_core_layer.
+    solve, but exterior_layer itself is preserved (reused) since it lives in
+    panel._root_layers, which is never rebuilt unless layer_structure is
+    reassigned.
     """
     if not panel.exterior_layer:
         return
@@ -86,8 +110,6 @@ def _make_pop(panel, with_openings=False):
     kwargs = dict(
         standard_beam_width=STUD_WIDTH,
         stud_spacing=STUD_SPACING,
-        sheeting_outside=SO,
-        sheeting_inside=SI,
     )
     if with_openings:
         kwargs["default_feature_configs"] = {
@@ -97,10 +119,17 @@ def _make_pop(panel, with_openings=False):
 
 
 def simulate_solve(panel, with_openings=False):
-    """One CT_Model solve cycle, returning the merged model."""
+    """One CT_Model solve cycle, returning the merged model.
+
+    Mirrors CT_Model.RunScript.add_elements_to_model: panel.reset() clears
+    every feature (joinery-generated *and* user), so user features (openings)
+    are saved and restored around the reset call.
+    """
     model = TimberModel()
+    saved_features = list(panel._features)
     panel.reset()
-    model.add_element(panel)
+    panel._features.extend(saved_features)
+    add_panel(model, panel)
     pop = _make_pop(panel, with_openings=with_openings)
     set_sublayers(panel)
     pop.populate_elements()
@@ -147,8 +176,8 @@ class TestSublayers:
         panel = make_panel()
         model = TimberModel()
         panel.reset()
-        model.add_element(panel)
-        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH, sheeting_outside=SO)
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
         set_sublayers(panel)
         pop.populate_elements()
 
@@ -161,8 +190,8 @@ class TestSublayers:
         panel = make_panel()
         model = TimberModel()
         panel.reset()
-        model.add_element(panel)
-        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH, sheeting_outside=SO)
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
         set_sublayers(panel)
         pop.populate_elements()
         pop.join_elements()
@@ -200,8 +229,8 @@ class TestSublayers:
 
         model = TimberModel()
         panel.reset()
-        model.add_element(panel)
-        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH, sheeting_outside=SO)
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
         subs_1 = set_sublayers(panel)
         pop.populate_elements()
         pop.join_elements()
@@ -213,8 +242,8 @@ class TestSublayers:
         # Second solve — creates new sublayer objects
         model = TimberModel()
         panel.reset()
-        model.add_element(panel)
-        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH, sheeting_outside=SO)
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
         subs_2 = set_sublayers(panel)
         pop.populate_elements()
         pop.join_elements()
@@ -319,9 +348,16 @@ class TestFullFeaturedMultiSolve:
         )
 
     def test_opening_features_survive_reset(self):
-        """panel.reset() must not remove opening features."""
+        """Opening features survive a CT_Model-style reset cycle (save -> reset -> restore).
+
+        ``panel.reset()`` on its own clears every feature; CT_Model.RunScript
+        preserves user features by saving them first and re-appending them
+        after reset (see ``simulate_solve``).
+        """
         panel = self._make_panel_with_openings()
         n_features_before = len([f for f in panel.features if isinstance(f, Opening)])
+        saved_features = list(panel._features)
         panel.reset()
+        panel._features.extend(saved_features)
         n_features_after = len([f for f in panel.features if isinstance(f, Opening)])
         assert n_features_before == n_features_after == 2

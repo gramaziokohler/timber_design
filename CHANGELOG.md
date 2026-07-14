@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Added a generic panel-populator subsystem (`timber_design.populators`) that fills any `Panel` cross-section with framing beams and plates, driven by an ordered list of agents (`LayerAgent` subclasses for a single cross-section layer, `FeatureAgent` subclasses for panel features such as openings) instead of a fixed wall/slab type.
-* Added `stud_panel()` and `recess_panel()` factory functions (`timber_design.populators.populator_configs`) that build a ready-to-run `PanelPopulator` for the two common framing systems.
+* Added `stud_panel()` factory function (`timber_design.populators.populator_configs`) that builds a ready-to-run `PanelPopulator` for a standard stud-framed wall panel.
 * Added a 2D connection-solving toolkit (`timber_design.connections_2d`: `Beam2D`, `AABB2D`, `ConnectionSolver2D`, `Cluster2DFinder`) used internally by the populator to detect beam-to-beam topology and cluster joint candidates in populator (2D) space.
-* Added GH components for the panel-populator workflow: `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: LayerAgent`, `CT: Feature Agent`, `CT: StudPanel`, `CT: RecessPanel`, `CT: PanelPopulator`, `CT: Populate Model`.
+* Added GH components for the panel-populator workflow: `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: LayerAgent`, `CT: Feature Agent`, `CT: StudPanel`, `CT: PanelPopulator`, `CT: Populate Model`.
 * Added `CT: Composite Joint Rule` GH component for joint rules that match clusters of 3+ elements.
 * Added `CT: Filter Display` GH component to filter/display model elements by layer path or level.
 * `CT: Panel` gained a `layer_structure` input to attach a `LayerStructure` (built via `CT: Panel Layer Definition` / `CT: Subdivide Layer`) to the panel.

@@ -10,9 +10,9 @@ class LayerAgent(PopulatorAgent, ABC):
     """Abstract base class for all panel populator agents.
 
     A ``LayerAgent`` is responsible for one logical group of framing
-    elements within a panel (edge beams, studs, plates, opening surround,
-    recess frame, …).  Subclasses implement :meth:`generate_elements` and
-    optionally override :meth:`extend_elements` and :meth:`cull_beam_segment`.
+    elements within a panel (edge beams, studs, plates, opening surround, …).
+    Subclasses implement :meth:`generate_elements` and optionally override
+    :meth:`extend_elements` and :meth:`cull_beam_segment`.
 
     Every agent holds:
 

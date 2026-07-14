@@ -17,9 +17,8 @@ itself** (in `compas_timber`), not by a separate configuration object.  Call
 
 Each `Layer` *is a* `Panel` (it wraps a sliced ``layer_panel``), so it can be
 joined by `PanelJoint`s and added to the `TimberModel` as a child of the panel.
-The factory functions `stud_panel()` / `recess_panel()` call `define_core_layer`
-for you; for a panel that already carries a layer structure you provide the
-agents directly.
+The `stud_panel()` factory function calls `define_core_layer` for you; for a
+panel that already carries a layer structure you provide the agents directly.
 
 ## The PanelPopulator
 
@@ -97,7 +96,6 @@ from compas_timber.model import TimberModel
 from timber_design.populators import OpeningPopulatorAgent
 from timber_design.populators import PanelPopulator
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
-from timber_design.populators.populator_configs.recess_panel_config import recess_panel
 ```
 
 All lengths are in the model's native units (mm in the examples below).
@@ -317,29 +315,6 @@ config = stud_panel(
     stud_spacing=625,
     standard_beam_width_increment=20,  # round each edge-beam width up to 60, 80, 100, ... mm
 )
-```
-
----
-
-## Recess panel
-
-Use the `recess_panel()` factory for panels where a recessed frame and sheeting
-plate are required instead of studs.
-
-```python
-config = recess_panel(
-    panel=panel,
-    standard_beam_width=60,
-    recess_beam_width=40,      # width of the recess frame member
-    recess_beam_height=80,     # height of the recess frame member
-    sheeting_recess=18,        # thickness of the plate inserted into the recess
-)
-
-populator = config.create_populator()
-populator.populate_elements()
-populator.join_elements()
-populator.process_joinery()
-populator.merge_with_model(model)
 ```
 
 ---

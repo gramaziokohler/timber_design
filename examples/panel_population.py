@@ -23,7 +23,6 @@ from timber_design.populators import LayerConfig
 from timber_design.populators import OpeningPopulatorAgentConfig
 from timber_design.populators import PanelPopulatorConfig
 from timber_design.populators import PlatePopulatorAgentConfig
-from timber_design.populators import RecessPanelPopulatorConfig
 from timber_design.populators import StudPanelPopulatorConfig
 from timber_design.populators import StudPopulatorAgentConfig
 
@@ -221,44 +220,8 @@ def example_custom_layer_stack():
         print(f"  {cat}: {count}")
     return model
 
-
 # ===========================================================================
-# Example 4 — Recess panel
-# ===========================================================================
-
-def example_recess_panel():
-    """Recessed frame with a sheeting plate inset into the recess."""
-    model = TimberModel()
-    panel = make_rectangular_panel(width=3000, height=2700, thickness=120)
-    model.add_element(panel)
-
-    config = RecessPanelPopulatorConfig(
-        standard_beam_width=60,
-        recess_beam_width=40,     # width of the recess frame member
-        recess_beam_height=80,    # height of the recess frame member
-        edge_beam_min_width=60,
-        sheeting_recess=18,       # thickness of the plate in the recess
-        sheeting_inside=12,       # additional interior sheathing
-    )
-
-    populator = config.create_populator_from_panel(panel)
-    populator.populate_elements()
-    populator.join_elements()
-    populator.process_joinery()
-    populator.merge_with_model(model)
-
-    print("\nExample 4 — Recess panel")
-    categories = {}
-    for element in model.elements():
-        cat = element.attributes.get("category", type(element).__name__)
-        categories[cat] = categories.get(cat, 0) + 1
-    for cat, count in sorted(categories.items()):
-        print(f"  {cat}: {count}")
-    return model
-
-
-# ===========================================================================
-# Example 5 — Batch populate all panels in a model
+# Example 4 — Batch populate all panels in a model
 # ===========================================================================
 
 def example_batch_populate():
@@ -287,7 +250,7 @@ def example_batch_populate():
         # clear_panel=True removes any previously generated children before merging
         populator.merge_with_model(model, clear_panel=True)
 
-    print("\nExample 5 — Batch populate")
+    print("\nExample 4 — Batch populate")
     print(f"  Total elements: {sum(1 for _ in model.elements())}")
     return model
 
@@ -300,5 +263,4 @@ if __name__ == "__main__":
     example_basic_stud_wall()
     example_with_openings()
     example_custom_layer_stack()
-    example_recess_panel()
     example_batch_populate()

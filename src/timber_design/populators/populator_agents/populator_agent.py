@@ -42,8 +42,7 @@ class AgentBoundaryType(object):
     INCLUSIVE : str
         The outline defines an *allowed zone*.  Segments whose midpoints fall
         *outside* the outline are discarded.  Used by
-        :class:`~timber_design.populators.EdgePopulatorAgent` and
-        :class:`~timber_design.populators.RecessPopulatorAgent`.
+        :class:`~timber_design.populators.EdgePopulatorAgent`.
     """
 
     EXCLUSIVE = "exclusive"
@@ -55,9 +54,9 @@ class PopulatorAgent(Data, ABC):
     """Abstract base class for all panel populator agents.
 
     A ``LayerAgent`` is responsible for one logical group of framing
-    elements within a panel (edge beams, studs, plates, opening surround,
-    recess frame, …).  Subclasses implement :meth:`generate_elements` and
-    optionally override :meth:`extend_elements` and :meth:`cull_beam_segment`.
+    elements within a panel (edge beams, studs, plates, opening surround, …).
+    Subclasses implement :meth:`generate_elements` and optionally override
+    :meth:`extend_elements` and :meth:`cull_beam_segment`.
 
     Every agent holds:
 

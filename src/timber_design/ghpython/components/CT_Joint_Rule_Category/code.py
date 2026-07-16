@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Defines which Joint type will be applied in the Automatic Joints component for connecting Beams with the given Category attributes. This overrides Topological Joint rules and is overriden by Direct joint rules"""
 
 # flake8: noqa
@@ -62,7 +61,7 @@ class CategoryJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             return CategoryRule(self.joint_type, cat_a, cat_b, topos, **kwargs)
 
     def arg_names(self):
-        names = inspect.getargspec(self.joint_type.__init__)[0][1:]
+        names = inspect.getfullargspec(self.joint_type.__init__)[0][1:]
         for i in range(2):
             names[i] += "_category"
         return [name for name in names if (name != "key") and (name != "frame")] + ["max_distance"]

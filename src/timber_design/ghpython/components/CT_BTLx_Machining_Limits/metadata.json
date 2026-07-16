@@ -1,8 +1,8 @@
 {
     "name": "BTLxMachiningLimits",
     "nickname": "BTLxMachiningLimits",
-    "category": "Timber Design",
-    "subcategory": "06 Features",
+    "category": "COMPAS Timber",
+    "subcategory": "07 Features",
     "description": "Machining limits dictinary for BTLx from Parameters",
     "exposure": 4,
     "ghpython": {

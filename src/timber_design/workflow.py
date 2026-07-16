@@ -75,11 +75,11 @@ class JointRuleSolver(object):
         else:
             topo_rules = {}
         for rule in rules:
-            if isinstance(rule, DirectRule):
+            if hasattr(rule, "elements"):
                 direct_rules.append(rule)
-            if isinstance(rule, CategoryRule):
+            elif hasattr(rule, "category_a"):
                 category_rules.append(rule)
-            if isinstance(rule, TopologyRule):
+            elif hasattr(rule, "topology_type"):
                 topo_rules[rule.topology_type] = TopologyRule(rule.topology_type, rule.joint_type, rule.max_distance, **rule.kwargs)
         return direct_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
 
@@ -642,6 +642,7 @@ def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
         raise ValueError(f"max_cluster_size should not be too high to avoid combinatorial explosion, got {max_cluster_size}")
     model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    model.connect_adjacent_panels(max_distance=max_distance)  # ensure that the model is connected before analyzing
     clusters = get_clusters_from_joint_candidates(model.joint_candidates, max_distance=max_distance)
     return clusters
 

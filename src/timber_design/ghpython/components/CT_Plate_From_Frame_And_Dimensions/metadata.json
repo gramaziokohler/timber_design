@@ -1,0 +1,66 @@
+{
+    "name": "Plate From Frame And Dimensions",
+    "nickname": "PlateFromFrameAndDimensions",
+    "category": "COMPAS Timber",
+    "subcategory": "01 Timber elements",
+    "description": "Creates a Plate from a frame (plane) and dimensions.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "frame",
+                "description": "Plane defining the position and orientation of the plate.",
+                "typeHintID": "plane",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "length",
+                "description": "Length of the plate.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "width",
+                "description": "Width of the plate.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "thickness",
+                "description": "Thickness of the plate.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "openings",
+                "description": "List of openings in the plate.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "category",
+                "description": "Category of the plate.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "updateRefObj",
+                "description": "(optional) If True, the attributes in the referenced object will be updated/overwritten with the new values given here.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Plate",
+                "description": "Plate object(s)."
+            },
+            {
+                "name": "Geometry",
+                "description": "Shape of the plate."
+            }
+        ]
+    }
+}

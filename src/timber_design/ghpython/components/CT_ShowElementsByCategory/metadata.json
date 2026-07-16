@@ -1,8 +1,8 @@
 {
     "name": "ShowElementsByCategory",
     "nickname": "ShowElementsByCategory",
-    "category": "Timber Design",
-    "subcategory": "08 Show",
+    "category": "COMPAS Timber",
+    "subcategory": "09 Show",
     "description": "allows user to visualize elements by categories in timber model.",
     "exposure": 4,
     "ghpython": {

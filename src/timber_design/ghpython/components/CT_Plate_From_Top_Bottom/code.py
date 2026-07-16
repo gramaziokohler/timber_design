@@ -1,8 +1,8 @@
-# r: timber_design>=0.1.0
 """Creates a Plate from a Top and Bottom Outline."""
 
 # flake8: noqa
 import Grasshopper
+import Rhino.Geometry as rg
 import rhinoscriptsyntax as rs
 import System
 from compas.scene import Scene
@@ -11,6 +11,13 @@ from compas_rhino.conversions import polyline_to_compas
 from compas_timber.elements import Plate as CTPlate
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
+
+
+def _curve_to_polyline(curve):
+    if isinstance(curve, rg.PolylineCurve):
+        return curve.ToPolyline()
+    poly_crv = curve.ToPolyline(0, 0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.001, 0.001)
+    return poly_crv.ToPolyline()
 
 
 class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
@@ -24,20 +31,17 @@ class PlateFromTopBottom(Grasshopper.Kernel.GH_ScriptInstance):
 
         t_guid, t_geometry = get_guid_and_geometry(top)
         b_guid, b_geometry = get_guid_and_geometry(bottom)
-        t_rhino_polyline = rs.coercecurve(t_geometry)
-        b_rhino_polyline = rs.coercecurve(b_geometry)
-        top_line = polyline_to_compas(t_rhino_polyline.ToPolyline())
-        bottom_line = polyline_to_compas(b_rhino_polyline.ToPolyline())
+        top_line = polyline_to_compas(_curve_to_polyline(rs.coercecurve(t_geometry)))
+        bottom_line = polyline_to_compas(_curve_to_polyline(rs.coercecurve(b_geometry)))
 
         o = []
         if openings:
             for o_outline in openings:
                 if o_outline:
-                    o_guid, o_geometry = get_guid_and_geometry(o_outline)
-                    o_rhino_polyline = rs.coercecurve(o_geometry)
-                    o.append(polyline_to_compas(o_rhino_polyline.ToPolyline()))
+                    o_rhino_curve = rs.coercecurve(o_outline)
+                    o.append(polyline_to_compas(_curve_to_polyline(o_rhino_curve)))
 
-        plate = CTPlate(top_line, bottom_line, openings=o)
+        plate = CTPlate.from_outlines(top_line, bottom_line, openings=o if o else None)
         plate.attributes["rhino_guid_a"] = str(t_guid) if t_guid else None
         plate.attributes["rhino_guid_b"] = str(b_guid) if b_guid else None
         plate.attributes["category"] = category

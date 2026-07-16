@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Creates a data-tree structure of Beams from edges of a Mesh."""
 
 # flake8: noqa

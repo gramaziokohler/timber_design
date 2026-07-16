@@ -1,4 +1,3 @@
-# r: timber_design>=0.1.0
 """Creates a Beam from a LineCurve."""
 
 # flake8: noqa

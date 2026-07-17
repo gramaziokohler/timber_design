@@ -3,7 +3,7 @@ from compas.geometry import Line, Point
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 from compas_timber.connections import LButtJoint, LMiterJoint, TButtJoint, JointTopology, JointCandidate
-from timber_design.workflow import DirectRule, CategoryRule, TopologyRule, CompositeJointRule, JointRuleSolver
+from timber_design.workflow import DirectRule, CategoryRule, TopologyRule, CompositeRule, JointRuleSolver
 
 edge_beams = [
     Beam.from_centerline(Line(Point(0, 0, 0), Point(1000, 1000, 0)), 100, 100, category = "edge"),
@@ -31,11 +31,11 @@ pairwise_rules = [
 
 
 composite_rules = [
-    CompositeJointRule([
+    CompositeRule([
         CategoryRule(LButtJoint, "edge", "edge", mill_depth=10),
         CategoryRule(LButtJoint, "butt", "edge", mill_depth=10, modify_cross=False),
     ], max_element_count=3),
-    CompositeJointRule([
+    CompositeRule([
         TopologyRule(JointTopology.TOPO_L, LMiterJoint)
     ], min_element_count=4)
 ]

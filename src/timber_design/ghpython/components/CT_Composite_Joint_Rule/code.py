@@ -7,7 +7,7 @@ from compas_timber.connections import JointTopology
 
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
-from timber_design.workflow import CompositeJointRule
+from timber_design.workflow import CompositeRule
 
 topo_dict = {
     "TOPO_Y": JointTopology.TOPO_Y,
@@ -29,6 +29,7 @@ class CompositeJointRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
         rules: System.Collections.Generic.List[object],
         min_count,
         max_count,
+        name,
     ):
         if not self.topo_type:
             self.component.Message = "Select topology type from context menu (right click)"
@@ -36,11 +37,12 @@ class CompositeJointRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
             return None
 
         self.component.Message = JointTopology.get_name(self.topo_type)
-        return CompositeJointRule(
+        return CompositeRule(
             rules=[r for r in rules if r is not None],
             topo=self.topo_type,
             min_element_count=int(min_count) if min_count is not None else None,
             max_element_count=int(max_count) if max_count is not None else None,
+            name=name
         )
 
     def AppendAdditionalMenuItems(self, menu):

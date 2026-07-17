@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Archive name="Root">
   <!--Grasshopper archive-->
   <!--Grasshopper and GH_IO.dll are copyrighted by Robert McNeel & Associates-->
@@ -2168,7 +2168,7 @@
                     <item name="MarshInputs" type_name="gh_bool" type_code="1">false</item>
                     <item name="MarshOutputs" type_name="gh_bool" type_code="1">true</item>
                     <item name="Name" type_name="gh_string" type_code="10">CT: Composite Joint Rule</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">CompositeJointRule</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">CompositeRule</item>
                     <item name="ScriptComponentVersion" type_name="gh_int32" type_code="3">3</item>
                     <item name="Tooltip" type_name="gh_string" type_code="10"></item>
                     <item name="UsingLibraryInputParam" type_name="gh_bool" type_code="1">false</item>
@@ -2403,7 +2403,7 @@
                     <item name="MarshInputs" type_name="gh_bool" type_code="1">false</item>
                     <item name="MarshOutputs" type_name="gh_bool" type_code="1">true</item>
                     <item name="Name" type_name="gh_string" type_code="10">CT: Composite Joint Rule</item>
-                    <item name="NickName" type_name="gh_string" type_code="10">CompositeJointRule</item>
+                    <item name="NickName" type_name="gh_string" type_code="10">CompositeRule</item>
                     <item name="ScriptComponentVersion" type_name="gh_int32" type_code="3">3</item>
                     <item name="Tooltip" type_name="gh_string" type_code="10"></item>
                     <item name="UsingLibraryInputParam" type_name="gh_bool" type_code="1">false</item>
@@ -3159,7 +3159,7 @@
                     <item name="SourceCount" type_name="gh_int32" type_code="3">0</item>
                     <item name="UserText" type_name="gh_string" type_code="10">NOTE: CT_Composite_Joint_Rule requires selecting a topology (TOPO_Y or TOPO_K) from its right-click menu before it will output a rule.
 
-The Python example (composite_rule_examples.py) builds both CompositeJointRule instances with topo=None (no topology restriction, filtered only by element count). That state has no equivalent in this GH component as currently implemented, so both Composite Joint Rule components below are left UNCONFIGURED and will show a runtime warning + output None until a topology is picked manually.</item>
+The Python example (composite_rule_examples.py) builds both CompositeRule instances with topo=None (no topology restriction, filtered only by element count). That state has no equivalent in this GH component as currently implemented, so both Composite Joint Rule components below are left UNCONFIGURED and will show a runtime warning + output None until a topology is picked manually.</item>
                   </items>
                   <chunks count="2">
                     <chunk name="Attributes">

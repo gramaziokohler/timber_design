@@ -1,6 +1,6 @@
 {
     "name": "Composite Joint Rule",
-    "nickname": "CompositeJointRule",
+    "nickname": "CompositeRule",
     "category": "Timber Design",
     "subcategory": "04 Beam Joint Rules",
     "description": "Combines multiple joint rules to handle clusters of 3 or more elements. All pairwise candidates in the cluster must be matched by a sub-rule for the composite to succeed. Overrides pairwise rules at shared nodes.",
@@ -25,6 +25,12 @@
                 "name": "max_count",
                 "description": "Maximum number of beams in the cluster. Leave unconnected for no upper limit.",
                 "typeHintID": "int",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "name",
+                "description": "name of the resulting joint, optional",
+                "typeHintID": "str",
                 "scriptParamAccess": 0
             }
         ],

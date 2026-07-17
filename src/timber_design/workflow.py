@@ -95,13 +95,13 @@ class JointRuleSolver(object):
         else:
             topo_rules = {}
         for rule in rules:
-            if hasattr(rule, "elements"):
+            if isinstance(rule, DirectRule):
                 direct_rules.append(rule)
-            if isinstance(rule, CompositeJointRule):
+            if isinstance(rule, CompositeRule):
                 composite_rules.append(rule)
             if isinstance(rule, CategoryRule):
                 category_rules.append(rule)
-            elif hasattr(rule, "topology_type"):
+            elif isinstance(rule, TopologyRule):
                 topo_rules[rule.topology_type] = TopologyRule(rule.topology_type, rule.joint_type, rule.max_distance, **rule.kwargs)
         return direct_rules + composite_rules + category_rules + [rule for rule in topo_rules.values() if rule is not None]
 
@@ -699,7 +699,7 @@ class TopologyRule(JointRule):
         return joint, error
 
 
-class CompositeJointRule(JointRule):
+class CompositeRule(JointRule):
     """A joint rule that combines multiple sub-rules to handle clusters of 3 or more elements.
 
     The solver splits the cluster into pairwise sub-clusters (one per joint candidate) and
@@ -723,12 +723,13 @@ class CompositeJointRule(JointRule):
         The sub-rules applied to pairwise candidates.
     """
 
-    def __init__(self, rules, topo=None, min_element_count=None, max_element_count=None, max_distance=None):
-        super(CompositeJointRule, self).__init__(CompositeJoint, max_distance=max_distance)
+    def __init__(self, rules, topo=None, min_element_count=None, max_element_count=None, max_distance=None, name=None):
+        super(CompositeRule, self).__init__(CompositeJoint, max_distance=max_distance)
         self.rules = rules
         self.topo = topo
         self.min_element_count = min_element_count
         self.max_element_count = max_element_count
+        self.name = name
 
     @property
     def __data__(self):
@@ -753,7 +754,7 @@ class CompositeJointRule(JointRule):
         return repr(self)
 
     def __repr__(self):
-        return "{}({} rules)".format(CompositeJointRule.__name__, len(self.rules))
+        return "{}({} rules)".format(CompositeRule.__name__, len(self.rules))
 
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a CompositeJoint if all pairwise candidates in the cluster are matched by sub-rules.
@@ -787,6 +788,7 @@ class CompositeJointRule(JointRule):
         sorted_rules = JointRuleSolver._sort_rules(self.rules)
 
         matched_joints = []
+        all_matched = True
         for candidate in cluster.joints:
             sub_cluster = Cluster([candidate])
             matched = False
@@ -800,10 +802,13 @@ class CompositeJointRule(JointRule):
                     matched = True
                     break
             if not matched:
-                return None, None
+                all_matched = False
+
+        if not all_matched:
+            return None, None
 
         try:
-            composite = CompositeJoint.create(model, joints=matched_joints)
+            composite = CompositeJoint.create(model, joints=matched_joints, name=self.name, cluster=cluster)
         except BeamJoiningError as e:
             return None, e
         return composite, None
@@ -894,7 +899,7 @@ def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
     """
     # model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    model.connect_adjacent_panels(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    model.compute_topologies(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # TODO: implement ignore_joints once model.unpromoted_joint_clusters implemented
     candidates = model.joint_candidates
     clusters = get_clusters_from_joint_candidates(candidates, max_distance=max_distance)

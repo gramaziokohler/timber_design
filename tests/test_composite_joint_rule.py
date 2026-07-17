@@ -10,7 +10,7 @@ from compas_timber.connections import CompositeJoint
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 
-from timber_design.workflow import CompositeJointRule
+from timber_design.workflow import CompositeRule
 from timber_design.workflow import DirectRule
 from timber_design.workflow import JointRuleSolver
 from timber_design.workflow import TopologyRule
@@ -44,7 +44,7 @@ def K_beams():
 
 @pytest.fixture
 def L_beams():
-    """Two beams in an L topology — only 2 elements, too few for CompositeJointRule default."""
+    """Two beams in an L topology — only 2 elements, too few for CompositeRule default."""
     w = 0.2
     h = 0.2
     lines = [
@@ -57,7 +57,7 @@ def L_beams():
 def _make_model_with_clusters(beams):
     model = TimberModel()
     model.add_elements(beams)
-    model.connect_adjacent_beams()
+    model.compute_topologies()
     return model
 
 
@@ -67,13 +67,13 @@ def _make_model_with_clusters(beams):
 
 
 def test_composite_joint_rule_repr():
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
-    assert "CompositeJointRule" in repr(rule)
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    assert "CompositeRule" in repr(rule)
     assert "1" in repr(rule)
 
 
 def test_composite_joint_rule_repr_no_rules():
-    rule = CompositeJointRule([])
+    rule = CompositeRule([])
     assert "0" in repr(rule)
 
 
@@ -84,7 +84,7 @@ def test_composite_joint_rule_repr_no_rules():
 
 def test_too_few_elements_returns_none(L_beams):
     """A 2-element cluster is below the default min_element_count=3; rule must pass."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(L_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -97,7 +97,7 @@ def test_too_few_elements_returns_none(L_beams):
 
 def test_min_element_count_override(Y_beams):
     """min_element_count=4 should block a 3-element Y cluster."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], min_element_count=4)
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], min_element_count=4)
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -110,7 +110,7 @@ def test_min_element_count_override(Y_beams):
 
 def test_max_element_count_rejects_large_cluster(Y_beams):
     """A cluster with 3 elements must be rejected when max_element_count=2."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], max_element_count=2)
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], max_element_count=2)
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -128,7 +128,7 @@ def test_max_element_count_rejects_large_cluster(Y_beams):
 
 def test_topo_filter_mismatch_returns_none(Y_beams):
     """When topo is set and the cluster topology doesn't match, the rule must skip."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_T)
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_T)
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -141,7 +141,7 @@ def test_topo_filter_mismatch_returns_none(Y_beams):
 
 def test_topo_filter_match_succeeds(Y_beams):
     """topo=TOPO_Y should match the Y cluster and produce a CompositeJoint."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_Y)
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_Y)
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -159,7 +159,7 @@ def test_topo_filter_match_succeeds(Y_beams):
 
 def test_composite_joint_created_for_y_cluster(Y_beams):
     """All three L-pairs in a Y cluster should be matched and bundled into a CompositeJoint."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -175,7 +175,7 @@ def test_composite_joint_created_for_y_cluster(Y_beams):
 
 def test_composite_joint_registered_in_model(Y_beams):
     """try_create_joint must register the CompositeJoint in the model."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -186,7 +186,7 @@ def test_composite_joint_registered_in_model(Y_beams):
 
 def test_composite_joint_elements_cover_all_beams(Y_beams):
     """The CompositeJoint's elements should include all three beams in the cluster."""
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -203,7 +203,7 @@ def test_composite_joint_elements_cover_all_beams(Y_beams):
 def test_partial_match_returns_none(K_beams):
     """If not all pairwise candidates can be matched, the rule must return (None, None)."""
     # K cluster has both L and T candidates; TopologyRule(TOPO_L) won't match the T pair
-    rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(K_beams)
     from timber_design.workflow import get_clusters_from_model
 
@@ -216,7 +216,7 @@ def test_partial_match_returns_none(K_beams):
 
 def test_all_topos_covered_succeeds(K_beams):
     """When sub-rules cover all pair topologies in a K cluster, the rule must succeed."""
-    rule = CompositeJointRule(
+    rule = CompositeRule(
         [
             TopologyRule(JointTopology.TOPO_L, LButtJoint),
             TopologyRule(JointTopology.TOPO_T, TButtJoint),
@@ -251,7 +251,7 @@ def test_sub_rule_error_propagated(Y_beams):
     # DirectRule targets the first candidate's elements but requests TOPO_T — those beams are TOPO_L,
     # so _comply_topology raises BeamJoiningError when that candidate is processed.
     bad_rule = DirectRule(TButtJoint, first_pair)
-    rule = CompositeJointRule([bad_rule])
+    rule = CompositeRule([bad_rule])
 
     model2 = _make_model_with_clusters(Y_beams)
     clusters2 = get_clusters_from_model(model2)
@@ -261,7 +261,7 @@ def test_sub_rule_error_propagated(Y_beams):
 
 
 # ---------------------------------------------------------------------------
-# sub-rule priority within CompositeJointRule
+# sub-rule priority within CompositeRule
 # ---------------------------------------------------------------------------
 
 
@@ -278,7 +278,7 @@ def test_sub_rule_priority_direct_over_topology(Y_beams):
 
     direct = DirectRule(LMiterJoint, first_pair)
     topo = TopologyRule(JointTopology.TOPO_L, LButtJoint)
-    rule = CompositeJointRule([direct, topo])
+    rule = CompositeRule([direct, topo])
 
     model2 = _make_model_with_clusters(Y_beams)
     clusters2 = get_clusters_from_model(model2)
@@ -297,8 +297,8 @@ def test_sub_rule_priority_direct_over_topology(Y_beams):
 
 
 def test_composite_rule_in_solver_creates_composite_joint(Y_beams):
-    """JointRuleSolver must apply CompositeJointRule before other rules and register the joint."""
-    composite_rule = CompositeJointRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    """JointRuleSolver must apply CompositeRule before other rules and register the joint."""
+    composite_rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     fallback = TopologyRule(JointTopology.TOPO_L, LMiterJoint)
 
     model = TimberModel()
@@ -315,9 +315,9 @@ def test_composite_rule_in_solver_creates_composite_joint(Y_beams):
 
 
 def test_composite_rule_falls_back_to_pairwise(Y_beams):
-    """When CompositeJointRule can't match, individual pairwise rules should handle the cluster."""
-    # CompositeJointRule with no sub-rules — will always fail to match
-    composite_rule = CompositeJointRule([])
+    """When CompositeRule can't match, individual pairwise rules should handle the cluster."""
+    # CompositeRule with no sub-rules — will always fail to match
+    composite_rule = CompositeRule([])
     fallback = TopologyRule(JointTopology.TOPO_L, LMiterJoint)
 
     model = TimberModel()

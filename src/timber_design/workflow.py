@@ -2,7 +2,7 @@ import compas_timber.connections as _ct_connections
 from compas.data import Data
 from compas.tolerance import TOL
 from compas_timber.connections import Cluster
-from compas_timber.connections import CompositeJoint
+from compas_timber.connections import ClusterJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import PlateMiterJoint
@@ -708,7 +708,7 @@ class CompositeRule(JointRule):
     rule returns ``(None, None)`` and the solver falls back to individual pairwise rules.
 
     On success, the matched sub-joint instances are bundled into a single
-    :class:`~timber_design.composite_joint.CompositeJoint` that is registered in the model.
+    :class:`~timber_design.composite_joint.ClusterJoint` that is registered in the model.
 
     Parameters
     ----------
@@ -724,7 +724,7 @@ class CompositeRule(JointRule):
     """
 
     def __init__(self, rules, topo=None, min_element_count=None, max_element_count=None, max_distance=None, name=None):
-        super(CompositeRule, self).__init__(CompositeJoint, max_distance=max_distance)
+        super(CompositeRule, self).__init__(ClusterJoint, max_distance=max_distance)
         self.rules = rules
         self.topo = topo
         self.min_element_count = min_element_count
@@ -757,7 +757,7 @@ class CompositeRule(JointRule):
         return "{}({} rules)".format(CompositeRule.__name__, len(self.rules))
 
     def try_create_joint(self, model, cluster, max_distance=None):
-        """Returns a CompositeJoint if all pairwise candidates in the cluster are matched by sub-rules.
+        """Returns a ClusterJoint if all pairwise candidates in the cluster are matched by sub-rules.
 
         Parameters
         ----------
@@ -770,7 +770,7 @@ class CompositeRule(JointRule):
 
         Returns
         -------
-        :class:`~timber_design.composite_joint.CompositeJoint` or None
+        :class:`~timber_design.composite_joint.ClusterJoint` or None
         :class:`~compas_timber.errors.BeamJoiningError` or None
         """
         n = len(cluster.elements)
@@ -808,7 +808,7 @@ class CompositeRule(JointRule):
             return None, None
 
         try:
-            composite = CompositeJoint.create(model, joints=matched_joints, name=self.name, cluster=cluster)
+            composite = ClusterJoint.create(model, cluster=Cluster(matched_joints), name=self.name)
         except BeamJoiningError as e:
             return None, e
         return composite, None

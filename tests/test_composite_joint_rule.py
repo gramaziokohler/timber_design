@@ -6,7 +6,7 @@ from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.connections import CompositeJoint
+from compas_timber.connections import ClusterJoint
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 
@@ -140,7 +140,7 @@ def test_topo_filter_mismatch_returns_none(Y_beams):
 
 
 def test_topo_filter_match_succeeds(Y_beams):
-    """topo=TOPO_Y should match the Y cluster and produce a CompositeJoint."""
+    """topo=TOPO_Y should match the Y cluster and produce a ClusterJoint."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_Y)
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
@@ -148,7 +148,7 @@ def test_topo_filter_match_succeeds(Y_beams):
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
     joint, error = rule.try_create_joint(model, clusters[0])
-    assert isinstance(joint, CompositeJoint)
+    assert isinstance(joint, ClusterJoint)
     assert error is None
 
 
@@ -158,7 +158,7 @@ def test_topo_filter_match_succeeds(Y_beams):
 
 
 def test_composite_joint_created_for_y_cluster(Y_beams):
-    """All three L-pairs in a Y cluster should be matched and bundled into a CompositeJoint."""
+    """All three L-pairs in a Y cluster should be matched and bundled into a ClusterJoint."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
@@ -167,14 +167,14 @@ def test_composite_joint_created_for_y_cluster(Y_beams):
     assert len(clusters) == 1
 
     joint, error = rule.try_create_joint(model, clusters[0])
-    assert isinstance(joint, CompositeJoint)
+    assert isinstance(joint, ClusterJoint)
     assert error is None
     assert len(joint.joints) == 3
     assert all(isinstance(j, LButtJoint) for j in joint.joints)
 
 
 def test_composite_joint_registered_in_model(Y_beams):
-    """try_create_joint must register the CompositeJoint in the model."""
+    """try_create_joint must register the ClusterJoint in the model."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
@@ -185,7 +185,7 @@ def test_composite_joint_registered_in_model(Y_beams):
 
 
 def test_composite_joint_elements_cover_all_beams(Y_beams):
-    """The CompositeJoint's elements should include all three beams in the cluster."""
+    """The ClusterJoint's elements should include all three beams in the cluster."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
     from timber_design.workflow import get_clusters_from_model
@@ -227,7 +227,7 @@ def test_all_topos_covered_succeeds(K_beams):
 
     clusters = get_clusters_from_model(model)
     joint, error = rule.try_create_joint(model, clusters[0])
-    assert isinstance(joint, CompositeJoint)
+    assert isinstance(joint, ClusterJoint)
     assert error is None
     joint_types = {type(j) for j in joint.joints}
     assert LButtJoint in joint_types
@@ -284,7 +284,7 @@ def test_sub_rule_priority_direct_over_topology(Y_beams):
     clusters2 = get_clusters_from_model(model2)
     joint, error = rule.try_create_joint(model2, clusters2[0])
 
-    assert isinstance(joint, CompositeJoint)
+    assert isinstance(joint, ClusterJoint)
     assert error is None
     joint_types = [type(j) for j in joint.joints]
     assert LMiterJoint in joint_types
@@ -311,7 +311,7 @@ def test_composite_rule_in_solver_creates_composite_joint(Y_beams):
     assert len(errors) == 0
     assert len(unjoined) == 0
     assert len(joints) == 1
-    assert isinstance(joints[0], CompositeJoint)
+    assert isinstance(joints[0], ClusterJoint)
 
 
 def test_composite_rule_falls_back_to_pairwise(Y_beams):

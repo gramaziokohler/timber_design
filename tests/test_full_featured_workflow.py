@@ -13,7 +13,7 @@ import pytest
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas_timber.elements import Layer
-from compas_timber.elements import LayerDef
+from compas_timber.elements import LayerDefinition
 from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
@@ -60,9 +60,9 @@ def _outline(x0, y0, x1, y1):
 def make_panel():
     panel = Panel.from_outline_thickness(_outline(0, 0, W, H), T)
     panel.layer_structure = LayerStructure(layer_defs=[
-        LayerDef(name="exterior", thickness=SO),
-        LayerDef(name="core"),
-        LayerDef(name="interior", thickness=SI),
+        LayerDefinition(name="exterior", thickness=SO),
+        LayerDefinition(name="core"),
+        LayerDefinition(name="interior", thickness=SI),
     ])
     return panel
 
@@ -96,8 +96,8 @@ def set_sublayers(panel):
     """
     if not panel.exterior_layer:
         return
-    board = Layer(panel, 0, 18, name="board_layer")
-    batten = Layer(panel, 18, SO, name="batten_layer")
+    board = Layer.from_parent_start_end(panel, 0, 18, name="board_layer")
+    batten = Layer.from_parent_start_end(panel, 18, SO, name="batten_layer")
     panel.exterior_layer.sublayers = [board, batten]
     return board, batten
 

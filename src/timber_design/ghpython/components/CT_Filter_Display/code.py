@@ -18,40 +18,32 @@ class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
 
     def RunScript(self,
             Model,
-            filter_paths: System.Collections.Generic.List[object],
+            layer_filter: System.Collections.Generic.List[object],
+            group_filter: System.Collections.Generic.List[object],
             display_level: str,
             CreateGeometry: bool):
         if Model is None:
             return None
-        filter_paths = [f for f in filter_paths if f is not None]
+
+        layer_paths = []
+        for l in layer_filter:
+            if isinstance(l, Layer):
+                layer_paths.append(l.layer_path)
+            if isinstance(l, Grasshopper.Kernel.Data.GH_Path):
+                layer_paths.append(tuple([i for i in l.Indices]))
+
+
         Model.process_joinery()
-        return get_geometry(Model, filter_paths, display_level, CreateGeometry)
+
+        elements = get_filtered_elements(Model, group_filter, layer_paths, display_level)
 
 
-def get_geometry(model, filter_paths, display_level, create_geometry):
+        return get_geometry(elements, CreateGeometry)
+
+
+def get_geometry(elements, create_geometry):
     scene = Scene()
-
-    if filter_paths:
-        elements = get_filtered_elements(model, filter_paths)
-    else:
-        elements = list(model.elements())
-
     for element in elements:
-        is_panel = isinstance(element, Panel)
-        is_layer = isinstance(element, Layer)
-        is_timber = isinstance(element, TimberElement)
-        if display_level == "panel":
-            if not is_panel:
-                continue
-        elif display_level == "layer":
-            if not is_layer:
-                continue
-        elif display_level == "timber":
-            if not is_timber:
-                continue
-        else:
-            if element.children:
-                continue
         if create_geometry:
             scene.add(element.modelgeometry)
         else:
@@ -63,33 +55,47 @@ def get_geometry(model, filter_paths, display_level, create_geometry):
     return scene.draw()
 
 
-def get_filtered_elements(model, filter_paths):
-    from compas_model.elements.element import Element
+def get_filtered_elements(model, group_filters, layer_paths, display_level):
     elements = []
-    for fp in filter_paths:
-        if isinstance(fp, Layer):
-            for layer in model.layers:
-                if layer.layer_path == fp.layer_path:
-                    elements.append(layer)
-                    elements.extend(get_all_children(layer))
-        elif isinstance(fp, Element):
-            fp = model.element_by_guid(str(fp.guid))
-            elements.append(fp)
-            elements.extend(get_all_children(fp))
-        elif isinstance(fp, tuple):
-            for layer in model.layers:
-                if layer.layer_path == fp:
-                    elements.append(layer)
-                    elements.extend(get_all_children(layer))
+    if group_filters:
+        for gf in group_filters:
+            elements.extend(get_filtered_element_and_children(gf, layer_paths, display_level))
+    else:
+        elements.extend(e for e in model.elements if is_display_level(e, display_level) and is_on_layer(e, layer_paths))
     return elements
 
 
-def get_all_children(element):
+def get_filtered_element_and_children(element, layer_paths, display_level):
     elements = []
-    def walk(p):
-        for c in p.children:
-            elements.append(c)
+    def walk(e):
+        if is_display_level(e, display_level) and is_on_layer(e, layer_paths):
+            elements.append(e)
+        for c in e.children:
             walk(c)
-
     walk(element)
     return elements
+
+def is_display_level(element, display_level):
+    if display_level == "panel" and isinstance(element, Panel):
+        return True
+    if display_level == "layer" and isinstance(element, Layer):
+        return True
+    if display_level == "timber" and isinstance(element, TimberElement):
+        return True
+    return False
+
+def is_on_layer(element, layer_paths):
+    if not layer_paths:
+        return True
+
+    def walk_up(el):
+        if not el:
+            return False
+        if not isinstance(el, Layer):
+            return walk_up(el.parent)
+        for lp in layer_paths:
+            if len(el.layer_path) >= len(lp) and all(el.layer_path[i] == lp[i] for i in range(len(lp))):
+                return True
+        return False
+
+    return walk_up(element)

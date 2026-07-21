@@ -8,7 +8,7 @@ from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_ou
 
 
 def _collect(layer_def, parent_name=None):
-    """Yield (output_name, path_tuple) for every LayerDef in the tree."""
+    """Yield (output_name, path_tuple) for every LayerDefinition in the tree."""
     out_name = (layer_def.name or str(layer_def.layer_path[-1])) if parent_name is None else "{}_{}".format(parent_name, layer_def.layer_path[-1])
     yield out_name, layer_def.layer_path
     for child in layer_def.sublayer_defs:

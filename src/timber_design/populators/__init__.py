@@ -18,6 +18,8 @@ from .populator_agents.stud_populator_agent import StudPopulatorAgent
 from .populator_agents.plate_populator_agent import PlatePopulatorAgent
 from .populator_agents.edge_populator_agent import EdgePopulatorAgent
 from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
+from .populator_agents.opening_populator_agent import DoorPopulatorAgent
+from .populator_agents.opening_populator_agent import WindowPopulatorAgent
 from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
 
 
@@ -34,6 +36,8 @@ __all__ = [
     "StudPopulatorAgent",
     "PlatePopulatorAgent",
     "OpeningPopulatorAgent",
+    "DoorPopulatorAgent",
+    "WindowPopulatorAgent",
     "PanelBoundaryPopulatorAgent",
     "Beam2DPolylineIntersectionResult",
     "Beam2DSolverResult",

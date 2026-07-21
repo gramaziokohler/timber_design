@@ -5,12 +5,12 @@
 import Grasshopper
 import System
 
-from compas_timber.elements.layer import LayerDef
+from compas_timber.elements.layer import LayerDefinition
 from compas_timber.elements.layer import LayerStructure
 
 
 def _deep_copy_def(d):
-    return LayerDef(
+    return LayerDefinition(
         name=d.name,
         thickness=d.thickness,
         sublayer_defs=[_deep_copy_def(s) for s in d.sublayer_defs],
@@ -22,7 +22,7 @@ def _deep_copy_structure(ls):
 
 
 def _navigate(root_structure, path_indices):
-    """Navigate the LayerDef tree inside *root_structure* and return the target LayerDef."""
+    """Navigate the LayerDefinition tree inside *root_structure* and return the target LayerDefinition."""
     if not path_indices:
         raise IndexError("Path must have at least one index.")
     defs = root_structure.layer_defs
@@ -57,7 +57,7 @@ class SubdivideLayer(Grasshopper.Kernel.GH_ScriptInstance):
         target_def = _navigate(root_copy, path_indices)
 
         target_def.sublayer_defs = [
-            LayerDef(name=names[i] if i < len(names) else None, thickness=t)
+            LayerDefinition(name=names[i] if i < len(names) else None, thickness=t)
             for i, t in enumerate(thicknesses)
         ]
 

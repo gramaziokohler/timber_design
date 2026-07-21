@@ -5,7 +5,7 @@
 import Grasshopper
 from Grasshopper.Kernel import GH_RuntimeMessageLevel as RML
 
-from compas_timber.elements.layer import LayerDef
+from compas_timber.elements.layer import LayerDefinition
 from compas_timber.elements.layer import LayerStructure
 
 
@@ -25,7 +25,7 @@ class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
 
         # If neither face layer is provided → single-layer core panel
         if ext is None and inter is None:
-            return LayerStructure(layer_defs=[LayerDef(name=core_name or "core", thickness=core)])
+            return LayerStructure(layer_defs=[LayerDefinition(name=core_name or "core", thickness=core)])
 
         # All three layers are included; exactly one may be None to absorb remaining thickness.
         nones = sum(1 for t in [ext, core, inter] if t is None)
@@ -37,8 +37,8 @@ class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
             return None
 
         layer_defs = [
-            LayerDef(name=exterior_name or "exterior", thickness=ext),
-            LayerDef(name=core_name or "core", thickness=core),
-            LayerDef(name=interior_name or "interior", thickness=inter),
+            LayerDefinition(name=exterior_name or "exterior", thickness=ext),
+            LayerDefinition(name=core_name or "core", thickness=core),
+            LayerDefinition(name=interior_name or "interior", thickness=inter),
         ]
         return LayerStructure(layer_defs=layer_defs)

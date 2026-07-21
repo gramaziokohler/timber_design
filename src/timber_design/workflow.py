@@ -59,6 +59,11 @@ class JointRuleSolver(object):
         self.clusters = []
         self.joining_errors = []
 
+    @property
+    def max_rule_distance(self):
+        """The largest max_distance across all rules and the solver's own default."""
+        return max([rule.max_distance for rule in self.rules if rule.max_distance] + [self.max_distance])
+
     @staticmethod
     def _sort_rules(rules, use_default_topo=False):
         """Sorts the rules by their priority."""
@@ -100,8 +105,7 @@ class JointRuleSolver(object):
 
         """
         handled_pairs = handled_pairs or []
-        max_rule_distance = max([rule.max_distance for rule in self.rules if rule.max_distance] + [self.max_distance])
-        clusters = get_clusters_from_model(model, max_distance=max_rule_distance)
+        clusters = get_clusters_from_model(model, max_distance=self.max_rule_distance)
         clusters = self._remove_handled_pairs(clusters, handled_pairs)
         unjoined_clusters = self._joints_from_rules_and_clusters(model, self.rules, clusters, max_distance=self.max_distance)
         return self.joining_errors, unjoined_clusters

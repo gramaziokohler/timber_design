@@ -16,7 +16,7 @@ from compas.geometry import Polyline
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Layer
-from compas_timber.elements import LayerDef
+from compas_timber.elements import LayerDefinition
 from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
@@ -62,10 +62,10 @@ def make_panel(width=4000.0, height=2700.0, thickness=160.0, sheeting_inside=0.0
     if sheeting_inside or sheeting_outside:
         layer_defs = []
         if sheeting_outside:
-            layer_defs.append(LayerDef(name="exterior", thickness=sheeting_outside))
-        layer_defs.append(LayerDef(name="core"))
+            layer_defs.append(LayerDefinition(name="exterior", thickness=sheeting_outside))
+        layer_defs.append(LayerDefinition(name="core"))
         if sheeting_inside:
-            layer_defs.append(LayerDef(name="interior", thickness=sheeting_inside))
+            layer_defs.append(LayerDefinition(name="interior", thickness=sheeting_inside))
         panel.layer_structure = LayerStructure(layer_defs=layer_defs)
     return panel
 

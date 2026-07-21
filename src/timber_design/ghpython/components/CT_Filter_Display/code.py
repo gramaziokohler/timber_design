@@ -21,47 +21,59 @@ class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
             layer_filter: System.Collections.Generic.List[object],
             group_filter: System.Collections.Generic.List[object],
             display_level: str,
+            group_space: bool,
             CreateGeometry: bool):
         if Model is None:
             return None
 
         layer_paths = []
+        layer_filter = layer_filter or []
         for l in layer_filter:
             if isinstance(l, Layer):
                 layer_paths.append(l.layer_path)
             if isinstance(l, Grasshopper.Kernel.Data.GH_Path):
                 layer_paths.append(tuple([i for i in l.Indices]))
-
+            if isinstance(l, str):
+                print(l)
+                lps = set()
+                for layer in Model.layers:
+                    print(layer.name)
+                    if layer.name == l:
+                        lps.add(layer.layer_path)
+                layer_paths.extend(list(lps))
 
         Model.process_joinery()
 
-        elements = get_filtered_elements(Model, group_filter, layer_paths, display_level)
+        geometry = get_filtered_geometry(Model, group_filter, layer_paths, display_level, group_space, create_geometry=CreateGeometry)
+
+        return convert_geometry(geometry)
 
 
-        return get_geometry(elements, CreateGeometry)
-
-
-def get_geometry(elements, create_geometry):
+def convert_geometry(geometries):
     scene = Scene()
-    for element in elements:
-        if create_geometry:
-            scene.add(element.modelgeometry)
-        else:
-            if isinstance(element, Beam):
-                scene.add(element.blank)
-            else:
-                scene.add(element.modelgeometry)
-
+    for g in geometries:
+        scene.add(g)
     return scene.draw()
 
+def get_element_geometry(element, create_geometry):
+    if isinstance(element, Beam) and not create_geometry:
+        return element.blank
+    return element.modelgeometry
 
-def get_filtered_elements(model, group_filters, layer_paths, display_level):
+
+def get_filtered_geometry(model, group_filters, layer_paths, display_level, group_space, create_geometry):
     elements = []
     if group_filters:
         for gf in group_filters:
-            elements.extend(get_filtered_element_and_children(gf, layer_paths, display_level))
+            gf_elements = get_filtered_element_and_children(gf, layer_paths, display_level)
+            for element in gf_elements:
+                geometry = get_element_geometry(element, create_geometry)
+                if group_space:
+                    elements.append(geometry.transformed(gf.modeltransformation.inverse()))
+                else:
+                    elements.append(geometry)
     else:
-        elements.extend(e for e in model.elements if is_display_level(e, display_level) and is_on_layer(e, layer_paths))
+        elements.extend(e for e in model.elements() if is_display_level(e, display_level) and is_on_layer(e, layer_paths))
     return elements
 
 

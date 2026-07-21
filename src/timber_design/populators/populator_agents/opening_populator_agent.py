@@ -25,6 +25,7 @@ from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import DirectRule
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -104,6 +105,8 @@ class OpeningPopulatorAgent(FeatureAgent):
     INTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "header", "king_stud"),
         CategoryRule(LButtJoint, "jack_stud", "header", mill_depth=5.0),
+        CategoryRule(TButtJoint, "sill", "jack_stud", mill_depth=5.0),
+        CategoryRule(TButtJoint, "sill", "king_stud", mill_depth=5.0),
     ]
     EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=5.0),
@@ -149,8 +152,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         self.beam_widths["jack_stud"] = jack_stud_width
         self.lintel_posts = lintel_posts
         self.split_bottom_plate_beam = split_bottom_plate_beam
-        self.sill_angle = 0.0
-        self.header_angle = 0.0
         self._split_rules_applied = False
 
     @property
@@ -354,6 +355,50 @@ class OpeningPopulatorAgent(FeatureAgent):
         plate.add_feature(free_contour)
         return [plate]
 
+    def create_joint_defs(self) -> list[DirectRule]:
+        """Build within-agent :class:`~timber_design.workflow.DirectRule` joint defs.
+
+        With *layer* given, only element pairs on that layer are considered;
+        otherwise every framing layer is.  :attr:`joint_defs` is reset on each
+        call and the freshly built list is returned, so the populator can drive
+        this per layer without defs accumulating across layers.
+        """
+        self.joint_defs = []
+        for layer in self.element_layers:
+            element_dict = {}
+
+            for element in self.elements_by_layer[layer]:
+                category = element.attributes.get("category")
+                if category:
+                    if category not in element_dict:
+                        element_dict[category] = [element]
+                    else:
+                        element_dict[category].append(element)
+
+            header = element_dict.get("header")[0]
+            kings = element_dict.get("king_stud")
+            for ks in kings:
+                rule = self.get_direct_rule_from_elements(header, ks)
+                if rule is not None:
+                    self.joint_defs.append(rule)
+
+            jacks = element_dict.get("jack_stud")
+            if jacks:
+                for js in jacks:
+                    rule = self.get_direct_rule_from_elements(header, js)
+                    if rule is not None:
+                        self.joint_defs.append(rule)
+            sill = element_dict.get("sill")
+            if not sill:
+                return self.joint_defs
+            print("sill found")
+            sill_sides = jacks or kings
+            for ss in sill_sides:
+                print(ss.attributes.get("category"))
+                rule = self.get_direct_rule_from_elements(sill[0], ss)
+                if rule is not None:
+                        self.joint_defs.append(rule)
+        return self.joint_defs
 
 class DoorPopulatorAgent(OpeningPopulatorAgent):
     """A :class:`OpeningPopulatorAgent` for door openings: no sill, optional split bottom plate.

@@ -254,6 +254,20 @@ class Beam2D(Beam):
         super().transform(transformation)
         self._invalidate_blank_cache()
 
+    def to_beam(self):
+        # type: (Beam2D) -> Beam
+        """Return a plain :class:`~compas_timber.elements.Beam` with this beam's data.
+
+        Drops the Beam2D-specific blank-outline caching and 2D helper
+        properties; frame, dimensions, features and attributes are preserved
+        via ``__data__``.
+
+        Returns
+        -------
+        :class:`~compas_timber.elements.Beam`
+        """
+        return Beam(**self.__data__)
+
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D
         seg_length = end_length - start_length

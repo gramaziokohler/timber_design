@@ -56,7 +56,7 @@ class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
 
     @property
     def arg_names(self):
-        return inspect.getfullargspec(self.joint_type.__init__).args[self.arg_start_index :] + ["max_distance"]
+        return inspect.getfullargspec(self.joint_type.__init__)[0][self.arg_start_index :] + ["max_distance"]
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

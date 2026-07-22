@@ -16,12 +16,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `CT: Composite Joint Rule` GH component for joint rules that match clusters of 3+ elements.
 * Added `CT: Filter Display` GH component to filter/display model elements by layer path or level.
 * `CT: Panel` gained a `layer_structure` input to attach a `LayerStructure` (built via `CT: Panel Layer Definition` / `CT: Subdivide Layer`) to the panel.
+* `ClusterRule`: bundles multiple pairwise joint rules into a single `ClusterJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
+* `CT_Cluster_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
+* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `ClusterRule`.
+* `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`.
 
 ### Changed
+
+* `get_clusters_from_model` no longer calls `connect_adjacent_beams` / `connect_adjacent_plates` internally. Callers must connect the model before calling `apply_rules_to_model`.
+* `_joints_from_rules_and_clusters` renamed to `joints_from_rules_and_clusters` (now public).
+* compas_timber dependency bumped to >=2.1.2.
 
 ### Removed
 
 * Removed the old wall/slab populator modules (`wall_details.py`, `wall_from_surface.py`, `wall_populator.py`), superseded by the panel-populator subsystem above.
+
+* `ContainerDefinition` class (dead code).
+* `max_cluster_size` parameter from `get_clusters_from_model`.
+
+
+## [0.3.1] 2026-07-09
+
+### Added
+
+### Changed
+
+* Fixed `CT: L Topological Joint Rules`, `CT: Direct Joint Rules`, `CT: Joint Rules From List`, and `CT: Category Joints Rules` — selecting `LButtJoint` crashed the component.
+
+### Removed
 
 
 ## [0.3.0] 2026-07-02
@@ -61,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Removed `CT: Wall`, `CT: Slab`, and `CT: WallConfigSet` GH components.
 
+
 ## [0.2.0] 2026-04-01
 
 ### Added
@@ -84,4 +107,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed `OliGinaJoint` to `TOliGinaJoint` and `TenonMortiseJoint`to `LTenonMortiseJoint` and `TTenonMortiseJoint`for consistency wrt to the supported topology.
 
 ### Removed
-

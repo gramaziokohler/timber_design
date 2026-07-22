@@ -266,7 +266,7 @@ class Beam2D(Beam):
         -------
         :class:`~compas_timber.elements.Beam`
         """
-        return Beam(**self.__data__)
+        self.__class__ = Beam
 
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D

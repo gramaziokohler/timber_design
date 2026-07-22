@@ -7,7 +7,7 @@ from compas_timber.connections import JointCandidate
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.elements import Layer
 from compas_timber.elements import Panel
-
+from timber_design.connections_2d import Beam2D
 
 def _build_layer_tree(panel):
     """Build a ``{layer_path: Layer}`` dict from *panel*'s layer hierarchy."""
@@ -485,6 +485,9 @@ class PanelPopulator:
             (and their joints) from *model* before merging.  Use this to
             re-populate a panel that has already been processed.
         """
+        for element in self.model.elements():
+            if isinstance(element, Beam2D):
+                element.to_beam()
         if clear_panel:
             model.remove_element_subtree(self.original_panel)
         model.merge_model(self.model, parent=self.original_panel)

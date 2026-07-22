@@ -391,10 +391,8 @@ class OpeningPopulatorAgent(FeatureAgent):
             sill = element_dict.get("sill")
             if not sill:
                 return self.joint_defs
-            print("sill found")
             sill_sides = jacks or kings
             for ss in sill_sides:
-                print(ss.attributes.get("category"))
                 rule = self.get_direct_rule_from_elements(sill[0], ss)
                 if rule is not None:
                         self.joint_defs.append(rule)

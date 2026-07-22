@@ -16,16 +16,27 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "filter_paths",
-                "description": "Optional list of Elements or layer_path tuples to filter geometry output.",
+                "name": "layer_filter",
+                "description": "Optional list of Layer elements, layer_paths as GH_Paths, or layer name strings to filter geometry output by layer.",
                 "typeHintID": "none",
-                "scriptParamAccess": 1,
-                "flatten": true
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "group_filter",
+                "description": "Optional list of group Elements to restrict output to those elements and their children.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
             },
             {
                 "name": "display_level",
-                "description": "What level of the hierarchy to display: 'panel', 'layer', or unset for framing elements.",
+                "description": "What level of the hierarchy to display: 'panel', 'layer', 'timber'.",
                 "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "group_space",
+                "description": "If True, geometry is transformed into each group's local space instead of world space.",
+                "typeHintID": "bool",
                 "scriptParamAccess": 0
             },
             {

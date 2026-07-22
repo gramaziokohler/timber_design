@@ -34,10 +34,8 @@ class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
             if isinstance(l, Grasshopper.Kernel.Data.GH_Path):
                 layer_paths.append(tuple([i for i in l.Indices]))
             if isinstance(l, str):
-                print(l)
                 lps = set()
                 for layer in Model.layers:
-                    print(layer.name)
                     if layer.name == l:
                         lps.add(layer.layer_path)
                 layer_paths.extend(list(lps))
@@ -62,19 +60,23 @@ def get_element_geometry(element, create_geometry):
 
 
 def get_filtered_geometry(model, group_filters, layer_paths, display_level, group_space, create_geometry):
-    elements = []
+    geometries = []
     if group_filters:
         for gf in group_filters:
             gf_elements = get_filtered_element_and_children(gf, layer_paths, display_level)
             for element in gf_elements:
                 geometry = get_element_geometry(element, create_geometry)
                 if group_space:
-                    elements.append(geometry.transformed(gf.modeltransformation.inverse()))
+                    geometries.append(geometry.transformed(gf.modeltransformation.inverse()))
                 else:
-                    elements.append(geometry)
+                    geometries.append(geometry)
     else:
-        elements.extend(e for e in model.elements() if is_display_level(e, display_level) and is_on_layer(e, layer_paths))
-    return elements
+        for e in model.elements():
+            if is_display_level(e, display_level) and is_on_layer(e, layer_paths):
+                geometries.append(get_element_geometry(e, create_geometry))
+
+
+    return geometries
 
 
 def get_filtered_element_and_children(element, layer_paths, display_level):

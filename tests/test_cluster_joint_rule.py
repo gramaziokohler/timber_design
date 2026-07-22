@@ -66,13 +66,13 @@ def _make_model_with_clusters(beams):
 # ---------------------------------------------------------------------------
 
 
-def test_composite_joint_rule_repr():
+def test_cluster_joint_rule_repr():
     rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
-    assert "CompositeRule" in repr(rule)
+    assert "ClusterRule" in repr(rule)
     assert "1" in repr(rule)
 
 
-def test_composite_joint_rule_repr_no_rules():
+def test_cluster_joint_rule_repr_no_rules():
     rule = ClusterRule([])
     assert "0" in repr(rule)
 
@@ -153,11 +153,11 @@ def test_topo_filter_match_succeeds(Y_beams):
 
 
 # ---------------------------------------------------------------------------
-# try_create_joint — successful composite creation
+# try_create_joint — successful cluster creation
 # ---------------------------------------------------------------------------
 
 
-def test_composite_joint_created_for_y_cluster(Y_beams):
+def test_cluster_joint_created_for_y_cluster(Y_beams):
     """All three L-pairs in a Y cluster should be matched and bundled into a ClusterJoint."""
     rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
@@ -173,7 +173,7 @@ def test_composite_joint_created_for_y_cluster(Y_beams):
     assert all(isinstance(j, LButtJoint) for j in joint.joints)
 
 
-def test_composite_joint_registered_in_model(Y_beams):
+def test_cluster_joint_registered_in_model(Y_beams):
     """try_create_joint must register the ClusterJoint in the model."""
     rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
@@ -184,7 +184,7 @@ def test_composite_joint_registered_in_model(Y_beams):
     assert joint in list(model.joints)
 
 
-def test_composite_joint_elements_cover_all_beams(Y_beams):
+def test_cluster_joint_elements_cover_all_beams(Y_beams):
     """The ClusterJoint's elements should include all three beams in the cluster."""
     rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
@@ -296,14 +296,14 @@ def test_sub_rule_priority_direct_over_topology(Y_beams):
 # ---------------------------------------------------------------------------
 
 
-def test_composite_rule_in_solver_creates_composite_joint(Y_beams):
+def test_cluster_rule_in_solver_creates_cluster_joint(Y_beams):
     """JointRuleSolver must apply CompositeRule before other rules and register the joint."""
-    composite_rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
+    cluster_rule = ClusterRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     fallback = TopologyRule(JointTopology.TOPO_L, LMiterJoint)
 
     model = TimberModel()
     model.add_elements(Y_beams)
-    solver = JointRuleSolver([composite_rule, fallback])
+    solver = JointRuleSolver([cluster_rule, fallback])
     model.connect_adjacent_beams(solver.max_rule_distance)
     errors, unjoined = solver.apply_rules_to_model(model)
 
@@ -314,15 +314,15 @@ def test_composite_rule_in_solver_creates_composite_joint(Y_beams):
     assert isinstance(joints[0], ClusterJoint)
 
 
-def test_composite_rule_falls_back_to_pairwise(Y_beams):
+def test_cluster_rule_falls_back_to_pairwise(Y_beams):
     """When CompositeRule can't match, individual pairwise rules should handle the cluster."""
     # CompositeRule with no sub-rules — will always fail to match
-    composite_rule = ClusterRule([])
+    cluster_rule = ClusterRule([])
     fallback = TopologyRule(JointTopology.TOPO_L, LMiterJoint)
 
     model = TimberModel()
     model.add_elements(Y_beams)
-    solver = JointRuleSolver([composite_rule, fallback])
+    solver = JointRuleSolver([cluster_rule, fallback])
     model.connect_adjacent_beams(solver.max_rule_distance)
     errors, unjoined = solver.apply_rules_to_model(model)
 

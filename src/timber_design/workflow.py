@@ -97,7 +97,7 @@ class JointRuleSolver(object):
         for rule in rules:
             if isinstance(rule, DirectRule):
                 direct_rules.append(rule)
-            if isinstance(rule, CompositeRule):
+            if isinstance(rule, ClusterRule):
                 composite_rules.append(rule)
             if isinstance(rule, CategoryRule):
                 category_rules.append(rule)
@@ -699,7 +699,7 @@ class TopologyRule(JointRule):
         return joint, error
 
 
-class CompositeRule(JointRule):
+class ClusterRule(JointRule):
     """A joint rule that combines multiple sub-rules to handle clusters of 3 or more elements.
 
     The solver splits the cluster into pairwise sub-clusters (one per joint candidate) and
@@ -724,7 +724,7 @@ class CompositeRule(JointRule):
     """
 
     def __init__(self, rules, topo=None, min_element_count=None, max_element_count=None, max_distance=None, name=None):
-        super(CompositeRule, self).__init__(ClusterJoint, max_distance=max_distance)
+        super(ClusterRule, self).__init__(ClusterJoint, max_distance=max_distance)
         self.rules = rules
         self.topo = topo
         self.min_element_count = min_element_count
@@ -754,7 +754,7 @@ class CompositeRule(JointRule):
         return repr(self)
 
     def __repr__(self):
-        return "{}({} rules)".format(CompositeRule.__name__, len(self.rules))
+        return "{}({} rules)".format(ClusterRule.__name__, len(self.rules))
 
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a ClusterJoint if all pairwise candidates in the cluster are matched by sub-rules.

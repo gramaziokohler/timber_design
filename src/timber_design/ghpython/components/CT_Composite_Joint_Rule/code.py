@@ -7,7 +7,7 @@ from compas_timber.connections import JointTopology
 
 from timber_design.ghpython import rename_cpython_gh_output
 from timber_design.ghpython import warning
-from timber_design.workflow import CompositeRule
+from timber_design.workflow import ClusterRule
 
 topo_dict = {
     "TOPO_Y": JointTopology.TOPO_Y,
@@ -15,9 +15,9 @@ topo_dict = {
 }
 
 
-class CompositeJointRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
+class ClusterRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
-        super(CompositeJointRuleComponent, self).__init__()
+        super(ClusterRuleComponent, self).__init__()
         self.topo_type = topo_dict.get(self.component.Params.Output[0].NickName, None)
 
     @property
@@ -37,7 +37,7 @@ class CompositeJointRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
             return None
 
         self.component.Message = JointTopology.get_name(self.topo_type)
-        return CompositeRule(
+        return ClusterRule(
             rules=[r for r in rules if r is not None],
             topo=self.topo_type,
             min_element_count=int(min_count) if min_count is not None else None,

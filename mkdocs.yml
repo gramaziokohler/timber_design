@@ -141,6 +141,8 @@ plugins:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Guides:
+      - 2D Connection Solving: connections_2d.md
   - API Reference:
       - workflow: api/timber_design.workflow.md
   - License: license.md

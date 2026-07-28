@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `CT: Plate From Frame And Dimensions` GH component.
 * Added four panel joint rule GH components: `CT: Edge-to-Edge Topological Panel Joint Rules`, `CT: Edge-to-Face Topological Panel Joint Rules`, `CT: Category Panel Joint Rules`, and `CT: Direct Panel Joint Rules`.
 * Added new GH subcategory `06 Panel Joint Rules`.
+* Added `connections_2d` module (`timber_design.connections_2d`) with 2D blank-outline-based connection solving for panel structures. Includes `Beam2D`, `AABB2D`, `ConnectionSolver2D`, `Beam2DSolverResult`, `Beam2DPolylineIntersectionResult`, `Cluster2D`, and `Cluster2DFinder`.
 
 ### Changed
 

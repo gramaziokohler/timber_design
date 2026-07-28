@@ -42,7 +42,7 @@ class CompositeJointRuleComponent(Grasshopper.Kernel.GH_ScriptInstance):
             topo=self.topo_type,
             min_element_count=int(min_count) if min_count is not None else None,
             max_element_count=int(max_count) if max_count is not None else None,
-            name=name
+            name=name,
         )
 
     def AppendAdditionalMenuItems(self, menu):

@@ -136,7 +136,7 @@ class JointRuleSolver(object):
                 remaining_clusters.append(cluster)
         return remaining_clusters
 
-    def joints_from_rules_and_clusters(self, model, clusters, max_distance=None):
+    def joints_from_rules_and_clusters(self, model, clusters, pairwise_fallback = True, max_distance=None):
         """Processes the JointRules and creates joints based on the clusters."""
         remaining_clusters = []
         for cluster in clusters:
@@ -149,7 +149,7 @@ class JointRuleSolver(object):
                 if error:
                     self.joining_errors.append(error)  # should only happen with direct rules
                     break
-            if not promoted:
+            if pairwise_fallback and not promoted:
                 if len(cluster.joints) > 1:
                     sub_clusters = [Cluster([j]) for j in cluster.joints]
                     sub_remaining_clusters = self.joints_from_rules_and_clusters(model, sub_clusters, max_distance=max_distance)

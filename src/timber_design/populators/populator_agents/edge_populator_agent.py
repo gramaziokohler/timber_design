@@ -186,36 +186,31 @@ class EdgePopulatorAgent(LayerAgent):
     # methods for creating beam joints
     # ==========================================================================
 
-    def create_joint_defs(self) -> list[DirectRule]:
-        """Generate the joint definitions for the panel edges (optionally one layer)."""
-        self.joint_defs = []
-        for layer in self.element_layers:
-            for candidate in self.create_joint_candidates(layer):
-                rule = self._edge_joint_rule(*candidate.elements)
-                if rule is not None:
-                    self.joint_defs.append(rule)
-        return self.joint_defs
-
-    def _edge_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
+    def get_direct_rule_from_elements(self, element_a: Beam2D, element_b: Beam2D, **kwargs) -> DirectRule:
         """Return the joint rule for two edge beams.
 
         The strategy depends on the panel-edge geometry at the two beams:
 
         - When **both** edge planes are perpendicular to the panel (clean
           vertical faces), the joint is resolved from :attr:`internal_rules`
-          via :meth:`~PopulatorAgent.get_direct_rule_from_elements`, so it
-          honors ``internal_joint_overrides``.
+          via the base :meth:`~PopulatorAgent.get_direct_rule_from_elements`, so
+          it honors ``internal_joint_overrides``.
         - When **either** edge is sloped/chamfered (its edge plane is not
           perpendicular to the panel), the joint type and cut planes are
           computed geometrically by :meth:`_create_edge_beam_joint_rule`, which
           is required to fit the bevel.
+
+        Both elements are edge beams (this is only ever called by
+        :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise` for a
+        same-agent pair), so both always carry an ``edge_index`` attribute.
         """
-        edge_a = beam_a.attributes["edge_index"]
-        edge_b = beam_b.attributes["edge_index"]
-        
+        edge_a = element_a.attributes.get("edge_index")
+        edge_b = element_b.attributes.get("edge_index")
+        if edge_a is None or edge_b is None:
+            return super().get_direct_rule_from_elements(element_a, element_b, **kwargs)
         if self._edge_plane_is_perpendicular(edge_a) and self._edge_plane_is_perpendicular(edge_b):
-            return self.get_direct_rule_from_elements(beam_a, beam_b)
-        return self._create_edge_beam_joint_rule(beam_a, beam_b)
+            return super().get_direct_rule_from_elements(element_a, element_b, **kwargs)
+        return self._create_edge_beam_joint_rule(element_a, element_b)
 
     def _edge_plane_is_perpendicular(self, edge_index: int) -> bool:
         """Return ``True`` if the panel edge plane at *edge_index* is perpendicular to the panel.

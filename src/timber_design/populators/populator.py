@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from itertools import combinations, product
 from typing import TYPE_CHECKING
 
-from compas_timber.connections import JointCandidate
-from compas_timber.connections import get_clusters_from_joint_candidates
+from compas_timber.connections import Cluster
 from compas_timber.elements import Layer
 from compas_timber.elements import Panel
+from compas_timber.errors import BeamJoiningError
 from timber_design.connections_2d import Beam2D
 
 def _build_layer_tree(panel):
@@ -24,9 +23,12 @@ def _build_layer_tree(panel):
     return tree
 
 
+from timber_design.connections_2d.connection_solver_2d import Cluster2DFinder
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
+from timber_design.workflow import CategoryRule
+from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRuleSolver
 
 
@@ -48,11 +50,20 @@ class PanelPopulator:
        layer they frame or trim.
 
     4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
-    5. **join_elements** — two sub-passes mirroring stage 3:
-
-       a. **create_agent_joints** — within-agent joint candidates are resolved.
-       b. **create_cross_agent_joints** — cross-agent candidates are collected,
-          clustered, and matched against the joint-rule lists of both agents.
+    5. **join_elements** — one clustering pass per layer (see :meth:`_join_layer`):
+       every agent's beams on that layer (already in :attr:`model`, as children
+       of the layer) are gathered together, geometric pairwise candidates and
+       each agent's :meth:`~timber_design.populators.PopulatorAgent.forced_joint_results`
+       are found/merged, and the results are clustered via
+       :class:`~timber_design.connections_2d.connection_solver_2d.Cluster2DFinder`.
+       Each cluster is then resolved (see :meth:`_resolve_cluster`): a 3+-element
+       cluster tries the involved agents'
+       :attr:`~timber_design.populators.PopulatorAgent.CLUSTER_RULES` first; if
+       none match (or the cluster is a plain pairwise candidate to begin with),
+       it falls back to pairwise dispatch (see :meth:`_resolve_pairwise`) —
+       same-agent pairs via that agent's ``INTERNAL_JOINT_RULES``, cross-agent
+       pairs via the union of both agents' ``EXTERNAL_JOINT_RULES``.  Joining
+       errors are collected onto :attr:`debug_info`.
 
     6. **process_joinery** — fabrication features (BTLx processings) are computed and applied to each element.
     7. **merge_with_model** — elements are transformed back to world space and attached as children of the source panel in the caller's model.
@@ -89,6 +100,9 @@ class PanelPopulator:
         Its inverse is applied in :meth:`merge_with_model`.
     model : :class:`compas_timber.model.TimberModel`
         Internal model that accumulates elements and joints during population.
+    debug_info : :class:`~timber_design.workflow.DebugInfomation`
+        Collects joining errors from :meth:`join_elements` and
+        :meth:`process_joinery` instead of silently dropping them.
 
     Examples
     --------
@@ -118,6 +132,7 @@ class PanelPopulator:
     ):
         
         self.model = None
+        self.debug_info = DebugInfomation()
         self.agents = list(agents) if agents else None
         if isinstance(panel, Panel):
             self.panel_guid = panel.guid
@@ -166,7 +181,7 @@ class PanelPopulator:
         - exactly one category owned by the agent → ``agent.external_rules``
           *and* ``agent.external_overrides`` (the latter so the rule keeps its
           precedence over another agent's base rule for the same pair in
-          :meth:`create_cross_agent_joints`)
+          :meth:`_resolve_pairwise`)
 
         Agents that own neither category are skipped.  Merging delegates to
         :meth:`~PopulatorAgent._apply_overrides`, which replaces an existing
@@ -178,7 +193,10 @@ class PanelPopulator:
 
         This is the single place a panel-level rule list is matched against
         per-agent rule slots, so callers can supply rules without knowing which
-        agent owns each pair.
+        agent owns each pair.  Only :class:`~timber_design.workflow.CategoryRule`
+        instances are routed — anything else (e.g. a
+        :class:`~timber_design.workflow.ClusterRule`) has no ``category_a``/
+        ``category_b`` to route by, so it's skipped here.
 
         Parameters
         ----------
@@ -187,6 +205,8 @@ class PanelPopulator:
         if not rule_overrides:
             return
         for rule in rule_overrides:
+            if not isinstance(rule, CategoryRule):
+                continue
             pair = {rule.category_a, rule.category_b}
             for agent in self.agents:
                 categories = set(agent.BEAM_CATEGORY_NAMES)
@@ -200,7 +220,7 @@ class PanelPopulator:
                     # agent.  We update both the merged ``external_rules`` list
                     # (consumed by the joint solver) *and* the raw
                     # ``external_overrides`` list (consumed by
-                    # ``create_cross_agent_joints`` to take precedence over the
+                    # ``_resolve_pairwise`` to take precedence over the
                     # other agent's base rule for the same pair).
                     agent.external_rules = agent._apply_overrides(agent.external_rules, [rule])
                     agent.external_overrides = agent._apply_overrides(agent.external_overrides, [rule])
@@ -417,54 +437,107 @@ class PanelPopulator:
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
 
-        Runs :meth:`create_agent_joints` first (within-agent joints),
-        then :meth:`create_cross_agent_joints` (between-agent joints).
+        One clustering pass per layer — see :meth:`_join_layer`.
         """
-        self.create_agent_joints()
-        self.create_cross_agent_joints()
-
-    def create_agent_joints(self):
-        """Create within-agent joints, layer by layer.
-
-        Mirrors the other layer-driven stages: iterate :attr:`layers`, select the
-        agents with elements on each layer, and build/apply that agent's joint
-        defs for that layer.  ``create_joint_defs(layer)`` resets and returns the
-        per-layer defs, so a multi-layer agent is never double-applied.
-        """
-        for agent in self.agents:
-            for j_def in agent.create_joint_defs():
-                j_def.joint_type.create(self.model, *j_def.elements, **j_def.kwargs)
-
-    def create_cross_agent_joints(self):
-        """Create joints between elements of different agents on the same layer.
-        """
-        solver = ConnectionSolver2D(max_distance=1.0)
         for layer in self.model.layers:
             agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
-            for agent_a, agent_b in solver.find_intersecting_pairs(agents):
-                elements_a = agent_a.elements_by_layer.get(layer, [])
-                elements_b = agent_b.elements_by_layer.get(layer, [])
-                candidates = []
-                for element_a, element_b in product(elements_a, elements_b):
-                    topo_result = solver.find_topology(element_a, element_b)
-                    if topo_result is not None:
-                        candidate = JointCandidate(
-                            topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location
-                        )
-                        self.model.add_joint_candidate(candidate)
-                        candidates.append(candidate)
-                clusters = get_clusters_from_joint_candidates(candidates, max_distance=0.001)
-                # Per-agent external overrides must win even when the matching
-                # base rule is owned by the *other* agent.  The solver applies
-                # the first matching rule, so overrides from both agents are
-                # placed ahead of the (merged) base rule lists.
-                overrides = agent_a.external_overrides + agent_b.external_overrides
-                jrs = JointRuleSolver(overrides + agent_a.external_rules + agent_b.external_rules)
-                jrs._joints_from_rules_and_clusters(self.model, jrs.rules, clusters)
+            if agents:
+                self._join_layer(layer, agents)
+
+    def _join_layer(self, layer, agents):
+        """Find and resolve every joint cluster on *layer* in one pass.
+
+        Beams come from :attr:`model` (``layer.children``), not from
+        re-gathering ``agent.elements_by_layer`` — by this stage
+        :meth:`add_elements_to_model` has already parented every surviving
+        element under its layer.  Pairwise candidates from
+        :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`
+        are merged with each agent's
+        :meth:`~timber_design.populators.PopulatorAgent.forced_joint_results`
+        *before* clustering, so a forced candidate can still merge into a
+        larger geometric cluster when coincident with one.  The merge can
+        produce a duplicate — e.g. a header/king_stud pair the generic
+        solver *does* detect, which
+        :meth:`~timber_design.populators.OpeningPopulatorAgent.forced_joint_results`
+        also finds via its own ``find_topology`` attempt before ever
+        considering a synthetic fallback — so the combined list is
+        deduplicated per element pair before clustering.
+        """
+        solver = ConnectionSolver2D(max_distance=1.0)
+        beams = [e for e in layer.children if isinstance(e, Beam2D)]
+        results = solver.find_joint_candidates(beams)
+        for agent in agents:
+            results.extend(agent.forced_joint_results(layer))
+        results = self._dedupe_results(results)
+        clusters = Cluster2DFinder(endpoint_tolerance=solver.max_distance).find_clusters(results)
+        for cluster in clusters:
+            self._resolve_cluster(cluster, agents, solver.max_distance)
+
+    @staticmethod
+    def _dedupe_results(results):
+        """Keep at most one pairwise candidate per unordered element pair.
+
+        The first occurrence wins, so a geometric result (added to *results*
+        before any agent's forced results) is kept over a forced duplicate
+        for the same pair.
+        """
+        seen = set()
+        deduped = []
+        for result in results:
+            beam_a, beam_b = result.elements
+            key = frozenset((id(beam_a), id(beam_b)))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(result)
+        return deduped
+
+    def _resolve_cluster(self, cluster, agents, max_distance):
+        """Resolve one cluster: involved agents' ``CLUSTER_RULES`` first, else pairwise fallback.
+
+        For a cluster of more than one joint (a real 3+-element corner), every
+        agent that actually owns one of the cluster's elements (checked by
+        element identity, not by category — two agents can share a category
+        name, e.g. two window openings each with their own "king_stud") gets
+        its ``CLUSTER_RULES`` tried (sorted by
+        :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`).
+        On a match, the resulting :class:`~compas_timber.connections.ClusterJoint`
+        is registered and nothing further happens for this cluster.  On error,
+        trying further cluster rules stops (mirroring
+        :meth:`~timber_design.workflow.JointRuleSolver.joints_from_rules_and_clusters`),
+        and the cluster falls through to pairwise dispatch below regardless of
+        whether it was an error or simply no match — same as a plain
+        single-joint cluster, which skips ``CLUSTER_RULES`` entirely.
+        """
+        for a in agents:
+            if any(e in a.elements for e in cluster.elements):
+                unjoined = a.try_create_cluster_joint(self.model, cluster)
+        if unjoined:
+            unjoined_pairs=[]
+            #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
+            for candidate in cluster.joints:
+                cc = a.try_create_cluster_joint(self.model, Cluster(candidate))
+                if jdef is not None:
+                    unjoined_pairs.append(cc)
+            return unjoined_pairs else None
+
+    @staticmethod
+    def _agent_for_element(element, agents):
+        """Return the agent in *agents* that owns *element*, or ``None``.
+
+        Checked by element identity against each agent's own :attr:`~PopulatorAgent.elements`,
+        not by category — two agents can share a category name (e.g. two
+        window openings each with their own "king_stud"), so category
+        membership alone can't tell them apart.
+        """
+        for agent in agents:
+            if any(e is element for e in agent.elements):
+                return agent
+        return None
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
-        self.model.process_joinery()
+        self.debug_info.add_joint_error(self.model.process_joinery())
 
     def merge_with_model(self, model, clear_panel=True):
         """Move the populated layer subtree back under the original panel in *model* (stage 7).

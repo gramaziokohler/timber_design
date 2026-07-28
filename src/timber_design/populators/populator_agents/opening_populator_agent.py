@@ -8,6 +8,7 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
+from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
@@ -20,12 +21,13 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import Beam2DSolverResult
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import DirectRule
+from timber_design.workflow import ClusterRule
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -119,13 +121,31 @@ class OpeningPopulatorAgent(FeatureAgent):
         CategoryRule(TButtJoint, "king_stud", "header", mill_depth=5.0),
         CategoryRule(TButtJoint, "king_stud", "sill", mill_depth=5.0),
         CategoryRule(TButtJoint, "stud", "header"),
-        # HACK: the following are for when the studs extend and hit a corner in the edge beams. This should eventually be replaced by proper Y_TOPO/K_TOPO joint rules.
-        CategoryRule(LButtJoint, "jack_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "jack_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "king_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "king_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "king_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+    ]
+    # A jack/king stud that extends to hit the corner where two edge beams
+    # meet forms a 3-element TOPO_Y/TOPO_K cluster; resolved as one
+    # ClusterJoint instead of independent pairwise joints.  ClusterRule
+    # requires every pairwise candidate in the cluster to match one of its
+    # sub-rules, so the edge_stud/plate corner pair (normally resolved by
+    # EdgePopulatorAgent's own INTERNAL_JOINT_RULES) must be included here
+    # too, at its normal mill depth — only the stud's own joints to the two
+    # edge beams get the zero-depth treatment.
+    CLUSTER_RULES = [
+        ClusterRule(
+            name="opening_edge_corner",
+            max_element_count=3,
+            max_distance=1.0,
+            rules=[
+                CategoryRule(LButtJoint, "jack_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "jack_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "jack_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "king_stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "king_stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "king_stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+                CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+            ],
+        ),
     ]
     BOUNDARY_TYPE = AgentBoundaryType.EXCLUSIVE
 
@@ -355,48 +375,50 @@ class OpeningPopulatorAgent(FeatureAgent):
         plate.add_feature(free_contour)
         return [plate]
 
-    def create_joint_defs(self) -> list[DirectRule]:
-        """Build within-agent :class:`~timber_design.workflow.DirectRule` joint defs.
+    def forced_joint_results(self, layer):
+        """Force header/king-stud, header/jack-stud, and sill/jack-or-king-stud candidates.
 
-        With *layer* given, only element pairs on that layer are considered;
-        otherwise every framing layer is.  :attr:`joint_defs` is reset on each
-        call and the freshly built list is returned, so the populator can drive
-        this per layer without defs accumulating across layers.
+        These pairs are found by category membership rather than geometric
+        intersection, since :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`
+        does not reliably detect them (e.g. a header's blank outline may not
+        overlap a king stud's the way the generic solver expects). Real
+        geometric detection is attempted first, so the candidate can still
+        merge into a larger cluster (e.g. a king-stud corner that also touches
+        an edge beam) exactly like any other candidate; a synthetic
+        zero-distance fallback (which never merges with anything, since it
+        carries no dot-range) is used only when the solver genuinely misses
+        the pair, so the join still happens.
         """
-        self.joint_defs = []
-        for layer in self.element_layers:
-            element_dict = {}
+        elements = [e for e in layer.children if e.attributes.get("category") in self.BEAM_CATEGORY_NAMES]
+        element_dict = {}
+        for element in elements:
+            category = element.attributes.get("category")
+            if category:
+                element_dict.setdefault(category, []).append(element)
 
-            for element in self.elements_by_layer[layer]:
-                category = element.attributes.get("category")
-                if category:
-                    if category not in element_dict:
-                        element_dict[category] = [element]
-                    else:
-                        element_dict[category].append(element)
+        solver = ConnectionSolver2D()
 
-            header = element_dict.get("header")[0]
-            kings = element_dict.get("king_stud")
+        def _forced(a, b):
+            result = solver.find_topology(a, b)
+            if result is not None:
+                return result
+            return Beam2DSolverResult(a, b, distance=0.0, topology=JointTopology.TOPO_T, location=a.centerline.midpoint)
+
+        results = []
+        header = (element_dict.get("header") or [None])[0]
+        kings = element_dict.get("king_stud", [])
+        jacks = element_dict.get("jack_stud", [])
+        sill = (element_dict.get("sill") or [None])[0]
+
+        if header is not None:
             for ks in kings:
-                rule = self.get_direct_rule_from_elements(header, ks)
-                if rule is not None:
-                    self.joint_defs.append(rule)
-
-            jacks = element_dict.get("jack_stud")
-            if jacks:
-                for js in jacks:
-                    rule = self.get_direct_rule_from_elements(header, js)
-                    if rule is not None:
-                        self.joint_defs.append(rule)
-            sill = element_dict.get("sill")
-            if not sill:
-                return self.joint_defs
-            sill_sides = jacks or kings
-            for ss in sill_sides:
-                rule = self.get_direct_rule_from_elements(sill[0], ss)
-                if rule is not None:
-                        self.joint_defs.append(rule)
-        return self.joint_defs
+                results.append(_forced(header, ks))
+            for js in jacks:
+                results.append(_forced(header, js))
+        if sill is not None:
+            for ss in (jacks or kings):
+                results.append(_forced(sill, ss))
+        return results
 
 class DoorPopulatorAgent(OpeningPopulatorAgent):
     """A :class:`OpeningPopulatorAgent` for door openings: no sill, optional split bottom plate.
@@ -422,7 +444,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
         return super().generate_elements_for_layer(layer)
 
     def _apply_split_bottom_plate_rules(self):
-        """Swap in an L-butt rule at the king/jack-stud base for split-bottom-plate doors.
+        """Set the (king/jack-stud, bottom_plate_beam) rule directly from the door's own flags.
 
         Deferred from ``__init__`` because it depends on ``opening_type`` (and
         therefore on the bound feature) — for direct construction the feature
@@ -431,16 +453,28 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
         The (king_stud/jack_stud, bottom_plate_beam) joint is between elements
         from two different agents (the bottom plate belongs to the edge
         agent), so it is a **cross-agent** rule and must be edited on
-        :attr:`external_rules`, not :attr:`internal_rules`.
+        :attr:`external_rules`, not :attr:`internal_rules`.  ``main`` and the
+        joint type/kwargs are computed directly from :attr:`lintel_posts` and
+        :attr:`split_bottom_plate_beam`, then set directly by category — this
+        must replace the base rule regardless of its topology (unlike
+        :meth:`~PopulatorAgent._apply_overrides`, which deliberately lets a
+        pair carry both a ``TButtJoint`` and an ``LButtJoint`` rule
+        simultaneously when they target different topologies; here there must
+        be exactly one (main, bottom_plate_beam) rule, so the swap is a plain
+        category-keyed replace instead).
         """
         if self._split_rules_applied:
             return
         self._split_rules_applied = True
-        if not self.split_bottom_plate_beam:
-            return
         main = "jack_stud" if self.lintel_posts else "king_stud"
-        self.external_rules = [r for r in self.external_rules if not (r.category_a == main and r.category_b == "bottom_plate_beam")]
-        self.external_rules.append(CategoryRule(LButtJoint, main, "bottom_plate_beam"))
+        if self.split_bottom_plate_beam:
+            rule = CategoryRule(LButtJoint, main, "bottom_plate_beam")
+        else:
+            rule = CategoryRule(TButtJoint, main, "bottom_plate_beam", mill_depth=5.0)
+        self.external_rules = [
+            r for r in self.external_rules
+            if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")
+        ] + [rule]
 
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).

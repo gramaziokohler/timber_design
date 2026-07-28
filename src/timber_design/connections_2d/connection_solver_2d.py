@@ -570,12 +570,13 @@ class ConnectionSolver2D:
         -------
         list[:class:`Beam2DSolverResult`]
         """
-        results = []
+        candidates = []
         for beam_a, beam_b in self.find_intersecting_pairs(beams):
             result = self.find_topology(beam_a, beam_b)
             if result is not None:
-                results.append(result)
-        return results
+                jc = JointCandidate(result.element
+                candidates.append(JointCandidate(result)
+        return candidates
 
     def find_joint_clusters(self, beams) -> list["Cluster2D"]:
         """Find pairwise results and cluster multi-beam corners.

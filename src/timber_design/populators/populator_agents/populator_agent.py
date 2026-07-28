@@ -8,7 +8,6 @@ from compas.geometry import Line
 from compas.geometry import Vector
 from compas.itertools import pairwise
 from compas_timber.base import TimberElement
-from compas_timber.connections import JointCandidate
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import is_point_in_polyline
@@ -19,7 +18,9 @@ from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineInte
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import ClusterRule
 from timber_design.workflow import DirectRule
+from timber_design.workflow import JointRuleSolver
 
 
 class AgentBoundaryType(object):
@@ -81,13 +82,18 @@ class PopulatorAgent(Data, ABC):
     INTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
-        :meth:`create_joint_defs` / :meth:`get_direct_rule_from_elements`.
+        :meth:`get_direct_rule_from_elements`.
         Overridable per-instance via the config's ``internal_joint_overrides``.
     EXTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.  Used by
-        :meth:`~timber_design.populators.PanelPopulator.create_cross_agent_joints`.
+        :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise`.
         Overridable per-instance via the config's ``external_joint_overrides``.
+    CLUSTER_RULES : list[:class:`~timber_design.workflow.ClusterRule`]
+        Rules tried first for a joint cluster of 3+ elements (2+ pairwise
+        candidates) that this agent has any element in — see
+        :meth:`~timber_design.populators.PanelPopulator._resolve_cluster`.
+        Not instance-overridable (no matching ``*_overrides`` constructor arg).
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`~FeatureBoundaryType.NONE`.
@@ -109,8 +115,6 @@ class PopulatorAgent(Data, ABC):
     beam_widths : dict[str, float]
         ``{category: width}`` mapping passed in by the config.  Beam height is
         always ``layer.thickness``.
-    joint_defs : list[:class:`~timber_design.workflow.DirectRule`]
-        Accumulated joint definitions, populated by :meth:`create_joint_defs`.
     aabb : :class:`~timber_design.populators.AABB2D` or None
         2D bounding box enclosing all elements in this agent.
     """
@@ -118,6 +122,7 @@ class PopulatorAgent(Data, ABC):
     BEAM_CATEGORY_NAMES = []
     INTERNAL_JOINT_RULES: list[CategoryRule] = []
     EXTERNAL_JOINT_RULES: list[CategoryRule] = []
+    CLUSTER_RULES: list[ClusterRule] = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
     def __init__(self, internal_joint_overrides=None, external_joint_overrides=None):
@@ -127,7 +132,6 @@ class PopulatorAgent(Data, ABC):
         self.external_rules = self._apply_overrides(self.EXTERNAL_JOINT_RULES, external_joint_overrides)
         self.internal_overrides = list(internal_joint_overrides) if internal_joint_overrides else []
         self.external_overrides = list(external_joint_overrides) if external_joint_overrides else []
-        self.joint_defs = []
         self.elements_by_layer = {}
         self.outline_by_layer = {}
 
@@ -183,6 +187,13 @@ class PopulatorAgent(Data, ABC):
         may carry multiple rules as long as their topologies differ (e.g. a
         ``TButtJoint`` and an ``LButtJoint`` for ``(stud, top_plate_beam)``).
 
+        Only :class:`~timber_design.workflow.CategoryRule` instances participate
+        in the category-based replace logic (both as *override* and as an
+        existing entry in *base_rules*) — anything else (e.g. a
+        :class:`~timber_design.workflow.ClusterRule` in :attr:`CLUSTER_RULES`,
+        or one accidentally passed in as an override) has no ``category_a``/
+        ``category_b`` to compare, so it's simply appended rather than matched.
+
         The class-level :attr:`INTERNAL_JOINT_RULES` / :attr:`EXTERNAL_JOINT_RULES`
         are never mutated — a fresh list is always returned.
 
@@ -198,10 +209,13 @@ class PopulatorAgent(Data, ABC):
         if not overrides:
             return rules
         for override in overrides:
+            if not isinstance(override, CategoryRule):
+                rules.append(override)
+                continue
             topo = override.joint_type.SUPPORTED_TOPOLOGY
             order_sensitive = topo in (JointTopology.TOPO_T, JointTopology.TOPO_EDGE_FACE)
             for i, rule in enumerate(rules):
-                if rule.joint_type.SUPPORTED_TOPOLOGY != topo:
+                if not isinstance(rule, CategoryRule) or rule.joint_type.SUPPORTED_TOPOLOGY != topo:
                     continue
                 if order_sensitive:
                     if rule.category_a == override.category_a and rule.category_b == override.category_b:
@@ -250,29 +264,19 @@ class PopulatorAgent(Data, ABC):
         beam.attributes["category"] = category
         return beam
 
-    def get_direct_rule_from_elements(self, element_a: TimberElement, element_b: TimberElement, **kwargs) -> Union[DirectRule, None]:
-        """Look up the within-agent joint rule for *element_a* / *element_b*.
 
-        Searches :attr:`internal_rules` for a :class:`~timber_design.workflow.CategoryRule`
-        whose category pair matches the two elements.  Returns ``None`` when no
-        rule applies.
-        """
-        matching_rules = [r for r in self.internal_rules if set([r.category_a, r.category_b]) == set([element_a.attributes["category"], element_b.attributes["category"]])]
-        if not matching_rules:
-            return
-        # raise ValueError("No joint definition found for {} and {}".format(element_a.attributes["category"], element_b.attributes["category"]))
-
-        for rule in matching_rules:
-            if rule.category_a == element_a.attributes["category"]:
-                # perfect match
-                rule_kwargs = rule.kwargs.copy()
-                rule_kwargs.update(kwargs)
-                return DirectRule(rule.joint_type, [element_a, element_b], **rule_kwargs)
+    def try_create_cluster_joint(self, model, cluster, max_distance=None):
+        if len(cluster.elements) < 3:
+            if all(e in self.elements for e in cluster.elements):
+                rules = self.internal_rules
+            else:  #only some of the elements are from this agent, so use the external rules
+                rules = self.external_rules
         else:
-            # match set but wrong order
-            rule_kwargs = rule.kwargs.copy()
-            rule_kwargs.update(kwargs)
-            return DirectRule(rule.joint_type, [element_b, element_a], **rule_kwargs)
+            rules = self.CLUSTER_RULES
+        jrs = JointRuleSolver(rules)
+        return jrs.joints_from_rules_and_clusters(model, [cluster], pairwise_fallback=False, max_distance=max_distance)
+
+
 
     def cull_beam_segment(self, beam: Beam2D, layer=None) -> bool:
         """Determines whether the beam segment should be culled by the populator agent."""
@@ -351,27 +355,23 @@ class PopulatorAgent(Data, ABC):
         )
 
 
-    def create_joint_candidates(self, layer=None):
-        """Return joint candidates for overlapping beam pairs within this agent.
+    def forced_joint_results(self, layer):
+        """Return forced pairwise candidates for *layer* that geometric detection may miss.
 
-        With *layer* given, only that layer's elements are paired; otherwise
-        every framing layer in :attr:`element_layers` is considered.
+        Contributed into the same global per-layer candidate pool that
+        :meth:`~timber_design.populators.PanelPopulator._join_layer` builds from
+        :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`,
+        before clustering runs — so a forced candidate can still merge into a
+        larger geometric cluster when coincident with one.  Returns ``[]`` by
+        default; override for agents whose joinery is defined by category
+        membership rather than geometric intersection (see
+        :class:`~timber_design.populators.OpeningPopulatorAgent`).
+
+        Returns
+        -------
+        list[:class:`~timber_design.connections_2d.connection_solver_2d.Beam2DSolverResult`]
         """
-        candidates = []
-        layers = [layer] if layer is not None else list(self.element_layers)
-        for layer in layers:
-            elements = self.elements_by_layer.get(layer, [])
-            solver = ConnectionSolver2D()
-            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
-            pairs = solver.find_intersecting_pairs(beam_elements)
-            for element_a, element_b in pairs:
-                topo_result = solver.find_topology(element_a, element_b)
-                if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                    candidates.append(candidate)
-        return candidates
-
-
+        return []
 
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
@@ -413,19 +413,3 @@ class PopulatorAgent(Data, ABC):
 
     def extend_elements(self, layer_elements, layer) -> None:
         pass
-
-    def create_joint_defs(self) -> list[DirectRule]:
-        """Build within-agent :class:`~timber_design.workflow.DirectRule` joint defs.
-
-        With *layer* given, only element pairs on that layer are considered;
-        otherwise every framing layer is.  :attr:`joint_defs` is reset on each
-        call and the freshly built list is returned, so the populator can drive
-        this per layer without defs accumulating across layers.
-        """
-        self.joint_defs = []
-        for layer in self.element_layers:
-            for candidate in self.create_joint_candidates(layer):
-                rule = self.get_direct_rule_from_elements(candidate.element_a, candidate.element_b)
-                if rule is not None:
-                    self.joint_defs.append(rule)
-        return self.joint_defs

@@ -36,13 +36,17 @@ class LayerAgent(PopulatorAgent, ABC):
     INTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.  Used by
-        :meth:`create_joint_defs` / :meth:`get_direct_rule_from_elements`.
+        :meth:`get_direct_rule_from_elements`.
         Overridable per-instance via the config's ``internal_joint_overrides``.
     EXTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.  Used by
-        :meth:`~timber_design.populators.PanelPopulator.create_cross_agent_joints`.
+        :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise`.
         Overridable per-instance via the config's ``external_joint_overrides``.
+    CLUSTER_RULES : list[:class:`~timber_design.workflow.ClusterRule`]
+        Rules tried first for a joint cluster of 3+ elements that this agent
+        has any element in — see
+        :meth:`~timber_design.populators.PanelPopulator._resolve_cluster`.
     BOUNDARY_TYPE : :class:`FeatureBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`~FeatureBoundaryType.NONE`.
@@ -79,8 +83,6 @@ class LayerAgent(PopulatorAgent, ABC):
     beam_widths : dict[str, float]
         ``{category: width}`` mapping supplied by the config.
         Beam height is always ``layer.thickness`` at call time.
-    joint_defs : list[:class:`~timber_design.workflow.DirectRule`]
-        Accumulated joint definitions, populated by :meth:`create_joint_defs`.
     aabb : :class:`~timber_design.populators.AABB2D` or None
         2D bounding box enclosing all elements in this agent.
     layer_center_height : float
@@ -91,6 +93,7 @@ class LayerAgent(PopulatorAgent, ABC):
     BEAM_CATEGORY_NAMES = []
     INTERNAL_JOINT_RULES = []
     EXTERNAL_JOINT_RULES = []
+    CLUSTER_RULES = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
     def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None):

@@ -7,6 +7,7 @@ from compas_timber.connections import TButtJoint
 
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import ClusterRule
 
 
 class StudPopulatorAgent(LayerAgent):
@@ -47,10 +48,28 @@ class StudPopulatorAgent(LayerAgent):
         CategoryRule(TButtJoint, "stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "header", mill_depth=10.0, max_distance=1.0),
         CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
-        # HACK: the following are for when the studs extend and hit a corner in the edge beams. This should eventually be replaced by proper Y_TOPO/K_TOPO joint rules.
-        CategoryRule(LButtJoint, "stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
-        CategoryRule(LButtJoint, "stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+    ]
+    # A stud that extends to hit the corner where two edge beams meet forms a
+    # 3-element TOPO_Y/TOPO_K cluster; resolved as one ClusterJoint instead of
+    # independent pairwise joints.  ClusterRule requires every pairwise
+    # candidate in the cluster to match one of its sub-rules, so the
+    # edge_stud/plate corner pair (normally resolved by EdgePopulatorAgent's
+    # own INTERNAL_JOINT_RULES) must be included here too, at its normal
+    # mill depth — only the stud's own joints to the two edge beams get the
+    # zero-depth treatment.
+    CLUSTER_RULES = [
+        ClusterRule(
+            name="stud_edge_corner",
+            max_element_count=3,
+            max_distance=1.0,
+            rules=[
+                CategoryRule(LButtJoint, "stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+                CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+            ],
+        ),
     ]
 
     def __init__(

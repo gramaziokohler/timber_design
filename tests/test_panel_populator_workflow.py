@@ -16,6 +16,7 @@ All geometry uses mm units.
 
 import pytest
 
+from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Translation
@@ -30,6 +31,8 @@ from compas_timber.model import TimberModel
 
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.connections_2d.beam2d import Beam2D
+from timber_design.connections_2d.connection_solver_2d import Beam2DSolverResult
+from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 
 try:
     from compas_timber.panel_features.opening import Opening
@@ -599,3 +602,114 @@ class TestJointCreation:
         pop.join_elements()
         real = [j for j in pop.model.joints if not isinstance(j, JointCandidate)]
         assert len(real) > 0
+
+    def test_dedupe_results_drops_duplicate_pair(self):
+        """PanelPopulator._dedupe_results keeps one candidate per element pair.
+
+        Guards against ConnectionSolver2D's generic pass and an agent's
+        forced_joint_results both producing a candidate for the same two
+        elements (e.g. a header/king_stud pair the generic solver happens to
+        detect too) — see PanelPopulator._join_layer.
+        """
+        from timber_design.populators.populator import PanelPopulator
+
+        w, h = 60.0, 160.0
+        beam_a = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(0, 1000, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
+        beam_b = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(1000, 0, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
+        beam_c = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(-1000, 0, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
+
+        solver = ConnectionSolver2D(max_distance=1.0)
+        real_result = solver.find_topology(beam_a, beam_b)
+        assert real_result is not None
+        forced_duplicate = Beam2DSolverResult(beam_a, beam_b, distance=0.0, topology=real_result.topology, location=real_result.location)
+        other_result = solver.find_topology(beam_a, beam_c)
+        assert other_result is not None
+
+        deduped = PanelPopulator._dedupe_results([real_result, forced_duplicate, other_result])
+
+        assert len(deduped) == 2
+        assert deduped[0] is real_result
+        pairs = [set(r.elements) for r in deduped]
+        assert {beam_a, beam_b} in pairs
+        assert {beam_a, beam_c} in pairs
+
+    def test_debug_info_present_and_clean_on_happy_path(self):
+        """``pop.debug_info`` exists and stays empty when nothing goes wrong."""
+        from timber_design.workflow import DebugInfomation
+
+        panel = make_panel()
+        model = TimberModel()
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
+        pop.populate_elements()
+        pop.join_elements()
+        pop.process_joinery()
+        assert isinstance(pop.debug_info, DebugInfomation)
+        assert not pop.debug_info.has_errors
+
+
+# =============================================================================
+# Corner clusters (stud / opening stud hits an edge-beam corner)
+# =============================================================================
+
+
+class TestCornerClusterJoints:
+    """A stud (or king/jack stud) landing exactly on a panel corner forms a
+    3-element TOPO_Y/TOPO_K cluster spanning two agents (the stud agent and
+    EdgePopulatorAgent) plus EdgePopulatorAgent's own internal edge-to-edge
+    joint.  This should resolve to one ClusterJoint via CLUSTER_RULES rather
+    than independent pairwise joints — see PanelPopulator._resolve_cluster.
+
+    Engineering exact panel dimensions to make a *generated* stud land on a
+    corner is fiddly (see the plan notes), so this hand-builds the 3-beam
+    corner directly on top of a populated panel's own layer/model, exactly
+    mirroring what PanelPopulator._join_layer would see for a real corner hit.
+    """
+
+    def _build_corner(self, pop):
+        """Hand-build a Y-cluster and register it under the real owning agents.
+
+        Adding elements to ``pop.model`` alone isn't enough — since
+        PanelPopulator._resolve_cluster determines which agents are
+        "involved" in a cluster by checking element identity against each
+        agent's own ``.elements`` (not by category), these beams must also be
+        appended to the real StudPopulatorAgent's / EdgePopulatorAgent's
+        ``elements_by_layer[layer]``, exactly like elements the agents
+        generated themselves would be.
+        """
+        layer = next(l for l in pop.model.layers if l.children)
+        stud_agent = next(a for a in pop.agents if "stud" in a.BEAM_CATEGORY_NAMES)
+        edge_agent = next(a for a in pop.agents if "edge_stud" in a.BEAM_CATEGORY_NAMES)
+        w = 60.0
+        h = layer.thickness
+        z = layer.center_height
+        p0 = Point(2000, 1350, z)
+        stud = Beam2D.from_centerline(Line(p0, Point(2000, 1350 + 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
+        stud.attributes["category"] = "stud"
+        edge_stud = Beam2D.from_centerline(Line(p0, Point(2000 - 700, 1350, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
+        edge_stud.attributes["category"] = "edge_stud"
+        top_plate = Beam2D.from_centerline(Line(p0, Point(2000 + 700, 1350 - 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
+        top_plate.attributes["category"] = "top_plate_beam"
+        for b in (stud, edge_stud, top_plate):
+            pop.model.add_element(b, parent=layer)
+        stud_agent.elements_by_layer.setdefault(layer, []).append(stud)
+        edge_agent.elements_by_layer.setdefault(layer, []).extend([edge_stud, top_plate])
+        return stud, edge_stud, top_plate
+
+    def test_corner_cluster_becomes_one_cluster_joint(self):
+        from compas_timber.connections import ClusterJoint
+
+        panel = make_panel()
+        model = TimberModel()
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
+        pop.populate_elements()
+        stud, edge_stud, top_plate = self._build_corner(pop)
+
+        pop.join_elements()
+
+        cluster_joints = [j for j in pop.model.joints if isinstance(j, ClusterJoint)]
+        matching = [cj for cj in cluster_joints if set(cj.elements) == {stud, edge_stud, top_plate}]
+        assert len(matching) == 1
+        assert len(matching[0].joints) == 3
+        assert not pop.debug_info.joint_errors

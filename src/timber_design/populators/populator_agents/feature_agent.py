@@ -124,33 +124,6 @@ class FeatureAgent(PopulatorAgent):
         """
         raise NotImplementedError
 
-    def create_joint_candidates(self, layer=None):
-        """Return within-agent joint candidates, pairing beams per layer.
-
-        With *layer* given, only that layer's bucket is paired; otherwise every
-        layer this agent has elements on.  Pairs are always formed *within* a
-        single layer so a beam on one layer is never joined to one on another.
-        """
-        from compas_timber.connections import JointCandidate
-
-        from timber_design.connections_2d.beam2d import Beam2D
-        from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
-
-        candidates = []
-        solver = ConnectionSolver2D()
-        layers = [layer] if layer is not None else list(self.elements_by_layer.keys())
-        for layer in layers:
-            elements = self.elements_by_layer.get(layer, [])
-            beam_elements = [e for e in elements if isinstance(e, Beam2D)]
-            pairs = solver.find_intersecting_pairs(beam_elements)
-            for element_a, element_b in pairs:
-                topo_result = solver.find_topology(element_a, element_b)
-                if topo_result is not None:
-                    candidate = JointCandidate(topo_result.beam_a, topo_result.beam_b, distance=topo_result.distance, topology=topo_result.topology, location=topo_result.location)
-                    candidates.append(candidate)
-        return candidates
-
-
     # ------------------------------------------------------------------
     # Cross-layer trimming
     # ------------------------------------------------------------------

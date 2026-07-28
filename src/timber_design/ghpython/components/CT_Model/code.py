@@ -63,6 +63,8 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
 
         JointRules = [j for j in JointRules if j is not None]
         if JointRules:
+            Model.connect_adjacent_beams()
+            Model.connect_adjacent_plates()
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
             joint_errors, _ = solver.apply_rules_to_model(Model)
             for je in joint_errors:
@@ -99,6 +101,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         elements = [e for e in elements if e is not None]
         for element in elements:
             saved_features = list(getattr(element, "_features", []))
+            saved_features = [f for f in saved_features if not f.is_joinery]
             element.reset()
             if saved_features and hasattr(element, "_features"):
                 element._features.extend(saved_features)

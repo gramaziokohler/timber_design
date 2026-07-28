@@ -1,13 +1,13 @@
-# r: timber_design>=0.1.0
 """Generates a direct joint between two elements. This overrides other joint rules."""
 
 import inspect
 
+import compas_timber.connections as _ct_connections
 import Grasshopper  # type: ignore
+from compas_timber.connections import PanelJoint
 from compas_timber.connections import PlateJoint
 from System.Windows.Forms import ToolStripSeparator
 
-from timber_design.ghpython import get_leaf_subclasses
 from timber_design.ghpython import item_input_valid_cpython
 from timber_design.ghpython import manage_cpython_dynamic_params
 from timber_design.ghpython import rename_cpython_gh_output
@@ -19,8 +19,16 @@ class DirectPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(DirectPlateJointRule, self).__init__()
         self.classes = {}
-        for cls in get_leaf_subclasses(PlateJoint):
-            if cls.MAX_ELEMENT_COUNT == 2:
+        for name in dir(_ct_connections):
+            cls = getattr(_ct_connections, name)
+            if (
+                isinstance(cls, type)
+                and issubclass(cls, PlateJoint)
+                and not issubclass(cls, PanelJoint)
+                and cls is not PlateJoint
+                and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
+                and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2
+            ):
                 self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)

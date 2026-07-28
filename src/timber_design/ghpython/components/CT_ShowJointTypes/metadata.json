@@ -1,8 +1,8 @@
 {
     "name": "ShowJointTypes",
     "nickname": "ShowJointTypes",
-    "category": "Timber Design",
-    "subcategory": "08 Show",
+    "category": "COMPAS Timber",
+    "subcategory": "09 Show",
     "description": "Shows the names of the defined Joints.",
     "exposure": 4,
     "ghpython": {

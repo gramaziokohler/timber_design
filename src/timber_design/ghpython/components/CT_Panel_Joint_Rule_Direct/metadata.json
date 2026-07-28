@@ -1,0 +1,38 @@
+{
+    "name": "Direct Panel Joint Rules",
+    "nickname": "DirectPanelJoints",
+    "category": "COMPAS Timber",
+    "subcategory": "06 Panel Joint Rules",
+    "description": "Generates a direct joint between two panels. This overrides other joint rules.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel_a",
+                "description": "Panel A.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "panel_b",
+                "description": "Panel B.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum distance between panels to be considered connected.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Rule",
+                "description": "Direct Joint Rule."
+            }
+        ]
+    }
+}

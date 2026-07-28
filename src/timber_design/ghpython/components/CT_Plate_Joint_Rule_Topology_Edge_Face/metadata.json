@@ -1,7 +1,7 @@
 {
     "name": "Edge-to-Face Topological Plate Joint Rules",
     "nickname": "EdgeFaceTopo",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "05 Plate Joint Rules",
     "description": "makes rule to apply joint type to edge-face topology. Defaults to PlateTButtJoint",
     "exposure": 2,

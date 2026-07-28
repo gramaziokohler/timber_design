@@ -1,8 +1,8 @@
 {
     "name": "BeamStock",
     "nickname": "BeamStock",
-    "category": "Timber Design",
-    "subcategory": "10 Fabrication",
+    "category": "COMPAS Timber",
+    "subcategory": "11 Fabrication",
     "description": "Represents a raw material stock used for nesting beams.",
     "exposure": 2,
     "ghpython": {

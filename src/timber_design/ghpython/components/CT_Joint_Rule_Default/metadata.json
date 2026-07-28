@@ -1,7 +1,7 @@
 {
     "name": "Default Joint Rules",
     "nickname": "DefaultJoints",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "04 Beam Joint Rules",
     "description": "makes default rules to apply joints based on connection topology. To override with other rules, use the 'L_Topo_Joint' 'T_Topo_Joint' or 'X_Topo_Joint' components.",
     "exposure": 2,

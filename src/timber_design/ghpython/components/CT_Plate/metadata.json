@@ -1,7 +1,7 @@
 {
     "name": "Plate From Outline and Thickness",
     "nickname": "PlateFromThickness",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "01 Timber elements",
     "description": "Creates a Plate from a Polyline and Thickness.",
     "exposure": 4,

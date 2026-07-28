@@ -1,7 +1,7 @@
 {
     "name": "Beam From Box",
     "nickname": "BeamFromBox",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "01 Timber elements",
     "description": "Creates a Beam from a Box.",
     "exposure": 2,

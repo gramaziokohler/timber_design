@@ -509,7 +509,7 @@ wheels = [
 
 [[package]]
 name = "compas-timber"
-version = "2.1.1rc0"
+version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "compas" },
@@ -519,9 +519,9 @@ dependencies = [
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/83/e3/5ba13f0d4dcae2ce00c80c362ed1b8a84f2385ab79f09929c663ea239577/compas_timber-2.1.1rc0.tar.gz", hash = "sha256:91bff18e5684515acfa9b9896b5e8ac10d79b2a75caef748488431ef9b363dce", size = 161499, upload-time = "2026-03-25T13:22:08.762Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/25/e98d972a9457859049b07cecad1afb98a72b614ff03d453a33e2c088209d/compas_timber-2.1.2.tar.gz", hash = "sha256:302b3bcb2af2b12bcc1f62cadfa04db167e8dc41b641f87767b3fa7e67b4c428", size = 176109, upload-time = "2026-06-16T20:33:11.164Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/77/4f264cd0c14c5167bd9103ea020d7a26a072c62adb563dc104adcdeecccf/compas_timber-2.1.1rc0-py3-none-any.whl", hash = "sha256:40513feba3fb404bb055bda664c1030dbf9759b2a9dccb0fa9ab89b2769825ff", size = 216473, upload-time = "2026-03-25T13:22:07.532Z" },
+    { url = "https://files.pythonhosted.org/packages/69/61/2c6c8cf32dff4d1416f5d3d57c3e139f6fcd8ec65c54ed4ce353b5a7824a/compas_timber-2.1.2-py3-none-any.whl", hash = "sha256:a258bbdcbde4acaafcaf99698e825e5ea8a1e60b0e194e57b60893db97637c14", size = 232427, upload-time = "2026-06-16T20:33:10.057Z" },
 ]
 
 [[package]]
@@ -3526,7 +3526,7 @@ requires-dist = [
     { name = "bump-my-version", marker = "extra == 'dev'" },
     { name = "compas-invocations2", marker = "extra == 'gh'" },
     { name = "compas-invocations2", extras = ["mkdocs"], marker = "extra == 'dev'", specifier = ">=1.0.2" },
-    { name = "compas-timber", specifier = ">=2.1.1rc0" },
+    { name = "compas-timber", specifier = ">=2.1.1" },
     { name = "invoke", marker = "extra == 'dev'", specifier = ">=0.14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'" },

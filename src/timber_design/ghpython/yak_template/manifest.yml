@@ -1,9 +1,9 @@
-name: timber_design
+name: compas_timber
 version: {{ version }}
 authors:
   - Gramazio Kohler Research, ETH Zurich
 description: "Open-source software toolkit for the design of fabrication-aware timber structures."
-url: "https://github.com/gramaziokohler/timber_design"
+url: "https://github.com/gramaziokohler/compas_timber"
 keywords: [
     "COMPAS",
     "compas",

@@ -1,8 +1,8 @@
 {
     "name": "Model",
     "nickname": "Model",
-    "category": "Timber Design",
-    "subcategory": "07 Model",
+    "category": "COMPAS Timber",
+    "subcategory": "08 Model",
     "description": "Creates an Model",
     "exposure": 2,
     "ghpython": {
@@ -11,14 +11,7 @@
         "inputParameters": [
             {
                 "name": "Elements",
-                "description": "Collection of Beams",
-                "typeHintID": "none",
-                "scriptParamAccess": 1,
-                "flatten": true
-            },
-            {
-                "name": "Containers",
-                "description": "Container elements, such as walls, floors, roofs, etc.",
+                "description": "Collection of Beams, Plates, and Panels.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1,
                 "flatten": true

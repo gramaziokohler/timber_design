@@ -1,7 +1,7 @@
 {
     "name": "Plate From Top and Bottom",
     "nickname": "PlateFromTopBottom",
-    "category": "Timber Design",
+    "category": "COMPAS Timber",
     "subcategory": "01 Timber elements",
     "description": "Creates a Plate from two Polylines.",
     "exposure": 4,

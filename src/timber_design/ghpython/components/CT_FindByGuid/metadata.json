@@ -1,8 +1,8 @@
 {
     "name": "FindBeamByRhinoGuid",
     "nickname": "FindBeamByRhinoGuid",
-    "category": "Timber Design",
-    "subcategory": "08 Show",
+    "category": "COMPAS Timber",
+    "subcategory": "09 Show",
     "description": "Finds a Beam that was created with the given referenced curve or line.",
     "exposure": 2,
     "ghpython": {

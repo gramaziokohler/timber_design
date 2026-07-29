@@ -607,7 +607,7 @@ class TestJointCreation:
         """PanelPopulator._dedupe_results keeps one candidate per element pair.
 
         Guards against ConnectionSolver2D's generic pass and an agent's
-        forced_joint_results both producing a candidate for the same two
+        forced_joint_candidates both producing a candidate for the same two
         elements (e.g. a header/king_stud pair the generic solver happens to
         detect too) — see PanelPopulator._join_layer.
         """

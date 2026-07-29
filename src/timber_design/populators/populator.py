@@ -53,7 +53,7 @@ class PanelPopulator:
     5. **join_elements** — one clustering pass per layer (see :meth:`_join_layer`):
        every agent's beams on that layer (already in :attr:`model`, as children
        of the layer) are gathered together, geometric pairwise candidates and
-       each agent's :meth:`~timber_design.populators.PopulatorAgent.forced_joint_results`
+       each agent's :meth:`~timber_design.populators.PopulatorAgent.forced_joint_candidates`
        are found/merged, and the results are clustered via
        :class:`~timber_design.connections_2d.connection_solver_2d.Cluster2DFinder`.
        Each cluster is then resolved (see :meth:`_resolve_cluster`): a 3+-element
@@ -434,65 +434,24 @@ class PanelPopulator:
                         element.transform(layer.transformation_to_local())
                         self.model.add_element(element, parent=layer)
 
+
+
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
 
         One clustering pass per layer — see :meth:`_join_layer`.
         """
+        solver=ConnectionSolver2D()
         for layer in self.model.layers:
-            agents = [a for a in self.agents if a.elements_by_layer.get(layer)]
-            if agents:
-                self._join_layer(layer, agents)
+            beams= _get_joinable_beams_for_layer(layer)
+            topos = solver.find_joint_candidates(beams)
+            cs = Cluster2DFinder()
+            clusters = cs.find_clusters(topos)
+            for cluster in clusters:
+                self._join_cluster(cluster)
 
-    def _join_layer(self, layer, agents):
-        """Find and resolve every joint cluster on *layer* in one pass.
 
-        Beams come from :attr:`model` (``layer.children``), not from
-        re-gathering ``agent.elements_by_layer`` — by this stage
-        :meth:`add_elements_to_model` has already parented every surviving
-        element under its layer.  Pairwise candidates from
-        :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`
-        are merged with each agent's
-        :meth:`~timber_design.populators.PopulatorAgent.forced_joint_results`
-        *before* clustering, so a forced candidate can still merge into a
-        larger geometric cluster when coincident with one.  The merge can
-        produce a duplicate — e.g. a header/king_stud pair the generic
-        solver *does* detect, which
-        :meth:`~timber_design.populators.OpeningPopulatorAgent.forced_joint_results`
-        also finds via its own ``find_topology`` attempt before ever
-        considering a synthetic fallback — so the combined list is
-        deduplicated per element pair before clustering.
-        """
-        solver = ConnectionSolver2D(max_distance=1.0)
-        beams = [e for e in layer.children if isinstance(e, Beam2D)]
-        results = solver.find_joint_candidates(beams)
-        for agent in agents:
-            results.extend(agent.forced_joint_results(layer))
-        results = self._dedupe_results(results)
-        clusters = Cluster2DFinder(endpoint_tolerance=solver.max_distance).find_clusters(results)
-        for cluster in clusters:
-            self._resolve_cluster(cluster, agents, solver.max_distance)
-
-    @staticmethod
-    def _dedupe_results(results):
-        """Keep at most one pairwise candidate per unordered element pair.
-
-        The first occurrence wins, so a geometric result (added to *results*
-        before any agent's forced results) is kept over a forced duplicate
-        for the same pair.
-        """
-        seen = set()
-        deduped = []
-        for result in results:
-            beam_a, beam_b = result.elements
-            key = frozenset((id(beam_a), id(beam_b)))
-            if key in seen:
-                continue
-            seen.add(key)
-            deduped.append(result)
-        return deduped
-
-    def _resolve_cluster(self, cluster, agents, max_distance):
+    def _join_cluster(self, cluster, max_distance):
         """Resolve one cluster: involved agents' ``CLUSTER_RULES`` first, else pairwise fallback.
 
         For a cluster of more than one joint (a real 3+-element corner), every
@@ -509,31 +468,19 @@ class PanelPopulator:
         whether it was an error or simply no match — same as a plain
         single-joint cluster, which skips ``CLUSTER_RULES`` entirely.
         """
-        for a in agents:
-            if any(e in a.elements for e in cluster.elements):
+        #first try as whole cluster
+        for a in self.agents:
+            if any(e in a.elements for e in cluster.elements): # get agents that contain at least one of cluster.elements
                 unjoined = a.try_create_cluster_joint(self.model, cluster)
+        #if whole cluster fails, fallback pairwise
         if unjoined:
             unjoined_pairs=[]
             #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
             for candidate in cluster.joints:
                 cc = a.try_create_cluster_joint(self.model, Cluster(candidate))
-                if jdef is not None:
+                if cc is not None:
                     unjoined_pairs.append(cc)
-            return unjoined_pairs else None
-
-    @staticmethod
-    def _agent_for_element(element, agents):
-        """Return the agent in *agents* that owns *element*, or ``None``.
-
-        Checked by element identity against each agent's own :attr:`~PopulatorAgent.elements`,
-        not by category — two agents can share a category name (e.g. two
-        window openings each with their own "king_stud"), so category
-        membership alone can't tell them apart.
-        """
-        for agent in agents:
-            if any(e is element for e in agent.elements):
-                return agent
-        return None
+            return unjoined_pairs or None
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
@@ -564,3 +511,13 @@ class PanelPopulator:
         if clear_panel:
             model.remove_element_subtree(self.original_panel)
         model.merge_model(self.model, parent=self.original_panel)
+
+
+def _get_joinable_beams_for_layer(layer):
+    beams=[]
+    def walk_up(current_layer):
+        beams.extend([b for b in current_layer.children if isinstance(b, Beam2D)])
+        if current_layer.parent:
+            walk_up(current_layer.parent)
+    walk_up(layer)
+    return beams

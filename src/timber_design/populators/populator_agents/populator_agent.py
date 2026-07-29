@@ -354,25 +354,6 @@ class PopulatorAgent(Data, ABC):
             or self.cull_beam_segment(beam, layer)
         )
 
-
-    def forced_joint_results(self, layer):
-        """Return forced pairwise candidates for *layer* that geometric detection may miss.
-
-        Contributed into the same global per-layer candidate pool that
-        :meth:`~timber_design.populators.PanelPopulator._join_layer` builds from
-        :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`,
-        before clustering runs — so a forced candidate can still merge into a
-        larger geometric cluster when coincident with one.  Returns ``[]`` by
-        default; override for agents whose joinery is defined by category
-        membership rather than geometric intersection (see
-        :class:`~timber_design.populators.OpeningPopulatorAgent`).
-
-        Returns
-        -------
-        list[:class:`~timber_design.connections_2d.connection_solver_2d.Beam2DSolverResult`]
-        """
-        return []
-
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
 

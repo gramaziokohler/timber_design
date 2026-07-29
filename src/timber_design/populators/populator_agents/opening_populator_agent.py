@@ -11,6 +11,7 @@ from compas.tolerance import TOL
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
+from compas_timber.connections import JointCandidate
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
@@ -264,7 +265,13 @@ class OpeningPopulatorAgent(FeatureAgent):
         layer_elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", layer=layer, name="left_king_stud"))
         layer_elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", layer=layer, name="right_king_stud"))
         header_offset = self.beam_widths["header"] / 2
-        header = self.beam_from_category(segments[1].translated([0, header_offset, 0]), "header", layer=layer, name="header")
+        header_seg = segments[1].translated([0, header_offset, 0])
+        if self.lintel_posts:
+            header_seg = Line(
+                header_seg.start - [self.beam_widths.get("jack_stud"),0,0],
+                header_seg.end + [self.beam_widths.get("jack_stud"),0,0]
+                )
+        header = self.beam_from_category(header_seg, "header", layer=layer, name="header")
         layer_elements.append(header)
 
         # Apply longitudinal cut for an angled header.
@@ -374,51 +381,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
         return [plate]
-
-    def forced_joint_results(self, layer):
-        """Force header/king-stud, header/jack-stud, and sill/jack-or-king-stud candidates.
-
-        These pairs are found by category membership rather than geometric
-        intersection, since :class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`
-        does not reliably detect them (e.g. a header's blank outline may not
-        overlap a king stud's the way the generic solver expects). Real
-        geometric detection is attempted first, so the candidate can still
-        merge into a larger cluster (e.g. a king-stud corner that also touches
-        an edge beam) exactly like any other candidate; a synthetic
-        zero-distance fallback (which never merges with anything, since it
-        carries no dot-range) is used only when the solver genuinely misses
-        the pair, so the join still happens.
-        """
-        elements = [e for e in layer.children if e.attributes.get("category") in self.BEAM_CATEGORY_NAMES]
-        element_dict = {}
-        for element in elements:
-            category = element.attributes.get("category")
-            if category:
-                element_dict.setdefault(category, []).append(element)
-
-        solver = ConnectionSolver2D()
-
-        def _forced(a, b):
-            result = solver.find_topology(a, b)
-            if result is not None:
-                return result
-            return Beam2DSolverResult(a, b, distance=0.0, topology=JointTopology.TOPO_T, location=a.centerline.midpoint)
-
-        results = []
-        header = (element_dict.get("header") or [None])[0]
-        kings = element_dict.get("king_stud", [])
-        jacks = element_dict.get("jack_stud", [])
-        sill = (element_dict.get("sill") or [None])[0]
-
-        if header is not None:
-            for ks in kings:
-                results.append(_forced(header, ks))
-            for js in jacks:
-                results.append(_forced(header, js))
-        if sill is not None:
-            for ss in (jacks or kings):
-                results.append(_forced(sill, ss))
-        return results
 
 class DoorPopulatorAgent(OpeningPopulatorAgent):
     """A :class:`OpeningPopulatorAgent` for door openings: no sill, optional split bottom plate.

@@ -292,25 +292,22 @@ class ConnectionSolver2D:
                             beam_a,
                             beam_b,
                             dist,
-                            JointTopology.TOPO_UNKNOWN,
+                            JointTopology.TOPO_FACE_FACE,
                             _average_point(dot_pts),
                             _dot_range(beam_a, dot_pts),
                             _dot_range(beam_b, dot_pts),
                         )
 
         # Corner containment: which end of each beam is at the joint?
-        # Use self.max_distance as tolerance so endpoints landing exactly on a face
-        # (e.g. after splitting) are not rejected by floating-point epsilon.
-        tol = self.max_distance
-        b_contains_a_start = any(beam_b.contains_point(p, tolerance=tol) for p in (beam_a.edge_a.start, beam_a.edge_b.start))
-        b_contains_a_end = any(beam_b.contains_point(p, tolerance=tol) for p in (beam_a.edge_a.end, beam_a.edge_b.end))
-        a_contains_b_start = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
-        a_contains_b_end = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
+        b_contains_a_start = any(beam_b.contains_point(p) for p in (beam_a.edge_a.start, beam_a.edge_b.start))
+        b_contains_a_end = any(beam_b.contains_point(p) for p in (beam_a.edge_a.end, beam_a.edge_b.end))
+        a_contains_b_start = any(beam_a.contains_point(p) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
+        a_contains_b_end = any(beam_a.contains_point(p) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
 
         if b_contains_a_start and b_contains_a_end:
-            return None
+            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
         if a_contains_b_start and a_contains_b_end:
-            return None
+            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
             beam_a_end = BeamEnd.START
@@ -328,7 +325,7 @@ class ConnectionSolver2D:
         points: list[Point] = []
         for i, seg_a in enumerate(beam_a.blank_outline.lines):
             for j, seg_b in enumerate(beam_b.blank_outline.lines):
-                result = intersection_segment_segment(seg_a, seg_b, tol=tol)
+                result = intersection_segment_segment(seg_a, seg_b)
                 if result[0]:
                     points.append(Point(*result[0]))
                     if beam_a_end is None:
@@ -570,13 +567,12 @@ class ConnectionSolver2D:
         -------
         list[:class:`Beam2DSolverResult`]
         """
-        candidates = []
+        results = []
         for beam_a, beam_b in self.find_intersecting_pairs(beams):
             result = self.find_topology(beam_a, beam_b)
             if result is not None:
-                jc = JointCandidate(result.element
-                candidates.append(JointCandidate(result)
-        return candidates
+                results.append(result)
+        return results
 
     def find_joint_clusters(self, beams) -> list["Cluster2D"]:
         """Find pairwise results and cluster multi-beam corners.

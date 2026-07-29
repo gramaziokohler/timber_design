@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* `CompositeRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
+* `CT_Composite_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
+* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
 * Added a generic panel-populator subsystem (`timber_design.populators`) that fills any `Panel` cross-section with framing beams and plates, driven by an ordered list of agents (`LayerAgent` subclasses for a single cross-section layer, `FeatureAgent` subclasses for panel features such as openings) instead of a fixed wall/slab type.
 * Added `stud_panel()` factory function (`timber_design.populators.populator_configs`) that builds a ready-to-run `PanelPopulator` for a standard stud-framed wall panel.
 * Added a 2D connection-solving toolkit (`timber_design.connections_2d`: `Beam2D`, `AABB2D`, `ConnectionSolver2D`, `Cluster2DFinder`) used internally by the populator to detect beam-to-beam topology and cluster joint candidates in populator (2D) space.

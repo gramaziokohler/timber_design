@@ -19,10 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `CT: Composite Joint Rule` GH component for joint rules that match clusters of 3+ elements.
 * Added `CT: Filter Display` GH component to filter/display model elements by layer path or level.
 * `CT: Panel` gained a `layer_structure` input to attach a `LayerStructure` (built via `CT: Panel Layer Definition` / `CT: Subdivide Layer`) to the panel.
-* `ClusterRule`: bundles multiple pairwise joint rules into a single `ClusterJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
+* `CompositeRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
 * `CT_Cluster_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
-* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `ClusterRule`.
+* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
 * `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`.
+* `PanelPopulator` (and `stud_panel()`, `CT: PanelPopulator`, `CT: StudPanel`) gained a `max_distance` parameter that governs the maximum gap distance for all joint candidate finding and creation in `join_elements()`.
 
 ### Changed
 

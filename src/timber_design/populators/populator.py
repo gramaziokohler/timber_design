@@ -86,6 +86,14 @@ class PanelPopulator:
     transformation_to_populator : :class:`compas.geometry.Transformation`, optional
         Transformation from world/panel space to populator space.
         Its inverse is applied in :meth:`merge_with_model`.
+    max_distance : float, optional
+        Maximum gap distance considered when finding and creating joints in
+        :meth:`join_elements` — both the geometric candidate search
+        (:class:`~timber_design.connections_2d.connection_solver_2d.ConnectionSolver2D`
+        / :class:`~timber_design.connections_2d.connection_solver_2d.Cluster2DFinder`)
+        and joint creation itself (:meth:`_join_cluster`, which falls back to
+        this value for any rule that doesn't specify its own ``max_distance``).
+        ``None`` (the default) resolves to ``0.1``.
 
     Attributes
     ----------
@@ -103,6 +111,9 @@ class PanelPopulator:
     debug_info : :class:`~timber_design.workflow.DebugInfomation`
         Collects joining errors from :meth:`join_elements` and
         :meth:`process_joinery` instead of silently dropping them.
+    max_distance : float
+        Maximum gap distance applied to all joint candidate finding and
+        creation in :meth:`join_elements`.
 
     Examples
     --------
@@ -129,10 +140,12 @@ class PanelPopulator:
         default_feature_agents=None,
         standard_beam_width=None,
         joint_rule_overrides=None,
+        max_distance=None,
     ):
-        
+
         self.model = None
         self.debug_info = DebugInfomation()
+        self.max_distance = max_distance if max_distance is not None else 0.1
         self.agents = list(agents) if agents else None
         if isinstance(panel, Panel):
             self.panel_guid = panel.guid
@@ -195,7 +208,7 @@ class PanelPopulator:
         per-agent rule slots, so callers can supply rules without knowing which
         agent owns each pair.  Only :class:`~timber_design.workflow.CategoryRule`
         instances are routed — anything else (e.g. a
-        :class:`~timber_design.workflow.ClusterRule`) has no ``category_a``/
+        :class:`~timber_design.workflow.CompositeRule`) has no ``category_a``/
         ``category_b`` to route by, so it's skipped here.
 
         Parameters
@@ -439,19 +452,21 @@ class PanelPopulator:
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
 
-        One clustering pass per layer — see :meth:`_join_layer`.
+        One clustering pass per layer — see :meth:`_join_layer`.  :attr:`max_distance`
+        governs both the geometric candidate search below and joint creation
+        itself (see :meth:`_join_cluster`).
         """
-        solver=ConnectionSolver2D()
+        solver = ConnectionSolver2D(max_distance=self.max_distance)
         for layer in self.model.layers:
             beams= _get_joinable_beams_for_layer(layer)
             topos = solver.find_joint_candidates(beams)
-            cs = Cluster2DFinder()
+            cs = Cluster2DFinder(endpoint_tolerance=self.max_distance)
             clusters = cs.find_clusters(topos)
             for cluster in clusters:
-                self._join_cluster(cluster)
+                self._join_cluster(cluster, max_distance=self.max_distance)
 
 
-    def _join_cluster(self, cluster, max_distance):
+    def _join_cluster(self, cluster, max_distance=None):
         """Resolve one cluster: involved agents' ``CLUSTER_RULES`` first, else pairwise fallback.
 
         For a cluster of more than one joint (a real 3+-element corner), every
@@ -460,7 +475,7 @@ class PanelPopulator:
         name, e.g. two window openings each with their own "king_stud") gets
         its ``CLUSTER_RULES`` tried (sorted by
         :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`).
-        On a match, the resulting :class:`~compas_timber.connections.ClusterJoint`
+        On a match, the resulting :class:`~compas_timber.connections.CompositeJoint`
         is registered and nothing further happens for this cluster.  On error,
         trying further cluster rules stops (mirroring
         :meth:`~timber_design.workflow.JointRuleSolver.joints_from_rules_and_clusters`),
@@ -471,13 +486,13 @@ class PanelPopulator:
         #first try as whole cluster
         for a in self.agents:
             if any(e in a.elements for e in cluster.elements): # get agents that contain at least one of cluster.elements
-                unjoined = a.try_create_cluster_joint(self.model, cluster)
+                unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
         #if whole cluster fails, fallback pairwise
         if unjoined:
             unjoined_pairs=[]
             #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
             for candidate in cluster.joints:
-                cc = a.try_create_cluster_joint(self.model, Cluster(candidate))
+                cc = a.try_create_cluster_joint(self.model, Cluster(candidate), max_distance=max_distance)
                 if cc is not None:
                     unjoined_pairs.append(cc)
             return unjoined_pairs or None

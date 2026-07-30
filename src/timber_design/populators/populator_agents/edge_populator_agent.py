@@ -25,6 +25,7 @@ from timber_design.populators.populator_agents.layer_agent import AgentBoundaryT
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
+from timber_design.workflow import CompositeRule
 
 
 class EdgePopulatorAgent(LayerAgent):
@@ -77,6 +78,21 @@ class EdgePopulatorAgent(LayerAgent):
         CategoryRule(LButtJoint, "top_plate_beam", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "top_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+    ]
+
+    CLUSTER_RULES = [
+        CompositeRule(
+            name="stud_edge_corner",
+            max_element_count=3,
+            max_distance=1.0,
+            rules=[
+                CategoryRule(LButtJoint, "stud", "top_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "stud", "bottom_plate_beam", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "stud", "edge_stud", mill_depth=0.0, max_distance=1.0, modify_cross=False),
+                CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
+                CategoryRule(LButtJoint, "edge_stud", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
+            ],
+        ),
     ]
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
 

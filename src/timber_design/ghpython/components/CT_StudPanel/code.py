@@ -18,6 +18,7 @@ class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
         joint_rule_overrides: System.Collections.Generic.List[object],
         default_feature_configs: System.Collections.Generic.List[object],
         instance_feature_configs: System.Collections.Generic.List[object],
+        max_distance: float,
     ):
         return stud_panel(
             panel=panel,
@@ -31,4 +32,5 @@ class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
             joint_rule_overrides=list(joint_rule_overrides) if joint_rule_overrides else None,
             default_feature_configs={d.FEATURE_TYPE: d for d in default_feature_configs} if default_feature_configs else None,
             instance_feature_configs=list(instance_feature_configs) if instance_feature_configs else None,
+            max_distance=max_distance,
         )

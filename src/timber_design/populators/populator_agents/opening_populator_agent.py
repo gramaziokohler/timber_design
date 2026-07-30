@@ -28,7 +28,7 @@ from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import ClusterRule
+from timber_design.workflow import CompositeRule
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -125,14 +125,14 @@ class OpeningPopulatorAgent(FeatureAgent):
     ]
     # A jack/king stud that extends to hit the corner where two edge beams
     # meet forms a 3-element TOPO_Y/TOPO_K cluster; resolved as one
-    # ClusterJoint instead of independent pairwise joints.  ClusterRule
+    # CompositeJoint instead of independent pairwise joints.  CompositeRule
     # requires every pairwise candidate in the cluster to match one of its
     # sub-rules, so the edge_stud/plate corner pair (normally resolved by
     # EdgePopulatorAgent's own INTERNAL_JOINT_RULES) must be included here
     # too, at its normal mill depth — only the stud's own joints to the two
     # edge beams get the zero-depth treatment.
     CLUSTER_RULES = [
-        ClusterRule(
+        CompositeRule(
             name="opening_edge_corner",
             max_element_count=3,
             max_distance=1.0,

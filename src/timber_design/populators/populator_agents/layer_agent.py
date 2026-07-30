@@ -43,7 +43,7 @@ class LayerAgent(PopulatorAgent, ABC):
         agent that are joined to elements from a different agent.  Used by
         :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise`.
         Overridable per-instance via the config's ``external_joint_overrides``.
-    CLUSTER_RULES : list[:class:`~timber_design.workflow.ClusterRule`]
+    CLUSTER_RULES : list[:class:`~timber_design.workflow.CompositeRule`]
         Rules tried first for a joint cluster of 3+ elements that this agent
         has any element in — see
         :meth:`~timber_design.populators.PanelPopulator._resolve_cluster`.

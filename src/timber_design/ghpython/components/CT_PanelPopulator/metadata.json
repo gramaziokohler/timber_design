@@ -38,6 +38,12 @@
                 "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum gap distance applied to all joint finding and creation. None -> 0.1.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
             }
         ],
         "outputParameters": [

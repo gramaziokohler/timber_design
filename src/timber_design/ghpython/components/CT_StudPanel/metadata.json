@@ -74,6 +74,12 @@
                 "description": "List of per-feature-instance FeatureAgent overrides, already bound to specific panel features.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum gap distance applied to all joint finding and creation. None -> PanelPopulator's default.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
             }
         ],
         "outputParameters": [

@@ -18,7 +18,7 @@ from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineInte
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import ClusterRule
+from timber_design.workflow import CompositeRule
 from timber_design.workflow import DirectRule
 from timber_design.workflow import JointRuleSolver
 
@@ -89,7 +89,7 @@ class PopulatorAgent(Data, ABC):
         agent that are joined to elements from a different agent.  Used by
         :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise`.
         Overridable per-instance via the config's ``external_joint_overrides``.
-    CLUSTER_RULES : list[:class:`~timber_design.workflow.ClusterRule`]
+    CLUSTER_RULES : list[:class:`~timber_design.workflow.CompositeRule`]
         Rules tried first for a joint cluster of 3+ elements (2+ pairwise
         candidates) that this agent has any element in — see
         :meth:`~timber_design.populators.PanelPopulator._resolve_cluster`.
@@ -122,7 +122,7 @@ class PopulatorAgent(Data, ABC):
     BEAM_CATEGORY_NAMES = []
     INTERNAL_JOINT_RULES: list[CategoryRule] = []
     EXTERNAL_JOINT_RULES: list[CategoryRule] = []
-    CLUSTER_RULES: list[ClusterRule] = []
+    CLUSTER_RULES: list[CompositeRule] = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
 
     def __init__(self, internal_joint_overrides=None, external_joint_overrides=None):
@@ -190,7 +190,7 @@ class PopulatorAgent(Data, ABC):
         Only :class:`~timber_design.workflow.CategoryRule` instances participate
         in the category-based replace logic (both as *override* and as an
         existing entry in *base_rules*) — anything else (e.g. a
-        :class:`~timber_design.workflow.ClusterRule` in :attr:`CLUSTER_RULES`,
+        :class:`~timber_design.workflow.CompositeRule` in :attr:`CLUSTER_RULES`,
         or one accidentally passed in as an override) has no ``category_a``/
         ``category_b`` to compare, so it's simply appended rather than matched.
 

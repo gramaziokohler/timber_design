@@ -24,6 +24,7 @@ def stud_panel(
     joint_rule_overrides=None,
     default_feature_configs=None,
     instance_feature_configs=None,
+    max_distance=None,
 ):
     """Create a config for a standard stud-framed wall panel.
 
@@ -60,6 +61,9 @@ def stud_panel(
         Mapping from panel feature class to a ``FeatureAgent`` prototype.
     instance_feature_configs : list, optional
         Per-instance feature agents, already bound to specific features.
+    max_distance : float, optional
+        Maximum gap distance applied to all joint finding and creation.
+        ``None`` (the default) resolves to ``PanelPopulator``'s own default.
     """
 
     agents = []
@@ -115,4 +119,5 @@ def stud_panel(
         agents=agents,
         default_feature_agents=default_feature_configs,
         joint_rule_overrides=joint_rule_overrides,
+        max_distance=max_distance,
     )

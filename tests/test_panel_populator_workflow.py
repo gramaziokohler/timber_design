@@ -657,7 +657,7 @@ class TestCornerClusterJoints:
     """A stud (or king/jack stud) landing exactly on a panel corner forms a
     3-element TOPO_Y/TOPO_K cluster spanning two agents (the stud agent and
     EdgePopulatorAgent) plus EdgePopulatorAgent's own internal edge-to-edge
-    joint.  This should resolve to one ClusterJoint via CLUSTER_RULES rather
+    joint.  This should resolve to one CompositeJoint via CLUSTER_RULES rather
     than independent pairwise joints — see PanelPopulator._resolve_cluster.
 
     Engineering exact panel dimensions to make a *generated* stud land on a
@@ -697,7 +697,7 @@ class TestCornerClusterJoints:
         return stud, edge_stud, top_plate
 
     def test_corner_cluster_becomes_one_cluster_joint(self):
-        from compas_timber.connections import ClusterJoint
+        from compas_timber.connections import CompositeJoint
 
         panel = make_panel()
         model = TimberModel()
@@ -708,7 +708,7 @@ class TestCornerClusterJoints:
 
         pop.join_elements()
 
-        cluster_joints = [j for j in pop.model.joints if isinstance(j, ClusterJoint)]
+        cluster_joints = [j for j in pop.model.joints if isinstance(j, CompositeJoint)]
         matching = [cj for cj in cluster_joints if set(cj.elements) == {stud, edge_stud, top_plate}]
         assert len(matching) == 1
         assert len(matching[0].joints) == 3

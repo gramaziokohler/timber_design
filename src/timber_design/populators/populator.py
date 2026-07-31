@@ -474,28 +474,59 @@ class PanelPopulator:
         element identity, not by category — two agents can share a category
         name, e.g. two window openings each with their own "king_stud") gets
         its ``CLUSTER_RULES`` tried (sorted by
-        :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`).
-        On a match, the resulting :class:`~compas_timber.connections.CompositeJoint`
-        is registered and nothing further happens for this cluster.  On error,
-        trying further cluster rules stops (mirroring
-        :meth:`~timber_design.workflow.JointRuleSolver.joints_from_rules_and_clusters`),
-        and the cluster falls through to pairwise dispatch below regardless of
-        whether it was an error or simply no match — same as a plain
-        single-joint cluster, which skips ``CLUSTER_RULES`` entirely.
+        :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`), stopping
+        at the first agent whose attempt resolves the cluster (a match, or a
+        genuine error — either way nothing further happens for this cluster).
+        If none of them resolve it, the cluster falls through to pairwise
+        dispatch below — same as a plain single-joint cluster, which skips
+        ``CLUSTER_RULES`` entirely.
+
+        Pairwise dispatch resolves each candidate against *its own* owning
+        agent(s) — not necessarily the same agent(s) that owned the whole
+        cluster — since a cluster can span more agents than any individual
+        pairwise candidate within it (e.g. a corner cluster mixing an
+        edge-agent pair with an opening-agent pair).  A same-agent pair uses
+        that agent's ``internal_rules``; a cross-agent pair tries each owning
+        agent's ``external_rules`` in turn, stopping as soon as one resolves it.
         """
         #first try as whole cluster
-        for a in self.agents:
-            if any(e in a.elements for e in cluster.elements): # get agents that contain at least one of cluster.elements
-                unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
+        owning_agents = [a for a in self.agents if any(e in a.elements for e in cluster.elements)]
+        unjoined = None
+        for a in owning_agents:
+            unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
+            if not unjoined: #successfully created joint
+                break
         #if whole cluster fails, fallback pairwise
         if unjoined:
             unjoined_pairs=[]
             #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
             for candidate in cluster.joints:
-                cc = a.try_create_cluster_joint(self.model, Cluster(candidate), max_distance=max_distance)
-                if cc is not None:
+                pair_cluster = Cluster([candidate])
+                cc = None
+                for a in self.agents:
+                    if any(e in a.elements for e in pair_cluster.elements):
+                        cc = a.try_create_cluster_joint(self.model, pair_cluster, max_distance=max_distance)
+                        if not cc:
+                            break
+                if cc:
                     unjoined_pairs.append(cc)
             return unjoined_pairs or None
+
+
+
+        # for a in self.agents:
+        #     if any(e in a.elements for e in cluster.elements): # get agents that contain at least one of cluster.elements
+        #         unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
+        # #if whole cluster fails, fallback pairwise
+        # if unjoined:
+        #     unjoined_pairs=[]
+        #     #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
+        #     for candidate in cluster.joints:
+        #         cc = a.try_create_cluster_joint(self.model, Cluster([candidate]), max_distance=max_distance)
+        #         if cc is not None:
+        #             unjoined_pairs.append(cc)
+        #     return unjoined_pairs or None
+
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""

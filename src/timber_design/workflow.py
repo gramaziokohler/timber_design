@@ -149,8 +149,8 @@ class JointRuleSolver(object):
                 if error:
                     self.joining_errors.append(error)  # should only happen with direct rules
                     break
-            if pairwise_fallback and not promoted:
-                if len(cluster.joints) > 1:
+            if not promoted:
+                if pairwise_fallback and len(cluster.joints) > 1:
                     sub_clusters = [Cluster([j]) for j in cluster.joints]
                     sub_remaining_clusters = self.joints_from_rules_and_clusters(model, sub_clusters, max_distance=max_distance)
                     remaining_clusters.extend(sub_remaining_clusters)

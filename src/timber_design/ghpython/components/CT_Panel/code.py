@@ -16,15 +16,17 @@ from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
 
 
 class Panel(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self,
-            outline,
-            thickness: float,
-            orientation: Rhino.Geometry.Vector3d,
-            openings: System.Collections.Generic.List[object],
-            layer_structure,
-            identify_doors: bool,
-            category: str,
-            updateRefObj: bool):
+    def RunScript(
+        self,
+        outline,
+        thickness: float,
+        orientation: Rhino.Geometry.Vector3d,
+        openings: System.Collections.Generic.List[object],
+        layer_structure,
+        identify_doors: bool,
+        category: str,
+        updateRefObj: bool,
+    ):
         # minimum inputs required
 
         if not item_input_valid_cpython(ghenv, outline, "Outline") or not item_input_valid_cpython(ghenv, thickness, "Thickness"):
@@ -49,10 +51,10 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
 
         if panel.layers:
             for l in panel.get_leaf_layers():
-                g=l.modelgeometry.transformed(panel.transformation)
+                g = l.modelgeometry.transformed(panel.transformation)
                 scene.add(g)
         else:
             scene.add(panel.geometry)
-            
+
         geo = scene.draw()
         return panel, geo

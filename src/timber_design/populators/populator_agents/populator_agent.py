@@ -14,9 +14,8 @@ from compas_timber.utils import is_point_in_polyline
 
 from timber_design.connections_2d.beam2d import AABB2D
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
-from timber_design.connections_2d.connection_solver_2d import aabb_overlap
+from timber_design.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import CompositeRule
 from timber_design.workflow import DirectRule
@@ -152,7 +151,6 @@ class PopulatorAgent(Data, ABC):
     def elements(self):
         return [e for lst in self.elements_by_layer.values() for e in lst]
 
-
     @property
     def aabb(self):
         """The 2D axis-aligned bounding box enclosing all elements in this agent.
@@ -169,7 +167,6 @@ class PopulatorAgent(Data, ABC):
         if not pts:
             return None
         return AABB2D.from_points(pts)
-
 
     @staticmethod
     def _apply_overrides(base_rules: list[CategoryRule], overrides: Optional[list[CategoryRule]]) -> list[CategoryRule]:
@@ -264,19 +261,19 @@ class PopulatorAgent(Data, ABC):
         beam.attributes["category"] = category
         return beam
 
-
     def try_create_cluster_joint(self, model, cluster, max_distance=None):
         if len(cluster.elements) < 3:
             if all(e in self.elements for e in cluster.elements):
                 rules = self.internal_rules
-            else:  #only some of the elements are from this agent, so use the external rules
+            else:  # only some of the elements are from this agent, so use the external rules
                 rules = self.external_rules
         else:
             rules = self.CLUSTER_RULES
         jrs = JointRuleSolver(rules)
-        return jrs.joints_from_rules_and_clusters(model, [cluster], pairwise_fallback=False, max_distance=max_distance)
-
-
+        remaining = jrs.joints_from_rules_and_clusters(model, [cluster], pairwise_fallback=False, max_distance=max_distance)
+        if remaining:
+            print("failed to join cluster of following", [e.attributes.get("category") for e in cluster.elements])
+        return remaining
 
     def cull_beam_segment(self, beam: Beam2D, layer=None) -> bool:
         """Determines whether the beam segment should be culled by the populator agent."""
@@ -292,7 +289,6 @@ class PopulatorAgent(Data, ABC):
         their beams are culled everywhere they act and ``None`` everywhere else.
         """
         return self.outline_by_layer.get(layer)
-
 
     def cull_element_at_point(self, point, layer=None) -> bool:
         """Determines whether an element at the given point should be culled by the populator agent."""
@@ -317,6 +313,20 @@ class PopulatorAgent(Data, ABC):
         No culling is applied — every segment produced by outline crossings is
         returned.  Use :meth:`cull_beam` afterwards to discard out-of-zone
         segments, or call :meth:`trim_beam` which composes both steps.
+
+        Breakpoints are taken directly from each crossing's own ``start_dot``/
+        ``end_dot`` — *not* by sorting whole crossings and pairing adjacent
+        ones by their combined ``min``/``max`` — because a single crossing can
+        legitimately have a wide (non point-like) span: e.g. a stud/king-stud
+        that reaches a panel corner, where the boundary enters the beam blank
+        through one face and leaves through another several beam-widths away.
+        Pairing by crossing identity there produced two badly overlapping
+        segments (one spuriously short, one nearly the whole beam again);
+        every segment bounded by two consecutive breakpoints is a candidate
+        here, and :meth:`cull_beam` decides afterwards — via each candidate's
+        own midpoint — which ones actually belong to this agent's zone, so a
+        wide crossing simply yields more (correctly bounded) candidates
+        instead of a distorted pairing.
         """
         outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE or outline is None:
@@ -327,16 +337,19 @@ class PopulatorAgent(Data, ABC):
             return [beam]
 
         # add intersections at start and end to include end segments when splitting.
-        intersections.extend([
-            Beam2DPolylineIntersectionResult(start_dot=0.0),
-            Beam2DPolylineIntersectionResult(end_dot=beam.length),
-        ])
+        intersections.extend(
+            [
+                Beam2DPolylineIntersectionResult(start_dot=0.0),
+                Beam2DPolylineIntersectionResult(end_dot=beam.length),
+            ]
+        )
         intersections.sort(key=lambda x: x.average_dot)
 
         segments = []
         for pair in pairwise(intersections):
             seg_start = min(pair[0].all_dots)
             seg_end = max(pair[1].all_dots)
+            # Skip degenerate segments.
             # Skip degenerate segments.
             if seg_end - seg_start < 0.000001:
                 continue
@@ -349,10 +362,7 @@ class PopulatorAgent(Data, ABC):
         Checks both the midpoint-in-zone test (:meth:`cull_element_at_point`)
         and any agent-specific override (:meth:`cull_beam_segment`).
         """
-        return bool(
-            self.cull_element_at_point(beam.centerline.midpoint, layer)
-            or self.cull_beam_segment(beam, layer)
-        )
+        return bool(self.cull_element_at_point(beam.centerline.midpoint, layer) or self.cull_beam_segment(beam, layer))
 
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
@@ -377,15 +387,13 @@ class PopulatorAgent(Data, ABC):
         are dropped.  Non-beam elements (plates) are always kept — their trimming
         is handled geometrically by :meth:`split_agent_elements`.
         """
-        other_agent.elements_by_layer[layer] = [
-            element for element in other_agent.elements_by_layer.get(layer, [])
-            if not (element.is_beam and self.cull_beam(element, layer))
-        ]
+        other_agent.elements_by_layer[layer] = [element for element in other_agent.elements_by_layer.get(layer, []) if not (element.is_beam and self.cull_beam(element, layer))]
+
+    # def cull_elements(self, model):
 
     @abstractmethod
     def generate_elements(self):
-        """Generate (and store) this agent's elements and optionally boundary outline.
-        """
+        """Generate (and store) this agent's elements and optionally boundary outline."""
         raise NotImplementedError
 
     def repoint_to_layer_tree(self, tree):
@@ -394,3 +402,16 @@ class PopulatorAgent(Data, ABC):
 
     def extend_elements(self, layer_elements, layer) -> None:
         pass
+
+
+def _get_trimmable_beams_for_layer(layer):
+    beams = []
+
+    def walk_down(current_layer):
+        beams.extend([b for b in current_layer.children if isinstance(b, Beam2D)])
+        if current_layer.sublayers:
+            for sublayer in current_layer.sublayers:
+                walk_down(sublayer)
+
+    walk_down(layer)
+    return beams

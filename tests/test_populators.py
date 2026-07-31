@@ -402,10 +402,7 @@ class TestRouteRuleOverrides:
         ab = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
         ba = CategoryRule(LButtJoint, "top_plate_beam", "edge_stud", mill_depth=5.0)
         self._pop(edge).route_rule_overrides([ab, ba])
-        matches = [
-            r for r in edge.internal_rules
-            if r.joint_type is LButtJoint and {r.category_a, r.category_b} == {"edge_stud", "top_plate_beam"}
-        ]
+        matches = [r for r in edge.internal_rules if r.joint_type is LButtJoint and {r.category_a, r.category_b} == {"edge_stud", "top_plate_beam"}]
         assert len(matches) == 1
 
     def test_rule_overrides_routed_via_stud_panel(self):

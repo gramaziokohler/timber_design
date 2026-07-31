@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 from compas.geometry import Line
@@ -50,8 +49,6 @@ class StudPopulatorAgent(LayerAgent):
         CategoryRule(TButtJoint, "stud", "sill", mill_depth=10.0, max_distance=1.0),
     ]
 
-
-
     def __init__(
         self,
         layer=None,
@@ -88,6 +85,8 @@ class StudPopulatorAgent(LayerAgent):
         x_position = spacing
         studs = []
         while x_position < self.layer.aabb.xmax - self.beam_widths["stud"]:
-            studs.append(self.beam_from_category(Line.from_point_and_vector((x_position, 0, self.layer_center_height), (0, self.layer.aabb.ymax, 0)), "stud"))
+            studs.append(
+                self.beam_from_category(Line.from_point_and_vector((x_position, -self.layer.aabb.ymax, self.layer_center_height), (0, self.layer.aabb.ymax * 3, 0)), "stud")
+            )
             x_position += spacing
         return studs, None

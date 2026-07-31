@@ -9,13 +9,13 @@ from timber_design.ghpython.ghcomponent_helpers import manage_cpython_dynamic_pa
 from timber_design.ghpython.ghcomponent_helpers import rename_cpython_gh_output
 
 # Number of permanent (non-dynamic) input parameters that always appear first.
-_PERMANENT_PARAM_NAMES = ["feature", "element_layers","trimming_layers","external_joint_overrides", "internal_joint_overrides"]
+_PERMANENT_PARAM_NAMES = ["feature", "element_layers", "trimming_layers", "external_joint_overrides", "internal_joint_overrides"]
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
 class FeaturePopulatorAgent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
-        super(FeaturePopulatorAgent,self).__init__()
+        super(FeaturePopulatorAgent, self).__init__()
         self.agent_types = {}
         for at in get_nonabstract_subclasses(FeatureAgent):
             self.agent_types[at.__name__] = at

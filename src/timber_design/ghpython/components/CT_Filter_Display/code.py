@@ -16,13 +16,15 @@ class FilterDisplay(Grasshopper.Kernel.GH_ScriptInstance):
     def component(self):
         return ghenv.Component  # type: ignore
 
-    def RunScript(self,
-            Model,
-            layer_filter: System.Collections.Generic.List[object],
-            group_filter: System.Collections.Generic.List[object],
-            display_level: str,
-            group_space: bool,
-            CreateGeometry: bool):
+    def RunScript(
+        self,
+        Model,
+        layer_filter: System.Collections.Generic.List[object],
+        group_filter: System.Collections.Generic.List[object],
+        display_level: str,
+        group_space: bool,
+        CreateGeometry: bool,
+    ):
         if Model is None:
             return None
 
@@ -53,6 +55,7 @@ def convert_geometry(geometries):
         scene.add(g)
     return scene.draw()
 
+
 def get_element_geometry(element, create_geometry):
     if isinstance(element, Beam) and not create_geometry:
         return element.blank
@@ -75,19 +78,21 @@ def get_filtered_geometry(model, group_filters, layer_paths, display_level, grou
             if is_display_level(e, display_level) and is_on_layer(e, layer_paths):
                 geometries.append(get_element_geometry(e, create_geometry))
 
-
     return geometries
 
 
 def get_filtered_element_and_children(element, layer_paths, display_level):
     elements = []
+
     def walk(e):
         if is_display_level(e, display_level) and is_on_layer(e, layer_paths):
             elements.append(e)
         for c in e.children:
             walk(c)
+
     walk(element)
     return elements
+
 
 def is_display_level(element, display_level):
     if display_level == "panel" and isinstance(element, Panel):
@@ -97,6 +102,7 @@ def is_display_level(element, display_level):
     if display_level == "timber" and isinstance(element, TimberElement):
         return True
     return False
+
 
 def is_on_layer(element, layer_paths):
     if not layer_paths:

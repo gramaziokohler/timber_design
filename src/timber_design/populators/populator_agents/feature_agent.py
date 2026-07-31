@@ -72,7 +72,6 @@ class FeatureAgent(PopulatorAgent):
         self._element_layers = []
         self._trimming_layers = []
 
-
     @property
     def element_layers(self):
         return self._element_layers
@@ -80,7 +79,6 @@ class FeatureAgent(PopulatorAgent):
     @property
     def trimming_layers(self):
         return self._trimming_layers
-
 
     def repoint_to_layer_tree(self, tree):
         """Rebind this agent's layer references to the current panel's layer tree by path."""
@@ -113,7 +111,6 @@ class FeatureAgent(PopulatorAgent):
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
             self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
             self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
-
 
     def _compute_outline_for_layer(self, layer):
         """Return this feature's footprint outline on *layer*.

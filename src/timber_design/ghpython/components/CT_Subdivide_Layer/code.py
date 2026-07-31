@@ -56,10 +56,7 @@ class SubdivideLayer(Grasshopper.Kernel.GH_ScriptInstance):
         root_copy = _deep_copy_structure(layer_structure)
         target_def = _navigate(root_copy, path_indices)
 
-        target_def.sublayer_defs = [
-            LayerDefinition(name=names[i] if i < len(names) else None, thickness=t)
-            for i, t in enumerate(thicknesses)
-        ]
+        target_def.sublayer_defs = [LayerDefinition(name=names[i] if i < len(names) else None, thickness=t) for i, t in enumerate(thicknesses)]
 
         # Re-assign paths so the output structure has correct layer_path on every def
         root_copy._assign_paths(root_copy.layer_defs, ())

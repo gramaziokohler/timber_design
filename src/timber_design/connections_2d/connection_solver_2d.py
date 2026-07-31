@@ -247,7 +247,7 @@ class ConnectionSolver2D:
     # Topology classification
     # ------------------------------------------------------------------
 
-    def find_topology(self, beam_a, beam_b, max_distance = None) -> Optional[Beam2DSolverResult]:
+    def find_topology(self, beam_a, beam_b, max_distance=None) -> Optional[Beam2DSolverResult]:
         """Return the 2D blank-overlap topology between *beam_a* and *beam_b*.
 
         Detection order:

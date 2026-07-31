@@ -295,4 +295,3 @@ class EdgePopulatorAgent(LayerAgent):
                 else:  # a = main, b = cross
                     back_spec = CutPlaneSpec.from_back_plane(beam_a, beam_b, edge_plane_a)
                     return DirectRule(LButtJoint, [beam_a, beam_b], back_plane_spec=back_spec)
-

@@ -72,20 +72,24 @@ def stud_panel(
     if panel.interior_layer:
         agents.append(PlatePopulatorAgent(panel.interior_layer))
 
-    agents.append(EdgePopulatorAgent(
-        panel.core_layer,
-        standard_beam_width_increment=standard_beam_width_increment,
-        edge_stud_width=edge_stud_width,
-        top_plate_beam_width=top_plate_beam_width,
-        bottom_plate_beam_width=bottom_plate_beam_width,
-    ))
+    agents.append(
+        EdgePopulatorAgent(
+            panel.core_layer,
+            standard_beam_width_increment=standard_beam_width_increment,
+            edge_stud_width=edge_stud_width,
+            top_plate_beam_width=top_plate_beam_width,
+            bottom_plate_beam_width=bottom_plate_beam_width,
+        )
+    )
 
     if stud_spacing is None or stud_spacing:
-        agents.append(StudPopulatorAgent(
-            panel.core_layer,
-            stud_width=stud_width,
-            stud_spacing=stud_spacing,
-        ))
+        agents.append(
+            StudPopulatorAgent(
+                panel.core_layer,
+                stud_width=stud_width,
+                stud_spacing=stud_spacing,
+            )
+        )
 
     all_layers = [la for la in [panel.exterior_layer, panel.core_layer, panel.interior_layer] if la]
 

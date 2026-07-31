@@ -34,7 +34,7 @@ class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
         if not self.panel_type:
             return
         ghenv.Component.Message = self.panel_type.__name__
-        kwargs = {"layer":layer}
+        kwargs = {"layer": layer}
         if internal_joint_overrides:
             kwargs["internal_joint_overrides"] = list(internal_joint_overrides)
         if external_joint_overrides:

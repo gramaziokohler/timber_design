@@ -8,9 +8,11 @@ from compas_timber.elements import Panel
 from compas_timber.errors import BeamJoiningError
 from timber_design.connections_2d import Beam2D
 
+
 def _build_layer_tree(panel):
     """Build a ``{layer_path: Layer}`` dict from *panel*'s layer hierarchy."""
     tree = {}
+
     def _walk(layer):
         path = layer.layer_path
         if path is not None:
@@ -28,6 +30,7 @@ from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 
 from timber_design.workflow import CategoryRule
+from timber_design.workflow import CompositeRule
 from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRuleSolver
 
@@ -94,6 +97,11 @@ class PanelPopulator:
         and joint creation itself (:meth:`_join_cluster`, which falls back to
         this value for any rule that doesn't specify its own ``max_distance``).
         ``None`` (the default) resolves to ``0.1``.
+    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule` | :class:`~timber_design.workflow.CompositeRule`], optional
+        Panel-level joint-rule overrides.  ``CategoryRule`` entries are routed
+        to owning agents by :meth:`route_rule_overrides`; ``CompositeRule``
+        entries are collected into :attr:`cluster_rule_overrides` and tried by
+        :meth:`_join_cluster` ahead of any owning agent's own ``CLUSTER_RULES``.
 
     Attributes
     ----------
@@ -111,6 +119,9 @@ class PanelPopulator:
     debug_info : :class:`~timber_design.workflow.DebugInfomation`
         Collects joining errors from :meth:`join_elements` and
         :meth:`process_joinery` instead of silently dropping them.
+    cluster_rule_overrides : list[:class:`~timber_design.workflow.CompositeRule`]
+        ``CompositeRule`` entries pulled out of ``joint_rule_overrides``, tried
+        by :meth:`_join_cluster` ahead of any owning agent's own ``CLUSTER_RULES``.
     max_distance : float
         Maximum gap distance applied to all joint candidate finding and
         creation in :meth:`join_elements`.
@@ -151,13 +162,13 @@ class PanelPopulator:
             self.panel_guid = panel.guid
             self.original_panel = panel
         else:
-           self.panel_guid = panel
-           self.original_panel = panel
+            self.panel_guid = panel
+            self.original_panel = panel
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
+        self.cluster_rule_overrides = [r for r in (joint_rule_overrides or []) if isinstance(r, CompositeRule)]
         self.route_rule_overrides(joint_rule_overrides)
 
-   
     # ------------------------------------------------------------------
     # Initialization methods
     # ------------------------------------------------------------------
@@ -209,7 +220,10 @@ class PanelPopulator:
         agent owns each pair.  Only :class:`~timber_design.workflow.CategoryRule`
         instances are routed — anything else (e.g. a
         :class:`~timber_design.workflow.CompositeRule`) has no ``category_a``/
-        ``category_b`` to route by, so it's skipped here.
+        ``category_b`` to route by, so it's skipped here.  ``CompositeRule``
+        entries are instead pulled out separately in :meth:`__init__` into
+        :attr:`cluster_rule_overrides`, tried by :meth:`_join_cluster` ahead of
+        any owning agent's own ``CLUSTER_RULES``.
 
         Parameters
         ----------
@@ -282,7 +296,7 @@ class PanelPopulator:
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.original_panel)
-    
+
     # ------------------------------------------------------------------
     # Layer-aware agent / element accessors
     # ------------------------------------------------------------------
@@ -290,7 +304,7 @@ class PanelPopulator:
     def get_element_agents_for_layer(self, layer):
         child_layers = self.get_child_layers(layer)
         agents = []
-        
+
         for cl in child_layers + [layer]:
             for agent in self.agents:
                 if cl in agent.element_layers:
@@ -306,7 +320,6 @@ class PanelPopulator:
                     agents.append(agent)
         return agents
 
-
     def get_ancestor_layers(self, layer):
         ancestors = []
         path = layer.layer_path
@@ -321,12 +334,14 @@ class PanelPopulator:
 
     def get_child_layers(self, layer):
         sublayers = []
+
         def walk(layer):
             if not layer.sublayers:
                 return
             sublayers.extend(layer.sublayers)
             for sl in layer.sublayers:
                 walk(sl)
+
         walk(layer)
         return sublayers
 
@@ -334,7 +349,7 @@ class PanelPopulator:
         model = self.original_panel.model.extract_model_from_parent(self.original_panel)
         # elements on layers will be removed. Elements with parent == original_panel will be kept.
         for element in list(model.elements()):
-            #skip elements at root-level. these are not on a layer
+            # skip elements at root-level. these are not on a layer
             if element.parent is None:
                 continue
             if not isinstance(element, Layer):
@@ -380,9 +395,8 @@ class PanelPopulator:
         """
         for agent in self.agents:
             for layer in agent.element_layers:
-                boundary_agents = [ a for a in self.get_boundary_agents_for_layer(layer) if a is not agent]
+                boundary_agents = [a for a in self.get_boundary_agents_for_layer(layer) if a is not agent]
                 agent.extend_elements(boundary_agents, layer)
-
 
     def split_elements(self):
         """Geometrically split beams at agent boundaries (stage 3a).
@@ -427,6 +441,10 @@ class PanelPopulator:
                         if aabb_overlap(agent, other_agent):
                             agent.cull_agent_elements(other_agent, layer)
 
+        # for layer in self.layers:
+        #     trimming_agents = [a for a in self.agents if layer in a.element_layers+a.trimming_layers]
+        #     for element in _get_trimmable_beams_for_layer(layer):
+        #         pass
 
     def add_elements_to_model(self):
         """Add every generated element to :attr:`model` under its (detached) layer (stage 4).
@@ -447,8 +465,6 @@ class PanelPopulator:
                         element.transform(layer.transformation_to_local())
                         self.model.add_element(element, parent=layer)
 
-
-
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model (stage 5).
 
@@ -458,28 +474,32 @@ class PanelPopulator:
         """
         solver = ConnectionSolver2D(max_distance=self.max_distance)
         for layer in self.model.layers:
-            beams= _get_joinable_beams_for_layer(layer)
+            beams = _get_joinable_beams_for_layer(layer)
             topos = solver.find_joint_candidates(beams)
             cs = Cluster2DFinder(endpoint_tolerance=self.max_distance)
             clusters = cs.find_clusters(topos)
             for cluster in clusters:
                 self._join_cluster(cluster, max_distance=self.max_distance)
 
-
     def _join_cluster(self, cluster, max_distance=None):
-        """Resolve one cluster: involved agents' ``CLUSTER_RULES`` first, else pairwise fallback.
+        """Resolve one cluster: panel-level ``CompositeRule`` overrides, then involved agents'
+        ``CLUSTER_RULES``, else pairwise fallback.
 
-        For a cluster of more than one joint (a real 3+-element corner), every
-        agent that actually owns one of the cluster's elements (checked by
-        element identity, not by category — two agents can share a category
-        name, e.g. two window openings each with their own "king_stud") gets
-        its ``CLUSTER_RULES`` tried (sorted by
-        :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`), stopping
-        at the first agent whose attempt resolves the cluster (a match, or a
-        genuine error — either way nothing further happens for this cluster).
-        If none of them resolve it, the cluster falls through to pairwise
-        dispatch below — same as a plain single-joint cluster, which skips
-        ``CLUSTER_RULES`` entirely.
+        For a cluster of more than one joint (a real 3+-element corner),
+        :attr:`cluster_rule_overrides` (``CompositeRule`` entries pulled from
+        the panel-level ``joint_rule_overrides``) is tried first — ahead of
+        any agent's own ``CLUSTER_RULES`` — so a panel-wide override always
+        gets first crack at the cluster. If that doesn't resolve it (or there
+        are no overrides), every agent that actually owns one of the
+        cluster's elements (checked by element identity, not by category —
+        two agents can share a category name, e.g. two window openings each
+        with their own "king_stud") gets its own ``CLUSTER_RULES`` tried
+        (sorted by :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`),
+        stopping at the first attempt (override or agent) that resolves the
+        cluster (a match, or a genuine error — either way nothing further
+        happens for this cluster). If none of them resolve it, the cluster
+        falls through to pairwise dispatch below — same as a plain
+        single-joint cluster, which skips ``CLUSTER_RULES`` entirely.
 
         Pairwise dispatch resolves each candidate against *its own* owning
         agent(s) — not necessarily the same agent(s) that owned the whole
@@ -489,17 +509,22 @@ class PanelPopulator:
         that agent's ``internal_rules``; a cross-agent pair tries each owning
         agent's ``external_rules`` in turn, stopping as soon as one resolves it.
         """
-        #first try as whole cluster
-        owning_agents = [a for a in self.agents if any(e in a.elements for e in cluster.elements)]
+        # first try panel-level CompositeRule overrides, then each owning agent's own CLUSTER_RULES
         unjoined = None
+        owning_agents = [a for a in self.agents if any(e in a.elements for e in cluster.elements)]
         for a in owning_agents:
             unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
-            if not unjoined: #successfully created joint
-                break
-        #if whole cluster fails, fallback pairwise
+            if not unjoined:  # successfully created joint
+                return
+        if self.cluster_rule_overrides:
+            unjoined = JointRuleSolver(self.cluster_rule_overrides).joints_from_rules_and_clusters(
+                self.model, [cluster], pairwise_fallback=False, max_distance=max_distance
+            )        # if whole cluster fails, fallback pairwise
+            if not unjoined:  # successfully created joint
+                return
         if unjoined:
-            unjoined_pairs=[]
-            #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
+            unjoined_pairs = []
+            # here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
             for candidate in cluster.joints:
                 pair_cluster = Cluster([candidate])
                 cc = None
@@ -511,22 +536,6 @@ class PanelPopulator:
                 if cc:
                     unjoined_pairs.append(cc)
             return unjoined_pairs or None
-
-
-
-        # for a in self.agents:
-        #     if any(e in a.elements for e in cluster.elements): # get agents that contain at least one of cluster.elements
-        #         unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
-        # #if whole cluster fails, fallback pairwise
-        # if unjoined:
-        #     unjoined_pairs=[]
-        #     #here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
-        #     for candidate in cluster.joints:
-        #         cc = a.try_create_cluster_joint(self.model, Cluster([candidate]), max_distance=max_distance)
-        #         if cc is not None:
-        #             unjoined_pairs.append(cc)
-        #     return unjoined_pairs or None
-
 
     def process_joinery(self):
         """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
@@ -560,10 +569,25 @@ class PanelPopulator:
 
 
 def _get_joinable_beams_for_layer(layer):
-    beams=[]
+    beams = []
+
     def walk_up(current_layer):
         beams.extend([b for b in current_layer.children if isinstance(b, Beam2D)])
         if current_layer.parent:
             walk_up(current_layer.parent)
+
     walk_up(layer)
+    return beams
+
+
+def _get_trimmable_beams_for_layer(layer):
+    beams = []
+
+    def walk_down(current_layer):
+        beams.extend([b for b in current_layer.children if isinstance(b, Beam2D)])
+        if current_layer.sublayers:
+            for sublayer in current_layer.sublayers:
+                walk_down(sublayer)
+
+    walk_down(layer)
     return beams

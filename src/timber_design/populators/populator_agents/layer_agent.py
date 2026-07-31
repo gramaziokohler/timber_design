@@ -118,7 +118,6 @@ class LayerAgent(PopulatorAgent, ABC):
         if self.layer_path is not None:
             self._layer = tree.get(self.layer_path)
 
-
     @property
     def __data__(self):
         data = super().__data__

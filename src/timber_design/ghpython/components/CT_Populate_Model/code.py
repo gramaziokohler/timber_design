@@ -17,7 +17,7 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
         if not Populators or Model is None:
             return Model, None
         debug_info = DebugInfomation()
-        model = json_loads(json_dumps(Model)) #copy model
+        model = json_loads(json_dumps(Model))  # copy model
         for panel in model.panels:
             panel.apply_edge_extensions()
 
@@ -30,5 +30,5 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
             pop.join_elements()
             pop.model.process_joinery()
             pop.merge_with_model(model)
-        
+
         return model, debug_info

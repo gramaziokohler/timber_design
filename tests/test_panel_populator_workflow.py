@@ -37,6 +37,7 @@ from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 try:
     from compas_timber.panel_features.opening import Opening
     from compas_timber.panel_features.opening import OpeningType
+
     HAS_OPENING = True
 except ImportError:
     HAS_OPENING = False
@@ -54,13 +55,15 @@ T = 160.0
 
 
 def make_outline(xmin, ymin, xmax, ymax, z=0.0):
-    return Polyline([
-        Point(xmin, ymin, z),
-        Point(xmax, ymin, z),
-        Point(xmax, ymax, z),
-        Point(xmin, ymax, z),
-        Point(xmin, ymin, z),
-    ])
+    return Polyline(
+        [
+            Point(xmin, ymin, z),
+            Point(xmax, ymin, z),
+            Point(xmax, ymax, z),
+            Point(xmin, ymax, z),
+            Point(xmin, ymin, z),
+        ]
+    )
 
 
 def make_panel(width=W, height=H, thickness=T, sheeting_inside=0.0, sheeting_outside=0.0):
@@ -139,18 +142,15 @@ def simulate_solve(panel, config_fn=stud_panel, **kwargs):
 
 
 def categories(model):
-    return {e.attributes.get("category") for e in model.elements()
-            if hasattr(e, "attributes") and e.attributes.get("category")}
+    return {e.attributes.get("category") for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category")}
 
 
 def by_category(model, cat):
-    return [e for e in model.elements()
-            if hasattr(e, "attributes") and e.attributes.get("category") == cat]
+    return [e for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category") == cat]
 
 
 def framing_count(model):
-    return sum(1 for e in model.elements()
-               if hasattr(e, "attributes") and e.attributes.get("category"))
+    return sum(1 for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category"))
 
 
 # =============================================================================
@@ -180,8 +180,7 @@ class TestMultiSolve:
         layer_after_first = panel.core_layer
         simulate_solve(panel, **self.KWARGS)
         assert panel.core_layer is layer_after_first, (
-            "panel.core_layer was replaced with a new object on the second solve; "
-            "this will break any agent that captured the first-solve reference"
+            "panel.core_layer was replaced with a new object on the second solve; this will break any agent that captured the first-solve reference"
         )
 
     def test_element_count_identical_across_solves(self):
@@ -190,9 +189,7 @@ class TestMultiSolve:
         for _ in range(3):
             m = simulate_solve(panel, **self.KWARGS)
             counts.append(framing_count(m))
-        assert counts[0] == counts[1] == counts[2], (
-            f"Framing element counts differ across solves: {counts}"
-        )
+        assert counts[0] == counts[1] == counts[2], f"Framing element counts differ across solves: {counts}"
 
     def test_stud_category_present_on_every_solve(self):
         panel = make_panel()
@@ -286,15 +283,13 @@ class TestSheathing:
         assert any(isinstance(e, Plate) for e in model.elements())
 
     def test_both_plates_when_both_specified(self):
-        _, model = run_workflow(make_panel(sheeting_inside=15.0, sheeting_outside=22.0),
-                                standard_beam_width=60.0)
+        _, model = run_workflow(make_panel(sheeting_inside=15.0, sheeting_outside=22.0), standard_beam_width=60.0)
         plates = [e for e in model.elements() if isinstance(e, Plate)]
         assert len(plates) >= 2
 
     def test_stud_height_equals_frame_thickness(self):
         si, so = 15.0, 22.0
-        _, model = run_workflow(make_panel(sheeting_inside=si, sheeting_outside=so),
-                                standard_beam_width=60.0)
+        _, model = run_workflow(make_panel(sheeting_inside=si, sheeting_outside=so), standard_beam_width=60.0)
         frame_t = T - si - so
         for stud in by_category(model, "stud"):
             assert abs(stud.height - frame_t) < 1.0
@@ -389,9 +384,7 @@ class TestWindowOpening:
         from timber_design.populators import OpeningPopulatorAgent
 
         panel = make_panel()
-        opening = Opening.from_outline_panel(
-            make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW
-        )
+        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
         panel.add_feature(opening)
         model = TimberModel()
         add_panel(model, panel)
@@ -399,10 +392,12 @@ class TestWindowOpening:
             panel,
             standard_beam_width=60.0,
             stud_spacing=625.0,
-            default_feature_configs={Opening: OpeningPopulatorAgent(
-                element_layers=[panel.core_layer],
-                trimming_layers=[panel.core_layer],
-            )},
+            default_feature_configs={
+                Opening: OpeningPopulatorAgent(
+                    element_layers=[panel.core_layer],
+                    trimming_layers=[panel.core_layer],
+                )
+            },
         )
         pop.populate_elements()
         pop.join_elements()
@@ -428,9 +423,7 @@ class TestDoorOpening:
         from timber_design.populators import OpeningPopulatorAgent
 
         panel = make_panel()
-        opening = Opening.from_outline_panel(
-            make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR
-        )
+        opening = Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR)
         panel.add_feature(opening)
         model = TimberModel()
         add_panel(model, panel)
@@ -438,10 +431,12 @@ class TestDoorOpening:
             panel,
             standard_beam_width=60.0,
             stud_spacing=625.0,
-            default_feature_configs={Opening: OpeningPopulatorAgent(
-                element_layers=[panel.core_layer],
-                trimming_layers=[panel.core_layer],
-            )},
+            default_feature_configs={
+                Opening: OpeningPopulatorAgent(
+                    element_layers=[panel.core_layer],
+                    trimming_layers=[panel.core_layer],
+                )
+            },
         )
         pop.populate_elements()
         pop.join_elements()
@@ -526,10 +521,7 @@ class TestSplitBottomPlateBeam:
     def _bottom_plate_rule(self, agent, category_a):
         # Excludes the unrelated "HACK" corner rule (max_distance=1.0) also
         # registered for this category pair; the split-mode rule is unrestricted.
-        matching = [
-            r for r in agent.external_rules
-            if r.category_a == category_a and r.category_b == "bottom_plate_beam" and r.max_distance is None
-        ]
+        matching = [r for r in agent.external_rules if r.category_a == category_a and r.category_b == "bottom_plate_beam" and r.max_distance is None]
         assert len(matching) == 1
         return matching[0]
 
@@ -580,8 +572,7 @@ class TestRobustness:
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
-        internal_cats = {e.attributes.get("category") for e in pop.model.elements()
-                         if hasattr(e, "attributes")}
+        internal_cats = {e.attributes.get("category") for e in pop.model.elements() if hasattr(e, "attributes")}
         assert "stud" in internal_cats
 
 

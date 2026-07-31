@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 from compas.geometry import Box
@@ -267,10 +266,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         header_offset = self.beam_widths["header"] / 2
         header_seg = segments[1].translated([0, header_offset, 0])
         if self.lintel_posts:
-            header_seg = Line(
-                header_seg.start - [self.beam_widths.get("jack_stud"),0,0],
-                header_seg.end + [self.beam_widths.get("jack_stud"),0,0]
-                )
+            header_seg = Line(header_seg.start - [self.beam_widths.get("jack_stud"), 0, 0], header_seg.end + [self.beam_widths.get("jack_stud"), 0, 0])
         header = self.beam_from_category(header_seg, "header", layer=layer, name="header")
         layer_elements.append(header)
 
@@ -304,10 +300,9 @@ class OpeningPopulatorAgent(FeatureAgent):
         opening_a_pts = []
         opening_b_pts = []
         for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points):
-
             line = Line(pt_a, pt_b)
-            int_a = intersection_line_plane(line, Plane(layer.outline_a[0], [0,0,1]))
-            int_b = intersection_line_plane(line, Plane(layer.outline_b[0], [0,0,1]))
+            int_a = intersection_line_plane(line, Plane(layer.outline_a[0], [0, 0, 1]))
+            int_b = intersection_line_plane(line, Plane(layer.outline_b[0], [0, 0, 1]))
             if int_a:
                 opening_a_pts.append(int_a)
             if int_b:
@@ -382,6 +377,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         plate.add_feature(free_contour)
         return [plate]
 
+
 class DoorPopulatorAgent(OpeningPopulatorAgent):
     """A :class:`OpeningPopulatorAgent` for door openings: no sill, optional split bottom plate.
 
@@ -433,10 +429,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
             rule = CategoryRule(LButtJoint, main, "bottom_plate_beam")
         else:
             rule = CategoryRule(TButtJoint, main, "bottom_plate_beam", mill_depth=5.0)
-        self.external_rules = [
-            r for r in self.external_rules
-            if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")
-        ] + [rule]
+        self.external_rules = [r for r in self.external_rules if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")] + [rule]
 
     def split_agent_elements(self, other_agent, layer):
         """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).

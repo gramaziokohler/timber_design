@@ -24,6 +24,7 @@ try:
     from compas_timber.panel_features.opening import Opening
     from compas_timber.panel_features.opening import OpeningType
     from timber_design.populators import OpeningPopulatorAgent
+
     HAS_OPENING = True
 except ImportError:
     HAS_OPENING = False
@@ -47,29 +48,35 @@ STUD_SPACING = 600.0
 # Geometry helpers
 # ---------------------------------------------------------------------------
 
+
 def _outline(x0, y0, x1, y1):
-    return Polyline([
-        Point(x0, y0, 0),
-        Point(x1, y0, 0),
-        Point(x1, y1, 0),
-        Point(x0, y1, 0),
-        Point(x0, y0, 0),
-    ])
+    return Polyline(
+        [
+            Point(x0, y0, 0),
+            Point(x1, y0, 0),
+            Point(x1, y1, 0),
+            Point(x0, y1, 0),
+            Point(x0, y0, 0),
+        ]
+    )
 
 
 def make_panel():
     panel = Panel.from_outline_thickness(_outline(0, 0, W, H), T)
-    panel.layer_structure = LayerStructure(layer_defs=[
-        LayerDefinition(name="exterior", thickness=SO),
-        LayerDefinition(name="core"),
-        LayerDefinition(name="interior", thickness=SI),
-    ])
+    panel.layer_structure = LayerStructure(
+        layer_defs=[
+            LayerDefinition(name="exterior", thickness=SO),
+            LayerDefinition(name="core"),
+            LayerDefinition(name="interior", thickness=SI),
+        ]
+    )
     return panel
 
 
 # ---------------------------------------------------------------------------
 # Model helpers
 # ---------------------------------------------------------------------------
+
 
 def add_panel(model, panel):
     """Add *panel* to *model* together with its layer_structure's Layer children.
@@ -85,6 +92,7 @@ def add_panel(model, panel):
 # ---------------------------------------------------------------------------
 # Sublayer helpers
 # ---------------------------------------------------------------------------
+
 
 def set_sublayers(panel):
     """Assign fresh sublayer objects to the exterior layer.
@@ -105,6 +113,7 @@ def set_sublayers(panel):
 # ---------------------------------------------------------------------------
 # Workflow helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_pop(panel, with_openings=False):
     kwargs = dict(
@@ -144,24 +153,18 @@ def add_openings(panel):
 
     panel.reset() keeps non-joinery features, so these persist across solves.
     """
-    win = Opening.from_outline_panel(
-        _outline(900, 800, 2100, 2000), panel, opening_type=OpeningType.WINDOW
-    )
-    door = Opening.from_outline_panel(
-        _outline(2800, 0, 3800, 2200), panel, opening_type=OpeningType.DOOR
-    )
+    win = Opening.from_outline_panel(_outline(900, 800, 2100, 2000), panel, opening_type=OpeningType.WINDOW)
+    door = Opening.from_outline_panel(_outline(2800, 0, 3800, 2200), panel, opening_type=OpeningType.DOOR)
     panel.add_feature(win)
     panel.add_feature(door)
 
 
 def cats(model):
-    return {e.attributes.get("category") for e in model.elements()
-            if hasattr(e, "attributes") and e.attributes.get("category")}
+    return {e.attributes.get("category") for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category")}
 
 
 def by_cat(model, name):
-    return [e for e in model.elements()
-            if hasattr(e, "attributes") and e.attributes.get("category") == name]
+    return [e for e in model.elements() if hasattr(e, "attributes") and e.attributes.get("category") == name]
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +218,7 @@ class TestSublayers:
 
         simulate_solve(panel)
         assert panel.exterior_layer is ext_after_1, (
-            "exterior_layer was replaced with a new object on the second solve; "
-            "agents holding a reference to the first-solve object will break"
+            "exterior_layer was replaced with a new object on the second solve; agents holding a reference to the first-solve object will break"
         )
 
     def test_sublayer_objects_refreshed_each_solve(self):
@@ -258,11 +260,8 @@ class TestSublayers:
         counts = []
         for _ in range(3):
             m = simulate_solve(panel)
-            counts.append(sum(1 for e in m.elements()
-                              if hasattr(e, "attributes") and e.attributes.get("category")))
-        assert counts[0] == counts[1] == counts[2], (
-            "Element counts differ across solves: {}".format(counts)
-        )
+            counts.append(sum(1 for e in m.elements() if hasattr(e, "attributes") and e.attributes.get("category")))
+        assert counts[0] == counts[1] == counts[2], "Element counts differ across solves: {}".format(counts)
 
 
 # ---------------------------------------------------------------------------
@@ -341,11 +340,8 @@ class TestFullFeaturedMultiSolve:
         counts = []
         for _ in range(3):
             m = simulate_solve(panel, with_openings=True)
-            counts.append(sum(1 for e in m.elements()
-                              if hasattr(e, "attributes") and e.attributes.get("category")))
-        assert counts[0] == counts[1] == counts[2], (
-            "Element counts differ across solves: {}".format(counts)
-        )
+            counts.append(sum(1 for e in m.elements() if hasattr(e, "attributes") and e.attributes.get("category")))
+        assert counts[0] == counts[1] == counts[2], "Element counts differ across solves: {}".format(counts)
 
     def test_opening_features_survive_reset(self):
         """Opening features survive a CT_Model-style reset cycle (save -> reset -> restore).

@@ -1,4 +1,3 @@
-
 from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Vector
@@ -107,4 +106,3 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
 
         aabb2d = AABB2D.from_points(self.outline.points)
         return aabb2d
-

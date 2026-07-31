@@ -23,8 +23,6 @@ from .populator_agents.opening_populator_agent import WindowPopulatorAgent
 from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
 
 
-
-
 __all__ = [
     "PanelPopulator",
     "AABB2D",

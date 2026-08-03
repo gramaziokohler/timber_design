@@ -123,8 +123,7 @@ class TestEdgePopulatorAgent:
     def test_aabb_covers_all_elements(self, elements):
         from timber_design.connections_2d.beam2d import AABB2D
 
-        aabb = PanelPopulator._combined_aabb(elements)
-        assert isinstance(aabb, AABB2D)
+        aabb = AABB2D.from_points([p for e in elements for p in e.aabb.points])
         for e in elements:
             assert aabb.xmin <= e.aabb.xmin and aabb.xmax >= e.aabb.xmax
             assert aabb.ymin <= e.aabb.ymin and aabb.ymax >= e.aabb.ymax

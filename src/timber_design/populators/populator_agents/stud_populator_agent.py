@@ -1,12 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from compas.geometry import Line
-from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
-from timber_design.workflow import CompositeRule
+
+if TYPE_CHECKING:
+    from compas_timber.elements import Layer  # noqa: F401
 
 
 class StudPopulatorAgent(LayerAgent):
@@ -17,25 +21,31 @@ class StudPopulatorAgent(LayerAgent):
     the right edge.  Each stud runs the full panel height (Y axis) at the
     Z-centre of the layer.
 
-    Stud segments that intersect with an :class:`~timber_design.populators.OpeningPopulatorAgent`
-    boundary are removed during the :meth:`~timber_design.populators.PanelPopulator.trim_elements`
-    phase; overlapping king or jack studs are culled by
+    Stud segments that fall inside an :class:`~timber_design.populators.OpeningPopulatorAgent`
+    boundary are removed during
+    :meth:`~timber_design.populators.PanelPopulator._cull_elements`; studs
+    overlapping a king or jack stud are culled by
     :meth:`~OpeningPopulatorAgent._cull_stud`.
 
     Parameters
     ----------
-    layer : :class:`~timber_design.populators.Layer`
-        The framing layer to fill with studs.  ``layer`` provides the
-        length and width; ``layer.layer_index`` is used for cross-layer
-        trimming decisions.
-    params : :class:`StudPopulatorAgentConfig`
-        Must include ``stud_spacing`` and optionally beam width overrides.
+    layer : :class:`~compas_timber.elements.Layer` or str, optional
+        The framing layer to fill with studs, or its path.
+    stud_width : float, optional
+        Explicit stud width.  When unset it is filled with the panel-wide
+        ``standard_beam_width`` by
+        :meth:`~timber_design.populators.PanelPopulator.resolve_beam_widths`.
+    internal_joint_overrides, external_joint_overrides : list, optional
+        Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
+    stud_spacing : float, optional
+        On-centre spacing between studs.  ``None`` resolves to
+        ``stud_width * 8`` at generation time.
 
     Attributes
     ----------
-    stud_spacing : float
-        On-centre spacing between studs in model units.  Must be positive
-        and non-zero; resolved from the config before the agent is constructed.
+    stud_spacing : float or None
+        On-centre spacing between studs in model units, or ``None`` to use the
+        ``stud_width * 8`` default.  Must resolve to a positive, non-zero value.
     """
 
     BEAM_CATEGORY_NAMES = ["stud"]
@@ -51,15 +61,14 @@ class StudPopulatorAgent(LayerAgent):
 
     def __init__(
         self,
-        layer=None,
+        layer: Optional[Layer | str] = None,
         stud_width: Optional[float] = None,
-        internal_joint_overrides=None,
-        external_joint_overrides=None,
-        stud_spacing=None,
+        internal_joint_overrides: Optional[list] = None,
+        external_joint_overrides: Optional[list] = None,
+        stud_spacing: Optional[float] = None,
         **kwargs,
-    ):
-        # type: (Layer, Optional[float], Optional[list], Optional[list], Optional[float]) -> None
-        super(StudPopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
+    ) -> None:
+        super().__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
         self.beam_widths["stud"] = stud_width
         # Stored as-is; the default (``stud_width * 8``) is resolved in
         # :meth:`generate_elements` once ``PanelPopulator.resolve_beam_widths``
@@ -74,7 +83,14 @@ class StudPopulatorAgent(LayerAgent):
         return data
 
     def generate_layer_elements(self):
-        """Populate the layer with stud beams at ``stud_spacing`` intervals."""
+        """Populate the layer with stud beams at ``stud_spacing`` intervals.
+
+        Returns
+        -------
+        tuple[list[:class:`~timber_design.populators.Beam2D`], None]
+            The studs and this agent's boundary outline — always ``None``,
+            studs define no boundary.
+        """
         spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_widths["stud"] * 8
         if spacing <= 0:
             raise ValueError(

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from compas_timber.elements import Layer
 
 from .populator_agent import PopulatorAgent
+
+if TYPE_CHECKING:
+    from compas_timber.panel_features import PanelFeature  # noqa: F401
 
 
 class FeatureAgent(PopulatorAgent):
@@ -36,39 +40,47 @@ class FeatureAgent(PopulatorAgent):
         Explicit framing layers (or their paths).
     trimming_layers : list[:class:`~compas_timber.elements.Layer` | str], optional
         Explicit trimming layers (or their paths).
-    internal_joint_overrides, external_joint_overrides : list, optional
+    internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
+
+    Attributes
+    ----------
+    feature : :class:`~compas_timber.panel_features.PanelFeature`
+        The feature driving element placement.
+    element_layer_paths : list[str]
+        Paths of the framing layers, resolved to live layers by
+        :meth:`repoint_to_layer_tree`.
+    trimming_layer_paths : list[str]
+        Paths of the trimming layers, resolved to live layers by
+        :meth:`repoint_to_layer_tree`.
     """
 
     FEATURE_TYPE = None
 
-    def __init__(self, feature, element_layers=None, trimming_layers=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (object, Optional[list], Optional[list], Optional[list], Optional[list]) -> None
-        super().__init__(internal_joint_overrides, external_joint_overrides)
+    def __init__(
+        self,
+        feature: PanelFeature,
+        element_layers: Optional[list] = None,
+        trimming_layers: Optional[list] = None,
+        internal_joint_overrides: Optional[list] = None,
+        external_joint_overrides: Optional[list] = None,
+        composite_joint_overrides: Optional[list] = None,
+    ) -> None:
+        super().__init__(internal_joint_overrides, external_joint_overrides, composite_joint_overrides)
         self.feature = feature
-        self.element_layer_paths = []
-        for el in element_layers or []:
-            if isinstance(el, Layer):
-                self.element_layer_paths.append(el.layer_path)
-            else:
-                self.element_layer_paths.append(el)
-
-        self.trimming_layer_paths = []
-        for tl in trimming_layers or []:
-            if isinstance(tl, Layer):
-                self.trimming_layer_paths.append(tl.layer_path)
-            else:
-                self.trimming_layer_paths.append(tl)
-
+        self.element_layer_paths = [el.layer_path if isinstance(el, Layer) else el for el in element_layers or []]
+        self.trimming_layer_paths = [tl.layer_path if isinstance(tl, Layer) else tl for tl in trimming_layers or []]
         self._element_layers = []
         self._trimming_layers = []
 
     @property
-    def element_layers(self):
+    def element_layers(self) -> list[Layer]:
+        """The layers this agent generates elements on."""
         return self._element_layers
 
     @property
-    def trimming_layers(self):
+    def trimming_layers(self) -> list[Layer]:
+        """The layers on which this agent's outline trims peer elements."""
         return self._trimming_layers
 
     def repoint_to_layer_tree(self, tree):
@@ -87,10 +99,18 @@ class FeatureAgent(PopulatorAgent):
         return data
 
     def generate_elements(self):
+        """Generate, tag and return this agent's elements on every framing layer.
+
+        Returns
+        -------
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        """
         self.outline_by_layer.clear()
         elements_by_layer = {}
         for layer in self.element_layers:
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
+            for element in layer_elements:
+                element.attributes["agent"] = self
             elements_by_layer[layer] = layer_elements
             self.outline_by_layer[layer] = layer_outline
         return elements_by_layer

@@ -31,7 +31,7 @@ class LayerAgent(PopulatorAgent, ABC):
     ----------
     layer : :class:`~compas_timber.elements.Layer` or str, optional
         The layer this agent operates within, or its layer path.
-    internal_joint_overrides, external_joint_overrides : list, optional
+    internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
 
     Attributes
@@ -43,17 +43,20 @@ class LayerAgent(PopulatorAgent, ABC):
         Path of :attr:`layer` in the panel's layer tree.
     """
 
-    def __init__(self, layer=None, internal_joint_overrides=None, external_joint_overrides=None):
-        # type: (Optional[Layer | str], Optional[list], Optional[list]) -> None
-        super().__init__(internal_joint_overrides, external_joint_overrides)
+    def __init__(
+        self,
+        layer: Optional[Layer | str] = None,
+        internal_joint_overrides: Optional[list] = None,
+        external_joint_overrides: Optional[list] = None,
+        composite_joint_overrides: Optional[list] = None,
+    ) -> None:
+        super().__init__(internal_joint_overrides, external_joint_overrides, composite_joint_overrides)
         self._layer = None
-        if isinstance(layer, Layer):
-            self.layer_path = layer.layer_path
-        else:
-            self.layer_path = layer
+        self.layer_path = layer.layer_path if isinstance(layer, Layer) else layer
 
     @property
-    def layer(self):
+    def layer(self) -> Optional[Layer]:
+        """The live layer this agent is bound to, or ``None`` before repointing."""
         return self._layer
 
     def repoint_to_layer_tree(self, tree):
@@ -72,21 +75,31 @@ class LayerAgent(PopulatorAgent, ABC):
         return data
 
     @property
+    def element_layers(self) -> list[Layer]:
+        """The single layer this agent frames on."""
+        return [self.layer]
+
+    @property
     def layer_center_height(self):
         """Z coordinate of the centre of this agent's layer (populator space)."""
         return self.layer.center_height if self.layer is not None else None
 
     @property
-    def element_layers(self):
-        return [self.layer]
-
-    @property
-    def trimming_layers(self):
+    def trimming_layers(self) -> list[Layer]:
+        """The single layer this agent trims on."""
         return [self.layer]
 
     def generate_elements(self):
+        """Generate, tag and return this agent's elements on :attr:`layer`.
+
+        Returns
+        -------
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        """
         self.outline_by_layer.clear()
         elements, outline = self.generate_layer_elements()
+        for element in elements:
+            element.attributes["agent"] = self
         self.outline_by_layer[self.layer] = outline
         return {self.layer: elements}
 
@@ -110,6 +123,6 @@ class LayerAgent(PopulatorAgent, ABC):
         """
         return self.outline_by_layer.get(self.layer)
 
-    def beam_from_category(self, centerline, category, layer=None, **kwargs):
+    def beam_from_category(self, centerline: Line, category: str, layer: Optional[Layer] = None, **kwargs) -> Beam2D:
         """Create a beam, defaulting *layer* to ``self.layer``."""
         return super().beam_from_category(centerline, category, layer=self.layer, **kwargs)

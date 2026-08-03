@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from typing import Optional
 
@@ -48,19 +50,25 @@ class EdgePopulatorAgent(LayerAgent):
       in the ``-Y`` direction.
     - ``"edge_stud"`` — vertical edges.
 
-    The agent's :attr:`~LayerAgent.outline` is the innermost boundary
-    formed by all edge-beam inner faces.  Its
-    :attr:`~LayerAgent.BOUNDARY_TYPE` is
-    :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
+    The agent's boundary outline is the innermost boundary formed by all
+    edge-beam inner faces.  Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~AgentBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded during
-    :meth:`~timber_design.populators.PanelPopulator.trim_elements`.
+    :meth:`~timber_design.populators.PanelPopulator._cull_elements`.
 
     Parameters
     ----------
-    layer : :class:`~timber_design.populators.Layer`
-        The layer whose panel outline drives edge-beam placement.
-    params : :class:`EdgePopulatorAgentConfig`
-        Controls optional standard-width rounding.
+    layer : :class:`~compas_timber.elements.Layer` or str, optional
+        The layer whose panel outline drives edge-beam placement, or its path.
+    edge_stud_width, top_plate_beam_width, bottom_plate_beam_width : float, optional
+        Explicit per-category beam widths.  Any left unset are filled with the
+        panel-wide ``standard_beam_width`` by
+        :meth:`~timber_design.populators.PanelPopulator.resolve_beam_widths`.
+    internal_joint_overrides, external_joint_overrides : list, optional
+        Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
+    standard_beam_width_increment : float, optional
+        When set, edge-beam widths are rounded up to the next multiple of
+        this value.
 
     Attributes
     ----------
@@ -202,31 +210,34 @@ class EdgePopulatorAgent(LayerAgent):
     # methods for creating beam joints
     # ==========================================================================
 
-    def get_direct_rule_from_elements(self, element_a: Beam2D, element_b: Beam2D, **kwargs) -> DirectRule:
-        """Return the joint rule for two edge beams.
+    def get_cluster_joint(self, cluster, max_distance=None):
+        """Resolve a pair of this agent's own edge beams, geometrically when the corner is sloped.
 
         The strategy depends on the panel-edge geometry at the two beams:
 
         - When **both** edge planes are perpendicular to the panel (clean
-          vertical faces), the joint is resolved from :attr:`internal_rules`
-          via the base :meth:`~PopulatorAgent.get_direct_rule_from_elements`, so
-          it honors ``internal_joint_overrides``.
+          vertical faces), the joint comes from :attr:`internal_rules` via the
+          base implementation, so it honors ``internal_joint_overrides``.
         - When **either** edge is sloped/chamfered (its edge plane is not
           perpendicular to the panel), the joint type and cut planes are
           computed geometrically by :meth:`_create_edge_beam_joint_rule`, which
           is required to fit the bevel.
 
-        Both elements are edge beams (this is only ever called by
-        :meth:`~timber_design.populators.PanelPopulator._resolve_pairwise` for a
-        same-agent pair), so both always carry an ``edge_index`` attribute.
+        Anything else — a cross-agent pair, a 3+ element cluster, or a pair
+        whose beams carry no ``edge_index`` — falls through to the base
+        implementation unchanged.
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.Joint` or None
         """
-        edge_a = element_a.attributes.get("edge_index")
-        edge_b = element_b.attributes.get("edge_index")
-        if edge_a is None or edge_b is None:
-            return super().get_direct_rule_from_elements(element_a, element_b, **kwargs)
-        if self._edge_plane_is_perpendicular(edge_a) and self._edge_plane_is_perpendicular(edge_b):
-            return super().get_direct_rule_from_elements(element_a, element_b, **kwargs)
-        return self._create_edge_beam_joint_rule(element_a, element_b)
+        beams = cluster.elements
+        if len(beams) == 2 and all(beam in self.elements for beam in beams):
+            edges = [beam.attributes.get("edge_index") for beam in beams]
+            if all(edge is not None for edge in edges) and not all(self._edge_plane_is_perpendicular(edge) for edge in edges):
+                rule = self._create_edge_beam_joint_rule(*beams)
+                return rule.create_instance(cluster, max_distance=max_distance)
+        return super().get_cluster_joint(cluster, max_distance=max_distance)
 
     def _edge_plane_is_perpendicular(self, edge_index: int) -> bool:
         """Return ``True`` if the panel edge plane at *edge_index* is perpendicular to the panel.

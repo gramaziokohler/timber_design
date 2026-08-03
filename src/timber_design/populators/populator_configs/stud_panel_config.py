@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 
 from compas_timber.panel_features import Opening

@@ -756,6 +756,56 @@ class CompositeRule(JointRule):
     def __repr__(self):
         return "{}({} rules)".format(CompositeRule.__name__, len(self.rules))
 
+    def create_instance(self, cluster, max_distance=None):
+        """Returns a CompositeJoint if all pairwise candidates in the cluster are matched by sub-rules.
+
+        The joint is only instantiated, not registered in a model — see
+        :meth:`try_create_joint` for the registering variant.  Returns ``None``
+        if any compliance check fails or any pairwise candidate goes unmatched.
+
+        Parameters
+        ----------
+        cluster : :class:`~compas_timber.connections.Cluster`
+            The cluster of elements to match.
+        max_distance : float, optional
+            The maximum distance to consider two elements as intersecting.
+
+        Returns
+        -------
+        :class:`~compas_timber.connections.CompositeJoint` or None
+        """
+        n = len(cluster.elements)
+        min_count = self.min_element_count if self.min_element_count is not None else 3
+        if n < min_count:
+            return None
+        if self.max_element_count is not None and n > self.max_element_count:
+            return None
+        if self.topo and cluster.topology is not self.topo:
+            return None
+        if len(cluster.joints) < 2:
+            return None
+
+        max_distance = self.max_distance or max_distance or TOL.absolute
+        sorted_rules = JointRuleSolver._sort_rules(self.rules)
+
+        matched_joints = []
+        all_matched = True
+        for candidate in cluster.joints:
+            sub_cluster = Cluster([candidate])
+            for rule in sorted_rules:
+                joint = rule.create_instance(sub_cluster, max_distance)
+                if joint:
+                    matched_joints.append(joint)
+                    break
+            else:
+                # Keep going rather than returning early: a later candidate may
+                # raise a BeamJoiningError that the caller needs to see.
+                all_matched = False
+
+        if not all_matched:
+            return None
+        return CompositeJoint(joints=matched_joints, name=self.name)
+
     def try_create_joint(self, model, cluster, max_distance=None):
         """Returns a CompositeJoint if all pairwise candidates in the cluster are matched by sub-rules.
 
@@ -770,47 +820,15 @@ class CompositeRule(JointRule):
 
         Returns
         -------
-        :class:`~timber_design.composite_joint.CompositeJoint` or None
+        :class:`~compas_timber.connections.CompositeJoint` or None
         :class:`~compas_timber.errors.BeamJoiningError` or None
         """
-        n = len(cluster.elements)
-        min_count = self.min_element_count if self.min_element_count is not None else 3
-        if n < min_count:
-            return None, None
-        if self.max_element_count is not None and n > self.max_element_count:
-            return None, None
-        if self.topo and cluster.topology is not self.topo:
-            return None, None
-        if len(cluster.joints) < 2:
-            return None, None
-
-        max_distance = self.max_distance or max_distance or TOL.absolute
-        sorted_rules = JointRuleSolver._sort_rules(self.rules)
-
-        matched_joints = []
-        all_matched = True
-        for candidate in cluster.joints:
-            sub_cluster = Cluster([candidate])
-            matched = False
-            for rule in sorted_rules:
-                try:
-                    joint = rule.create_instance(sub_cluster, max_distance)
-                except BeamJoiningError as e:
-                    return None, e
-                if joint:
-                    matched_joints.append(joint)
-                    matched = True
-                    break
-            if not matched:
-                all_matched = False
-
-        if not all_matched:
-            return None, None
-
         try:
-            composite = CompositeJoint.create(model, joints=matched_joints, name=self.name)
+            composite = self.create_instance(cluster, max_distance=max_distance)
         except BeamJoiningError as e:
             return None, e
+        if composite:
+            model.add_joint(composite)
         return composite, None
 
 

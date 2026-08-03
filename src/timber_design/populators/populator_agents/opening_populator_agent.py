@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from compas.geometry import Box
@@ -26,6 +27,9 @@ from timber_design.populators.populator_agents.feature_agent import FeatureAgent
 from timber_design.populators.populator_agents.populator_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import CompositeRule
+
+if TYPE_CHECKING:
+    from compas_timber.elements import Layer  # noqa: F401
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -205,18 +209,23 @@ class OpeningPopulatorAgent(FeatureAgent):
         """:class:`~compas_timber.panel_features.OpeningType` of the bound opening, or ``None`` if unbound."""
         return self.opening.opening_type if self.opening is not None else None
 
-    def cull_beam_segment(self, beam: Beam2D, layer=None, own_elements=None) -> bool:
+    def cull_beam_segment(self, beam: Beam2D) -> bool:
         """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
 
-        Only called from :meth:`cull_beam` on segments that already survived
-        the midpoint / outline-crossing cull.  The check is restricted to
-        ``"stud"`` category beams so that plate-beam segments (``"top_plate_beam"``,
-        ``"bottom_plate_beam"``, ``"edge_stud"``, …) flanking the opening are
-        never accidentally culled by AABB overlap with the king/jack studs.
+        Only called from :meth:`~PopulatorAgent.cull_beam` on segments that
+        already survived the midpoint / outline-crossing cull.  The check is
+        restricted to ``"stud"`` category beams so that plate-beam segments
+        (``"top_plate_beam"``, ``"bottom_plate_beam"``, ``"edge_stud"``, …)
+        flanking the opening are never accidentally culled by AABB overlap
+        with the king/jack studs.
+
+        Returns
+        -------
+        bool
         """
         if beam.attributes.get("category") != "stud":
             return False
-        return self._cull_stud(beam, own_elements or [])
+        return self._cull_stud(beam, self.elements_for_layer(beam.parent))
 
     def _offset_frame_polyline(self, frame_polyline: Polyline) -> None:
         """Hook: adjust *frame_polyline* points in place. No-op by default.
@@ -352,13 +361,15 @@ class OpeningPopulatorAgent(FeatureAgent):
                 return True
         return False
 
-    def trim_plate(self, plate: Plate) -> None:
+    def trim_plate(self, plate: Plate, layer: Layer) -> None:
         """Cut the opening contour into *plate* in place.
 
         Parameters
         ----------
         plate : :class:`compas_timber.elements.Plate`
             The plate to which the opening will be applied.
+        layer : :class:`~compas_timber.elements.Layer`
+            The layer *plate* belongs to.
         """
         opening_a = Polyline([p for p in self.feature.outline_a])
         opening_b = Polyline([p for p in self.feature.outline_b])
@@ -422,25 +433,33 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
             rule = CategoryRule(TButtJoint, main, "bottom_plate_beam", mill_depth=5.0)
         self.external_rules = [r for r in self.external_rules if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")] + [rule]
 
-    def split_beam(self, beam: Beam2D, layer=None) -> list[Beam2D]:
+    def split_beam(self, beam: Beam2D, layer: Layer) -> list[Beam2D]:
         """Split like the base, except the bottom-plate beam is kept whole.
 
         The bottom-plate beam is only split when :attr:`split_bottom_plate_beam`
         is ``True`` — otherwise it stays continuous through the opening.
+
+        Returns
+        -------
+        list[:class:`~timber_design.populators.Beam2D`]
         """
         if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
             return [beam]
         return super().split_beam(beam, layer)
 
-    def cull_beam(self, beam: Beam2D, layer=None, own_elements=None) -> bool:
+    def cull_beam(self, beam: Beam2D) -> bool:
         """Cull like the base, except the bottom-plate beam is never removed.
 
         The bottom-plate beam is only culled when :attr:`split_bottom_plate_beam`
         is ``True`` — matching :meth:`split_beam` leaving it unsplit.
+
+        Returns
+        -------
+        bool
         """
         if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
             return False
-        return super().cull_beam(beam, layer, own_elements)
+        return super().cull_beam(beam)
 
 
 class WindowPopulatorAgent(OpeningPopulatorAgent):

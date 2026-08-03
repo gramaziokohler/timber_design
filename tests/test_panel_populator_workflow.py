@@ -23,6 +23,7 @@ from compas.geometry import Translation
 from compas.geometry import Vector
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
+from compas_timber.elements import Beam
 from compas_timber.elements import LayerDefinition
 from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
@@ -234,11 +235,12 @@ class TestBasicStudWall:
         studs = by_category(result, "stud")
         assert 4 <= len(studs) <= 7
 
-    def test_framing_elements_are_beam2d(self, result):
+    def test_framing_elements_are_plain_beams_after_merge(self, result):
+        """``merge_with_model`` converts every Beam2D back to a plain Beam via ``to_beam()``."""
         beam_cats = {"top_plate_beam", "bottom_plate_beam", "edge_stud", "stud"}
         for e in result.elements():
             if hasattr(e, "attributes") and e.attributes.get("category") in beam_cats:
-                assert isinstance(e, Beam2D)
+                assert isinstance(e, Beam) and not isinstance(e, Beam2D)
 
     def test_all_beams_positive_length(self, result):
         for e in result.elements():
@@ -633,7 +635,7 @@ class TestCornerClusterJoints:
         PanelPopulator._join_cluster determines which agents are "involved"
         in a cluster by each element's ``attributes["agent"]`` tag (not by
         category), these beams must carry the real StudPopulatorAgent's /
-        EdgePopulatorAgent's keys, exactly like elements the agents generated
+        EdgePopulatorAgent, exactly like elements the agents generated
         themselves would.
         """
         layer = next(l for l in pop.model.layers if l.children)
@@ -645,13 +647,13 @@ class TestCornerClusterJoints:
         p0 = Point(2000, 1350, z)
         stud = Beam2D.from_centerline(Line(p0, Point(2000, 1350 + 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         stud.attributes["category"] = "stud"
-        stud.attributes["agent"] = stud_agent.key
+        stud.attributes["agent"] = stud_agent
         edge_stud = Beam2D.from_centerline(Line(p0, Point(2000 - 700, 1350, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         edge_stud.attributes["category"] = "edge_stud"
-        edge_stud.attributes["agent"] = edge_agent.key
+        edge_stud.attributes["agent"] = edge_agent
         top_plate = Beam2D.from_centerline(Line(p0, Point(2000 + 700, 1350 - 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         top_plate.attributes["category"] = "top_plate_beam"
-        top_plate.attributes["agent"] = edge_agent.key
+        top_plate.attributes["agent"] = edge_agent
         for b in (stud, edge_stud, top_plate):
             b.attributes["layer_path"] = layer.layer_path
             pop.model.add_element(b, parent=layer)
@@ -716,7 +718,7 @@ class TestJoinClusterRuleOrder:
         end = Point(start.x + direction[0], start.y + direction[1], z)
         beam = Beam2D.from_centerline(Line(start, end), width=60.0, height=layer.thickness, z_vector=Vector(0, 0, 1))
         beam.attributes["category"] = category
-        beam.attributes["agent"] = agent.key
+        beam.attributes["agent"] = agent
         beam.attributes["layer_path"] = layer.layer_path
         pop.model.add_element(beam, parent=layer)
         return beam

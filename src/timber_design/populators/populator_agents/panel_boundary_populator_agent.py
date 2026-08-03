@@ -6,9 +6,8 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design.connections_2d.beam2d import AABB2D
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
+from timber_design.populators.populator_agents.populator_agent import AgentBoundaryType
 
 
 class PanelBoundaryPopulatorAgent(LayerAgent):
@@ -28,10 +27,9 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
       in the ``-Y`` direction.
     - ``"edge_stud"`` — vertical edges.
 
-    The agent's :attr:`~LayerAgent.outline` is the innermost boundary
-    formed by all edge-beam inner faces.  Its
-    :attr:`~LayerAgent.BOUNDARY_TYPE` is
-    :attr:`~FeatureBoundaryType.INCLUSIVE`, meaning that elements from other
+    The agent's :attr:`outline` is the innermost boundary formed by all
+    edge-beam inner faces.  Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~AgentBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded.
 
     Parameters
@@ -99,10 +97,3 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         if not self._outline:
             self._outline = self.generate_boundaries()
         return self._outline
-
-    @property
-    def aabb(self):
-        """Get the axis-aligned bounding box of the agent's outline."""
-
-        aabb2d = AABB2D.from_points(self.outline.points)
-        return aabb2d

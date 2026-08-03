@@ -1,36 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from compas_timber.connections import Cluster
 from compas_timber.elements import Layer
 from compas_timber.elements import Panel
-from compas_timber.errors import BeamJoiningError
+
+from timber_design.connections_2d import AABB2D
 from timber_design.connections_2d import Beam2D
-
-
-def _build_layer_tree(panel):
-    """Build a ``{layer_path: Layer}`` dict from *panel*'s layer hierarchy."""
-    tree = {}
-
-    def _walk(layer):
-        path = layer.layer_path
-        if path is not None:
-            tree[path] = layer
-        for sublayer in layer.sublayers:
-            _walk(sublayer)
-
-    for layer in panel.layers:
-        _walk(layer)
-    return tree
-
-
 from timber_design.connections_2d.connection_solver_2d import Cluster2DFinder
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
-
-from timber_design.workflow import CategoryRule
-from timber_design.workflow import CompositeRule
 from timber_design.workflow import DebugInfomation
 from timber_design.workflow import JointRuleSolver
 
@@ -39,39 +17,33 @@ class PanelPopulator:
     """Orchestrates the full population of a timber panel with framing elements.
 
     ``PanelPopulator`` is the top-level coordinator for the panel-population
-    workflow.  It holds a list of :class:`~timber_design.populators.LayerAgent`
-    instances — each responsible for one logical group of elements (edge beams,
-    studs, plates, openings, …) — and drives them through a fixed sequence of
-    stages:
+    workflow and the **sole writer** to its internal model.  It holds a list of
+    :class:`~timber_design.populators.PopulatorAgent` instances — each a pure
+    per-domain compute unit responsible for one logical group of elements
+    (edge beams, studs, plates, openings, …) — and drives them through a fixed
+    sequence of stages.  Agents never touch the model or each other; the
+    populator tracks element ownership through each element's
+    ``attributes["agent"]`` / ``attributes["layer_path"]`` tags and passes
+    agents the element lists they need as arguments.
 
-    1. **generate_elements** — each agent creates its beams and plates.
-    2. **extend_elements** — agents extend elements to reach adjacent agent boundaries (e.g. king/jack studs extended to plate beams).
-    3. **trim_elements** — each agent applies its boundary to its peer agents'
-       same-layer elements via
-       :meth:`~timber_design.populators.PopulatorAgent.split_agent_elements`.
-       Single-layer agents act on their own layer; feature agents act on every
-       layer they frame or trim.
+    :meth:`populate_elements` runs stages 1–7:
 
-    4. **add_elements_to_model** — surviving elements are added to the internal :class:`~compas_timber.model.TimberModel`.
-    5. **join_elements** — one clustering pass per layer (see :meth:`_join_layer`):
-       every agent's beams on that layer (already in :attr:`model`, as children
-       of the layer) are gathered together, geometric pairwise candidates and
-       each agent's :meth:`~timber_design.populators.PopulatorAgent.forced_joint_candidates`
-       are found/merged, and the results are clustered via
-       :class:`~timber_design.connections_2d.connection_solver_2d.Cluster2DFinder`.
-       Each cluster is then resolved (see :meth:`_resolve_cluster`): a 3+-element
-       cluster tries the involved agents'
-       :attr:`~timber_design.populators.PopulatorAgent.CLUSTER_RULES` first; if
-       none match (or the cluster is a plain pairwise candidate to begin with),
-       it falls back to pairwise dispatch (see :meth:`_resolve_pairwise`) —
-       same-agent pairs via that agent's ``INTERNAL_JOINT_RULES``, cross-agent
-       pairs via the union of both agents' ``EXTERNAL_JOINT_RULES``.  Joining
-       errors are collected onto :attr:`debug_info`.
+    1. **generate_elements** — each agent creates its beams and plates; the
+       populator tags them with the agent's key and layer path and adds them
+       to :attr:`model` at root level, still in populator space.
+    3. **extend_elements** — agents extend their own elements to reach
+       adjacent agent boundaries (e.g. king/jack studs extended to plate
+       beams).
+    4. **split_elements** — each trimming agent's boundary splits peer beams
+       into segments and cuts plates; the populator swaps the originals for
+       the segments in the model.
+    5. **cull_elements** — out-of-zone segments are removed from the model.
 
-    6. **process_joinery** — fabrication features (BTLx processings) are computed and applied to each element.
-    7. **merge_with_model** — elements are transformed back to world space and attached as children of the source panel in the caller's model.
+    Call :meth:`join_elements` (stage 7) and :meth:`process_joinery` (stage 8)
+    afterwards, then :meth:`merge_with_model` to move the populated layer
+    subtree back under the original panel in the caller's model.
 
-    All geometry during stages 1–6 lives in a flat 2D *populator space*: the
+    All geometry during stages 1–5 lives in a flat 2D *populator space*: the
     panel is re-expressed as a local axis-aligned rectangle (X = panel length,
     Y = panel width, Z = panel thickness).  This simplifies topology detection
     and trimming, which are performed in 2D by :class:`~timber_design.populators.ConnectionSolver2D`.
@@ -79,16 +51,22 @@ class PanelPopulator:
     Parameters
     ----------
     panel : :class:`compas_timber.elements.Panel`
-        The local (populator-space) panel.
-    agents : list[:class:`~timber_design.populators.LayerAgent`]
+        The source panel in the caller's model space (or its guid).
+    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
         Ordered list of agents.  Ordering matters for trimming: agents
         earlier in the list are trimmed against later ones, so the edge
         agent should come first.
-    original_panel : :class:`compas_timber.elements.Panel`, optional
-        Reference to the source panel in the caller's model space.
-    transformation_to_populator : :class:`compas.geometry.Transformation`, optional
-        Transformation from world/panel space to populator space.
-        Its inverse is applied in :meth:`merge_with_model`.
+    default_feature_agents : dict[type, :class:`~timber_design.populators.FeatureAgent`], optional
+        Prototype feature agent per feature class, instantiated for any panel
+        feature no existing agent already handles.
+    standard_beam_width : float, optional
+        Panel-wide default beam width, used to fill any per-category width an
+        agent constructor did not set.
+    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule` | :class:`~timber_design.workflow.CompositeRule`], optional
+        Panel-level joint rules kept on the populator itself — they are never
+        merged into any agent's rule lists.  :meth:`_join_cluster` tries them
+        on a cluster only after every owning agent's own rules have failed,
+        and again per pairwise candidate after the agents' pairwise rules.
     max_distance : float, optional
         Maximum gap distance considered when finding and creating joints in
         :meth:`join_elements` — both the geometric candidate search
@@ -97,31 +75,24 @@ class PanelPopulator:
         and joint creation itself (:meth:`_join_cluster`, which falls back to
         this value for any rule that doesn't specify its own ``max_distance``).
         ``None`` (the default) resolves to ``0.1``.
-    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule` | :class:`~timber_design.workflow.CompositeRule`], optional
-        Panel-level joint-rule overrides.  ``CategoryRule`` entries are routed
-        to owning agents by :meth:`route_rule_overrides`; ``CompositeRule``
-        entries are collected into :attr:`cluster_rule_overrides` and tried by
-        :meth:`_join_cluster` ahead of any owning agent's own ``CLUSTER_RULES``.
 
     Attributes
     ----------
-    panel : :class:`compas_timber.elements.Panel`
-        A localized copy of the panel in populator (2D) space.
-    agents : list[:class:`~timber_design.populators.LayerAgent`]
-        Ordered list of agents.
+    agents : list[:class:`~timber_design.populators.PopulatorAgent`]
+        Ordered list of agents.  Each is assigned a stable ownership key
+        (``"{ClassName}_{index}"``) written into every element it generates.
     original_panel : :class:`compas_timber.elements.Panel`
         Reference to the source panel in the caller's model space.
-    transformation_to_populator : :class:`compas.geometry.Transformation`
-        Transformation from world/panel space to populator space.
-        Its inverse is applied in :meth:`merge_with_model`.
     model : :class:`compas_timber.model.TimberModel`
         Internal model that accumulates elements and joints during population.
+        Owned exclusively by the populator — agents never write to it.
     debug_info : :class:`~timber_design.workflow.DebugInfomation`
         Collects joining errors from :meth:`join_elements` and
         :meth:`process_joinery` instead of silently dropping them.
-    cluster_rule_overrides : list[:class:`~timber_design.workflow.CompositeRule`]
-        ``CompositeRule`` entries pulled out of ``joint_rule_overrides``, tried
-        by :meth:`_join_cluster` ahead of any owning agent's own ``CLUSTER_RULES``.
+    joint_rule_overrides : list[:class:`~timber_design.workflow.CategoryRule` | :class:`~timber_design.workflow.CompositeRule`]
+        Panel-level joint rules, tried by :meth:`_join_cluster` after the
+        owning agents' own rules (first on the whole cluster, then per
+        pairwise candidate).
     max_distance : float
         Maximum gap distance applied to all joint candidate finding and
         creation in :meth:`join_elements`.
@@ -160,30 +131,30 @@ class PanelPopulator:
         self.agents = list(agents) if agents else None
         if isinstance(panel, Panel):
             self.panel_guid = panel.guid
-            self.original_panel = panel
+            self.panel = panel
         else:
             self.panel_guid = panel
-            self.original_panel = panel
+            self.panel = panel
         self.parse_default_feature_agents(default_feature_agents or {})
         self.resolve_beam_widths(standard_beam_width)
-        self.cluster_rule_overrides = [r for r in (joint_rule_overrides or []) if isinstance(r, CompositeRule)]
-        self.route_rule_overrides(joint_rule_overrides)
+        self.joint_rule_overrides = list(joint_rule_overrides) if joint_rule_overrides else []
+        self._repoint_agents()
 
     # ------------------------------------------------------------------
     # Initialization methods
     # ------------------------------------------------------------------
 
     def resolve_beam_widths(self, standard_beam_width):
-        """Fill any unset per-category beam widths on every agent with :attr:`standard_beam_width`.
+        """Fill any unset per-category beam widths on every agent with *standard_beam_width*.
 
         For each agent in :attr:`agents`, walks the categories declared in
         ``agent.BEAM_CATEGORY_NAMES`` and fills entries that are either missing
-        or ``None`` in ``agent.beam_widths`` with :attr:`standard_beam_width`.
+        or ``None`` in ``agent.beam_widths`` with *standard_beam_width*.
         Per-category widths the caller already supplied to an agent constructor
         are left untouched, so explicit per-agent overrides always win over the
         panel-wide default.
 
-        Does nothing when :attr:`standard_beam_width` is ``None``; in that case
+        Does nothing when *standard_beam_width* is ``None``; in that case
         the caller is responsible for having supplied every per-category width
         directly to each agent.
         """
@@ -194,71 +165,13 @@ class PanelPopulator:
                 if agent.beam_widths.get(category) is None:
                     agent.beam_widths[category] = standard_beam_width
 
-    def route_rule_overrides(self, rule_overrides):
-        """Distribute joint-rule overrides to whichever agents own their categories.
-
-        For each :class:`~timber_design.workflow.CategoryRule` in *rule_overrides*,
-        every agent in :attr:`agents` whose ``BEAM_CATEGORY_NAMES`` overlaps the
-        rule's category pair has the rule merged into its rule lists:
-
-        - both categories owned by the agent → ``agent.internal_rules``
-        - exactly one category owned by the agent → ``agent.external_rules``
-          *and* ``agent.external_overrides`` (the latter so the rule keeps its
-          precedence over another agent's base rule for the same pair in
-          :meth:`_resolve_pairwise`)
-
-        Agents that own neither category are skipped.  Merging delegates to
-        :meth:`~PopulatorAgent._apply_overrides`, which replaces an existing
-        rule only when both the ``joint_type.SUPPORTED_TOPOLOGY`` *and* the
-        categories match (ordered for ``TOPO_T`` / ``TOPO_EDGE_FACE``, unordered
-        otherwise), so the same pair may carry several rules targeting different
-        topologies (e.g. a ``TButtJoint`` and an ``LButtJoint`` for the same
-        ``(stud, top_plate_beam)`` pair).
-
-        This is the single place a panel-level rule list is matched against
-        per-agent rule slots, so callers can supply rules without knowing which
-        agent owns each pair.  Only :class:`~timber_design.workflow.CategoryRule`
-        instances are routed — anything else (e.g. a
-        :class:`~timber_design.workflow.CompositeRule`) has no ``category_a``/
-        ``category_b`` to route by, so it's skipped here.  ``CompositeRule``
-        entries are instead pulled out separately in :meth:`__init__` into
-        :attr:`cluster_rule_overrides`, tried by :meth:`_join_cluster` ahead of
-        any owning agent's own ``CLUSTER_RULES``.
-
-        Parameters
-        ----------
-        rule_overrides : list[:class:`~timber_design.workflow.CategoryRule`] or None
-        """
-        if not rule_overrides:
-            return
-        for rule in rule_overrides:
-            if not isinstance(rule, CategoryRule):
-                continue
-            pair = {rule.category_a, rule.category_b}
-            for agent in self.agents:
-                categories = set(agent.BEAM_CATEGORY_NAMES)
-                if not (pair & categories):
-                    continue
-                if pair <= categories:
-                    # Both categories owned by this agent → internal override.
-                    agent.internal_rules = agent._apply_overrides(agent.internal_rules, [rule])
-                else:
-                    # Exactly one category owned → external override on this
-                    # agent.  We update both the merged ``external_rules`` list
-                    # (consumed by the joint solver) *and* the raw
-                    # ``external_overrides`` list (consumed by
-                    # ``_resolve_pairwise`` to take precedence over the
-                    # other agent's base rule for the same pair).
-                    agent.external_rules = agent._apply_overrides(agent.external_rules, [rule])
-                    agent.external_overrides = agent._apply_overrides(agent.external_overrides, [rule])
-
     def _repoint_agents(self):
         """Rebind all agents to the current panel's layer tree using stored paths."""
         for agent in self.agents:
             agent.repoint_to_layer_tree(self.layer_tree)
 
     def update_panel_from_model(self, model):
-        self.original_panel = model.element_by_guid(str(self.panel_guid))
+        self.panel = model.element_by_guid(str(self.panel_guid))
 
     def parse_default_feature_agents(self, default_feature_agents):
         """Instantiate a feature agent for every panel feature lacking one.
@@ -274,7 +187,7 @@ class PanelPopulator:
         default_feature_agents : dict[type, :class:`~timber_design.populators.FeatureAgent`]
             Prototype feature agent per feature class.
         """
-        for feature in self.original_panel.features:
+        for feature in self.panel.features:
             if any(getattr(agent, "feature", None) is feature for agent in self.agents):
                 continue  # a feature agent already handles this feature
             prototype = default_feature_agents.get(type(feature))
@@ -295,254 +208,201 @@ class PanelPopulator:
         return {l.layer_path: l for l in self.model.layers}
 
     def __repr__(self):
-        return "PanelPopulator({})".format(self.original_panel)
+        return "PanelPopulator({})".format(self.panel)
 
     # ------------------------------------------------------------------
     # Layer-aware agent / element accessors
     # ------------------------------------------------------------------
 
-    def get_element_agents_for_layer(self, layer):
-        child_layers = self.get_child_layers(layer)
-        agents = []
+    # def get_boundary_agents_for_layer(self, layer):
+    #     """Agents that frame on *layer* or any of its ancestor layers."""
+    #     relevant_layers = set([layer] + self.get_ancestor_layers(layer))
+    #     agents = []
+    #     for agent in self.agents:
+    #         if relevant_layers & set(agent.element_layers):
+    #             agents.append(agent)
+    #     return agents
 
-        for cl in child_layers + [layer]:
-            for agent in self.agents:
-                if cl in agent.element_layers:
-                    agents.append(agent)
-        return agents
+    # def get_ancestor_layers(self, layer):
+    #     ancestors = []
+    #     path = layer.layer_path
+    #     if path is None:
+    #         return ancestors
+    #     while len(path) > 1:
+    #         path = path[:-1]
+    #         parent = self.layer_tree.get(path)
+    #         if parent is not None:
+    #             ancestors.append(parent)
+    #     return ancestors
 
-    def get_boundary_agents_for_layer(self, layer):
-        relevant_layers = [layer] + self.get_ancestor_layers(layer)
-        agents = []
-        for rl in relevant_layers:
-            for agent in self.agents:
-                if rl in agent.element_layers:
-                    agents.append(agent)
-        return agents
+    # def get_child_layers(self, layer):
+    #     sublayers = []
+    #     def walk(layer):
+    #         if not layer.sublayers:
+    #             return
+    #         sublayers.extend(layer.sublayers)
+    #         for sl in layer.sublayers:
+    #             walk(sl)
 
-    def get_ancestor_layers(self, layer):
-        ancestors = []
-        path = layer.layer_path
-        if path is None:
-            return ancestors
-        while len(path) > 1:
-            path = path[:-1]
-            parent = self.layer_tree.get(path)
-            if parent is not None:
-                ancestors.append(parent)
-        return ancestors
+    #     walk(layer)
+    #     return sublayers
 
-    def get_child_layers(self, layer):
-        sublayers = []
+    # ------------------------------------------------------------------
+    # Element grouping (ownership tags → per-pass element lists)
+    # ------------------------------------------------------------------
 
-        def walk(layer):
-            if not layer.sublayers:
-                return
-            sublayers.extend(layer.sublayers)
-            for sl in layer.sublayers:
-                walk(sl)
 
-        walk(layer)
-        return sublayers
+    @staticmethod
+    def _aabbs_overlap(a, b):
+        """Overlap test for two (possibly ``None``) :class:`AABB2D` boxes."""
+        return a is not None and b is not None and aabb_overlap(a, b)
+
+    # ------------------------------------------------------------------
+    # Population pipeline
+    # ------------------------------------------------------------------
 
     def build_populator_model(self):
-        model = self.original_panel.model.extract_model_from_parent(self.original_panel)
+        model = self.panel.model.extract_model_from_parent(self.panel)
         # elements on layers will be removed. Elements with parent == original_panel will be kept.
         for element in list(model.elements()):
             # skip elements at root-level. these are not on a layer
             if element.parent is None:
                 continue
             if not isinstance(element, Layer):
-                # Drop any joints left over from a previous populate_elements()
-                # call before removing the element itself, so process_joinery()
-                # never sees a joint whose beam has been detached from the tree.
-                for joint in model.get_joints_for_element(element):
-                    model.remove_joint(joint)
                 model.remove_element(element)
         return model
 
     def populate_elements(self):
-        """Execute stages 1–4: generate, extend, trim, and add elements to the model.
+        """Execute stages 1–6: generate, define outlines, extend, split, cull, attach.
 
         Call :meth:`join_elements` and :meth:`process_joinery` afterwards to
         complete the population workflow.
         """
         # model extracted here to ensure the latest version of panel and layer geometry
         self.model = self.build_populator_model()
-        self._repoint_agents()
-        self.generate_elements()
-        self.extend_elements()
-        self.split_elements()
-        self.cull_elements()
-        self.add_elements_to_model()
+        self._generate_elements()
+        self._extend_elements()
+        self._split_elements()
+        self._cull_elements()
 
-    def generate_elements(self):
-        """Ask each agent to create its beams and plates, layer by layer (stage 1).
+    def _generate_elements(self):
+        """Ask each agent to create its elements and add them to the model (stage 1).
 
-        Mirrors :meth:`extend_elements` / :meth:`trim_elements`: iterate
-        :attr:`layers`, select the agents that frame on each layer, and run the
-        agent's per-layer action.
+        Elements are tagged with the generating agent's key and their layer's
+        path, then added at the model **root**, untransformed — they stay in
+        populator space until :meth:`attach_elements_to_layers` re-parents
+        them, because the 2D split/cull/extend machinery reads populator-space
+        coordinates.
         """
         for agent in self.agents:
-            agent.generate_elements()
+            for layer, elements in agent.generate_elements().items():
+                for element in elements:
+                    self.model.add_element(element, parent=layer)
 
-    def extend_elements(self):
-        """Ask each agent to extend its elements toward adjacent boundaries (stage 2).
-
-        Boundary agents are collected from the element's own layer **and** from
-        every ancestor layer (via ``layer.parent_layer``), so that elements on a
-        sublayer extend toward plates or edges defined on the parent layer.
+    def _extend_elements(self):
+        """Ask each agent to extend its elements toward adjacent boundaries (stage 3).
         """
         for agent in self.agents:
             for layer in agent.element_layers:
-                boundary_agents = [a for a in self.get_boundary_agents_for_layer(layer) if a is not agent]
-                agent.extend_elements(boundary_agents, layer)
+                boundary_outlines = []
+                for boundary_agent in self.agents:
+                    boundary_outlines.append(boundary_agent.outline_for_layer(layer))
+                agent.extend_elements(boundary_outlines, layer)
 
-    def split_elements(self):
-        """Geometrically split beams at agent boundaries (stage 3a).
-
-        Every trimming agent cuts each peer's beams at outline crossings,
-        producing sub-segments.  No segments are discarded here — that is the
-        job of :meth:`cull_elements`.  Plates receive their boundary feature
-        (e.g. a FreeContour) during this pass.
-
-        Parent-layer agents trim child-layer elements; the reverse never
-        occurs because trimming_layers is only expanded downward (children),
-        never upward.
-        """
-        for agent in self.agents:
-            for trimming_layer in agent.trimming_layers:
-                affected_layers = [trimming_layer] + self.get_child_layers(trimming_layer)
-                for layer in affected_layers:
-                    if layer not in agent.outline_by_layer:
-                        try:
-                            agent.outline_by_layer[layer] = agent._compute_outline_for_layer(layer)
-                        except (NotImplementedError, AttributeError):
-                            agent.outline_by_layer[layer] = agent.outline_by_layer.get(trimming_layer)
-                    agents_to_trim = [a for a in self.agents if layer in a.element_layers and a is not agent]
-                    for other_agent in agents_to_trim:
-                        if aabb_overlap(agent, other_agent):
-                            agent.split_agent_elements(other_agent, layer)
-
-    def cull_elements(self):
-        """Discard out-of-zone beam segments after splitting (stage 3b).
-
-        Each trimming agent removes segments from peer agents' element lists
-        that fall inside an EXCLUSIVE zone or outside an INCLUSIVE zone, as
-        well as any agent-specific culls (e.g. studs coinciding with king
-        studs).  All splitting must be complete before this pass runs.
-        """
-        for agent in self.agents:
-            for trimming_layer in agent.trimming_layers:
-                affected_layers = [trimming_layer] + self.get_child_layers(trimming_layer)
-                for layer in affected_layers:
-                    agents_to_trim = [a for a in self.agents if layer in a.element_layers and a is not agent]
-                    for other_agent in agents_to_trim:
-                        if aabb_overlap(agent, other_agent):
-                            agent.cull_agent_elements(other_agent, layer)
-
-        # for layer in self.layers:
-        #     trimming_agents = [a for a in self.agents if layer in a.element_layers+a.trimming_layers]
-        #     for element in _get_trimmable_beams_for_layer(layer):
-        #         pass
-
-    def add_elements_to_model(self):
-        """Add every generated element to :attr:`model` under its (detached) layer (stage 4).
-
-        Each element is re-expressed in its owning layer's local frame
-        (``element.transformation = layer.transformation_to_local() @ element.transformation``)
-        and parented under that layer.  Its ``modeltransformation`` therefore
-        still resolves to the panel-local placement the agent generated (so
-        joinery and BTLx processing run in populator space), and
-        :meth:`merge_with_model` only has to move the layer subtree back under
-        the original panel — no per-element transform.
+    def _split_elements(self):
+        """Geometrically split beams at agent boundaries (stage 4).
         """
 
         for agent in self.agents:
-            for layer, elements in agent.elements_by_layer.items():
-                if elements:
-                    for element in elements:
-                        element.transform(layer.transformation_to_local())
-                        self.model.add_element(element, parent=layer)
+            for layer in agent.trimming_layers:
+                for element in _get_decendant_elements_for_layer(layer):
+                    agent.split_element(element)
+
+
+    def _cull_elements(self):
+        """Discard out-of-zone beam segments after splitting (stage 5).
+        """
+
+        for agent in self.agents:
+            for layer in agent.trimming_layers:
+                for element in _get_decendant_elements_for_layer(layer):
+                    if agent.cull_element(element):
+                        self.model.remove_element(element)
+
+    # ------------------------------------------------------------------
+    # Joining
+    # ------------------------------------------------------------------
 
     def join_elements(self):
-        """Resolve all joint candidates and create joints in the model (stage 5).
-
-        One clustering pass per layer — see :meth:`_join_layer`.  :attr:`max_distance`
-        governs both the geometric candidate search below and joint creation
-        itself (see :meth:`_join_cluster`).
+        """Resolve all joint candidates and create joints in the model (stage 7).
         """
-        solver = ConnectionSolver2D(max_distance=self.max_distance)
         for layer in self.model.layers:
-            beams = _get_joinable_beams_for_layer(layer)
-            topos = solver.find_joint_candidates(beams)
+            beams = _get_ancestor_beams_for_layer(layer)
             cs = Cluster2DFinder(endpoint_tolerance=self.max_distance)
-            clusters = cs.find_clusters(topos)
+            clusters = cs.find_joint_clusters(beams)
             for cluster in clusters:
                 self._join_cluster(cluster, max_distance=self.max_distance)
 
     def _join_cluster(self, cluster, max_distance=None):
-        """Resolve one cluster: panel-level ``CompositeRule`` overrides, then involved agents'
-        ``CLUSTER_RULES``, else pairwise fallback.
+        """Resolve one cluster, trying four rule sources in order of specificity.
 
-        For a cluster of more than one joint (a real 3+-element corner),
-        :attr:`cluster_rule_overrides` (``CompositeRule`` entries pulled from
-        the panel-level ``joint_rule_overrides``) is tried first — ahead of
-        any agent's own ``CLUSTER_RULES`` — so a panel-wide override always
-        gets first crack at the cluster. If that doesn't resolve it (or there
-        are no overrides), every agent that actually owns one of the
-        cluster's elements (checked by element identity, not by category —
-        two agents can share a category name, e.g. two window openings each
-        with their own "king_stud") gets its own ``CLUSTER_RULES`` tried
-        (sorted by :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`),
-        stopping at the first attempt (override or agent) that resolves the
-        cluster (a match, or a genuine error — either way nothing further
-        happens for this cluster). If none of them resolve it, the cluster
-        falls through to pairwise dispatch below — same as a plain
-        single-joint cluster, which skips ``CLUSTER_RULES`` entirely.
-
-        Pairwise dispatch resolves each candidate against *its own* owning
-        agent(s) — not necessarily the same agent(s) that owned the whole
-        cluster — since a cluster can span more agents than any individual
-        pairwise candidate within it (e.g. a corner cluster mixing an
-        edge-agent pair with an opening-agent pair).  A same-agent pair uses
-        that agent's ``internal_rules``; a cross-agent pair tries each owning
-        agent's ``external_rules`` in turn, stopping as soon as one resolves it.
+        1. **Agent, whole cluster.**  
+        2. **Populator, whole cluster.**  
+        3. **Agent, pairwise.** 
+        4. **Populator, pairwise.** 
         """
-        # first try panel-level CompositeRule overrides, then each owning agent's own CLUSTER_RULES
-        unjoined = None
-        owning_agents = [a for a in self.agents if any(e in a.elements for e in cluster.elements)]
-        for a in owning_agents:
-            unjoined = a.try_create_cluster_joint(self.model, cluster, max_distance=max_distance)
-            if not unjoined:  # successfully created joint
-                return
-        if self.cluster_rule_overrides:
-            unjoined = JointRuleSolver(self.cluster_rule_overrides).joints_from_rules_and_clusters(
-                self.model, [cluster], pairwise_fallback=False, max_distance=max_distance
-            )        # if whole cluster fails, fallback pairwise
-            if not unjoined:  # successfully created joint
-                return
-        if unjoined:
-            unjoined_pairs = []
-            # here we split cluster into pairwise candidates and resolve them individually. This is the fallback if no cluster rules matched.
-            for candidate in cluster.joints:
-                pair_cluster = Cluster([candidate])
-                cc = None
-                for a in self.agents:
-                    if any(e in a.elements for e in pair_cluster.elements):
-                        cc = a.try_create_cluster_joint(self.model, pair_cluster, max_distance=max_distance)
-                        if not cc:
-                            break
-                if cc:
-                    unjoined_pairs.append(cc)
-            return unjoined_pairs or None
+        if self._try_agent_rules(cluster, max_distance):
+            return
+        if self._try_populator_rules(self.joint_rule_overrides, cluster, max_distance):
+            return
+        for candidate in cluster.joints:
+            pair_cluster = Cluster([candidate])
+            if self._try_agent_rules(pair_cluster, max_distance):
+                continue
+            self._try_populator_rules(self.joint_rule_overrides, pair_cluster, max_distance)
+
+    def _try_agent_rules(self, cluster, max_distance):
+        """Try each owning agent's own rules on *cluster*; return ``True`` on the first success."""
+        for agent in self.agents:
+            joint = agent.get_cluster_joint(cluster, max_distance=max_distance)
+            if joint:
+                self.model.add_joint(joint)
+                return True
+        return False
+
+    def _try_populator_rules(self, rules, cluster, max_distance):
+        """Try to resolve *cluster* with *rules*; return ``True`` on success.
+
+        Joining errors raised by direct rules are collected onto
+        :attr:`debug_info` rather than silently dropped.
+        """
+        if not rules:
+            return False
+        solver = JointRuleSolver(rules)
+        unjoined = solver.joints_from_rules_and_clusters(self.model, [cluster], pairwise_fallback=False, max_distance=max_distance)
+        if solver.joining_errors:
+            self.debug_info.add_joint_error(solver.joining_errors)
+        return not unjoined
+
+    def _owning_agents(self, elements):
+        """``(agent, own_elements)`` for every agent owning at least one of *elements*, in :attr:`agents` order."""
+        pairs = []
+        for agent in self.agents:
+            own = [e for e in elements if _agent_tag(e) == agent.key]
+            if own:
+                pairs.append((agent, own))
+        return pairs
+
+    # ------------------------------------------------------------------
+    # Finalization
+    # ------------------------------------------------------------------
 
     def process_joinery(self):
-        """Compute and apply fabrication features (BTLx processings) to all elements (stage 6)."""
+        """Compute and apply fabrication features (BTLx processings) to all elements (stage 8)."""
         self.debug_info.add_joint_error(self.model.process_joinery())
 
     def merge_with_model(self, model, clear_panel=True):
-        """Move the populated layer subtree back under the original panel in *model* (stage 7).
+        """Move the populated layer subtree back under the original panel in *model*.
 
         Reattaching each detached layer under the original panel shifts the whole
         subtree — layers **and** the generated elements parented under them —
@@ -564,11 +424,17 @@ class PanelPopulator:
             if isinstance(element, Beam2D):
                 element.to_beam()
         if clear_panel:
-            model.remove_element_subtree(self.original_panel)
-        model.merge_model(self.model, parent=self.original_panel)
+            model.remove_element_subtree(self.panel)
+        model.merge_model(self.model, parent=self.panel)
 
 
-def _get_joinable_beams_for_layer(layer):
+def _agent_tag(element):
+    """*element*'s owning-agent key, or ``None`` for anything untagged (layers, panels, user elements)."""
+    attributes = getattr(element, "attributes", None)
+    return attributes.get("agent") if attributes is not None else None
+
+
+def _get_ancestor_beams_for_layer(layer):
     beams = []
 
     def walk_up(current_layer):
@@ -579,15 +445,15 @@ def _get_joinable_beams_for_layer(layer):
     walk_up(layer)
     return beams
 
-
-def _get_trimmable_beams_for_layer(layer):
+def _get_decendant_elements_for_layer(layer):
     beams = []
 
     def walk_down(current_layer):
-        beams.extend([b for b in current_layer.children if isinstance(b, Beam2D)])
-        if current_layer.sublayers:
-            for sublayer in current_layer.sublayers:
-                walk_down(sublayer)
+        beams.extend([b for b in current_layer.children ])
+        if current_layer.children:
+            for child in current_layer.children:
+                beams.append(child)
+                walk_down(current_layer.parent)
 
     walk_down(layer)
     return beams

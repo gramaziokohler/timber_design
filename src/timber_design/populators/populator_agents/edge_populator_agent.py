@@ -21,7 +21,7 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
+from timber_design.populators.populator_agents.populator_agent import AgentBoundaryType
 from timber_design.populators.populator_agents.layer_agent import LayerAgent
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import DirectRule
@@ -80,7 +80,7 @@ class EdgePopulatorAgent(LayerAgent):
         CategoryRule(LButtJoint, "bottom_plate_beam", "bottom_plate_beam", mill_depth=10.0, max_distance=1.0),
     ]
 
-    CLUSTER_RULES = [
+    COMPOSITE_RULES = [
         CompositeRule(
             name="stud_edge_corner",
             max_element_count=3,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 from compas.geometry import Box
@@ -7,11 +9,8 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
-from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.connections import JointCandidate
-from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.fabrication.free_contour import FreeContour
@@ -21,11 +20,10 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.connections_2d.connection_solver_2d import Beam2DSolverResult
 from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
 from timber_design.connections_2d.connection_solver_2d import aabb_overlap
 from timber_design.populators.populator_agents.feature_agent import FeatureAgent
-from timber_design.populators.populator_agents.layer_agent import AgentBoundaryType
+from timber_design.populators.populator_agents.populator_agent import AgentBoundaryType
 from timber_design.workflow import CategoryRule
 from timber_design.workflow import CompositeRule
 
@@ -62,14 +60,14 @@ class OpeningPopulatorAgent(FeatureAgent):
     (``DoorPopulatorAgent(feature=...)``) is respected as-is and never
     re-dispatched.
 
-    The agent computes its :attr:`~LayerAgent.outline` from the
-    outer edges of the king (and jack) studs and the header (and sill), so
-    that peer agents (studs) can trim their elements at the opening boundary
-    via :meth:`~timber_design.populators.PopulatorAgent.trim_elements`.
+    The agent computes its boundary outline from the outer edges of the king
+    (and jack) studs and the header (and sill), so that the populator can trim
+    peer elements (studs) at the opening boundary via
+    :meth:`~PopulatorAgent.split_beam` / :meth:`~PopulatorAgent.cull_beam`.
 
-    Its :attr:`~LayerAgent.BOUNDARY_TYPE` is
-    :attr:`~FeatureBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
-    fall inside the outline are discarded by :meth:`~LayerAgent.trim_beam`.
+    Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
+    :attr:`~AgentBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
+    fall inside the outline are discarded by :meth:`~PopulatorAgent.cull_beam`.
 
     The opening geometry is supplied via ``params.feature`` (set automatically
     by :meth:`~timber_design.populators.LayerAgentConfig.get_agent_from_feature`).
@@ -130,7 +128,7 @@ class OpeningPopulatorAgent(FeatureAgent):
     # EdgePopulatorAgent's own INTERNAL_JOINT_RULES) must be included here
     # too, at its normal mill depth — only the stud's own joints to the two
     # edge beams get the zero-depth treatment.
-    CLUSTER_RULES = [
+    COMPOSITE_RULES = [
         CompositeRule(
             name="opening_edge_corner",
             max_element_count=3,
@@ -207,18 +205,18 @@ class OpeningPopulatorAgent(FeatureAgent):
         """:class:`~compas_timber.panel_features.OpeningType` of the bound opening, or ``None`` if unbound."""
         return self.opening.opening_type if self.opening is not None else None
 
-    def cull_beam_segment(self, beam: Beam, layer=None) -> bool:
+    def cull_beam_segment(self, beam: Beam2D, layer=None, own_elements=None) -> bool:
         """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
 
-        Only called from :meth:`trim_elements` on segments that already
-        survived the midpoint / outline-crossing cull.  The check is restricted
-        to ``"stud"`` category beams so that plate-beam segments (``"top_plate_beam"``,
+        Only called from :meth:`cull_beam` on segments that already survived
+        the midpoint / outline-crossing cull.  The check is restricted to
+        ``"stud"`` category beams so that plate-beam segments (``"top_plate_beam"``,
         ``"bottom_plate_beam"``, ``"edge_stud"``, …) flanking the opening are
         never accidentally culled by AABB overlap with the king/jack studs.
         """
         if beam.attributes.get("category") != "stud":
             return False
-        return self._cull_stud(beam, layer)
+        return self._cull_stud(beam, own_elements or [])
 
     def _offset_frame_polyline(self, frame_polyline: Polyline) -> None:
         """Hook: adjust *frame_polyline* points in place. No-op by default.
@@ -238,7 +236,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         """Build this opening's frame polyline and outline segments on *layer*.
 
         Shared by :meth:`generate_elements_for_layer` and
-        :meth:`_compute_outline_for_layer` so the frame geometry (including
+        :meth:`compute_outline_for_layer` so the frame geometry (including
         the type-specific offset from :meth:`_offset_frame_polyline`) is
         computed identically by both.
         """
@@ -278,16 +276,16 @@ class OpeningPopulatorAgent(FeatureAgent):
 
         self._add_type_specific_elements(layer, frame_polyline_a, frame_polyline_b, segments, layer_elements)
 
-        return layer_elements, self._compute_outline_for_layer(layer)
+        return layer_elements, self.compute_outline_for_layer(layer)
 
-    def _compute_outline_for_layer(self, layer):
+    def compute_outline_for_layer(self, layer):
         """Compute this opening's footprint outline on *layer* (no beams generated).
 
         The footprint is the opening's frame polyline at the layer's
         through-thickness position, so it is recomputed per layer (correct even
         for openings whose two faces differ in plan).  Used both for the framing
-        layer's outline and — via :meth:`define_trimming_outlines` — for every
-        layer the opening only trims.
+        layer's outline and — via :meth:`~PopulatorAgent.define_outlines` —
+        for every layer the opening only trims.
         """
         _, _, segments = self._build_frame(layer)
         extend_line_segments(segments, close_loop=True)
@@ -326,42 +324,36 @@ class OpeningPopulatorAgent(FeatureAgent):
             ]
         )
 
-    def extend_elements(self, boundary_agents, layer):
+    def extend_elements(self, boundary_outlines, layer) -> None:
         """Extend king/jack studs to neighboring boundaries — one layer at a time.
 
-        The opening may frame on several layers.  Each layer's king/jack studs
-        are extended only against the peer agents *on that same layer*, so a
-        stud is never extended to a boundary that belongs to a different layer.
+        The opening may frame on several layers.  The populator passes this
+        agent's elements and the peer boundary outlines *on the same layer*,
+        so a stud is never extended to a boundary that belongs to a different
+        layer.
         """
-        layer_elements = self.elements_by_layer.get(layer, [])
-        king_studs = [b for b in layer_elements if b.attributes.get("category") == "king_stud"]
-        jack_studs = [b for b in layer_elements if b.attributes.get("category") == "jack_stud"]
-        agent_layer_boundaries = [a.outline_by_layer[layer] for a in boundary_agents]
-        if not (king_studs or jack_studs):
-            return
+        king_studs = [b for b in self.elements_for_layer(layer) if b.attributes.get("category") == "king_stud"]
+        jack_studs = [b for b in self.elements_for_layer(layer) if b.attributes.get("category") == "jack_stud"]
         for king_stud in king_studs:
-            if king_stud is not None:
-                ConnectionSolver2D.extend_beam_to_polylines(king_stud, agent_layer_boundaries)
+            ConnectionSolver2D.extend_beam_to_polylines(king_stud, boundary_outlines)
 
         for jack_stud in jack_studs:
-            if jack_stud is not None:
-                ConnectionSolver2D.extend_beam_to_polylines(jack_stud, agent_layer_boundaries, only_start=True)
+            ConnectionSolver2D.extend_beam_to_polylines(jack_stud, boundary_outlines, only_start=True)
 
     # ==========================================================================
     # Cross-layer trimming
     # ==========================================================================
 
-    def _cull_stud(self, stud: Beam2D, layer=None) -> bool:
-        """Determine whether a stud coincides with a king or jack stud and should be culled."""
-        layer_elements = self.elements_by_layer.get(layer, []) if layer is not None else self.elements
-        king_and_jack = [b for b in layer_elements if b.attributes.get("category") in ("king_stud", "jack_stud")]
+    def _cull_stud(self, stud: Beam2D, own_elements) -> bool:
+        """Determine whether *stud* coincides with one of this agent's king or jack studs."""
+        king_and_jack = [b for b in own_elements if b.attributes.get("category") in ("king_stud", "jack_stud")]
         for b in king_and_jack:
             if aabb_overlap(b, stud):
                 return True
         return False
 
     def trim_plate(self, plate: Plate) -> None:
-        """Apply the opening contour to the given plate.
+        """Cut the opening contour into *plate* in place.
 
         Parameters
         ----------
@@ -375,7 +367,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         outline_b_projected = Polyline([intersection_line_plane(line, plate.planes[1]) for line in lines])
         free_contour = FreeContour.from_top_bottom_and_elements(outline_a_projected, outline_b_projected, plate, interior=True, is_joinery=False)
         plate.add_feature(free_contour)
-        return [plate]
 
 
 class DoorPopulatorAgent(OpeningPopulatorAgent):
@@ -431,47 +422,25 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
             rule = CategoryRule(TButtJoint, main, "bottom_plate_beam", mill_depth=5.0)
         self.external_rules = [r for r in self.external_rules if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")] + [rule]
 
-    def split_agent_elements(self, other_agent, layer):
-        """Split *other_agent*'s elements on *layer* at this agent's boundary (no culling).
-
-        Each beam is split at outline crossings; all resulting segments are kept.
-        Plates receive the agent's feature via :meth:`trim_plate` (which modifies
-        them in-place rather than splitting).  Call :meth:`cull_agent_elements`
-        in a second pass to discard out-of-zone segments.
+    def split_beam(self, beam: Beam2D, layer=None) -> list[Beam2D]:
+        """Split like the base, except the bottom-plate beam is kept whole.
 
         The bottom-plate beam is only split when :attr:`split_bottom_plate_beam`
-        is ``True`` — otherwise it is kept whole (unsplit) so it stays
-        continuous through the opening.
+        is ``True`` — otherwise it stays continuous through the opening.
         """
-        result = []
-        for element in other_agent.elements_by_layer.get(layer, []):
-            if element.is_plate:
-                result.extend(self.trim_plate(element))
-            if element.is_beam:
-                if element.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
-                    result.append(element)
-                    continue
-                result.extend(self.split_beam(element, layer))
-        other_agent.elements_by_layer[layer] = result
+        if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
+            return [beam]
+        return super().split_beam(beam, layer)
 
-    def cull_agent_elements(self, other_agent, layer):
-        """Remove *other_agent*'s elements on *layer* that this agent's zone would discard.
-
-        Applies :meth:`cull_beam` to every beam; elements that return ``True``
-        are dropped.  Non-beam elements (plates) are always kept — their trimming
-        is handled geometrically by :meth:`split_agent_elements`.
+    def cull_beam(self, beam: Beam2D, layer=None, own_elements=None) -> bool:
+        """Cull like the base, except the bottom-plate beam is never removed.
 
         The bottom-plate beam is only culled when :attr:`split_bottom_plate_beam`
-        is ``True`` — otherwise it is never removed, matching
-        :meth:`split_agent_elements` leaving it unsplit.
+        is ``True`` — matching :meth:`split_beam` leaving it unsplit.
         """
-        results = []
-        for element in other_agent.elements_by_layer.get(layer, []):
-            if element.is_beam and element.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
-                results.append(element)
-            elif not (element.is_beam and self.cull_beam(element, layer)):
-                results.append(element)
-        other_agent.elements_by_layer[layer] = results
+        if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
+            return False
+        return super().cull_beam(beam, layer, own_elements)
 
 
 class WindowPopulatorAgent(OpeningPopulatorAgent):

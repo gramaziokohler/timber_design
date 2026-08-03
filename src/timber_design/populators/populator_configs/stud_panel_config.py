@@ -56,7 +56,9 @@ def stud_panel(
     standard_beam_width_increment : float, optional
         Rounding increment for edge-beam widths.
     joint_rule_overrides : list, optional
-        Joint-rule overrides routed to the agents that own each rule's categories.
+        Panel-level joint rules held by the populator.  They are tried on a
+        cluster only after the owning agents' own rules have failed, so they
+        act as a panel-wide fallback rather than overriding an agent.
     default_feature_configs : dict, optional
         Mapping from panel feature class to a ``FeatureAgent`` prototype.
     instance_feature_configs : list, optional

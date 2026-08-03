@@ -31,8 +31,7 @@ from compas_timber.model import TimberModel
 
 from timber_design.populators.populator_configs.stud_panel_config import stud_panel
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.connections_2d.connection_solver_2d import Beam2DSolverResult
-from timber_design.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design.workflow import CategoryRule
 
 try:
     from compas_timber.panel_features.opening import Opening
@@ -594,36 +593,6 @@ class TestJointCreation:
         real = [j for j in pop.model.joints if not isinstance(j, JointCandidate)]
         assert len(real) > 0
 
-    def test_dedupe_results_drops_duplicate_pair(self):
-        """PanelPopulator._dedupe_results keeps one candidate per element pair.
-
-        Guards against ConnectionSolver2D's generic pass and an agent's
-        forced_joint_candidates both producing a candidate for the same two
-        elements (e.g. a header/king_stud pair the generic solver happens to
-        detect too) — see PanelPopulator._join_layer.
-        """
-        from timber_design.populators.populator import PanelPopulator
-
-        w, h = 60.0, 160.0
-        beam_a = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(0, 1000, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
-        beam_b = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(1000, 0, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
-        beam_c = Beam2D.from_centerline(Line(Point(0, 0, 0), Point(-1000, 0, 0)), width=w, height=h, z_vector=Vector(0, 0, 1))
-
-        solver = ConnectionSolver2D(max_distance=1.0)
-        real_result = solver.find_topology(beam_a, beam_b)
-        assert real_result is not None
-        forced_duplicate = Beam2DSolverResult(beam_a, beam_b, distance=0.0, topology=real_result.topology, location=real_result.location)
-        other_result = solver.find_topology(beam_a, beam_c)
-        assert other_result is not None
-
-        deduped = PanelPopulator._dedupe_results([real_result, forced_duplicate, other_result])
-
-        assert len(deduped) == 2
-        assert deduped[0] is real_result
-        pairs = [set(r.elements) for r in deduped]
-        assert {beam_a, beam_b} in pairs
-        assert {beam_a, beam_c} in pairs
-
     def test_debug_info_present_and_clean_on_happy_path(self):
         """``pop.debug_info`` exists and stays empty when nothing goes wrong."""
         from timber_design.workflow import DebugInfomation
@@ -648,7 +617,7 @@ class TestCornerClusterJoints:
     """A stud (or king/jack stud) landing exactly on a panel corner forms a
     3-element TOPO_Y/TOPO_K cluster spanning two agents (the stud agent and
     EdgePopulatorAgent) plus EdgePopulatorAgent's own internal edge-to-edge
-    joint.  This should resolve to one CompositeJoint via CLUSTER_RULES rather
+    joint.  This should resolve to one CompositeJoint via COMPOSITE_RULES rather
     than independent pairwise joints — see PanelPopulator._resolve_cluster.
 
     Engineering exact panel dimensions to make a *generated* stud land on a
@@ -658,15 +627,14 @@ class TestCornerClusterJoints:
     """
 
     def _build_corner(self, pop):
-        """Hand-build a Y-cluster and register it under the real owning agents.
+        """Hand-build a Y-cluster owned by the real agents via ownership tags.
 
         Adding elements to ``pop.model`` alone isn't enough — since
-        PanelPopulator._resolve_cluster determines which agents are
-        "involved" in a cluster by checking element identity against each
-        agent's own ``.elements`` (not by category), these beams must also be
-        appended to the real StudPopulatorAgent's / EdgePopulatorAgent's
-        ``elements_by_layer[layer]``, exactly like elements the agents
-        generated themselves would be.
+        PanelPopulator._join_cluster determines which agents are "involved"
+        in a cluster by each element's ``attributes["agent"]`` tag (not by
+        category), these beams must carry the real StudPopulatorAgent's /
+        EdgePopulatorAgent's keys, exactly like elements the agents generated
+        themselves would.
         """
         layer = next(l for l in pop.model.layers if l.children)
         stud_agent = next(a for a in pop.agents if "stud" in a.BEAM_CATEGORY_NAMES)
@@ -677,14 +645,16 @@ class TestCornerClusterJoints:
         p0 = Point(2000, 1350, z)
         stud = Beam2D.from_centerline(Line(p0, Point(2000, 1350 + 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         stud.attributes["category"] = "stud"
+        stud.attributes["agent"] = stud_agent.key
         edge_stud = Beam2D.from_centerline(Line(p0, Point(2000 - 700, 1350, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         edge_stud.attributes["category"] = "edge_stud"
+        edge_stud.attributes["agent"] = edge_agent.key
         top_plate = Beam2D.from_centerline(Line(p0, Point(2000 + 700, 1350 - 700, z)), width=w, height=h, z_vector=Vector(0, 0, 1))
         top_plate.attributes["category"] = "top_plate_beam"
+        top_plate.attributes["agent"] = edge_agent.key
         for b in (stud, edge_stud, top_plate):
+            b.attributes["layer_path"] = layer.layer_path
             pop.model.add_element(b, parent=layer)
-        stud_agent.elements_by_layer.setdefault(layer, []).append(stud)
-        edge_agent.elements_by_layer.setdefault(layer, []).extend([edge_stud, top_plate])
         return stud, edge_stud, top_plate
 
     def test_corner_cluster_becomes_one_cluster_joint(self):
@@ -704,3 +674,111 @@ class TestCornerClusterJoints:
         assert len(matching) == 1
         assert len(matching[0].joints) == 3
         assert not pop.debug_info.joint_errors
+
+
+# =============================================================================
+# Rule resolution order in _join_cluster
+# =============================================================================
+
+
+class TestJoinClusterRuleOrder:
+    """``_join_cluster`` tries four rule sources in order: the owning agents'
+    rules on the whole cluster, the populator's own ``joint_rule_overrides`` on
+    the whole cluster, then the same two again per pairwise candidate.
+
+    Rules handed to the populator are never merged into an agent, so an agent
+    that can resolve a cluster itself always wins — the panel-level list is a
+    fallback for what no agent claims.
+
+    Each test hand-builds an isolated cluster at the middle of a stud-free
+    panel and tags every beam with the edge agent's ownership key, exactly as
+    a generated element would be, since ``_join_cluster`` resolves ownership
+    from ``attributes["agent"]``.
+    """
+
+    ANCHOR = Point(1000.0, 700.0, 0.0)
+
+    def _populated(self, **kwargs):
+        """A populated, stud-free panel plus its edge agent (the owner we tag with)."""
+        panel = make_panel()
+        model = TimberModel()
+        add_panel(model, panel)
+        pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=0, **kwargs)
+        pop.populate_elements()
+        agent = next(a for a in pop.agents if "edge_stud" in a.BEAM_CATEGORY_NAMES)
+        return pop, agent
+
+    def _add_beam(self, pop, agent, category, direction):
+        """Add one beam running from the shared anchor along *direction*, owned by *agent*."""
+        layer = next(l for l in pop.model.layers if l.children)
+        z = layer.center_height
+        start = Point(self.ANCHOR.x, self.ANCHOR.y, z)
+        end = Point(start.x + direction[0], start.y + direction[1], z)
+        beam = Beam2D.from_centerline(Line(start, end), width=60.0, height=layer.thickness, z_vector=Vector(0, 0, 1))
+        beam.attributes["category"] = category
+        beam.attributes["agent"] = agent.key
+        beam.attributes["layer_path"] = layer.layer_path
+        pop.model.add_element(beam, parent=layer)
+        return beam
+
+    @staticmethod
+    def _joint_between(pop, *beams):
+        """The single non-candidate joint whose elements are exactly *beams*, or ``None``."""
+        from compas_timber.connections import JointCandidate
+
+        wanted = set(beams)
+        matching = [j for j in pop.model.joints if not isinstance(j, JointCandidate) and set(j.elements) == wanted]
+        assert len(matching) <= 1
+        return matching[0] if matching else None
+
+    def test_agent_rule_wins_over_a_populator_rule_for_the_same_pair(self):
+        """The edge agent's own ``(edge_stud, top_plate_beam)`` L rule resolves the
+        pair, so the populator's competing rule for it is never reached."""
+        from compas_timber.connections import LMiterJoint
+
+        pop, edge = self._populated(joint_rule_overrides=[CategoryRule(LMiterJoint, "edge_stud", "top_plate_beam")])
+        a = self._add_beam(pop, edge, "edge_stud", (0.0, 500.0))
+        b = self._add_beam(pop, edge, "top_plate_beam", (-500.0, 0.0))
+
+        pop.join_elements()
+
+        joint = self._joint_between(pop, a, b)
+        assert isinstance(joint, LButtJoint)  # the agent's rule, not the populator's LMiterJoint
+
+    def test_populator_rule_resolves_a_pair_no_agent_rule_covers(self):
+        from compas_timber.connections import LMiterJoint
+
+        pop, edge = self._populated(joint_rule_overrides=[CategoryRule(LMiterJoint, "foo", "bar")])
+        a = self._add_beam(pop, edge, "foo", (0.0, 500.0))
+        b = self._add_beam(pop, edge, "bar", (-500.0, 0.0))
+
+        pop.join_elements()
+
+        assert isinstance(self._joint_between(pop, a, b), LMiterJoint)
+
+    def test_pair_stays_unjoined_without_a_matching_rule_anywhere(self):
+        """Control for the test above: the same pair, no populator rule, no joint."""
+        pop, edge = self._populated()
+        a = self._add_beam(pop, edge, "foo", (0.0, 500.0))
+        b = self._add_beam(pop, edge, "bar", (-500.0, 0.0))
+
+        pop.join_elements()
+
+        assert self._joint_between(pop, a, b) is None
+
+    def test_populator_rule_reaches_pairwise_candidates_of_an_unresolved_cluster(self):
+        """A 3-beam cluster no agent and no whole-cluster rule can resolve falls
+        through to the populator's rules per pairwise candidate (stage 4)."""
+        from compas_timber.connections import LMiterJoint
+
+        pop, edge = self._populated(joint_rule_overrides=[CategoryRule(LMiterJoint, "foo", "bar")])
+        a = self._add_beam(pop, edge, "foo", (0.0, 500.0))
+        b = self._add_beam(pop, edge, "bar", (-500.0, 0.0))
+        c = self._add_beam(pop, edge, "baz", (500.0, -500.0))
+
+        pop.join_elements()
+
+        assert isinstance(self._joint_between(pop, a, b), LMiterJoint)
+        # the (foo, baz) and (bar, baz) pairs match nothing and stay unjoined
+        assert self._joint_between(pop, a, c) is None
+        assert self._joint_between(pop, b, c) is None

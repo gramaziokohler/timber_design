@@ -30,6 +30,11 @@ class AABB2D(object):
     def __bool__(self):
         return True
 
+    @property
+    def aabb(self):
+        """Itself — so a bare ``AABB2D`` can go anywhere an object exposing ``aabb`` is expected (e.g. :func:`aabb_overlap`)."""
+        return self
+
     @classmethod
     def from_points(cls, points):
         """Return the smallest ``AABB2D`` that contains all *points*."""

@@ -1,52 +1,43 @@
+from __future__ import annotations
+
 from abc import abstractmethod
+from typing import Optional
 
 from compas_timber.elements import Layer
+
 from .populator_agent import PopulatorAgent
 
 
 class FeatureAgent(PopulatorAgent):
     """Abstract base class for feature-driven populator agents.
 
-    Extends :class:`LayerAgent` by accepting a
+    Extends :class:`PopulatorAgent` by accepting a
     :class:`~compas_timber.panel_features.PanelFeature` and storing it as
     :attr:`feature`.  Subclasses handle specific feature types (e.g.
     :class:`~timber_design.populators.OpeningPopulatorAgent` for
     :class:`~compas_timber.panel_features.Opening`).
 
-    Layer selection
-    ---------------
-    Which layers receive generated elements (*framing*) and which have plates
-    cut (*trimming*) is controlled by two explicit lists:
+    Unlike a :class:`~timber_design.populators.LayerAgent`, a feature agent can
+    act on several layers.  Which layers receive generated elements (*framing*)
+    and which only have peer elements trimmed (*trimming*) is controlled by two
+    explicit path lists recorded at construction and rebound to live layers by
+    :meth:`repoint_to_layer_tree`:
 
-    - :attr:`element_layers` — if non-empty, only these layers are passed to
-      :meth:`generate_elements_for_layer`.  Falls back to
-      ``layer.is_framing_layer`` when empty.
-    - :attr:`trimming_layers` — if non-empty, :meth:`split_agent_elements`
-      restricts itself to agents whose layer is in this list.  When empty the
-      subclass's own default logic applies.
-
-    Both lists are resolved from :attr:`FeatureAgentConfig.framing_layer_defs`
-    and :attr:`FeatureAgentConfig.trimming_layer_defs` by
-    :meth:`~PanelPopulatorConfig.create_feature_agents`.
-
-    Element tracking
-    ----------------
-    - ``self.elements`` — flat list of **all** elements across all layers.
-    - ``self.elements_by_layer`` — ``{layer_index: [elements]}`` dict for
-      per-layer trim and joint passes.
+    - :attr:`element_layers` — the layers passed to
+      :meth:`generate_elements_for_layer`.
+    - :attr:`trimming_layers` — additional layers on which the agent's outline
+      trims peer elements (e.g. sheathing plates it must cut through).
 
     Parameters
     ----------
     feature : :class:`~compas_timber.panel_features.PanelFeature`
         The (possibly transformed) feature instance driving element placement.
-    element_layers : list[:class:`~timber_design.populators.Layer`], optional
-        Explicit framing layers; overrides ``is_framing_layer`` fallback.
-    trimming_layers : list[:class:`~timber_design.populators.Layer`], optional
-        Explicit trimming layers; restricts cross-layer plate cutting.
-    beam_widths : dict[str, float], optional
-        ``{category: width}`` mapping resolved by the config.
+    element_layers : list[:class:`~compas_timber.elements.Layer` | str], optional
+        Explicit framing layers (or their paths).
+    trimming_layers : list[:class:`~compas_timber.elements.Layer` | str], optional
+        Explicit trimming layers (or their paths).
     internal_joint_overrides, external_joint_overrides : list, optional
-        Per-agent joint-rule overrides forwarded by the config.
+        Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     """
 
     FEATURE_TYPE = None
@@ -96,41 +87,21 @@ class FeatureAgent(PopulatorAgent):
         return data
 
     def generate_elements(self):
-        """Generate (and store) this agent's elements.
-
-        With *layer* given, generates only on that layer; otherwise on every
-        framing layer in :attr:`element_layers`.  The populator drives this one
-        layer at a time (mirroring :meth:`split_agent_elements` /
-        :meth:`extend_elements`), but the no-argument form is kept for callers
-        that want the whole agent generated at once.
-        """
-        # Clear stale entries from previous solves before regenerating.
-        self.elements_by_layer.clear()
         self.outline_by_layer.clear()
+        elements_by_layer = {}
         for layer in self.element_layers:
             layer_elements, layer_outline = self.generate_elements_for_layer(layer)
-            self.elements_by_layer[layer] = layer_elements  # add to per-layer dict
-            self.outline_by_layer[layer] = layer_outline  # capture per-layer boundary
+            elements_by_layer[layer] = layer_elements
+            self.outline_by_layer[layer] = layer_outline
+        return elements_by_layer
 
-    def _compute_outline_for_layer(self, layer):
-        """Return this feature's footprint outline on *layer*.
+    @abstractmethod
+    def generate_elements_for_layer(self, layer):
+        """Generate the elements and boundary outline for one framing *layer*.
 
-        Subclasses implement the feature-specific footprint (e.g. the opening
-        frame).  Called for both framing and trimming layers, so it must not
-        depend on elements having been generated on *layer*.
+        Returns
+        -------
+        tuple[list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
+            The elements and the agent's boundary outline on *layer*.
         """
         raise NotImplementedError
-
-    # ------------------------------------------------------------------
-    # Cross-layer trimming
-    # ------------------------------------------------------------------
-
-    def _trim_layers(self):
-        """A feature agent trims peers on every layer it frames *and* trims.
-
-        ``trim_elements`` itself is inherited from :class:`PopulatorAgent`; a
-        feature agent only differs in *which* layers it acts on — its framing
-        layers (where it placed studs) plus its trimming layers (e.g. sheathing
-        plates it must cut through).
-        """
-        return self.element_layers + self.trimming_layers

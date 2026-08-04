@@ -100,11 +100,10 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def add_elements_to_model(self, model, elements):
         elements = [e for e in elements if e is not None]
         for element in elements:
-            saved_features = list(getattr(element, "_features", []))
-            saved_features = [f for f in saved_features if not f.is_joinery]
+            # reset() drops joinery features and keeps user ones (openings), so a
+            # re-solve starts clean without losing them.  Do not save and re-append
+            # them here — that duplicated every opening on each Grasshopper solve.
             element.reset()
-            if saved_features and hasattr(element, "_features"):
-                element._features.extend(saved_features)
             model.add_element(element)
 
     def handle_features(self, features):

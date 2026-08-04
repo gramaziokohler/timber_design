@@ -224,7 +224,7 @@ class OpeningPopulatorAgent(FeatureAgent):
         """
         if super().cull_beam(beam):
             return True
-        if beam.attributes.get("category") != "stud":
+        if beam.attributes.get("category") == "stud":
             return self._cull_stud(beam, self.elements_for_layer(beam.parent))
         return False
 
@@ -434,7 +434,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
             rule = CategoryRule(TButtJoint, main, "bottom_plate_beam", mill_depth=5.0)
         self.external_rules = [r for r in self.external_rules if not (isinstance(r, CategoryRule) and r.category_a == main and r.category_b == "bottom_plate_beam")] + [rule]
 
-    def split_beam(self, beam: Beam2D, layer: Layer) -> list[Beam2D]:
+    def split_beam(self, beam: Beam2D) -> list[Beam2D]:
         """Split like the base, except the bottom-plate beam is kept whole.
 
         The bottom-plate beam is only split when :attr:`split_bottom_plate_beam`
@@ -446,7 +446,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
         """
         if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
             return [beam]
-        return super().split_beam(beam, layer)
+        return super().split_beam(beam)
 
     def cull_beam(self, beam: Beam2D) -> bool:
         """Cull like the base, except the bottom-plate beam is never removed.

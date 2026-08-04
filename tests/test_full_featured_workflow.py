@@ -130,14 +130,12 @@ def _make_pop(panel, with_openings=False):
 def simulate_solve(panel, with_openings=False):
     """One CT_Model solve cycle, returning the merged model.
 
-    Mirrors CT_Model.RunScript.add_elements_to_model: panel.reset() clears
-    every feature (joinery-generated *and* user), so user features (openings)
-    are saved and restored around the reset call.
+    Mirrors CT_Model.RunScript.add_elements_to_model: panel.reset() drops
+    joinery features and keeps user ones (openings), so the reset needs no
+    save/restore around it.
     """
     model = TimberModel()
-    saved_features = list(panel._features)
     panel.reset()
-    panel._features.extend(saved_features)
     add_panel(model, panel)
     pop = _make_pop(panel, with_openings=with_openings)
     set_sublayers(panel)
@@ -344,16 +342,14 @@ class TestFullFeaturedMultiSolve:
         assert counts[0] == counts[1] == counts[2], "Element counts differ across solves: {}".format(counts)
 
     def test_opening_features_survive_reset(self):
-        """Opening features survive a CT_Model-style reset cycle (save -> reset -> restore).
+        """Opening features survive a CT_Model-style reset, without being duplicated.
 
-        ``panel.reset()`` on its own clears every feature; CT_Model.RunScript
-        preserves user features by saving them first and re-appending them
-        after reset (see ``simulate_solve``).
+        ``panel.reset()`` keeps non-joinery features on its own, so
+        CT_Model.RunScript must *not* save and re-append them around the reset —
+        doing so doubled every opening on each Grasshopper re-solve.
         """
         panel = self._make_panel_with_openings()
         n_features_before = len([f for f in panel.features if isinstance(f, Opening)])
-        saved_features = list(panel._features)
         panel.reset()
-        panel._features.extend(saved_features)
         n_features_after = len([f for f in panel.features if isinstance(f, Opening)])
         assert n_features_before == n_features_after == 2

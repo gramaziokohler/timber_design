@@ -307,10 +307,13 @@ class ConnectionSolver2D:
         a_contains_b_start = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.start, beam_b.edge_b.start))
         a_contains_b_end = any(beam_a.contains_point(p, tolerance=tol) for p in (beam_b.edge_a.end, beam_b.edge_b.end))
 
-        if b_contains_a_start and b_contains_a_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
-        if a_contains_b_start and a_contains_b_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
+        # A beam swallowed whole by another is a degenerate leftover (e.g. a stud stub
+        # shorter than the plate it lands in), not a joint: neither end can be named as
+        # "the" end at the joint, so there is no topology to report.  Decline the pair
+        # rather than raising — one stub must not abort the whole panel's joining pass.
+        if (b_contains_a_start and b_contains_a_end) or (a_contains_b_start and a_contains_b_end):
+            return None
+
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
             beam_a_end = BeamEnd.START

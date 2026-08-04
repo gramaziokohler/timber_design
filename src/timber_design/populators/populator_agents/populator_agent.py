@@ -315,8 +315,8 @@ class PopulatorAgent(Data, ABC):
         """
         layer = element.parent
         if isinstance(element, Beam2D):
-            return self.split_beam(element, layer)
-        self.trim_plate(element, layer)
+            return self.split_beam(element)
+        self.trim_plate(element)
         return [element]
 
     def cull_element(self, element) -> bool:
@@ -331,7 +331,7 @@ class PopulatorAgent(Data, ABC):
         """
         return self.cull_beam(element) if isinstance(element, Beam2D) else False
 
-    def split_beam(self, beam: Beam2D, layer: Layer) -> list[Beam2D]:
+    def split_beam(self, beam: Beam2D) -> list[Beam2D]:
         """Split *beam* at this agent's outline boundary and return all resulting segments.
 
         Returns
@@ -340,6 +340,7 @@ class PopulatorAgent(Data, ABC):
             ``[beam]`` (the untouched original) when the agent has no boundary
             on *layer* or the boundary does not cross the beam.
         """
+        layer = beam.parent
         outline = self.outline_for_layer(layer)
         if self.BOUNDARY_TYPE == AgentBoundaryType.NONE or outline is None:
             return [beam]

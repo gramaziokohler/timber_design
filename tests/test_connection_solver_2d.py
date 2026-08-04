@@ -571,6 +571,20 @@ class TestFindTopology:
         assert candidate is not None
         assert candidate.topology == JointTopology.TOPO_X
 
+    def test_fully_contained_beam_is_not_a_candidate(self):
+        """A stub swallowed whole by another beam's blank yields no candidate.
+
+        Splitting can leave a stud stub shorter than the plate it lands in, so
+        both its ends sit inside the plate blank.  Neither end can be named as
+        the joint end, so the pair must be declined — not raised on.
+        """
+        solver = ConnectionSolver2D(max_distance=0.1)
+        plate = make_beam(0, 0, 8, 0, width=2.0)  # blank y=-1..1
+        stub = make_beam(4, -0.4, 4, 0.4, width=0.5)  # entirely inside the plate blank
+        assert solver.find_topology(plate, stub) is None
+        assert solver.find_topology(stub, plate) is None
+        assert solver.find_joint_candidates([plate, stub]) == []
+
     def test_candidate_carries_location(self):
         """Every returned candidate has a non-None ``location`` point."""
         solver = ConnectionSolver2D()

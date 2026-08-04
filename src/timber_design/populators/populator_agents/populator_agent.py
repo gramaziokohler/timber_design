@@ -40,12 +40,10 @@ class AgentBoundaryType(StrEnum):
     ----------
     EXCLUSIVE : str
         The outline defines a *no-go zone*.  Segments whose midpoints are inside
-        the outline are discarded.  Used by :class:`~timber_design.populators.OpeningPopulatorAgent`
-        so that studs passing through a door or window opening are removed.
+        the outline are discarded. 
     INCLUSIVE : str
         The outline defines an *allowed zone*.  Segments whose midpoints fall
-        *outside* the outline are discarded.  Used by
-        :class:`~timber_design.populators.EdgePopulatorAgent`.
+        *outside* the outline are discarded.  U
     NONE : str
         No boundary culling — all segments are kept regardless of the outline.
         Used by agents whose elements span the full panel (studs, plates).
@@ -86,8 +84,7 @@ class PopulatorAgent(Data, ABC):
     Class-level attributes
     ----------------------
     BEAM_CATEGORY_NAMES : list[str]
-        The beam categories this agent can create.  Used by
-        :meth:`~timber_design.populators.PanelPopulator.resolve_beam_widths`.
+        The beam categories this agent can create.  
     INTERNAL_JOINT_RULES : list[:class:`~timber_design.workflow.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.
@@ -99,7 +96,7 @@ class PopulatorAgent(Data, ABC):
     COMPOSITE_RULES : list[:class:`~timber_design.workflow.CompositeRule`]
         Rules tried for a joint cluster of 3+ elements that this agent has any
         element in — see :meth:`~timber_design.populators.PanelPopulator._join_cluster`.
-        Not instance-overridable.
+        Overridable per-instance via ``composite_joint_overrides``.
     BOUNDARY_TYPE : :class:`AgentBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`AgentBoundaryType.NONE`.
@@ -121,22 +118,23 @@ class PopulatorAgent(Data, ABC):
     beam_widths : dict[str, float]
         ``{category: width}`` mapping, resolved by the config / populator
         before generation.  Beam height is always the layer thickness.
-    composite_rules : list[:class:`~timber_design.workflow.CompositeRule`]
-        Active rules for clusters of three or more elements.
+    trimming_layers : list[:class:`~compas_timber.elements.Layer`]
+        The layers on which this agent's boundary trims peer elements.
     element_layers : list[:class:`~compas_timber.elements.Layer`]
         The layers this agent generates elements on.
     elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
         Every element currently in the model that carries this agent's tag.
     external_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active cross-agent joint rules.
+    composite_rules : list[:class:`~timber_design.workflow.CompositeRule`]
+        Active rules for clusters of three or more elements.
     internal_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active within-agent joint rules.
     outline_by_layer : dict[:class:`~compas_timber.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
         This agent's boundary outline per layer.  Filled during
         :meth:`generate_elements` for framing layers and by
         :meth:`define_outlines` for every other layer the agent trims.
-    trimming_layers : list[:class:`~compas_timber.elements.Layer`]
-        The layers on which this agent's boundary trims peer elements.
+
     """
 
     BEAM_CATEGORY_NAMES: list[str] = []
@@ -180,6 +178,12 @@ class PopulatorAgent(Data, ABC):
         raise NotImplementedError
 
     @property
+    @abstractmethod
+    def trimming_layers(self) -> list[Layer]:
+        """The layers on which this agent's boundary trims peer elements."""
+        raise NotImplementedError
+
+    @property
     def elements(self) -> list:
         """Every element currently in the model that carries this agent's tag."""
         elements = []
@@ -187,18 +191,8 @@ class PopulatorAgent(Data, ABC):
             elements.extend(self.elements_for_layer(layer))
         return elements
 
-    @property
-    @abstractmethod
-    def trimming_layers(self) -> list[Layer]:
-        """The layers on which this agent's boundary trims peer elements."""
-        raise NotImplementedError
-
     def elements_for_layer(self, layer: Layer) -> list:
         """Return this agent's elements on *layer*, or an empty list.
-
-        Ownership is read back off the elements themselves — only children
-        carrying this agent's ``attributes["agent"]`` tag are returned, so
-        sublayers and peer agents' elements are excluded.
 
         Returns
         -------
@@ -272,9 +266,6 @@ class PopulatorAgent(Data, ABC):
     def compute_outline_for_layer(self, layer):
         """Return this agent's boundary outline on *layer*, or ``None`` for no boundary.
 
-        Called by :meth:`define_outlines` for layers the agent trims but does
-        not frame on.  The base implementation has no boundary anywhere.
-
         Returns
         -------
         :class:`~compas.geometry.Polyline` or None
@@ -282,14 +273,7 @@ class PopulatorAgent(Data, ABC):
         return None
 
     def define_outlines(self, layers):
-        """Explicitly record this agent's boundary outline for every layer in *layers*.
-
-        Layers already present in :attr:`outline_by_layer` (filled during
-        :meth:`generate_elements`) are left untouched; every other layer gets
-        the result of :meth:`compute_outline_for_layer` — including an explicit
-        ``None`` for layers where the agent has no boundary.  After this call,
-        :meth:`outline_for_layer` is defined for every layer the agent acts on;
-        the populator never computes or backfills outlines itself.
+        """Explicitly set this agent's boundary outline for every layer in *layers*.
 
         Parameters
         ----------
@@ -317,9 +301,10 @@ class PopulatorAgent(Data, ABC):
     def split_element(self, element) -> list:
         """Apply this agent's boundary to *element*, returning what should replace it.
 
-        Beams are split into segments; plates are cut in place by
-        :meth:`trim_plate` and returned unchanged.  The element's layer is its
-        parent in the model, so the populator does not have to supply it.
+        Parameters
+        ----------
+        element: :class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`
+            the element to be split.
 
         Returns
         -------
@@ -348,20 +333,6 @@ class PopulatorAgent(Data, ABC):
 
     def split_beam(self, beam: Beam2D, layer: Layer) -> list[Beam2D]:
         """Split *beam* at this agent's outline boundary and return all resulting segments.
-
-        No culling is applied — every segment produced by outline crossings is
-        returned.  The populator applies :meth:`cull_beam` in a separate pass
-        to discard out-of-zone segments.
-
-        Breakpoints are taken directly from each crossing's own ``start_dot``/
-        ``end_dot`` — *not* by sorting whole crossings and pairing adjacent
-        ones by their combined ``min``/``max`` — because a single crossing can
-        legitimately have a wide (non point-like) span: e.g. a stud/king-stud
-        that reaches a panel corner, where the boundary enters the beam blank
-        through one face and leaves through another several beam-widths away.
-        Every segment bounded by two consecutive breakpoints is a candidate;
-        :meth:`cull_beam` decides afterwards — via each candidate's own
-        midpoint — which ones actually belong to this agent's zone.
 
         Returns
         -------
@@ -398,10 +369,6 @@ class PopulatorAgent(Data, ABC):
     def cull_beam(self, beam: Beam2D) -> bool:
         """Return ``True`` if *beam* should be removed by this agent.
 
-        Checks the midpoint-in-zone test (:meth:`cull_element_at_point`) and
-        any agent-specific override (:meth:`cull_beam_segment`).  The layer the
-        decision applies to is *beam*'s parent in the model.
-
         Parameters
         ----------
         beam : :class:`~timber_design.populators.Beam2D`
@@ -412,21 +379,8 @@ class PopulatorAgent(Data, ABC):
         bool
         """
         layer = beam.parent
-        return bool(self.cull_element_at_point(beam.centerline.midpoint, layer) or self.cull_beam_segment(beam))
+        return self.cull_element_at_point(beam.centerline.midpoint, layer)
 
-    def cull_beam_segment(self, beam: Beam2D) -> bool:
-        """Agent-specific cull hook; the base implementation never culls.
-
-        Parameters
-        ----------
-        beam : :class:`~timber_design.populators.Beam2D`
-            A beam that already survived the midpoint / outline-crossing cull.
-
-        Returns
-        -------
-        bool
-        """
-        return False
 
     def cull_element_at_point(self, point, layer: Optional[Layer] = None) -> bool:
         """Return ``True`` if an element whose midpoint is at *point* falls in this agent's cull zone."""
@@ -440,7 +394,7 @@ class PopulatorAgent(Data, ABC):
             return is_inside
         return not is_inside  # AgentBoundaryType.INCLUSIVE
 
-    def trim_plate(self, plate: Plate, layer: Layer) -> None:
+    def trim_plate(self, plate: Plate) -> None:
         """Apply this agent's boundary to *plate* in place; the base implementation does nothing.
 
         Parameters
@@ -479,18 +433,6 @@ class PopulatorAgent(Data, ABC):
 
     def get_cluster_joint(self, cluster, max_distance=None):
         """Return the joint this agent would create for *cluster*, or ``None``.
-
-        The rule set is picked by how the cluster relates to this agent:
-
-        - no element owned by this agent → ``None``, the agent has no say.
-        - three or more elements → :attr:`composite_rules`.
-        - every element owned by this agent → :attr:`internal_rules`.
-        - otherwise (a cross-agent pair) → :attr:`external_rules`.
-
-        Rules are tried in :meth:`~timber_design.workflow.JointRuleSolver._sort_rules`
-        priority order (direct, composite, category, topology) and the first
-        match wins.  The joint is only instantiated — the populator adds it to
-        the model, so this stays a pure query.
 
         Parameters
         ----------

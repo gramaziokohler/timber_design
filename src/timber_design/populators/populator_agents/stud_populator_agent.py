@@ -70,9 +70,6 @@ class StudPopulatorAgent(LayerAgent):
     ) -> None:
         super().__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
         self.beam_widths["stud"] = stud_width
-        # Stored as-is; the default (``stud_width * 8``) is resolved in
-        # :meth:`generate_elements` once ``PanelPopulator.resolve_beam_widths``
-        # has filled the stud width from ``standard_beam_width``.
         self.stud_spacing = stud_spacing
 
     @property

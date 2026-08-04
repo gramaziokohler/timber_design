@@ -209,23 +209,24 @@ class OpeningPopulatorAgent(FeatureAgent):
         """:class:`~compas_timber.panel_features.OpeningType` of the bound opening, or ``None`` if unbound."""
         return self.opening.opening_type if self.opening is not None else None
 
-    def cull_beam_segment(self, beam: Beam2D) -> bool:
-        """Return ``True`` if *beam* is a stud that overlaps a king or jack stud.
+    def cull_beam(self, beam: Beam2D) -> bool:
+        """ Culls `beam` if its centerpoint in inside this agent's cull zone or it's a stud that coincides with one of this agent's king or jack studs.
 
-        Only called from :meth:`~PopulatorAgent.cull_beam` on segments that
-        already survived the midpoint / outline-crossing cull.  The check is
-        restricted to ``"stud"`` category beams so that plate-beam segments
-        (``"top_plate_beam"``, ``"bottom_plate_beam"``, ``"edge_stud"``, …)
-        flanking the opening are never accidentally culled by AABB overlap
-        with the king/jack studs.
+        Parameters
+        ----------
+        beam : :class:`~timber_design.populators.Beam2D`
+            The beam to check for culling.
 
         Returns
         -------
         bool
+            True if the beam should be culled, False otherwise.
         """
+        if super().cull_beam(beam):
+            return True
         if beam.attributes.get("category") != "stud":
-            return False
-        return self._cull_stud(beam, self.elements_for_layer(beam.parent))
+            return self._cull_stud(beam, self.elements_for_layer(beam.parent))
+        return False
 
     def _offset_frame_polyline(self, frame_polyline: Polyline) -> None:
         """Hook: adjust *frame_polyline* points in place. No-op by default.
@@ -361,7 +362,7 @@ class OpeningPopulatorAgent(FeatureAgent):
                 return True
         return False
 
-    def trim_plate(self, plate: Plate, layer: Layer) -> None:
+    def trim_plate(self, plate: Plate) -> None:
         """Cut the opening contour into *plate* in place.
 
         Parameters

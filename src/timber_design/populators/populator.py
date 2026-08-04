@@ -136,27 +136,21 @@ class PanelPopulator:
         self.agents = list(agents) if agents else []
         self.panel = panel
         self.panel_guid = panel.guid if isinstance(panel, Panel) else panel
-        self.parse_default_feature_agents(default_feature_agents or {})
-        self.resolve_beam_widths(standard_beam_width)
+        self._parse_default_feature_agents(default_feature_agents or {})
+        self._resolve_beam_widths(standard_beam_width)
         self.joint_rule_overrides = list(joint_rule_overrides) if joint_rule_overrides else []
 
     # ------------------------------------------------------------------
     # Initialization methods
     # ------------------------------------------------------------------
 
-    def resolve_beam_widths(self, standard_beam_width):
+    def _resolve_beam_widths(self, standard_beam_width):
         """Fill any unset per-category beam widths on every agent with *standard_beam_width*.
 
-        For each agent in :attr:`agents`, walks the categories declared in
-        ``agent.BEAM_CATEGORY_NAMES`` and fills entries that are either missing
-        or ``None`` in ``agent.beam_widths`` with *standard_beam_width*.
-        Per-category widths the caller already supplied to an agent constructor
-        are left untouched, so explicit per-agent overrides always win over the
-        panel-wide default.
-
-        Does nothing when *standard_beam_width* is ``None``; in that case
-        the caller is responsible for having supplied every per-category width
-        directly to each agent.
+        Parameters
+        ----------
+        standard_beam_width: float
+            populator-level width for any undefined dimensions.
         """
         if standard_beam_width is None:
             return
@@ -170,17 +164,11 @@ class PanelPopulator:
         for agent in self.agents:
             agent.repoint_to_layer_tree(self.layer_tree)
 
-    def update_panel_from_model(self, model):
+    def _update_panel_from_model(self, model):
         self.panel = model.element_by_guid(str(self.panel_guid))
 
-    def parse_default_feature_agents(self, default_feature_agents):
+    def _parse_default_feature_agents(self, default_feature_agents):
         """Instantiate a feature agent for every panel feature lacking one.
-
-        Walks ``panel.features``; for any feature that no existing agent
-        already handles, looks up a prototype agent in *default_feature_agents*
-        (keyed by feature class), copies it, binds the feature, and appends it to
-        :attr:`agents`.  The prototype's ``element_layer_paths`` / ``trimming_layer_paths``
-        are filtered to paths present in this panel's layer tree.
 
         Parameters
         ----------
@@ -215,7 +203,18 @@ class PanelPopulator:
     # Population pipeline
     # ------------------------------------------------------------------
 
-    def build_populator_model(self):
+    def populate_elements(self):
+        """Generate, define outlines, extend, split, cull Elements."""
+        # model extracted here to ensure the latest version of panel and layer geometry
+        self.model = self._build_populator_model()
+        self._repoint_agents()
+        self._generate_elements()
+        self._define_outlines()
+        self._extend_elements()
+        self._split_elements()
+        self._cull_elements()
+
+    def _build_populator_model(self):
         """Extract a fresh populator-space model holding only :attr:`panel`'s layer tree.
 
         Returns
@@ -232,30 +231,8 @@ class PanelPopulator:
                 model.remove_element(element)
         return model
 
-    def populate_elements(self):
-        """Execute stages 1–5: generate, define outlines, extend, split, cull.
-
-        Call :meth:`join_elements` and :meth:`process_joinery` afterwards to
-        complete the population workflow.
-        """
-        # model extracted here to ensure the latest version of panel and layer geometry
-        self.model = self.build_populator_model()
-        self._repoint_agents()
-        self._generate_elements()
-        self._define_outlines()
-        self._extend_elements()
-        self._split_elements()
-        self._cull_elements()
-
     def _generate_elements(self):
-        """Ask each agent to create its elements and add them to the model (stage 1).
-
-        Agents stamp their own ownership tag on what they return, so the
-        populator only has to parent each element under its layer.  Elements
-        stay in populator space throughout — the 2D extend/split/cull
-        machinery below reads populator-space coordinates, and
-        :meth:`merge_with_model` moves the whole subtree back at the end.
-        """
+        """Ask each agent to create its elements and add them to the model."""
         for agent in self.agents:
             for layer, elements in agent.generate_elements().items():
                 for element in elements:
@@ -266,33 +243,20 @@ class PanelPopulator:
                     self.model.add_element(element, parent=layer)
 
     def _define_outlines(self):
-        """Ask each agent to record its boundary outline on every layer it trims (stage 2).
-
-        :meth:`~timber_design.populators.PopulatorAgent.generate_elements` only
-        fills in outlines for the layers an agent *frames* on.  Trimming layers
-        the agent never frames (e.g. the sheathing layers an opening must cut
-        through) — and their sublayers — are filled here, so the split and cull
-        passes find an outline everywhere the agent acts.
+        """Ask each agent to record its boundary outline for every layer it trims.
         """
         for agent in self.agents:
             agent.define_outlines([sub for layer in agent.trimming_layers for sub in _layer_and_sublayers(layer)])
 
     def _extend_elements(self):
-        """Ask each agent to extend its elements toward adjacent boundaries (stage 3)."""
+        """Ask each agent to extend its elements toward adjacent boundaries."""
         for agent in self.agents:
             for layer in agent.element_layers:
                 boundary_outlines = [a.outline_for_layer(layer) for a in self.agents if a is not agent]
                 agent.extend_elements([o for o in boundary_outlines if o is not None], layer)
 
     def _split_elements(self):
-        """Geometrically split beams at agent boundaries (stage 4).
-
-        Each trimming agent cuts every peer element on its trimming layers (and
-        their sublayers) at its own outline.  Beams come back as segments and
-        the original is swapped out for them; plates are cut in place and come
-        back unchanged.  No segment is discarded here — that is
-        :meth:`_cull_elements`' job.
-        """
+        """Geometrically split beams at agent boundaries."""
         for agent in self.agents:
             for element in self._elements_to_trim(agent):
                 segments = agent.split_element(element)
@@ -304,23 +268,14 @@ class PanelPopulator:
                     self.model.add_element(segment, parent=parent)
 
     def _cull_elements(self):
-        """Discard out-of-zone beam segments after splitting (stage 5).
-
-        All splitting must be complete before this runs, so that every
-        candidate segment is judged by its own midpoint.
-        """
+        """Discard out-of-zone beam segments after splitting."""
         for agent in self.agents:
             for element in self._elements_to_trim(agent):
                 if agent.cull_element(element):
                     self.model.remove_element(element)
 
     def _elements_to_trim(self, agent):
-        """Yield every element *agent* may trim: those on its trimming layers, minus its own.
-
-        Each layer's elements are snapshotted as the walk reaches it, so a pass
-        can add or remove elements while iterating without revisiting what it
-        just produced.
-        """
+        """Yield every element *agent* may trim: those on its trimming layers, minus its own."""
         for layer in agent.trimming_layers:
             for sublayer in _layer_and_sublayers(layer):
                 for element in [e for e in sublayer.children if not isinstance(e, Layer)]:
@@ -332,15 +287,7 @@ class PanelPopulator:
     # ------------------------------------------------------------------
 
     def join_elements(self):
-        """Resolve all joint candidates and create joints in the model (stage 6).
-
-        One clustering pass per **leaf** layer.  Each pass gathers the beams on
-        that layer plus those on all its ancestor layers, so a beam on a
-        subdivision layer can join to the plate beams on its parent layer.
-        Parent layers are not driven directly — their beams are already covered
-        by every leaf beneath them, and re-running them would rediscover the
-        same candidate pairs.
-        """
+        """Resolve all joint candidates and create joints in the model."""
         solver = ConnectionSolver2D(max_distance=self.max_distance)
         for layer in self.model.layers:
             if layer.sublayers:
@@ -408,12 +355,6 @@ class PanelPopulator:
 
     def merge_with_model(self, model, clear_panel=True):
         """Move the populated layer subtree back under the original panel in *model*.
-
-        Reattaching each detached layer under the original panel shifts the whole
-        subtree — layers **and** the generated elements parented under them —
-        from panel-local (populator) space into world space.  No geometry
-        transform is applied; only computed caches are reset so they recompute
-        against the new parent.
 
         Parameters
         ----------

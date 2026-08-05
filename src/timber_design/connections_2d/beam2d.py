@@ -1,3 +1,4 @@
+from compas.geometry import Frame
 from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Polygon
@@ -29,6 +30,11 @@ class AABB2D(object):
 
     def __bool__(self):
         return True
+
+    @property
+    def aabb(self):
+        """Itself — so a bare ``AABB2D`` can go anywhere an object exposing ``aabb`` is expected (e.g. :func:`aabb_overlap`)."""
+        return self
 
     @classmethod
     def from_points(cls, points):
@@ -254,6 +260,26 @@ class Beam2D(Beam):
         super().transform(transformation)
         self._invalidate_blank_cache()
 
+    def to_beam(self):
+        # type: (Beam2D) -> Beam
+        """Convert this beam **in place** into a plain :class:`~compas_timber.elements.Beam`.
+
+        The object's identity is preserved — its class is swapped rather than a
+        copy being returned — so beams already referenced by a model tree are
+        converted without having to be re-parented.  The cached blank geometry
+        is dropped; frame, dimensions, features and attributes are untouched.
+
+        Returns
+        -------
+        :class:`~compas_timber.elements.Beam`
+            This same object, now a ``Beam``.  Returned for convenience so the
+            call can be chained or assigned.
+        """
+        del self._blank_outline
+        del self._blank_polygon
+        self.__class__ = Beam
+        return self
+
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D
         seg_length = end_length - start_length
@@ -261,10 +287,9 @@ class Beam2D(Beam):
             raise ValueError(
                 "get_beam_segment called with degenerate range [{}, {}] on beam '{}' (length={})".format(start_length, end_length, self.attributes.get("name", "?"), self.length)
             )
-        beam_seg = Beam2D(**self.__data__)
-        # copy() deep-copies any cached _blank_outline/_blank_polygon which would
-        # be stale after the translate + length change below — clear them first.
-        # beam_seg._invalidate_blank_cache()
+        data = self.__data__.copy()
+        data["frame"] = Frame.from_transformation(self.transformation)
+        beam_seg = Beam2D(**data)
         beam_seg.transform(Translation.from_vector(self.frame.xaxis * start_length))
         beam_seg.length = seg_length
         for feature in self.features:

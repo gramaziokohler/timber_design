@@ -291,6 +291,66 @@ class TestGetBeamSegment:
         assert aabb.xmin == pytest.approx(2.0)
         assert aabb.xmax == pytest.approx(6.0)
 
+    def test_segment_of_parented_beam_is_built_in_local_space(self):
+        """A segment of a beam under a transformed parent must not double-count the parent.
+
+        ``Element.frame`` — and therefore ``__data__["frame"]`` — is the *world*
+        frame, i.e. it already includes the parent's transformation.  Rebuilding
+        the segment from that frame and then re-parenting it applied the parent
+        transform a second time, offsetting every segment along the panel normal.
+        The segment must be built from the beam's own local ``transformation``.
+        """
+        from compas_timber.model import TimberModel
+
+        model = TimberModel()
+        parent = make_beam(0, 0, 20, 0, width=2.0)
+        model.add_element(parent)
+        parent.transformation = Translation.from_vector(Vector(0.0, 0.0, 5.0))
+
+        beam = make_beam(0, 0, 10, 0, width=1.0)
+        model.add_element(beam, parent=parent)
+        # sanity: the world frame carries the parent's offset, the local one does not
+        assert beam.frame.point.z == pytest.approx(5.0)
+
+        seg = beam.get_beam_segment(2.0, 6.0)
+        assert seg.frame.point.z == pytest.approx(0.0)
+        assert seg.frame.point.x == pytest.approx(2.0)
+
+
+# =============================================================================
+# Beam2D.to_beam
+# =============================================================================
+
+
+class TestToBeam:
+    def test_converts_in_place_and_returns_self(self):
+        """Identity is preserved so beams already held by a model tree convert cleanly."""
+        from compas_timber.elements import Beam
+
+        beam = make_beam(0, 0, 4, 0)
+        result = beam.to_beam()
+        assert result is beam
+        assert type(beam) is Beam
+        assert not isinstance(beam, Beam2D)
+
+    def test_geometry_is_preserved(self):
+        beam = make_beam(1, 2, 5, 2, width=0.8, height=0.2)
+        length, width, height = beam.length, beam.width, beam.height
+        point = beam.frame.point.copy()
+        beam.to_beam()
+        assert beam.length == pytest.approx(length)
+        assert beam.width == pytest.approx(width)
+        assert beam.height == pytest.approx(height)
+        assert beam.frame.point.x == pytest.approx(point.x)
+        assert beam.frame.point.y == pytest.approx(point.y)
+
+    def test_cached_blank_geometry_is_dropped(self):
+        beam = make_beam(0, 0, 4, 0)
+        beam.blank_outline  # populate the cache
+        beam.to_beam()
+        assert not hasattr(beam, "_blank_outline")
+        assert not hasattr(beam, "_blank_polygon")
+
 
 # =============================================================================
 # _merge_intervals
@@ -569,6 +629,20 @@ class TestFindTopology:
         candidate = solver.find_topology(beam_a, beam_b)
         assert candidate is not None
         assert candidate.topology == JointTopology.TOPO_X
+
+    def test_fully_contained_beam_is_not_a_candidate(self):
+        """A stub swallowed whole by another beam's blank yields no candidate.
+
+        Splitting can leave a stud stub shorter than the plate it lands in, so
+        both its ends sit inside the plate blank.  Neither end can be named as
+        the joint end, so the pair must be declined — not raised on.
+        """
+        solver = ConnectionSolver2D(max_distance=0.1)
+        plate = make_beam(0, 0, 8, 0, width=2.0)  # blank y=-1..1
+        stub = make_beam(4, -0.4, 4, 0.4, width=0.5)  # entirely inside the plate blank
+        assert solver.find_topology(plate, stub) is None
+        assert solver.find_topology(stub, plate) is None
+        assert solver.find_joint_candidates([plate, stub]) == []
 
     def test_candidate_carries_location(self):
         """Every returned candidate has a non-None ``location`` point."""

@@ -10,23 +10,12 @@ from .connection_solver_2d import aabb_overlap
 
 
 __all__ = [
-    "PanelPopulator",
     "AABB2D",
     "Beam2D",
-    "LayerAgent",
-    "AgentBoundaryType",
-    "FeatureAgent",
-    "EdgePopulatorAgent",
-    "StudPopulatorAgent",
-    "PlatePopulatorAgent",
-    "OpeningPopulatorAgent",
-    "RecessPopulatorAgent",
-    "PanelBoundaryPopulatorAgent",
     "Beam2DPolylineIntersectionResult",
     "Beam2DSolverResult",
     "Cluster2D",
     "Cluster2DFinder",
     "ConnectionSolver2D",
     "aabb_overlap",
-    "PopulatorAgent",
 ]

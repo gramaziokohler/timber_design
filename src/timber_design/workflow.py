@@ -909,14 +909,15 @@ def get_clusters_from_model(model, max_distance=None, ignore_joints=True):
         The TimberModel to analyze.
     max_distance : float | None
         The maximum distance to consider for clustering. If None, a default distance is used.
+    ignore_joints : bool, optional
+        Currently unused. Reserved for skipping candidates that are already promoted to
+        joints, which needs an API on the model for filtering them; see the TODO below.
 
     Returns
     -------
     list[:class:`~compas_timber.connections.Cluster`]
         A list of clusters found in the model.
     """
-    # model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
-    # model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.compute_topologies(max_distance=max_distance)  # ensure that the model is connected before analyzing
     # TODO: implement ignore_joints once model.unpromoted_joint_clusters implemented
     candidates = model.joint_candidates

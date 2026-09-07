@@ -225,5 +225,9 @@ The following table summarises the joint types that can be applied to the differ
 | Birdsmouth | | X | |
 | Dovetail | | X | |
 
+## Plate and Panel Joint Rules
+
+Analogous joint-rule components exist for **Plates** (*Direct Plate Joint Rules*, *Category Plate Joints Rules*, *Edge-to-Edge* and *Edge-to-Face Topological Plate Joint Rules*) and for **Panels** (*Direct Panel Joint Rules*, *Category Panel Joint Rules*, *Edge-to-Edge* and *Edge-to-Face Topological Panel Joint Rules*). The topological rules default to the Miter joint for edge-edge connections and the T-Butt joint for edge-face connections. Dedicated documentation pages for plates and panels are in preparation.
+
 !!! tip "Under the hood"
     The rule components are implemented in the [timber_design](https://github.com/gramaziokohler/timber_design) repository; the joints they produce are `Joint` subclasses from [`compas_timber.connections`](https://gramaziokohler.github.io/compas_timber/latest/api/compas_timber.connections/).

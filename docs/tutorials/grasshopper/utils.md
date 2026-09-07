@@ -19,3 +19,8 @@ The BoxMap orientation is defined by a plane, where:
 For documentation on BoxMapping in Rhino see [here](https://developer.rhino3d.com/api/rhinocommon/rhino.render.texturemapping/createboxmapping).
 
 ![Bake with BoxMap](../images/gh_Bake.png){ width=80% }
+
+## Bake Plates with BoxMap
+
+**BakePlatesWithBoxMap** does the same for Plate objects: it bakes the plates' geometry
+with a plate-aligned BoxMap. As with beams, the material is applied *by layer* by default.

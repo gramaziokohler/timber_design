@@ -1,5 +1,12 @@
 # Design
 
+!!! warning "Not available in the current plugin"
+
+    The **Surface Model** and **Surface Model Options** components described on this page
+    are not part of the current toolbar. The underlying code lives in `timber_design`
+    but is not currently exposed as Grasshopper components.
+    This page is kept for reference.
+
 Design Components help to generate standard Slab structures from Surfaces, using different Options.
 
 ![Design Workflow](../images/gh_design_workflow.png){ width=80% }

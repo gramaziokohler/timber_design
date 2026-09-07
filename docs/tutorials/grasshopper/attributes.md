@@ -1,5 +1,13 @@
 # Attributes
 
+!!! warning "Not available in the current plugin"
+
+    The attribute components described on this page were removed during the migration
+    from `compas_timber` and are not part of the current toolbar.
+    Beam components can still read and write attributes of referenced Rhino objects
+    (see the `updateRefObj` input in [beams](beams.md)).
+    This page is kept for reference until the workflow is reintroduced or replaced.
+
 This group of components is intended for a hybrid design workflow when the input `Centerlines` and parameters of the beams are stored in a Rhino document. The attributes are encoded as a string and stored in the source object's (e.g. in a *Line* object in the Rhino document) *name* attribute.
 This string entails concatenated key-value pairs, using a colon (`:`) as a separator between a key and a value of each entry, and an underscore (`_`) to separate entries (for example: *attr1name:attr1value_attr2name:attr2value*)
 

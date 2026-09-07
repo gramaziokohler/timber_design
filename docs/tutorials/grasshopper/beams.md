@@ -30,6 +30,37 @@ The latter is intended for a design workflow, where the input geometry (centerli
 
 ![Beam Component](../images/gh_beam_beam.png){ width=40% }
 
+## Beam From Box
+
+**Beam From Box** creates a Beam from a box Brep referenced from the active Rhino document.
+
+**Inputs:**
+
+*   `box_brep` : referenced box Brep (or its `Guid`) in the active Rhino document.
+*   `category` : (optional) category of the beam, used later to define joint rules.
+*   `updateRefObj` : (optional) if `True`, the attributes of the referenced object will be updated.
+
+**Outputs:**
+
+*   `Beam` : the resulting beam(s).
+*   `Blank` : the shape of the beam's blank.
+
+## Beams From Mesh Edges
+
+**Beams From Mesh Edges** creates Beams from the edges of a mesh and maps them to the mesh vertices.
+
+**Inputs:**
+
+*   `mesh` : the mesh whose edges are used to generate beams.
+*   `width` / `height` : dimensions of the beams' cross-section.
+*   `category` : (optional) category assigned to the beams, used later to define joint rules.
+
+**Outputs:**
+
+*   `Beams` : the resulting beams.
+*   `BeamMap` : a Data Tree with the beams organized by connection to a mesh vertex, useful to define joints per node.
+*   `Blanks` : the base beam geometry before features or joining operations.
+
 Once a `Beam` is created, it can be used as an input for the [model](model.md) component or the following components:
 
 ## DecomposeBeam

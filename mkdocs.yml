@@ -76,6 +76,7 @@ markdown_extensions:
       check_paths: true
   - toc:
       permalink: "¤"
+      toc_depth: 3
   - pymdownx.superfences:
         # make exceptions to highlighting of code:
       custom_fences:
@@ -86,6 +87,8 @@ markdown_extensions:
 plugins:
   - search
   - mermaid2
+  - panzoom:
+      full_screen: true
   - mkdocstrings:
       default_handler: python
       handlers:
@@ -127,7 +130,7 @@ plugins:
             show_signature: true
             show_signature_annotations: true
             show_signature_type_parameters: true
-            show_source: false
+            show_source: true
             show_submodules: false
             show_symbol_type_heading: true
             show_symbol_type_toc: true
@@ -141,6 +144,21 @@ plugins:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Grasshopper Plugin:
+      - Introduction: tutorials/index.md
+      - Installation: tutorials/grasshopper/installation.md
+      - Workflow: tutorials/grasshopper/workflow.md
+      - Attributes: tutorials/grasshopper/attributes.md
+      - Beams: tutorials/grasshopper/beams.md
+      - Design: tutorials/grasshopper/design.md
+      - Fabrication: tutorials/grasshopper/fabrication.md
+      - Features: tutorials/grasshopper/features.md
+      - Joint Rules: tutorials/grasshopper/joint_rules.md
+      - Model: tutorials/grasshopper/model.md
+      - Show: tutorials/grasshopper/show.md
+      - Utils: tutorials/grasshopper/utils.md
+      - Examples: tutorials/grasshopper/examples.md
+      - Development: tutorials/grasshopper/development.md
   - Guides:
       - 2D Connection Solving: connections_2d.md
   - API Reference:

@@ -15,7 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Updated `compas_timber` dependency to `>=3.0.0`.
+* Worked around `compas_timber` 3.0.0 not setting `b_segment_index` on edge-face plate joint candidates, which broke plate T-butt joint rules.
+* Fixed `CT: ShowTopologyTypes` importing the removed `GenericJoint` and passing non-Rhino types to `Draw2dText`.
+* `CT: NestPlates` requires `PlateNester`, which is not yet in a `compas_timber` release (see [compas_timber#720](https://github.com/gramaziokohler/compas_timber/pull/720)).
+
 ### Removed
+
+* Removed `wall_populator` and `wall_details` modules, which depended on wall APIs no longer in `compas_timber`.
 
 
 ## [0.3.1] 2026-07-09

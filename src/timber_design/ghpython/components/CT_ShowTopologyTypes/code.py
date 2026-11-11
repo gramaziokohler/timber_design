@@ -1,15 +1,11 @@
 """Shows the names of the connection topology types."""
 
 # flake8: noqa
-import re
 import Grasshopper
 import System
 from compas_rhino.conversions import point_to_rhino
-from compas_timber.connections import ConnectionSolver
-from compas_timber.connections import GenericJoint
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections import JointTopology
-from compas_timber.utils import intersection_line_line_param
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
@@ -25,8 +21,8 @@ class ShowTopologyTypes(Grasshopper.Kernel.GH_ScriptInstance):
         clusters = get_clusters_from_joint_candidates(model.joint_candidates)
 
         for cluster in clusters:
-            self.pt.append(cluster.joints[0].location)
-            self.txt.append(cluster.joints[0].topology)
+            self.pt.append(point_to_rhino(cluster.joints[0].location))
+            self.txt.append(JointTopology.get_name(cluster.joints[0].topology))
 
     def DrawViewportWires(self, arg):
         if ghenv.Component.Locked:

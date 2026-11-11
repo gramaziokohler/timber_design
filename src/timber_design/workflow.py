@@ -643,6 +643,10 @@ def get_clusters_from_model(model, max_distance=None, max_cluster_size=16):
     model.connect_adjacent_beams(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_plates(max_distance=max_distance)  # ensure that the model is connected before analyzing
     model.connect_adjacent_panels(max_distance=max_distance)  # ensure that the model is connected before analyzing
+    for candidate in model.joint_candidates:
+        # shortcut: compas_timber 3.0.0 leaves b_segment_index unset on EDGE_FACE plate candidates but PlateJoint.promote_joint_candidate reads it; remove once fixed upstream
+        if candidate.topology == JointTopology.TOPO_EDGE_FACE and not hasattr(candidate, "b_segment_index"):
+            candidate.b_segment_index = None
     clusters = get_clusters_from_joint_candidates(model.joint_candidates, max_distance=max_distance)
     return clusters
 

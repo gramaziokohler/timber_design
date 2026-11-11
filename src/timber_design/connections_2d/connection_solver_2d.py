@@ -292,7 +292,7 @@ class ConnectionSolver2D:
                             beam_a,
                             beam_b,
                             dist,
-                            JointTopology.TOPO_FACE_FACE,
+                            0, # TODO change to TOPO_FACE_FACE once implemented
                             _average_point(dot_pts),
                             _dot_range(beam_a, dot_pts),
                             _dot_range(beam_b, dot_pts),

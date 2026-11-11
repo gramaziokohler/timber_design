@@ -314,6 +314,10 @@ class ConnectionSolver2D:
         if (b_contains_a_start and b_contains_a_end) or (a_contains_b_start and a_contains_b_end):
             return None
 
+        if b_contains_a_start and b_contains_a_end:
+            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
+        if a_contains_b_start and a_contains_b_end:
+            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
             beam_a_end = BeamEnd.START

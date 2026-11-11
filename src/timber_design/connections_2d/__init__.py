@@ -20,6 +20,7 @@ __all__ = [
     "StudPopulatorAgent",
     "PlatePopulatorAgent",
     "OpeningPopulatorAgent",
+    "RecessPopulatorAgent",
     "PanelBoundaryPopulatorAgent",
     "Beam2DPolylineIntersectionResult",
     "Beam2DSolverResult",

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `CT: PlateStocks` and `CT: NestPlates` GH components.
+* Added `Nesting` input parameter to `CT_BTLx` GH component.
+* Migrated the Grasshopper plugin documentation from `compas_timber` (per [compas_timber#825](https://github.com/gramaziokohler/compas_timber/issues/825)): tutorial pages, images, and a new "Grasshopper Plugin" section in the docs navigation. API cross-references now point to the compas_timber documentation site.
+
 * `CompositeRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
 * `CT_Composite_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
 * COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
@@ -68,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `CT: Plate From Frame And Dimensions` GH component.
 * Added four panel joint rule GH components: `CT: Edge-to-Edge Topological Panel Joint Rules`, `CT: Edge-to-Face Topological Panel Joint Rules`, `CT: Category Panel Joint Rules`, and `CT: Direct Panel Joint Rules`.
 * Added new GH subcategory `06 Panel Joint Rules`.
+* Added `connections_2d` module (`timber_design.connections_2d`) with 2D blank-outline-based connection solving for panel structures. Includes `Beam2D`, `AABB2D`, `ConnectionSolver2D`, `Beam2DSolverResult`, `Beam2DPolylineIntersectionResult`, `Cluster2D`, and `Cluster2DFinder`.
 
 ### Changed
 

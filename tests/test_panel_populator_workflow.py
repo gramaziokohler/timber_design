@@ -30,7 +30,7 @@ from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
-from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.populators import stud_panel
 from timber_design.connections_2d.beam2d import Beam2D
 from timber_design.workflow import CategoryRule
 
@@ -241,6 +241,11 @@ class TestBasicStudWall:
         for e in result.elements():
             if hasattr(e, "attributes") and e.attributes.get("category") in beam_cats:
                 assert isinstance(e, Beam) and not isinstance(e, Beam2D)
+
+    def test_agent_tag_stripped_after_merge(self, result):
+        """The populator-internal ``attributes["agent"]`` ownership tag must not leak into the caller's model."""
+        for e in result.elements():
+            assert "agent" not in e.attributes
 
     def test_all_beams_positive_length(self, result):
         for e in result.elements():

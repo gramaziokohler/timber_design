@@ -122,7 +122,7 @@ class PopulatorAgent(Data, ABC):
         The layers on which this agent's boundary trims peer elements.
     element_layers : list[:class:`~compas_timber.elements.Layer`]
         The layers this agent generates elements on.
-    elements : list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
+    elements : list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         Every element currently in the model that carries this agent's tag.
     external_rules : list[:class:`~timber_design.workflow.CategoryRule`]
         Active cross-agent joint rules.
@@ -171,6 +171,20 @@ class PopulatorAgent(Data, ABC):
     def __repr__(self):
         return "{}({})".format(type(self).__name__, ", ".join(self.BEAM_CATEGORY_NAMES))
 
+    def clone(self):
+        """Return a fresh agent with this agent's construction parameters.
+
+        Unlike :meth:`~compas.data.Data.copy`, this is not a deep copy: a bound
+        feature is shared by reference (so identity checks against the panel's
+        features still hold), while all per-run state — resolved widths, layer
+        bindings, outlines — starts out clean.
+
+        Returns
+        -------
+        :class:`PopulatorAgent`
+        """
+        return type(self)(**self.__data__)
+
     @property
     @abstractmethod
     def element_layers(self) -> list[Layer]:
@@ -196,7 +210,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
+        list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         """
         return [e for e in layer.children if not isinstance(e, Layer) and e.attributes.get("agent") is self]
 
@@ -216,13 +230,31 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
             The generated elements per framing layer.
         """
         raise NotImplementedError
 
+    def beam_width(self, category: str) -> float:
+        """Return the resolved width for beam *category*.
+
+        Raises
+        ------
+        ValueError
+            If *category* is unknown to this agent, or its width was never set
+            (neither explicitly nor via the populator's ``standard_beam_width``).
+        """
+        if category not in self.beam_widths:
+            raise ValueError("Unknown beam category for {}: {!r}".format(type(self).__name__, category))
+        width = self.beam_widths[category]
+        if width is None:
+            raise ValueError(
+                "{} has no width for beam category {!r}. Pass it explicitly or set the populator's standard_beam_width.".format(type(self).__name__, category)
+            )
+        return width
+
     def beam_from_category(self, centerline: Line, category: str, layer: "Layer", **kwargs) -> Beam2D:
-        """Create a :class:`~timber_design.populators.Beam2D` from a centreline and category.
+        """Create a :class:`~timber_design.connections_2d.Beam2D` from a centreline and category.
 
         The beam width comes from :attr:`beam_widths` (filled by the config /
         populator before generation).  The beam height is always taken from
@@ -243,11 +275,9 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        :class:`~timber_design.populators.Beam2D`
+        :class:`~timber_design.connections_2d.Beam2D`
         """
-        if category not in self.beam_widths:
-            raise ValueError("Unknown beam category: {!r}".format(category))
-        width = self.beam_widths[category]
+        width = self.beam_width(category)
         height = layer.thickness
         beam = Beam2D.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
@@ -303,17 +333,16 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        element: :class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`
+        element: :class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`
             the element to be split.
 
         Returns
         -------
-        list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]
+        list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
             ``[element]`` when this agent's boundary leaves *element* intact.
             The populator swaps the original for the returned list only when
             they differ.
         """
-        layer = element.parent
         if isinstance(element, Beam2D):
             return self.split_beam(element)
         self.trim_plate(element)
@@ -336,7 +365,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        list[:class:`~timber_design.populators.Beam2D`]
+        list[:class:`~timber_design.connections_2d.Beam2D`]
             ``[beam]`` (the untouched original) when the agent has no boundary
             on *layer* or the boundary does not cross the beam.
         """
@@ -372,7 +401,7 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        beam : :class:`~timber_design.populators.Beam2D`
+        beam : :class:`~timber_design.connections_2d.Beam2D`
             A beam (or beam segment) on one of this agent's trimming layers.
 
         Returns
@@ -402,8 +431,6 @@ class PopulatorAgent(Data, ABC):
         ----------
         plate : :class:`compas_timber.elements.Plate`
             The plate to cut.
-        layer : :class:`~compas_timber.elements.Layer`
-            The layer *plate* belongs to.
         """
         pass
 
@@ -533,6 +560,8 @@ class PopulatorAgent(Data, ABC):
                         if {rule.category_a, rule.category_b} == {override.category_a, override.category_b}:
                             rules[i] = override
                             break
+                else:
+                    rules.append(override)
             else:
                 rules.append(override)
         return rules

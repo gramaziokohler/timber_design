@@ -103,7 +103,7 @@ class FeatureAgent(PopulatorAgent):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
         """
         self.outline_by_layer.clear()
         elements_by_layer = {}
@@ -121,7 +121,7 @@ class FeatureAgent(PopulatorAgent):
 
         Returns
         -------
-        tuple[list[:class:`~timber_design.populators.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
+        tuple[list[:class:`~timber_design.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
             The elements and the agent's boundary outline on *layer*.
         """
         raise NotImplementedError

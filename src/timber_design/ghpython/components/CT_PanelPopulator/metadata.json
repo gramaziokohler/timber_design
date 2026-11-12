@@ -1,6 +1,6 @@
 {
-    "name": "PanelPopulatorConfigurator",
-    "nickname": "PopulatorConfig",
+    "name": "Panel Populator",
+    "nickname": "PanelPopulator",
     "category": "Timber Design",
     "subcategory": "03 Panels",
     "description": "Create a PanelPopulator from a panel and a list of agents.",
@@ -17,25 +17,25 @@
             },
             {
                 "name": "agents",
-                "description": "List of PopulatorAgents to assign to this panel.",
+                "description": "List of PopulatorAgents. Bound feature agents are only used if their feature belongs to this panel.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "standard_beam_width",
-                "description": "Standard beam width for generators.",
+                "description": "Default width for every beam category an agent does not set explicitly.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
             },
             {
                 "name": "default_feature_configs",
-                "description": "List of default feature agent prototypes, keyed by feature type.",
+                "description": "List of unbound FeatureAgent prototypes (one per feature type), applied to every panel feature no other agent handles.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "joint_rule_overrides",
-                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories.",
+                "description": "List of panel-level joint rules (CategoryRule / CompositeRule). Tried on a cluster only after the owning agents' own rules fail, as a panel-wide fallback.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
@@ -49,7 +49,7 @@
         "outputParameters": [
             {
                 "name": "populator",
-                "description": "PanelPopulator instance ready to populate."
+                "description": "PanelPopulator ready to run. Connect to CT_Populate_Model."
             }
         ]
     }

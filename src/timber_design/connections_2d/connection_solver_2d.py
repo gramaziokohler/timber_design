@@ -61,7 +61,7 @@ def aabb_overlap(a, b, tolerance: float = 0.0) -> bool:
 
     Parameters
     ----------
-    a, b : :class:`~timber_design.populators.Beam2D` or :class:`~timber_design.populators.populator_agents.LayerAgent`
+    a, b : :class:`~timber_design.connections_2d.Beam2D` or :class:`~timber_design.populators.populator_agents.LayerAgent`
         Objects with an ``aabb`` attribute exposing ``xmin``, ``xmax``, ``ymin``, ``ymax``.
     tolerance : float
         Each AABB is expanded by this amount in every direction before the
@@ -147,9 +147,9 @@ class Beam2DSolverResult:
 
     Parameters
     ----------
-    beam_a : :class:`~timber_design.populators.Beam2D`
+    beam_a : :class:`~timber_design.connections_2d.Beam2D`
         The first beam.  For ``TOPO_T``, this is always the *end* beam.
-    beam_b : :class:`~timber_design.populators.Beam2D`
+    beam_b : :class:`~timber_design.connections_2d.Beam2D`
         The second beam.  For ``TOPO_T``, this is always the *body* beam.
     distance : float
         Separation between the blanks (0.0 when they overlap).
@@ -166,7 +166,7 @@ class Beam2DSolverResult:
 
     Attributes
     ----------
-    beam_a, beam_b : :class:`~timber_design.populators.Beam2D`
+    beam_a, beam_b : :class:`~timber_design.connections_2d.Beam2D`
     distance : float
     topology : int
     location : :class:`~compas.geometry.Point`
@@ -206,7 +206,7 @@ class ConnectionSolver2D:
 
     Mirrors the interface of :class:`~compas_timber.connections.ConnectionSolver`
     but uses blank-outline containment and crossing tests on
-    :class:`~timber_design.populators.Beam2D` objects instead of 3D centerline distance.
+    :class:`~timber_design.connections_2d.Beam2D` objects instead of 3D centerline distance.
 
     Parameters
     ----------
@@ -233,11 +233,11 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beams : list[:class:`~timber_design.populators.Beam2D`]
+        beams : list[:class:`~timber_design.connections_2d.Beam2D`]
 
         Yields
         ------
-        tuple[:class:`~timber_design.populators.Beam2D`, :class:`~timber_design.populators.Beam2D`]
+        tuple[:class:`~timber_design.connections_2d.Beam2D`, :class:`~timber_design.connections_2d.Beam2D`]
         """
         for item_a, item_b in combinations(items, 2):
             if aabb_overlap(item_a, item_b, tolerance=self.max_distance):
@@ -256,7 +256,7 @@ class ConnectionSolver2D:
            long edge (``TOPO_FACE_FACE``).
         2. **Corner containment** — checks which end (start or end) of each
            beam is inside the other's blank via
-           :meth:`~timber_design.populators.Beam2D.contains_point`.
+           :meth:`~timber_design.connections_2d.Beam2D.contains_point`.
         3. **Outline-outline intersections** — collects all segment crossings;
            end-cap crossings (indices 1 and 3) refine end detection for beams
            that only touch at their caps without corner overlap.
@@ -265,8 +265,8 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beam_a : :class:`~timber_design.populators.Beam2D`
-        beam_b : :class:`~timber_design.populators.Beam2D`
+        beam_a : :class:`~timber_design.connections_2d.Beam2D`
+        beam_b : :class:`~timber_design.connections_2d.Beam2D`
 
         Returns
         -------
@@ -292,7 +292,7 @@ class ConnectionSolver2D:
                             beam_a,
                             beam_b,
                             dist,
-                            0, # TODO change to TOPO_FACE_FACE once implemented
+                            JointTopology.TOPO_UNKNOWN,  # TODO: change to TOPO_FACE_FACE once implemented
                             _average_point(dot_pts),
                             _dot_range(beam_a, dot_pts),
                             _dot_range(beam_b, dot_pts),
@@ -314,10 +314,6 @@ class ConnectionSolver2D:
         if (b_contains_a_start and b_contains_a_end) or (a_contains_b_start and a_contains_b_end):
             return None
 
-        if b_contains_a_start and b_contains_a_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_a, beam_b))
-        if a_contains_b_start and a_contains_b_end:
-            raise ValueError("Both ends of a beam are inside another: {!r} / {!r}".format(beam_b, beam_a))
         beam_a_end: Optional[BeamEnd] = None
         if b_contains_a_start:
             beam_a_end = BeamEnd.START
@@ -391,7 +387,7 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beam : :class:`~timber_design.populators.Beam2D`
+        beam : :class:`~timber_design.connections_2d.Beam2D`
         outline : :class:`~compas.geometry.Polyline`
         limit_to_segments : bool
             When ``False``, the long blank edges are treated as infinite lines
@@ -509,7 +505,7 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beam : :class:`~timber_design.populators.Beam2D`
+        beam : :class:`~timber_design.connections_2d.Beam2D`
         outlines : list[:class:`~compas.geometry.Polyline` or None]
             Boundary outlines to extend toward.  ``None`` entries are skipped.
         only_start : bool
@@ -571,7 +567,7 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beams : list[:class:`~timber_design.populators.Beam2D`]
+        beams : list[:class:`~timber_design.connections_2d.Beam2D`]
 
         Returns
         -------
@@ -592,7 +588,7 @@ class ConnectionSolver2D:
 
         Parameters
         ----------
-        beams : list[:class:`~timber_design.populators.Beam2D`]
+        beams : list[:class:`~timber_design.connections_2d.Beam2D`]
 
         Returns
         -------

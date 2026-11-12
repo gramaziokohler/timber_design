@@ -1,7 +1,7 @@
 import Grasshopper
 import System
 
-from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.populators import stud_panel
 
 
 class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):

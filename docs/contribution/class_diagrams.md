@@ -8,402 +8,193 @@ This section provides visual representations of the class hierarchies and relati
 
 ### Orchestration
 
-`PanelPopulatorConfig` holds all parameters for one panel type, resolves the layer stack from `LayerConfig` blueprints, and produces a ready-to-use `PanelPopulator`.
+`PanelPopulator` is the only writer to its internal model.  It extracts the
+panel's layer tree into that model, drives the agents through the pipeline, and
+merges the result back under the original panel.  Agents never touch the model:
+they return elements, and later find their own elements again through the
+`attributes["agent"]` tag on each one (stripped again by `merge_with_model`).
 
 ```mermaid
 classDiagram
 
-    class PanelPopulatorConfig {
-        +panel : Panel
-        +orientation : Vector
-        +root_layer_def : LayerConfig
-        +default_feature_configs : dict
-        +instance_feature_configs : list
-        +standard_beam_width : float
-        +get_populator_panel() Panel
-        +resolve_beam_widths()
-        +create_populator_model() TimberModel
-        +create_feature_agents() list[FeatureAgent]
-        +create_populator() PanelPopulator
-        -_iter_agent_configs()
-    }
-
     class PanelPopulator {
         +panel : Panel
-        +layers : list[Layer]
-        +feature_agents : list[FeatureAgent]
-        +original_panel : Panel
-        +transformation_to_populator : Transformation
+        +agents : list[PopulatorAgent]
         +model : TimberModel
-        +agents : list[LayerAgent]
+        +joint_rule_overrides : list[JointRule]
+        +max_distance : float
+        +debug_info : DebugInfomation
+        +layer_tree : dict[str, Layer]
+        +update_panel_from_model(model)
         +populate_elements()
-        +generate_elements()
-        +extend_elements()
-        +trim_elements()
-        +add_elements_to_model()
         +join_elements()
-        +create_agent_joints()
-        +create_cross_agent_joints()
         +process_joinery()
         +merge_with_model(model, clear_panel)
     }
 
-    class Layer {
-        +name : str
-        +layer_index : int
-        +parent_layer : Layer
-        +sublayer_list : list[Layer]
-        +agents : list[PopulatorAgent]
-        +thickness : float
-        +center_height : float
-        +outline_a : Polyline
-        +outline_b : Polyline
-        +elements : list
-        +from_panel_and_range(panel, range_a, range_b, ...)$
-    }
-
-    class LayerConfig {
-        +thickness : float
-        +name : str
-        +agent_configs : list[LayerAgentConfig]
-        +sublayers : list[LayerConfig]
-        +position : float
-        +resulting_layer : Layer
-        +model_from_panel(panel) TimberModel
-    }
-
-    class ConnectionSolver2D {
-        +find_intersecting_pairs(beams) list
-        +find_intersecting_agent_pairs(agents) list
-        +find_topology(beam_a, beam_b) Beam2DSolverResult
-        +find_beam_contacts(beam, others) list[BeamContact]
-        +find_all_contacts(beams) list[BeamContact]
-        +cluster_contacts(contacts) list[Beam2DCluster]
-    }
-
-    PanelPopulatorConfig --> PanelPopulator : creates
-    PanelPopulatorConfig "1" *-- "1..*" LayerConfig : holds (root_layer_def + sublayers)
-    LayerConfig --> Layer : creates via model_from_panel
-    PanelPopulator "1" *-- "1..*" Layer : owns
-    PanelPopulator --> ConnectionSolver2D : uses
-    Layer "1" *-- "1..*" PopulatorAgent : has registered
-    LayerConfig --> LayerAgentConfig : carries
-```
-
----
-
-### Populator Config Factories
-
-`PanelPopulatorConfig` is the single concrete config class.  The
-`stud_panel()` **factory function** (not a subclass) builds the right
-`LayerConfig` stack and agent configs for a standard stud-framed wall panel
-and returns a `PanelPopulatorConfig`.  Custom configs are made by
-instantiating `PanelPopulatorConfig` directly with a `layer_defs` list.
-
-```mermaid
-classDiagram
-
-    class PanelPopulatorConfig {
-        +panel : Panel
-        +orientation : Vector
-        +root_layer_def : LayerConfig
-        +default_feature_configs : dict[type, FeatureAgentConfig]
-        +instance_feature_configs : list
-        +standard_beam_width : float
-        +get_populator_panel() Panel
-        +resolve_beam_widths()
-        +create_populator_model() TimberModel
-        +create_feature_agents() list[FeatureAgent]
-        +create_populator() PanelPopulator
-    }
-
     class stud_panel {
-        <<factory function>>
-        panel
-        standard_beam_width
-        stud_spacing
-        stud_width
-        standard_beam_width_increment
-        edge_stud_width
-        top_plate_beam_width
-        bottom_plate_beam_width
-        orientation
-        sheeting_outside
-        sheeting_inside
-        lintel_posts
-        split_bottom_plate_beam
-        internal_joint_overrides
-        external_joint_overrides
-        default_feature_configs
-        instance_feature_configs
+        <<function>>
+        stud_panel(panel, standard_beam_width, stud_spacing, ...) PanelPopulator
     }
 
-    stud_panel ..> PanelPopulatorConfig : returns
-    PanelPopulatorConfig ..> LayerConfig : holds (root + sublayers)
-    PanelPopulatorConfig ..> LayerAgentConfig : reads via default_feature_configs
-```
-
----
-
-### Layer and LayerConfig
-
-`LayerConfig` is a pure data blueprint with no geometry.  `Layer` is the
-resolved runtime object — it *is* a `Panel` (sliced from the source panel) and
-also holds the list of agents registered on it.  The definition tree supports
-nested `sublayers` for composite cross-sections; `thickness=None` on a leaf
-causes fill-remaining resolution against the parent.
-
-There is **no** `is_framing_layer` flag.  Feature agents (openings, etc.) point
-at the specific layers they frame on via `framing_layer_defs` on their config,
-and at the layers they trim through via `trimming_layer_defs`.
-
-```mermaid
-classDiagram
-
-    class LayerConfig {
-        +thickness : float | None
-        +name : str
-        +agent_configs : list[LayerAgentConfig]
-        +sublayers : list[LayerConfig]
-        +position : float
-        +resulting_layer : Layer
-        +model_from_panel(panel) TimberModel
+    class Panel {
+        +layer_structure : LayerStructure
+        +exterior_layer : Layer
+        +core_layer : Layer
+        +interior_layer : Layer
+        +features : list[PanelFeature]
     }
 
     class Layer {
-        +name : str
-        +layer_index : int
-        +parent_layer : Layer
-        +sublayer_list : list[Layer]
-        +agents : list[PopulatorAgent]
+        +layer_path : tuple
+        +sublayers : list[Layer]
         +thickness : float
-        +center_height : float
         +outline_a : Polyline
         +outline_b : Polyline
-        +elements : list
-        +iter_subtree()
-        +from_panel_and_range(panel, range_a, range_b, ...)$
+        +edge_planes : dict
+        +center_height : float
     }
 
-    LayerConfig "0..*" --> LayerConfig : sublayers
-    LayerConfig --> LayerAgentConfig : carries agent_configs
-    Layer "1" *-- "0..*" PopulatorAgent : registered agents
-    LayerConfig --> Layer : produces via model_from_panel
+    stud_panel ..> PanelPopulator : creates
+    PanelPopulator --> Panel : populates
+    PanelPopulator "1" *-- "1..*" PopulatorAgent : clones and drives
+    PanelPopulator ..> ConnectionSolver2D : finds joint clusters
+    PanelPopulator ..> JointRuleSolver : applies panel-level rules
+    Panel "1" *-- "1..*" Layer : layer tree
+    PopulatorAgent ..> Layer : bound by layer_path
 ```
+
+`populate_elements()` runs: build populator model → repoint agents to its
+layers → **generate** → **define outlines** → **extend** → **split** →
+**cull**.  `join_elements()` resolves each cluster with, in order: the owning
+agents' rules on the whole cluster, the populator's `joint_rule_overrides` on
+the whole cluster, then both again pair by pair.
 
 ---
 
 ### Populator Agents
 
-`PopulatorAgent` is the abstract base.  `LayerAgent` and `FeatureAgent` are the
-two specializations — `LayerAgent` is bound to exactly one `Layer`,
-`FeatureAgent` spans multiple layers (e.g. an opening that frames on one or
-more framing layers and cuts through sheathing layers).
-
-The base owns the common element / outline / trim machinery so the subclasses
-declare only what differs — `LayerAgent` adds nothing more than its single
-`layer` reference and a `beam_from_category` convenience; `FeatureAgent` swaps
-the flat element list for a per-layer bucket and a per-layer outline.
-
 ```mermaid
 classDiagram
+    direction TB
 
     class PopulatorAgent {
         <<abstract>>
-        +BEAM_CATEGORY_NAMES : list[str]$
-        +INTERNAL_JOINT_RULES : list[CategoryRule]$
-        +EXTERNAL_JOINT_RULES : list[CategoryRule]$
-        +BOUNDARY_TYPE : AgentBoundaryType$
+        +BEAM_CATEGORY_NAMES : list[str]
+        +INTERNAL_JOINT_RULES : list[JointRule]
+        +EXTERNAL_JOINT_RULES : list[JointRule]
+        +COMPOSITE_RULES : list[CompositeRule]
+        +BOUNDARY_TYPE : AgentBoundaryType
         +beam_widths : dict[str, float]
-        +internal_rules : list[CategoryRule]
-        +external_rules : list[CategoryRule]
-        +external_overrides : list[CategoryRule]
-        +elements : list[Beam2D | Plate]
-        +outline : Polyline
-        +joint_defs : list[DirectRule]
-        +aabb : AABB2D
-        +outline_for_layer(layer) Polyline
-        +elements_for_layer(layer) list
-        +set_elements_for_layer(layer, elements)
+        +internal_rules / external_rules / composite_rules
+        +outline_by_layer : dict[Layer, Polyline]
+        +element_layers* : list[Layer]
+        +trimming_layers* : list[Layer]
+        +elements : list
+        +clone() PopulatorAgent
+        +generate_elements()* dict[Layer, list]
+        +beam_width(category) float
         +beam_from_category(centerline, category, layer) Beam2D
-        +trim_beam(beam, layer) list[Beam2D]
-        +trim_plate(plate) list[Plate]
-        +trim_agent_elements(other_agent, layer)
-        +trim_elements()
-        +cull_beam_segment(beam) bool
-        +cull_element_at_point(point, layer) bool
-        +create_joint_candidates() list
-        +create_joint_defs()
-        +generate_elements()*
-        +extend_elements()
-        +is_on_layer(layer) bool
-        -_trim_layers() list[Layer]
-        -_agent_layers() list[Layer]
+        +elements_for_layer(layer) list
+        +define_outlines(layers)
+        +outline_for_layer(layer) Polyline
+        +extend_elements(boundary_outlines, layer)
+        +split_element(element) list
+        +cull_element(element) bool
+        +trim_plate(plate)
+        +get_cluster_joint(cluster, max_distance) Joint
+    }
+
+    class AgentBoundaryType {
+        <<enumeration>>
+        EXCLUSIVE
+        INCLUSIVE
+        NONE
     }
 
     class LayerAgent {
         <<abstract>>
+        +layer_path : tuple
         +layer : Layer
-        +layer_index : int
-        +layer_center_height : float
-        +panel : Panel
-        +beam_from_category(centerline, category, layer)
+        +generate_layer_elements()* tuple[list, Polyline]
     }
 
     class FeatureAgent {
         <<abstract>>
-        +FEATURE_TYPE : type$
+        +FEATURE_TYPE : type
         +feature : PanelFeature
-        +element_layers : list[Layer]
-        +trimming_layers : list[Layer]
-        +registered_layers : list[Layer]
-        -_elements_by_layer : dict[int, list]
-        -_outline_by_layer : dict[int, Polyline]
-        +outline_for_layer(layer) Polyline
-        +elements_for_layer(layer) list
-        +set_elements_for_layer(layer, elements)
-        +register_on_layer(layer)
-        +generate_elements()
-        +generate_elements_for_layer(layer)*
-        -_trim_layers() list[Layer]
+        +element_layer_paths : list
+        +trimming_layer_paths : list
+        +generate_elements_for_layer(layer)* tuple[list, Polyline]
     }
 
     class EdgePopulatorAgent {
-        +BOUNDARY_TYPE = INCLUSIVE
-        +BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
-        +standard_beam_width_increment : float
-        +generate_elements()
-        +create_joint_defs()
+        INCLUSIVE
+        edge_stud, top_plate_beam, bottom_plate_beam
     }
-
     class StudPopulatorAgent {
-        +BEAM_CATEGORY_NAMES = ["stud"]
-        +stud_spacing : float
-        +generate_elements()
+        NONE
+        stud
     }
-
     class PlatePopulatorAgent {
-        +BEAM_CATEGORY_NAMES : ["<layer-name>_plate"]
-        +generate_elements()
+        NONE
+        plate
     }
-
+    class PanelBoundaryPopulatorAgent {
+        INCLUSIVE
+        no elements
+    }
     class OpeningPopulatorAgent {
-        +BOUNDARY_TYPE = EXCLUSIVE
-        +FEATURE_TYPE = Opening
-        +BEAM_CATEGORY_NAMES = ["header", "sill", "king_stud", "jack_stud"]
-        +opening_type : str
-        +lintel_posts : bool
-        +split_bottom_plate_beam : bool
-        +header : Beam2D
-        +sill : Beam2D
-        +king_studs : list[Beam2D]
-        +jack_studs : list[Beam2D]
-        +generate_elements_for_layer(layer) list
-        +extend_elements()
-        +trim_plate(plate)
+        EXCLUSIVE
+        header, king_stud, jack_stud
     }
-
-    class AgentBoundaryType {
-        +NONE = "none"$
-        +INCLUSIVE = "inclusive"$
-        +EXCLUSIVE = "exclusive"$
+    class WindowPopulatorAgent {
+        + sill
+    }
+    class DoorPopulatorAgent {
+        split_bottom_plate_beam
     }
 
     PopulatorAgent <|-- LayerAgent
     PopulatorAgent <|-- FeatureAgent
+    PopulatorAgent --> AgentBoundaryType
     LayerAgent <|-- EdgePopulatorAgent
     LayerAgent <|-- StudPopulatorAgent
     LayerAgent <|-- PlatePopulatorAgent
+    LayerAgent <|-- PanelBoundaryPopulatorAgent
     FeatureAgent <|-- OpeningPopulatorAgent
-
-    PopulatorAgent --> AgentBoundaryType : uses
-    PopulatorAgent "1" *-- "0..*" Beam2D : owns
-    FeatureAgent --> Layer : registers on
+    OpeningPopulatorAgent <|-- WindowPopulatorAgent
+    OpeningPopulatorAgent <|-- DoorPopulatorAgent
 ```
 
----
+Notes:
 
-### Agent Configs
-
-Each agent subclass has a matching config dataclass.  All configs descend from
-`PopulatorAgentConfig`, which carries the per-agent joint-rule overrides (split
-into `internal_joint_overrides` and `external_joint_overrides`) and the
-`beam_widths` dict.  Subclasses add **explicit per-category width fields**
-(`edge_stud_width`, `stud_width`, `header_width`, …) rather than a generic
-overrides dict; `_agent_kwargs()` is the single seam that turns config fields
-into the agent's explicit constructor keyword arguments.
-
-```mermaid
-classDiagram
-
-    class PopulatorAgentConfig {
-        <<abstract>>
-        +AGENT_TYPE : type$
-        +internal_joint_overrides : list[CategoryRule]
-        +external_joint_overrides : list[CategoryRule]
-        +beam_widths : dict[str, float]
-        +fill_beam_widths(standard_beam_width)
-        -_agent_kwargs() dict
-    }
-
-    class LayerAgentConfig {
-        <<abstract>>
-        +get_agent_from_layer(layer, standard_beam_width) LayerAgent
-    }
-
-    class FeatureAgentConfig {
-        <<abstract>>
-        +feature : PanelFeature
-        +framing_layer_defs : list[LayerConfig]
-        +trimming_layer_defs : list[LayerConfig]
-        +get_agent_from_feature(feature, element_layers, trimming_layers, standard_beam_width) FeatureAgent
-    }
-
-    class EdgePopulatorAgentConfig {
-        +AGENT_TYPE = EdgePopulatorAgent$
-        +standard_beam_width_increment : float
-        +edge_stud_width : float
-        +top_plate_beam_width : float
-        +bottom_plate_beam_width : float
-    }
-
-    class StudPopulatorAgentConfig {
-        +AGENT_TYPE = StudPopulatorAgent$
-        +stud_spacing : float
-        +stud_width : float
-    }
-
-    class PlatePopulatorAgentConfig {
-        +AGENT_TYPE = PlatePopulatorAgent$
-    }
-
-    class OpeningPopulatorAgentConfig {
-        +AGENT_TYPE = OpeningPopulatorAgent$
-        +FEATURE_TYPE = Opening$
-        +lintel_posts : bool
-        +split_bottom_plate_beam : bool
-        +header_width : float
-        +sill_width : float
-        +king_stud_width : float
-        +jack_stud_width : float
-    }
-
-    PopulatorAgentConfig <|-- LayerAgentConfig
-    PopulatorAgentConfig <|-- FeatureAgentConfig
-    LayerAgentConfig <|-- EdgePopulatorAgentConfig
-    LayerAgentConfig <|-- StudPopulatorAgentConfig
-    LayerAgentConfig <|-- PlatePopulatorAgentConfig
-    FeatureAgentConfig <|-- OpeningPopulatorAgentConfig
-```
+- **Construction state only.**  An agent's `__data__` is its constructor
+  arguments, so `clone()` (`type(agent)(**agent.__data__)`) produces a fresh
+  agent that shares only the bound feature.  `PanelPopulator` clones every agent
+  it receives.
+- **Layers by path.**  Agents store layer paths and are rebound to the live
+  layers of the populator model by `repoint_to_layer_tree` at the start of
+  every `populate_elements()`.
+- **Boundaries.**  `BOUNDARY_TYPE` decides what `cull_element` removes after
+  splitting: segments outside an `INCLUSIVE` outline, inside an `EXCLUSIVE`
+  one, or nothing.  An agent never trims its own elements.
+- **Opening dispatch.**  Binding an `Opening` to a plain
+  `OpeningPopulatorAgent` swaps its class to `WindowPopulatorAgent` or
+  `DoorPopulatorAgent` according to `opening.opening_type`.
+- **Rule overrides.**  `*_joint_overrides` replace a default rule with the same
+  topology and categories, and are appended otherwise.
+  `EdgePopulatorAgent.get_cluster_joint` computes joints between two of its own
+  beams geometrically when either panel edge is sloped.
 
 ---
 
 ### 2D Geometry
 
-`Beam2D` extends compas_timber's `Beam` with a lazy 2D blank outline used for
-all intersection and topology detection operations. `AABB2D` is a lightweight
-2D bounding box that avoids the `ZeroDivisionError` that `compas.geometry.Box`
-raises on flat z=0 geometry.
+`Beam2D` extends compas_timber's `Beam` with a lazily cached 2D blank outline
+used for all intersection and topology detection.  `AABB2D` is a lightweight 2D
+bounding box that avoids the `ZeroDivisionError` that `compas.geometry.Box`
+raises on flat geometry.
 
 ```mermaid
 classDiagram
@@ -414,11 +205,11 @@ classDiagram
         +width : float
         +height : float
         +centerline : Line
-        +ref_sides : list[Frame]
         +from_centerline(centerline, width, height)$
     }
 
     class Beam2D {
+        +edges : tuple[Line, Line]
         +edge_a : Line
         +edge_b : Line
         +start_segment : Line
@@ -428,9 +219,8 @@ classDiagram
         +aabb : AABB2D
         +contains_point(point, tolerance) bool
         +get_beam_segment(start_length, end_length) Beam2D
+        +to_beam()
         +transform(transformation)
-        -_blank_outline : Polyline
-        -_blank_polygon : Polygon
     }
 
     class AABB2D {
@@ -439,6 +229,7 @@ classDiagram
         +ymin : float
         +ymax : float
         +points : list[Point]
+        +aabb : AABB2D
         +from_points(points)$
     }
 
@@ -446,25 +237,17 @@ classDiagram
     Beam2D ..> AABB2D : computes
 ```
 
+`to_beam()` swaps the instance's class to `Beam` in place, so joints and model
+references stay valid when `merge_with_model` hands the elements back.
+
 ---
 
-### Connection Solver and Intersection Utilities
+### Connection Solver
 
-`ConnectionSolver2D` offers two complementary detection paths:
-
-- the legacy pairwise `find_topology(beam_a, beam_b)` using blank-corner
-  containment + edge crossings; and
-- an occlusion-aware perimeter walk — `find_beam_contacts(beam, others)` —
-  which records the *role* (end vs middle) of each beam at every real contact
-  and discards beams hidden behind a nearer one.  `cluster_contacts` then
-  groups those contacts on shared **ports** (a beam's end key, or overlapping
-  intervals along its long face) into `Beam2DCluster` objects whose topology
-  is derived from per-beam roles (Y when every beam meets at an end, K when
-  at least one is met through its middle).
-
-`BeamOutlineIntersectionData` stores the entry/exit dot positions where an
-outline crosses a beam blank, used by `trim_beam` to split beams at agent
-boundaries.
+`ConnectionSolver2D` finds beam pairs whose AABBs overlap, classifies each pair
+with `find_topology` (blank-corner containment plus edge crossings), and groups
+the resulting candidates into clusters with `Cluster2DFinder`.  It also provides
+the static helpers the agents use for splitting and extending beams.
 
 ```mermaid
 classDiagram
@@ -472,11 +255,11 @@ classDiagram
     class ConnectionSolver2D {
         +max_distance : float
         +find_intersecting_pairs(beams) list
-        +find_intersecting_agent_pairs(agents) list
-        +find_topology(beam_a, beam_b) Beam2DSolverResult
-        +find_beam_contacts(beam, others) list[BeamContact]
-        +find_all_contacts(beams) list[BeamContact]
-        +cluster_contacts(contacts) list[Beam2DCluster]
+        +find_topology(beam_a, beam_b, max_distance) Beam2DSolverResult
+        +find_joint_candidates(beams) list[Beam2DSolverResult]
+        +find_joint_clusters(beams) list[Cluster2D]
+        +intersection_beam2d_polyline(beam, polyline)$ list
+        +extend_beam_to_polylines(beam, polylines, only_start)$
     }
 
     class Beam2DSolverResult {
@@ -485,28 +268,25 @@ classDiagram
         +distance : float
         +topology : JointTopology
         +location : Point
+        +elements : tuple
     }
 
-    class BeamContact {
-        +beam_a : Beam2D
-        +beam_b : Beam2D
-        +role_a : "end" | "middle"
-        +role_b : "end" | "middle"
-        +end_a : "start" | "end" | None
-        +end_b : "start" | "end" | None
-        +location : Point
+    class Cluster2DFinder {
+        +endpoint_tolerance : float
+        +find_clusters(results) list[Cluster2D]
+    }
+
+    class Cluster2D {
         +topology : JointTopology
-        +role_for(beam) str
-    }
-
-    class Beam2DCluster {
-        +contacts : list[BeamContact]
-        +beams : list[Beam2D]
         +location : Point
-        +topology : JointTopology
     }
 
-    class BeamOutlineIntersectionData {
+    class Cluster {
+        +joints : list
+        +elements : list
+    }
+
+    class Beam2DPolylineIntersectionResult {
         +start_dot : float
         +end_dot : float
         +internal_dots : list[float]
@@ -514,26 +294,14 @@ classDiagram
         +average_dot : float
     }
 
-    class JointTopology {
-        +TOPO_UNKNOWN = 0$
-        +TOPO_I = 1$
-        +TOPO_L = 2$
-        +TOPO_T = 3$
-        +TOPO_X = 4$
-        +TOPO_Y = 5$
-        +TOPO_K = 6$
-        +TOPO_EDGE_EDGE = 7$
-        +TOPO_EDGE_FACE = 8$
-        +TOPO_FACE_FACE = 9$
-    }
-
     ConnectionSolver2D ..> Beam2DSolverResult : returns
-    ConnectionSolver2D ..> BeamContact : returns
-    ConnectionSolver2D ..> Beam2DCluster : returns
-    ConnectionSolver2D ..> AABB2D : uses for overlap tests
-    ConnectionSolver2D ..> BeamOutlineIntersectionData : uses via find_beam_outline_crossings
-    Beam2DCluster "1" *-- "1..*" BeamContact : groups
-    Beam2DSolverResult --> JointTopology : classifies
-    BeamContact --> JointTopology : classifies
-    Beam2DCluster --> JointTopology : classifies
+    ConnectionSolver2D ..> Cluster2DFinder : uses
+    ConnectionSolver2D ..> Beam2DPolylineIntersectionResult : returns
+    Cluster2DFinder ..> Cluster2D : creates
+    Cluster <|-- Cluster2D
+    Cluster2D "1" *-- "1..*" Beam2DSolverResult : groups
 ```
+
+`find_topology` returns `None` for a beam swallowed entirely by another (a
+degenerate stub left over from splitting) and reports face-to-face overlaps as
+`TOPO_UNKNOWN` until `TOPO_FACE_FACE` is supported.

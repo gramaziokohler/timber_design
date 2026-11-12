@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import copy
-
 from compas_timber.panel_features import Opening
 
-from timber_design.populators import PanelPopulator
+from timber_design.populators.populator import PanelPopulator
 from timber_design.populators.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design.populators.populator_agents.opening_populator_agent import OpeningPopulatorAgent
 from timber_design.populators.populator_agents.plate_populator_agent import PlatePopulatorAgent
@@ -30,12 +28,12 @@ def stud_panel(
 ):
     """Create a config for a standard stud-framed wall panel.
 
-    If the panel already owns layers (set via ``CT_Panel_Layer_Definition``),
-    those layers are used directly: the exterior and interior sheeting layers
-    receive :class:`~timber_design.populators.PlatePopulatorAgent`s and the
-    core layer receives the framing agents.  If the panel has no layers, a
-    single core layer spanning the full panel thickness is created and no
-    sheeting plates are generated.
+    Uses the panel's layers named ``"exterior"``, ``"core"`` and ``"interior"``
+    (see :class:`~compas_timber.elements.LayerStructure`): the exterior and
+    interior layers, when present, each receive a
+    :class:`~timber_design.populators.PlatePopulatorAgent` and the core layer
+    receives the framing agents.  A panel without a ``layer_structure`` has a
+    single full-thickness ``"core"`` layer, so only framing is generated.
 
     Parameters
     ----------
@@ -107,19 +105,20 @@ def stud_panel(
         )
     else:
         # The user-supplied prototype may be a single instance shared across
-        # multiple stud_panel() calls (e.g. one CT_FeatureAgentConfig output
+        # multiple stud_panel() calls (e.g. one CT: Feature Agent output
         # wired into a CT_StudPanel component that processes a list of panels).
-        # Shallow-copy it so each call binds its own layer references.
-        prototype = copy.copy(default_feature_configs[Opening])
+        # Clone it so each call binds its own layer references.
+        prototype = default_feature_configs[Opening].clone()
         prototype.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
         prototype.trimming_layer_paths = [la.layer_path for la in all_layers]
         default_feature_configs[Opening] = prototype
 
-    if instance_feature_configs:
-        for agent in instance_feature_configs:
-            agent.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
-            agent.trimming_layer_paths = [la.layer_path for la in all_layers]
-        agents.extend(instance_feature_configs)
+    for instance_agent in instance_feature_configs or []:
+        # Clone so the caller's agent (possibly shared across panels) is not mutated.
+        agent = instance_agent.clone()
+        agent.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
+        agent.trimming_layer_paths = [la.layer_path for la in all_layers]
+        agents.append(agent)
 
     return PanelPopulator(
         panel=panel,

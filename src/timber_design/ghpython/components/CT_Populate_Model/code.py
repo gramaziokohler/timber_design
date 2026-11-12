@@ -28,7 +28,9 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
             pop.update_panel_from_model(model)
             pop.populate_elements()
             pop.join_elements()
-            pop.model.process_joinery()
+            pop.process_joinery()
             pop.merge_with_model(model)
+            debug_info.joint_errors.extend(pop.debug_info.joint_errors)
+            debug_info.feature_errors.extend(pop.debug_info.feature_errors)
 
         return model, debug_info

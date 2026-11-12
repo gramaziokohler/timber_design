@@ -26,7 +26,7 @@ from timber_design.populators import PanelPopulator
 from timber_design.populators import PlatePopulatorAgent
 from timber_design.populators import StudPopulatorAgent
 from timber_design.connections_2d.beam2d import Beam2D
-from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.populators import stud_panel
 from timber_design.workflow import CategoryRule
 
 try:
@@ -401,3 +401,105 @@ class TestPanelLevelJointRules:
             assert edge_rule not in agent.external_rules
             assert cross_rule not in agent.internal_rules
             assert cross_rule not in agent.external_rules
+
+
+# =============================================================================
+# Per-agent joint-rule overrides
+# =============================================================================
+
+
+class TestJointRuleOverrides:
+    def test_matching_override_replaces_default(self):
+        override = CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=3.0)
+        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        matching = [r for r in agent.external_rules if (r.category_a, r.category_b) == ("stud", "top_plate_beam")]
+        assert matching == [override]
+        assert len(agent.external_rules) == len(StudPopulatorAgent.EXTERNAL_JOINT_RULES)
+
+    def test_override_for_new_pair_is_appended(self):
+        override = CategoryRule(TButtJoint, "stud", "custom_beam")
+        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        assert override in agent.external_rules
+        assert len(agent.external_rules) == len(StudPopulatorAgent.EXTERNAL_JOINT_RULES) + 1
+
+    def test_override_with_other_topology_is_appended(self):
+        """The same category pair may carry one rule per topology."""
+        override = CategoryRule(LButtJoint, "stud", "top_plate_beam")
+        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        pair_rules = [r for r in agent.external_rules if (r.category_a, r.category_b) == ("stud", "top_plate_beam")]
+        assert len(pair_rules) == 2
+        assert override in pair_rules
+
+    def test_class_defaults_not_mutated(self):
+        before = list(StudPopulatorAgent.EXTERNAL_JOINT_RULES)
+        StudPopulatorAgent(None, external_joint_overrides=[CategoryRule(TButtJoint, "stud", "custom_beam")])
+        assert StudPopulatorAgent.EXTERNAL_JOINT_RULES == before
+
+
+# =============================================================================
+# Beam width validation
+# =============================================================================
+
+
+class TestBeamWidthValidation:
+    def test_unset_width_raises_value_error(self):
+        with pytest.raises(ValueError, match="stud"):
+            StudPopulatorAgent(None).beam_width("stud")
+
+    def test_unknown_category_raises_value_error(self):
+        with pytest.raises(ValueError, match="header"):
+            StudPopulatorAgent(None).beam_width("header")
+
+    def test_generate_without_widths_raises_value_error(self):
+        panel = make_panel()
+        agent = EdgePopulatorAgent(panel.core_layer)
+        agent.repoint_to_layer_tree({panel.core_layer.layer_path: panel.core_layer})
+        with pytest.raises(ValueError, match="standard_beam_width"):
+            agent.generate_elements()
+
+
+# =============================================================================
+# Agents passed to a populator are cloned, not mutated
+# =============================================================================
+
+
+class TestAgentCloning:
+    def test_clone_keeps_construction_parameters(self):
+        agent = StudPopulatorAgent("core", stud_width=45.0, stud_spacing=500.0)
+        clone = agent.clone()
+        assert clone is not agent
+        assert type(clone) is StudPopulatorAgent
+        assert clone.__data__ == agent.__data__
+
+    def test_populator_does_not_mutate_caller_agents(self):
+        stud = StudPopulatorAgent(None)
+        pop = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
+        assert stud.beam_widths["stud"] is None
+        assert pop.agents[0] is not stud
+        assert pop.agents[0].beam_widths["stud"] == 60.0
+
+    def test_shared_agent_across_populators_stays_independent(self):
+        stud = StudPopulatorAgent(None)
+        pop_a = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
+        pop_b = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=80.0)
+        assert pop_a.agents[0].beam_widths["stud"] == 60.0
+        assert pop_b.agents[0].beam_widths["stud"] == 80.0
+
+    @requires_opening
+    def test_stud_panel_does_not_mutate_instance_feature_agents(self):
+        instance_agent = OpeningPopulatorAgent(element_layers=["foo"], trimming_layers=["bar"])
+        stud_panel(panel=make_panel(sheeting_inside=15.0), standard_beam_width=60.0, instance_feature_configs=[instance_agent])
+        assert instance_agent.element_layer_paths == ["foo"]
+        assert instance_agent.trimming_layer_paths == ["bar"]
+
+    @requires_opening
+    def test_clone_shares_feature_reference(self):
+        from compas_timber.panel_features import Opening
+        from compas_timber.panel_features import OpeningType
+
+        panel = make_panel()
+        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
+        agent = OpeningPopulatorAgent(feature=opening)
+        clone = agent.clone()
+        assert clone.feature is opening
+        assert type(clone) is type(agent)

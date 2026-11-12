@@ -1,10 +1,10 @@
+from compas.geometry import Frame
 from compas.geometry import Line
 from compas.geometry import Point
 from compas.geometry import Polygon
 from compas.geometry import Polyline
 from compas.geometry import Translation
 from compas.geometry import Vector
-from compas.geometry import Frame
 from compas.geometry import dot_vectors
 from compas_timber.elements import Beam
 
@@ -70,7 +70,7 @@ class Beam2D(Beam):
     """A :class:`~compas_timber.elements.Beam` extended with 2D blank geometry.
 
     Adds lazy properties for the beam's projected blank edges and polygon,
-    used by :class:`~timber_design.populators.Beam2DPolylineIntersectionResult` and
+    used by :class:`~timber_design.connections_2d.Beam2DPolylineIntersectionResult` and
     :meth:`~timber_design.populators.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
@@ -262,17 +262,23 @@ class Beam2D(Beam):
 
     def to_beam(self):
         # type: (Beam2D) -> Beam
-        """Return a plain :class:`~compas_timber.elements.Beam` with this beam's data.
+        """Convert this beam **in place** into a plain :class:`~compas_timber.elements.Beam`.
 
-        Drops the Beam2D-specific blank-outline caching and 2D helper
-        properties; frame, dimensions, features and attributes are preserved
-        via ``__data__``.
+        The object's identity is preserved — its class is swapped rather than a
+        copy being returned — so beams already referenced by a model tree are
+        converted without having to be re-parented.  The cached blank geometry
+        is dropped; frame, dimensions, features and attributes are untouched.
 
         Returns
         -------
         :class:`~compas_timber.elements.Beam`
+            This same object, now a ``Beam``.  Returned for convenience so the
+            call can be chained or assigned.
         """
+        del self._blank_outline
+        del self._blank_polygon
         self.__class__ = Beam
+        return self
 
     def get_beam_segment(self, start_length, end_length):
         # type: (Beam2D, float, float) -> Beam2D
@@ -281,10 +287,9 @@ class Beam2D(Beam):
             raise ValueError(
                 "get_beam_segment called with degenerate range [{}, {}] on beam '{}' (length={})".format(start_length, end_length, self.attributes.get("name", "?"), self.length)
             )
-        beam_seg = Beam2D(**self.__data__)
-        # copy() deep-copies any cached _blank_outline/_blank_polygon which would
-        # be stale after the translate + length change below — clear them first.
-        # beam_seg._invalidate_blank_cache()
+        data = self.__data__.copy()
+        data["frame"] = Frame.from_transformation(self.transformation)
+        beam_seg = Beam2D(**data)
         beam_seg.transform(Translation.from_vector(self.frame.xaxis * start_length))
         beam_seg.length = seg_length
         for feature in self.features:

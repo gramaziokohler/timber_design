@@ -34,7 +34,7 @@ class StudPopulatorAgent(LayerAgent):
     stud_width : float, optional
         Explicit stud width.  When unset it is filled with the panel-wide
         ``standard_beam_width`` by
-        :meth:`~timber_design.populators.PanelPopulator.resolve_beam_widths`.
+        :class:`~timber_design.populators.PanelPopulator`.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     stud_spacing : float, optional
@@ -84,11 +84,11 @@ class StudPopulatorAgent(LayerAgent):
 
         Returns
         -------
-        tuple[list[:class:`~timber_design.populators.Beam2D`], None]
+        tuple[list[:class:`~timber_design.connections_2d.Beam2D`], None]
             The studs and this agent's boundary outline — always ``None``,
             studs define no boundary.
         """
-        spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_widths["stud"] * 8
+        spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_width("stud") * 8
         if spacing <= 0:
             raise ValueError(
                 "StudPopulatorAgent requires a positive stud_spacing; got {!r}. "
@@ -97,7 +97,7 @@ class StudPopulatorAgent(LayerAgent):
             )
         x_position = spacing
         studs = []
-        while x_position < self.layer.aabb.xmax - self.beam_widths["stud"]:
+        while x_position < self.layer.aabb.xmax - self.beam_width("stud"):
             studs.append(
                 self.beam_from_category(Line.from_point_and_vector((x_position, -self.layer.aabb.ymax, self.layer_center_height), (0, self.layer.aabb.ymax * 3, 0)), "stud")
             )

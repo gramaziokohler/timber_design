@@ -24,7 +24,7 @@ class PanelPopulator:
     generated it, and every agent recovers its own elements from a layer's
     children through that tag.
 
-    :meth:`populate_elements` runs stages 1–4:
+    :meth:`populate_elements` runs stages 1–5:
 
     1. **generate_elements** — each agent creates its beams and plates,
        already tagged with itself; the populator adds them to :attr:`model`
@@ -51,16 +51,19 @@ class PanelPopulator:
     All geometry during stages 1–5 lives in a flat 2D *populator space*: the
     panel is re-expressed as a local axis-aligned rectangle (X = panel length,
     Y = panel width, Z = panel thickness).  This simplifies topology detection
-    and trimming, which are performed in 2D by :class:`~timber_design.populators.ConnectionSolver2D`.
+    and trimming, which are performed in 2D by :class:`~timber_design.connections_2d.ConnectionSolver2D`.
 
     Parameters
     ----------
     panel : :class:`compas_timber.elements.Panel`
         The source panel in the caller's model space (or its guid).
     agents : list[:class:`~timber_design.populators.PopulatorAgent`]
-        Ordered list of agents.  Ordering matters for trimming: agents
-        earlier in the list are trimmed against later ones, so the edge
-        agent should come first.
+        Ordered list of agents.  Ordering sets joint precedence: when
+        several agents own elements in a cluster, the earlier agent's rules
+        are tried first.  Each agent is cloned (see
+        :meth:`~timber_design.populators.PopulatorAgent.clone`), so the
+        same agent instances can be passed to several populators; use
+        :attr:`agents` to inspect the populated ones.
     default_feature_agents : dict[type, :class:`~timber_design.populators.FeatureAgent`], optional
         Prototype feature agent per feature class, instantiated for any panel
         feature no existing agent already handles.
@@ -106,14 +109,9 @@ class PanelPopulator:
     --------
     Typical usage::
 
-        from timber_design.populators import PanelPopulatorConfig
+        from timber_design.populators import stud_panel
 
-        config = PanelPopulatorConfig.stud_panel(
-            standard_beam_width=60.0,
-            stud_spacing=625.0,
-            sheeting_inside=15.0,
-        )
-        populator = config.create_populator(panel)
+        populator = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         populator.populate_elements()
         populator.join_elements()
         populator.process_joinery()
@@ -133,7 +131,7 @@ class PanelPopulator:
         self.model = None
         self.debug_info = DebugInfomation()
         self.max_distance = max_distance if max_distance is not None else 0.1
-        self.agents = list(agents) if agents else []
+        self.agents = [agent.clone() for agent in agents] if agents else []
         self.panel = panel
         self.panel_guid = panel.guid if isinstance(panel, Panel) else panel
         self._parse_default_feature_agents(default_feature_agents or {})
@@ -164,7 +162,17 @@ class PanelPopulator:
         for agent in self.agents:
             agent.repoint_to_layer_tree(self.layer_tree)
 
-    def _update_panel_from_model(self, model):
+    def update_panel_from_model(self, model):
+        """Rebind :attr:`panel` to the instance with the same guid in *model*.
+
+        Use this when *model* is a copy of the model the populator was created
+        from (e.g. a Grasshopper re-solve), so population reads the copy's
+        panel and layer geometry.
+
+        Parameters
+        ----------
+        model : :class:`compas_timber.model.TimberModel`
+        """
         self.panel = model.element_by_guid(str(self.panel_guid))
 
     def _parse_default_feature_agents(self, default_feature_agents):
@@ -182,7 +190,7 @@ class PanelPopulator:
             if prototype is None:
                 continue
 
-            agent = type(prototype)(**prototype.__data__)
+            agent = prototype.clone()
             agent.feature = feature
             self.agents.append(agent)
 
@@ -236,10 +244,7 @@ class PanelPopulator:
         for agent in self.agents:
             for layer, elements in agent.generate_elements().items():
                 for element in elements:
-
                     element.transform(layer.transformation_to_local())
-
-
                     self.model.add_element(element, parent=layer)
 
     def _define_outlines(self):
@@ -367,6 +372,8 @@ class PanelPopulator:
             re-populate a panel that has already been processed.
         """
         for element in self.model.elements():
+            # the ownership tag is only meaningful inside the populator; don't leak agents into the caller's model
+            element.attributes.pop("agent", None)
             if isinstance(element, Beam2D):
                 element.to_beam()
         if clear_panel:

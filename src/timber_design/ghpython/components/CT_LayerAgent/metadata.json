@@ -1,23 +1,29 @@
 {
-    "name": "PopulatorAgentConfigurator",
-    "nickname": "PopulatorAgent",
+    "name": "Layer Agent",
+    "nickname": "LayerAgent",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Dynamic configurator for LayerAgentConfig implementations.",
+    "description": "Creates a LayerAgent that frames a single panel layer (edge beams, studs, sheathing plate, panel boundary). Right-click to choose the agent type; its parameters appear as additional inputs.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
         "iconDisplay": 0,
         "inputParameters": [
             {
+                "name": "layer",
+                "description": "Layer (or its layer path) this agent frames, e.g. from CT_Decompose_LayerStructure.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
                 "name": "internal_joint_overrides",
-                "description": "List of category joint rules between elements contained within this agent.",
+                "description": "List of joint rules between elements of this agent. Rules matching a default (same topology and categories) replace it; others are added.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {
                 "name": "external_joint_overrides",
-                "description": "List of category joint rules between elements of this agent and those of other agents.",
+                "description": "List of joint rules between elements of this agent and those of other agents. Rules matching a default (same topology and categories) replace it; others are added.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             }
@@ -25,7 +31,7 @@
         "outputParameters": [
             {
                 "name": "Agent",
-                "description": "Configured LayerAgentConfig instance produced by the configurator."
+                "description": "Configured LayerAgent. Connect to CT_PanelPopulator's 'agents' input."
             }
         ]
     }

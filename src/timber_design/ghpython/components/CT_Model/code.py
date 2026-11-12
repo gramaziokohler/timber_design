@@ -10,6 +10,7 @@ from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
 from compas_timber.elements import Beam
+from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
@@ -104,7 +105,15 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             # re-solve starts clean without losing them.  Do not save and re-append
             # them here — that duplicated every opening on each Grasshopper solve.
             element.reset()
+            if isinstance(element, Panel):
+                # Panel.reset() leaves the layers alone; reset them too, or extensions from
+                # a panel joint that no longer exists survive on the reused layer objects.
+                for layer in element.layers:
+                    layer.reset()
             model.add_element(element)
+            if isinstance(element, Panel):
+                # layer-aware panel joints and populators look the layers up in the model
+                element.merge_layer_structure(model)
 
     def handle_features(self, features):
         feature_errors = []

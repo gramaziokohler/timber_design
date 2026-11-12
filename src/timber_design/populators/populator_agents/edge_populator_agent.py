@@ -11,7 +11,7 @@ from compas.geometry import angle_vectors
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
-from compas_timber.connections import Cluster, LButtJoint
+from compas_timber.connections import LButtJoint
 from compas_timber.connections import CutPlaneSpec
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
@@ -33,7 +33,7 @@ from timber_design.workflow import CompositeRule
 class EdgePopulatorAgent(LayerAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
-    Creates one :class:`~timber_design.populators.Beam2D` per segment of the
+    Creates one :class:`~timber_design.connections_2d.Beam2D` per segment of the
     panel outline (``layer.outline_a``).  Each beam's width comes from
     :attr:`~PopulatorAgent.beam_widths` — resolved from explicit per-category
     constructor kwargs (``edge_stud_width``, ``top_plate_beam_width``,
@@ -63,7 +63,7 @@ class EdgePopulatorAgent(LayerAgent):
     edge_stud_width, top_plate_beam_width, bottom_plate_beam_width : float, optional
         Explicit per-category beam widths.  Any left unset are filled with the
         panel-wide ``standard_beam_width`` by
-        :meth:`~timber_design.populators.PanelPopulator.resolve_beam_widths`.
+        :class:`~timber_design.populators.PanelPopulator`.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     standard_beam_width_increment : float, optional
@@ -140,7 +140,7 @@ class EdgePopulatorAgent(LayerAgent):
         elements = []
         for i in range(len(self.layer.outline_a) - 1):
             category = self._get_segment_category(i)
-            width = self.beam_widths[category]
+            width = self.beam_width(category)
             seg, width = self._get_edge_beam_line_and_width(i, width)
             segs.append(seg)
             widths.append(width)
@@ -248,69 +248,6 @@ class EdgePopulatorAgent(LayerAgent):
     def _create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
         """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
 
-        edge_a_index = beam_a.attributes["edge_index"]
-        edge_b_index = beam_b.attributes["edge_index"]
-        if abs(edge_a_index - edge_b_index) > 1:
-            corner_index = 0
-        else:
-            corner_index = max(edge_a_index, edge_b_index)
-        interior_corner = corner_index in get_interior_corner_indices(self.layer.outline_a)
-
-        edge_plane_a = self.layer.edge_planes[edge_a_index]
-        edge_plane_b = self.layer.edge_planes[edge_b_index]
-        miter = angle_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis) < math.pi / 3
-
-        if miter:
-            if interior_corner:
-                ppx = intersection_plane_plane(edge_plane_a, edge_plane_b)
-                ref_side_main: dict[int, float] = beam_ref_side_incidence(beam_a, beam_b)
-                front_a = Plane.from_frame(beam_a.ref_sides[min(ref_side_main.items(), key=lambda x: x[1])[0]])
-
-                ref_side_cross: dict[int, float] = beam_ref_side_incidence(beam_b, beam_a)
-                front_b = Plane.from_frame(beam_b.ref_sides[min(ref_side_cross.items(), key=lambda x: x[1])[0]])
-
-                ccx = intersection_plane_plane(front_a, front_b)
-
-                if not ppx or not ccx:
-                    raise ValueError("Could not compute miter joint for edge beams at edges {} and {}, edges appear to be parallel".format(edge_a_index, edge_b_index))
-                miter_plane = Plane.from_points([ppx[0], ppx[1], ccx[0]])
-                miter_params = LMiterJoint.miter_plane_args(beam_a, beam_b, miter_plane)
-                return DirectRule(LMiterJoint, [beam_a, beam_b], miter_plane_spec=miter_params, clean=True)
-
-            else:
-                # HACK: these cuts should be tied to the Joint, but if the beams are copied or the features are cleared, the joint cannot currently re-generate these features.
-                beam_a.add_feature(JackRafterCutProxy.from_plane_and_beam(edge_plane_b, beam_a, is_joinery=False))
-                beam_b.add_feature(JackRafterCutProxy.from_plane_and_beam(edge_plane_a, beam_b, is_joinery=False))
-                return DirectRule(LMiterJoint, [beam_b, beam_a], ref_side_miter=True, clean=True)
-
-        else:
-            beam_a_slope = abs(dot_vectors(beam_a.frame.xaxis, Vector(0, 1, 0)))
-            beam_b_slope = abs(dot_vectors(beam_b.frame.xaxis, Vector(0, 1, 0)))
-            if interior_corner:
-                if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                    plane = Plane(edge_plane_a.point, -edge_plane_a.normal)  # plane comes from edge a
-                    butt_spec = CutPlaneSpec.from_butt_plane(beam_b, beam_a, plane)
-                    return DirectRule(LButtJoint, [beam_b, beam_a], butt_plane_spec=butt_spec)
-                else:  # a = main, b = cross
-                    plane = Plane(edge_plane_b.point, -edge_plane_b.normal)
-                    butt_spec = CutPlaneSpec.from_butt_plane(beam_a, beam_b, plane)
-                    return DirectRule(LButtJoint, [beam_a, beam_b], butt_plane_spec=butt_spec)
-            else:
-                if beam_a_slope < beam_b_slope:  # b = main, a = cross
-                    back_spec = CutPlaneSpec.from_back_plane(beam_b, beam_a, edge_plane_b)
-                    return DirectRule(LButtJoint, [beam_b, beam_a], back_plane_spec=back_spec)
-                else:  # a = main, b = cross
-                    back_spec = CutPlaneSpec.from_back_plane(beam_a, beam_b, edge_plane_a)
-                    return DirectRule(LButtJoint, [beam_a, beam_b], back_plane_spec=back_spec)
-
-    def _create_edge_beam_cluster_joint_rule(self, cluster: Cluster) -> DirectRule:
-        """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
-
-        edge_beams = [beam for beam in cluster.elements if beam in self.elements]
-        if len(edge_beams) != 2:
-            return None
-        
-        beam_a, beam_b = edge_beams
         edge_a_index = beam_a.attributes["edge_index"]
         edge_b_index = beam_b.attributes["edge_index"]
         if abs(edge_a_index - edge_b_index) > 1:

@@ -73,20 +73,24 @@ class OpeningPopulatorAgent(FeatureAgent):
     :attr:`~AgentBoundaryType.EXCLUSIVE`, meaning that studs whose midpoints
     fall inside the outline are discarded by :meth:`~PopulatorAgent.cull_beam`.
 
-    The opening geometry is supplied via ``params.feature`` (set automatically
-    by :meth:`~timber_design.populators.LayerAgentConfig.get_agent_from_feature`).
-    Access it via :attr:`opening`.
-
     Parameters
     ----------
-    layer : :class:`~timber_design.populators.Layer`
-        The framing layer in which the opening surround is placed.
-    params : :class:`OpeningPopulatorAgentConfig`
-        Beam dimension and joint-rule settings.
-    feature : :class:`compas_timber.panel_features.Opening`
-        The (possibly transformed) opening feature that drives element
-        placement.  Stored as ``self.feature`` and accessible via the
-        :attr:`opening` alias.
+    feature : :class:`compas_timber.panel_features.Opening`, optional
+        The opening to frame.  Leave unset for a prototype registered under
+        ``default_feature_agents`` / ``default_feature_configs``; the populator
+        clones it and binds each matching opening.
+    element_layers, trimming_layers : list, optional
+        Layers (or layer paths) to frame on and to trim, see
+        :class:`~timber_design.populators.FeatureAgent`.
+    header_width, sill_width, king_stud_width, jack_stud_width : float, optional
+        Explicit per-category beam widths.  Unset widths are filled with the
+        populator's ``standard_beam_width``.
+    internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
+        Per-agent joint-rule overrides, see :class:`~timber_design.populators.PopulatorAgent`.
+    lintel_posts : bool, optional
+        Generate jack studs (lintel posts) under the header.
+    split_bottom_plate_beam : bool, optional
+        Doors only: split the bottom plate at the opening.
 
     Attributes
     ----------
@@ -214,7 +218,7 @@ class OpeningPopulatorAgent(FeatureAgent):
 
         Parameters
         ----------
-        beam : :class:`~timber_design.populators.Beam2D`
+        beam : :class:`~timber_design.connections_2d.Beam2D`
             The beam to check for culling.
 
         Returns
@@ -264,17 +268,17 @@ class OpeningPopulatorAgent(FeatureAgent):
         jack_offset = 0
 
         if self.lintel_posts:
-            jack_offset = self.beam_widths["jack_stud"] / 2
+            jack_offset = self.beam_width("jack_stud") / 2
             layer_elements.append(self.beam_from_category(segments[0].translated([-jack_offset, 0, 0]), "jack_stud", layer=layer, name="left_jack_stud"))
             layer_elements.append(self.beam_from_category(segments[2].translated([jack_offset, 0, 0]), "jack_stud", layer=layer, name="right_jack_stud"))
 
-        king_offset = self.beam_widths["king_stud"] / 2
+        king_offset = self.beam_width("king_stud") / 2
         layer_elements.append(self.beam_from_category(segments[0].translated([-(king_offset + jack_offset * 2), 0, 0]), "king_stud", layer=layer, name="left_king_stud"))
         layer_elements.append(self.beam_from_category(segments[2].translated([king_offset + jack_offset * 2, 0, 0]), "king_stud", layer=layer, name="right_king_stud"))
-        header_offset = self.beam_widths["header"] / 2
+        header_offset = self.beam_width("header") / 2
         header_seg = segments[1].translated([0, header_offset, 0])
         if self.lintel_posts:
-            header_seg = Line(header_seg.start - [self.beam_widths.get("jack_stud"), 0, 0], header_seg.end + [self.beam_widths.get("jack_stud"), 0, 0])
+            header_seg = Line(header_seg.start - [self.beam_width("jack_stud"), 0, 0], header_seg.end + [self.beam_width("jack_stud"), 0, 0])
         header = self.beam_from_category(header_seg, "header", layer=layer, name="header")
         layer_elements.append(header)
 
@@ -303,8 +307,6 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     def _create_frame_polylines(self, opening: Opening, layer) -> tuple[Polyline, Polyline]:
 
-        if "king_stud" not in self.beam_widths:
-            raise ValueError("Beam width for 'king_stud' not set — use get_agent_from_feature() to construct this agent so beam widths are filled automatically.")
         opening_a_pts = []
         opening_b_pts = []
         for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points):
@@ -369,8 +371,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         ----------
         plate : :class:`compas_timber.elements.Plate`
             The plate to which the opening will be applied.
-        layer : :class:`~compas_timber.elements.Layer`
-            The layer *plate* belongs to.
         """
         opening_a = Polyline([p for p in self.feature.outline_a])
         opening_b = Polyline([p for p in self.feature.outline_b])
@@ -442,7 +442,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
 
         Returns
         -------
-        list[:class:`~timber_design.populators.Beam2D`]
+        list[:class:`~timber_design.connections_2d.Beam2D`]
         """
         if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
             return [beam]
@@ -468,16 +468,12 @@ class WindowPopulatorAgent(OpeningPopulatorAgent):
 
     NAME = "WindowPopulatorAgent"
     BEAM_CATEGORY_NAMES = OpeningPopulatorAgent.BEAM_CATEGORY_NAMES + ["sill"]
-    INTERNAL_JOINT_RULES = OpeningPopulatorAgent.INTERNAL_JOINT_RULES + [
-        CategoryRule(TButtJoint, "sill", "king_stud"),
-        CategoryRule(TButtJoint, "sill", "jack_stud"),
-    ]
     EXTERNAL_JOINT_RULES = OpeningPopulatorAgent.EXTERNAL_JOINT_RULES + [
         CategoryRule(TButtJoint, "stud", "sill"),
     ]
 
     def _add_type_specific_elements(self, layer, frame_polyline_a, frame_polyline_b, segments, layer_elements) -> None:
-        sill_offset = self.beam_widths["sill"] / 2
+        sill_offset = self.beam_width("sill") / 2
         sill = self.beam_from_category(segments[3].translated([0, -sill_offset, 0]), "sill", layer=layer, name="sill")
         layer_elements.append(sill)
 

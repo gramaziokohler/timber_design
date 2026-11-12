@@ -18,7 +18,7 @@ from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 
-from timber_design.populators.populator_configs.stud_panel_config import stud_panel
+from timber_design.populators import stud_panel
 
 try:
     from compas_timber.panel_features.opening import Opening

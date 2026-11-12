@@ -1,7 +1,6 @@
-"""makes rule to apply joint type to L topology. Defualts to LMiterJoint"""
+"""Creates a LayerAgent of the type selected in the context menu."""
 
 # r: timber_design>=0.1.0
-# venv: td_migration
 # flake8: noqa
 import inspect
 import Grasshopper
@@ -16,7 +15,7 @@ _PERMANENT_PARAM_NAMES = ["layer", "external_joint_overrides", "internal_joint_o
 _PERMANENT_PARAM_COUNT = len(_PERMANENT_PARAM_NAMES)
 
 
-class PanelPopulatorConigurator(Grasshopper.Kernel.GH_ScriptInstance):
+class LayerAgentComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super().__init__()
         self.panel_types = {}

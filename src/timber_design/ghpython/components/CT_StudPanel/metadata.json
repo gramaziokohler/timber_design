@@ -1,5 +1,5 @@
 {
-    "name": "Stud Panel Config",
+    "name": "Stud Panel",
     "nickname": "StudPanel",
     "category": "Timber Design",
     "subcategory": "03 Panels",
@@ -59,7 +59,7 @@
             },
             {
                 "name": "joint_rule_overrides",
-                "description": "List of CategoryRule overrides routed automatically to the agent(s) that own each rule's categories.",
+                "description": "List of panel-level joint rules (CategoryRule / CompositeRule). Tried on a cluster only after the owning agents' own rules fail, as a panel-wide fallback.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
@@ -84,8 +84,8 @@
         ],
         "outputParameters": [
             {
-                "name": "Config",
-                "description": "PanelPopulator"
+                "name": "populator",
+                "description": "PanelPopulator for a stud-framed panel. Connect to CT_Populate_Model."
             }
         ]
     }

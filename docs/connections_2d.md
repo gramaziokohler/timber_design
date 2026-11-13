@@ -1,6 +1,6 @@
 # 2D Connection Solving (`connections_2d`)
 
-The `timber_design.connections_2d` module provides a self-contained pipeline for detecting beam adjacency, classifying joint topology, and extending beams to boundary outlines in a **2D panel context** (all geometry in the XY plane, `z = 0`).
+The `compas_timber_populator.connections_2d` module provides a self-contained pipeline for detecting beam adjacency, classifying joint topology, and extending beams to boundary outlines in a **2D panel context** (all geometry in the XY plane, `z = 0`).
 
 It is designed to complement — and in many respects replace — the 3D-based `compas_timber.connections.ConnectionSolver` for wall/slab populator workflows, where beams have already been projected into a flat panel plane and topology must be derived from **blank footprints** rather than 3D centreline distances.
 
@@ -155,7 +155,7 @@ This lets the solver distinguish a **Y-junction** (three beams all meeting at a 
 
 ```python
 from compas.geometry import Line, Point, Vector
-from timber_design.connections_2d import Beam2D, ConnectionSolver2D
+from compas_timber_populator.connections_2d import Beam2D, ConnectionSolver2D
 
 def make_beam(x0, y0, x1, y1, width=0.1):
     return Beam2D.from_centerline(

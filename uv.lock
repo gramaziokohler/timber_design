@@ -8,6 +8,14 @@ resolution-markers = [
     "python_full_version < '3.10'",
 ]
 
+[manifest]
+members = [
+    "compas-timber-gh",
+    "compas-timber-populator",
+    "compas-timber-rules",
+    "timber-design",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -558,6 +566,44 @@ sdist = { url = "https://files.pythonhosted.org/packages/b6/55/85f938f9bbe30d02c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/82/9684469e140ff4027e89a992bd9bcf27e8ab33060bdc15d202dcf3ca4ebb/compas_timber-3.0.0-py3-none-any.whl", hash = "sha256:9b98f21d9ce931272b72359d218e654e9362dfdf8d403ac519fb27a16547aae1", size = 317698, upload-time = "2026-11-10T20:24:53.316Z" },
 ]
+
+[[package]]
+name = "compas-timber-gh"
+source = { editable = "packages/compas_timber_gh" }
+dependencies = [
+    { name = "compas-timber" },
+    { name = "compas-timber-rules" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "compas-timber", specifier = ">=3.0.0" },
+    { name = "compas-timber-rules", editable = "packages/compas_timber_rules" },
+]
+
+[[package]]
+name = "compas-timber-populator"
+source = { editable = "packages/compas_timber_populator" }
+dependencies = [
+    { name = "compas-timber" },
+    { name = "compas-timber-rules" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "compas-timber", specifier = ">=3.0.0" },
+    { name = "compas-timber-rules", editable = "packages/compas_timber_rules" },
+]
+
+[[package]]
+name = "compas-timber-rules"
+source = { editable = "packages/compas_timber_rules" }
+dependencies = [
+    { name = "compas-timber" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "compas-timber", specifier = ">=3.0.0" }]
 
 [[package]]
 name = "coverage"
@@ -3588,9 +3634,12 @@ wheels = [
 
 [[package]]
 name = "timber-design"
+version = "0.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "compas-timber" },
+    { name = "compas-timber-gh" },
+    { name = "compas-timber-populator" },
+    { name = "compas-timber-rules" },
 ]
 
 [package.optional-dependencies]
@@ -3620,7 +3669,9 @@ requires-dist = [
     { name = "bump-my-version", marker = "extra == 'dev'" },
     { name = "compas-invocations2", marker = "extra == 'gh'" },
     { name = "compas-invocations2", extras = ["mkdocs"], marker = "extra == 'dev'", specifier = ">=1.0.2" },
-    { name = "compas-timber", specifier = ">=3.0.0" },
+    { name = "compas-timber-gh", editable = "packages/compas_timber_gh" },
+    { name = "compas-timber-populator", editable = "packages/compas_timber_populator" },
+    { name = "compas-timber-rules", editable = "packages/compas_timber_rules" },
     { name = "invoke", marker = "extra == 'dev'", specifier = ">=0.14" },
     { name = "mkdocs-panzoom-plugin", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },

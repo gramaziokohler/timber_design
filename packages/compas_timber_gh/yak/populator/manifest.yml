@@ -1,0 +1,23 @@
+name: compas_timber_populator
+version: {{ version }}
+authors:
+  - Gramazio Kohler Research, ETH Zurich
+description: "PanelPopulator add-on for the COMPAS Timber Grasshopper plugin. Requires the compas_timber Yak package (core components) to be installed."
+url: "https://github.com/gramaziokohler/timber_design"
+keywords: [
+    "COMPAS",
+    "compas",
+    "framework",
+    "architecture",
+    "engineering",
+    "digital",
+    "fabrication",
+    "construction",
+    "timber",
+    "wood",
+    "design",
+    "fasteners",
+    "assemblies",
+    "connections"
+]
+icon: "icon.png"

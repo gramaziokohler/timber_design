@@ -4,7 +4,7 @@ The Grasshopper components are not developed in the `compas_timber` repository.
 They live in the separate [timber_design](https://github.com/gramaziokohler/timber_design) repository,
 which builds on `compas_timber` as its Python backend:
 
-- **[timber_design](https://github.com/gramaziokohler/timber_design)** — the Grasshopper components and the Yak package. The components themselves live in [`src/timber_design/ghpython/components`](https://github.com/gramaziokohler/timber_design/tree/main/src/timber_design/ghpython/components). Report plugin issues (components, toolbar, Grasshopper behavior) in the [timber_design issue tracker](https://github.com/gramaziokohler/timber_design/issues).
+- **[timber_design](https://github.com/gramaziokohler/timber_design)** — the Grasshopper components and the Yak package. The components live in [`packages/compas_timber_gh/components`](https://github.com/gramaziokohler/timber_design/tree/main/packages/compas_timber_gh/components): `core/` ships as the `compas_timber` Yak package, `populator/` as the `compas_timber_populator` add-on (which requires the core package). Report plugin issues (components, toolbar, Grasshopper behavior) in the [timber_design issue tracker](https://github.com/gramaziokohler/timber_design/issues).
 - **[compas_timber](https://github.com/gramaziokohler/compas_timber)** — the modeling, joinery and fabrication engine the components call into. Report core issues in the [compas_timber issue tracker](https://github.com/gramaziokohler/compas_timber/issues).
 
 !!! note
@@ -32,7 +32,7 @@ flowchart TB
     td -->|ships| gh
 ```
 
-The components themselves are thin: they collect inputs in Grasshopper and call `timber_design` / `compas_timber`
+The components themselves are thin: they collect inputs in Grasshopper and call `compas_timber_rules` / `compas_timber_populator` / `compas_timber`
 Python code running in Rhino's CPython environment. This is why changes to the plugin land in the
 `timber_design` repository, while changes to how beams, joints or BTLx processings behave land in
 the `compas_timber` repository.

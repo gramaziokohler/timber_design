@@ -1,34 +1,65 @@
 name: release
 
+# Each distribution is released from its own tag:
+#   rules-v1.2.3      -> packages/compas_timber_rules
+#   populator-v1.2.3  -> packages/compas_timber_populator
+#   gh-v1.2.3         -> packages/compas_timber_gh
+# Tags are created by running `bump-my-version bump <part>` inside the package folder.
+
 on:
   push:
     tags:
-      - 'v*'
+      - 'rules-v*'
+      - 'populator-v*'
+      - 'gh-v*'
 
 jobs:
-  Build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python: ['3.12']
-
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.pkg.outputs.package }}
     steps:
-      - uses: compas-dev/compas-actions.build@v4
-        with:
-          invoke_lint: true
-          check_import: false
-          use_conda: false
-          invoke_test: true
-          python: ${{ matrix.python }}
+      - id: pkg
+        shell: bash
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            rules-v*)     echo "package=compas_timber_rules" >> "$GITHUB_OUTPUT" ;;
+            populator-v*) echo "package=compas_timber_populator" >> "$GITHUB_OUTPUT" ;;
+            gh-v*)        echo "package=compas_timber_gh" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown tag ${GITHUB_REF_NAME}"; exit 1 ;;
+          esac
 
-  Publish:
-    needs: Build
+  test:
+    needs: resolve
     runs-on: ubuntu-latest
     steps:
-      - uses: compas-dev/compas-actions.publish@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
-          publish_to_pypi: true
-          pypi_token: ${{ secrets.PYPI }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          python: '3.12'
+          python-version: '3.12'
+          activate-environment: true
+      - name: Install workspace
+        run: uv sync --all-packages --extra dev
+      - name: Lint and test
+        run: |
+          invoke lint
+          invoke test
+
+  publish:
+    needs: [resolve, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.12'
+      - name: Build ${{ needs.resolve.outputs.package }}
+        run: uv build --package ${{ needs.resolve.outputs.package }} --out-dir dist
+      - name: Publish to PyPI
+        run: uv publish dist/*
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI }}
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

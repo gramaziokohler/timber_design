@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=66.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compas_timber_gh"
+description = "Grasshopper helpers and component sources for COMPAS Timber and timber_design"
+authors = [
+    { name = "Chen Kasirer", email = "kasirer@arch.ethz.ch" },
+    { name = "Oliver Appling Bucklin", email = "bucklin@arch.ethz.ch" },
+    { name = "Panayiotis Papacharalambous", email = "papacharalambous@arch.ethz.ch" },
+    { name = "Anastasiia Stryzhevska", email = "astryzhevska@arch.ethz.ch" },
+    { name = "Eric Gozzi", email = "eric.gozzi@arch.ethz.ch" },
+    { name = "Nicolas Benjamin Boscoboinik", email = "boscoboinik@arch.ethz.ch" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+]
+dependencies = ["compas_timber>=3.0.0", "compas_timber_rules"]
+
+[project.urls]
+Homepage = "https://gramaziokohler.github.io/timber_design"
+Repository = "https://github.com/gramaziokohler/timber_design"
+Changelog = "https://github.com/gramaziokohler/timber_design/blob/main/CHANGELOG.md"
+Issues = "https://github.com/gramaziokohler/timber_design/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "compas_timber_gh.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+compas_timber_rules = { workspace = true }
+
+[tool.bumpversion]
+current_version = "0.3.1"
+message = "Bump compas_timber_gh version to {new_version}"
+commit = true
+tag = true
+tag_name = "gh-v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "src/compas_timber_gh/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"

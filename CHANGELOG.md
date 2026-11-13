@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Split `timber_design` into three independently released distributions in a uv workspace under `packages/`: `compas_timber_rules` (was `timber_design.workflow`), `compas_timber_populator` (was `timber_design.populators` and `timber_design.connections_2d`, now `compas_timber_populator.connections_2d`) and `compas_timber_gh` (was `timber_design.ghpython`). The root `timber_design` project is now a private development meta-package.
+* Grasshopper components are split into `core` (published as the `compas_timber` Yak package) and `populator` (new `compas_timber_populator` Yak add-on, requires the core package).
+* Replaced `invoke build-cpython-ghuser-components` / `yakerize` with `invoke build-gh-components`, `update-gh-headers` and `yakerize-gh`, each taking `--target core|populator`.
+* Releases are now per package, triggered by `rules-v*`, `populator-v*` and `gh-v*` tags.
 * Bumped the `compas_timber` dependency to `>=3.0.0`.
 * `JointRule` now inherits from `compas.data.Data`.
 * `get_clusters_from_model` now calls `model.compute_topologies()` instead of `connect_adjacent_beams` / `connect_adjacent_plates` / `connect_adjacent_panels`.

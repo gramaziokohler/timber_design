@@ -3,7 +3,7 @@ from compas.geometry import Line, Point
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 from compas_timber.connections import LButtJoint, LMiterJoint, TButtJoint, JointTopology, JointCandidate
-from timber_design.workflow import DirectRule, CategoryRule, TopologyRule, CompositeRule, JointRuleSolver
+from compas_timber_rules import DirectRule, CategoryRule, TopologyRule, CompositeRule, JointRuleSolver
 
 edge_beams = [
     Beam.from_centerline(Line(Point(0, 0, 0), Point(1000, 1000, 0)), 100, 100, category = "edge"),

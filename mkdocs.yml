@@ -163,8 +163,8 @@ nav:
       - 2D Connection Solving: connections_2d.md
       - Populating Panels: user_guide/populating_panels.md
   - API Reference:
-      - workflow: api/timber_design.workflow.md
-      - populators: api/timber_design.populators.md
+      - compas_timber_rules: api/compas_timber_rules.md
+      - compas_timber_populator: api/compas_timber_populator.md
   - Contribution:
       - Class Diagrams: contribution/class_diagrams.md
   - License: license.md

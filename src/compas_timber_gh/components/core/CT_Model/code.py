@@ -59,13 +59,10 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
         debug_info = DebugInfomation()
 
         self.add_elements_to_model(Model, Elements)
-        if hasattr(Model, "connect_adjacent_panels"):
-            Model.connect_adjacent_panels(max_distance=MaxDistance)
 
         JointRules = [j for j in JointRules if j is not None]
         if JointRules:
-            Model.connect_adjacent_beams()
-            Model.connect_adjacent_plates()
+            Model.compute_topologies()
             solver = JointRuleSolver(JointRules, max_distance=MaxDistance)
             joint_errors, _ = solver.apply_rules_to_model(Model)
             for je in joint_errors:

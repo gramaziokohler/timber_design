@@ -1,0 +1,38 @@
+{
+    "name": "PlateStock",
+    "nickname": "PlateStock",
+    "category": "Timber Design",
+    "subcategory": "10 Fabrication",
+    "description": "Represents a raw material stock used for nesting plates.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "stock_x",
+                "description": "Stock width in the X direction.",
+                "typeHintID": "float",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "stock_y",
+                "description": "Stock height in the Y direction.",
+                "typeHintID": "float",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "thickness",
+                "description": "Thickness of the plate stock.",
+                "typeHintID": "float",
+                "scriptParamAccess": 1
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "PlateStock",
+                "description": "Stock object representing the plate stock."
+            }
+        ]
+    }
+}

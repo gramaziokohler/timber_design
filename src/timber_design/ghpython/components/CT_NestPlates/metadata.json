@@ -1,0 +1,60 @@
+{
+    "name": "NestPlates",
+    "nickname": "NestPlates",
+    "category": "Timber Design",
+    "subcategory": "10 Fabrication",
+    "description": "Executes 2-D nesting of plates into stock sheets based on a given stock catalog. Outputs a NestingResult for downstream fabrication export.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "model",
+                "description": "Model object.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stock_catalog",
+                "description": "List of PlateStock objects defining available sheet sizes.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "spacing",
+                "description": "Spacing tolerance to account for cutting operations (kerf width, etc.)",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "per_group",
+                "description": "If True, nests plates per group rather than across the full model.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "seed",
+                "description": "Random seed used by the nesting algorithm.",
+                "typeHintID": "int",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "fast",
+                "description": "If True, uses a faster but less optimal nesting algorithm.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "NestingResult",
+                "description": "NestingResult object containing details of the nesting operation."
+            },
+            {
+                "name": "Summary",
+                "description": "A human-readable summary of the nesting result."
+            }
+        ]
+    }
+}

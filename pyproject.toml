@@ -1,33 +1,42 @@
-# ============================================================================
-# Workspace root
-#
-# This repository hosts three independently released distributions:
-#
-#   packages/compas_timber_rules      joint-rule workflow
-#   packages/compas_timber_populator  PanelPopulator (+ 2D connection solver)
-#   packages/compas_timber_gh         Grasshopper helpers + core / populator Yak packages
-#
-# The root project below is a private, never-published meta package that pulls
-# in all three, so `pip install -e .[dev]` (used by the compas-actions build/docs
-# actions) and `uv sync --all-packages` both give a complete dev environment.
-# ============================================================================
-
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=66.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ============================================================================
+# Project info
+# ============================================================================
 
 [project]
 name = "timber_design"
-version = "0.0.0"
-description = "Development workspace for compas_timber_rules, compas_timber_populator and compas_timber_gh"
+description = "Automation toolkit for the design of timber structures based on COMPAS timber"
+keywords = []
+authors = [
+    { name = "Chen Kasirer", email = "kasirer@arch.ethz.ch" },
+    { name = "Oliver Appling Bucklin", email = "bucklin@arch.ethz.ch" },
+    { name = "Panayiotis Papacharalambous", email = "papacharalambous@arch.ethz.ch" },
+    { name = "Anastasiia Stryzhevska", email = "astryzhevska@arch.ethz.ch" },
+    { name = "Eric Gozzi", email = "eric.gozzi@arch.ethz.ch" },
+    { name = "Nicolas Benjamin Boscoboinik", email = "boscoboinik@arch.ethz.ch" }
+]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.9"
-classifiers = ["Private :: Do Not Upload"]
+dynamic = ['version']
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: Unix",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
 dependencies = [
-    "compas_timber_rules @ {root:uri}/packages/compas_timber_rules",
-    "compas_timber_populator @ {root:uri}/packages/compas_timber_populator",
-    "compas_timber_gh @ {root:uri}/packages/compas_timber_gh",
+    "compas_timber>=3.0.0"
 ]
 
 [project.optional-dependencies]
@@ -59,19 +68,20 @@ Changelog = "https://github.com/gramaziokohler/timber_design/blob/main/CHANGELOG
 Issues = "https://github.com/gramaziokohler/timber_design/issues"
 Forum = "https://forum.compas-framework.org/"
 
-[tool.hatch.metadata]
-allow-direct-references = true
+# ============================================================================
+# Build configuration
+# ============================================================================
 
-[tool.hatch.build.targets.wheel]
-bypass-selection = true
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+zip-safe = false
 
-[tool.uv.workspace]
-members = ["packages/*"]
+[tool.setuptools.dynamic]
+version = { attr = "compas_timber_rules.__version__" }
 
-[tool.uv.sources]
-compas_timber_rules = { workspace = true }
-compas_timber_populator = { workspace = true }
-compas_timber_gh = { workspace = true }
+[tool.setuptools.packages.find]
+where = ["src"]
 
 # ============================================================================
 # Unittest configuration
@@ -79,10 +89,7 @@ compas_timber_gh = { workspace = true }
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = [
-    "packages/compas_timber_rules/tests",
-    "packages/compas_timber_populator/tests",
-]
+testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
     "-ra",
@@ -97,6 +104,36 @@ doctest_optionflags = [
     "ALLOW_BYTES",
     "NUMBER",
 ]
+
+# ============================================================================
+# Release management
+# ============================================================================
+
+[tool.bumpversion]
+current_version = "0.3.1"
+message = "Bump version to {new_version}"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "src/compas_timber_rules/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "src/compas_timber_populator/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "src/compas_timber_gh/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "Unreleased"
+replace = "[{new_version}] {now:%Y-%m-%d}"
 
 # ============================================================================
 # Formatting and linting
@@ -115,9 +152,9 @@ select = ["E", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["I001"]
-"**/tests/*" = ["I001"]
+"tests/*" = ["I001"]
 "tasks.py" = ["I001"]
-"packages/compas_timber_gh/components/*/*/code.py" = ["F821"]
+"src/compas_timber_gh/components/*/*/code.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 force-single-line = true

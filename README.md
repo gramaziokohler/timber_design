@@ -2,43 +2,40 @@
 
 Automation toolkit for the design of timber structures based on COMPAS timber.
 
-This repository is a monorepo containing three independently released packages:
+The `timber_design` distribution contains three top-level packages:
 
-| Package | Contents | Depends on |
-|---|---|---|
-| [`compas_timber_rules`](packages/compas_timber_rules) | Joint-rule workflow (`DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`, `JointRuleSolver`) | `compas_timber` |
-| [`compas_timber_populator`](packages/compas_timber_populator) | `PanelPopulator`, populator agents, 2D connection solver | `compas_timber_rules` |
-| [`compas_timber_gh`](packages/compas_timber_gh) | Grasshopper helpers and the sources of the **core** and **populator** Yak packages | `compas_timber_rules` |
+| Package | Contents |
+|---|---|
+| [`compas_timber_rules`](src/compas_timber_rules) | Joint-rule workflow (`DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`, `JointRuleSolver`) |
+| [`compas_timber_populator`](src/compas_timber_populator) | `PanelPopulator`, populator agents, 2D connection solver (depends on `compas_timber_rules`) |
+| [`compas_timber_gh`](src/compas_timber_gh) | Grasshopper helpers and the sources of the **core** and **populator** Yak packages |
 
 ## Installation
 
+Stable releases can be installed from PyPI.
+
 ```bash
-pip install compas_timber_rules          # joint rules only
-pip install compas_timber_populator      # panel populator (pulls in compas_timber_rules)
+pip install timber_design
 ```
 
 In Rhino 8, install the `compas_timber` package (core components) from the Package Manager, and additionally
 `compas_timber_populator` for the panel populator components. The populator package requires the core package.
 
-## Development
+To install the latest version for development, do:
 
 ```bash
 git clone https://github.com/gramaziokohler/timber_design.git
 cd timber_design
-uv sync --all-packages --extra dev      # or: pip install -e ".[dev]"
+pip install -e ".[dev]"
 ```
 
-Useful tasks:
+Grasshopper tasks:
 
 ```bash
-invoke test                                         # tests of all packages
 invoke build-gh-components --target core|populator  # build .ghuser files into dist/ghuser/<target>
-invoke update-gh-headers --target core|populator    # rewrite `# r:` headers (use --dev for local sources)
+invoke update-gh-headers --target core|populator    # rewrite `# r:` headers (use --dev for the local src folder)
 invoke yakerize-gh --target core|populator          # build a Yak package
 ```
-
-Each package is versioned independently: run `bump-my-version bump <part>` inside `packages/<name>`.
-That creates a `rules-v*`, `populator-v*` or `gh-v*` tag, which triggers the PyPI release of that package only.
 
 ## Documentation
 

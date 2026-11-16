@@ -9,8 +9,7 @@
 ```bash
 uv venv <myenvname> --python 3.13
 source <myenvname>/bin/activate
-uv pip install compas_timber_rules        # joint rules
-uv pip install compas_timber_populator    # panel populator (includes compas_timber_rules)
+uv pip install timber_design
 ```
 
 ## Developer
@@ -29,10 +28,10 @@ uv venv <myenvname> --python 3.13
 source <myenvname>/bin/activate
 ```
 
-Install all three workspace packages (`compas_timber_rules`, `compas_timber_populator`, `compas_timber_gh`) in editable mode with the development dependencies
+Install the package (`compas_timber_rules`, `compas_timber_populator` and `compas_timber_gh`) in editable mode with its development dependencies
 
 ```bash
-uv sync --all-packages --extra dev
+uv pip install -e ".[dev]"
 ```
 
 To compile the Rhino8 Grasshopper components (core and populator add-on)

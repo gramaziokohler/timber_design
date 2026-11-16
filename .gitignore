@@ -141,5 +141,5 @@ scripts/
 
 .ruff_cache
 
-packages/compas_timber_gh/components/*/ghuser/*.ghuser
+src/compas_timber_gh/components/*/ghuser/*.ghuser
 dist/ghuser/

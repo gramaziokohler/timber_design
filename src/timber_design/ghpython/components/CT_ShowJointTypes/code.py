@@ -3,7 +3,6 @@ import Grasshopper
 import System
 from compas_rhino.conversions import point_to_rhino
 
-from compas_timber.utils import intersection_line_line_param
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
@@ -16,12 +15,7 @@ class ShowJointTypes(Grasshopper.Kernel.GH_ScriptInstance):
             return
 
         for joint in model.joints:
-            line_a, line_b = joint.elements[0].centerline, joint.elements[1].centerline
-            [p1, _], [p2, _] = intersection_line_line_param(line_a, line_b, float("inf"), False, 1e-3)
-            p1 = point_to_rhino(p1)
-            p2 = point_to_rhino(p2)
-
-            self.pt.append((p2 + p1) / 2)
+            self.pt.append(point_to_rhino(joint.location))  # works for plate and panel joints too, which have no centerline
             self.txt.append(joint.__class__.__name__)
 
     def DrawViewportWires(self, arg):

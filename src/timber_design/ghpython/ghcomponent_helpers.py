@@ -505,3 +505,36 @@ def get_guid_and_geometry(obj):
         guid = obj
         geometry = rhino_obj.Geometry
     return guid, geometry
+
+
+def brep_loop_vertex_indices(loop, brep):
+    """Ordered vertex indices of a BrepLoop, closed (first index repeated at the end).
+
+    Replacement for ``compas_timber.utils.get_brep_loop_vertex_indices``, which ignores edge direction and returns
+    a zig-zag order when a loop's first edge is reversed (e.g. the bottom face of a Rhino box), producing twisted plates.
+    """
+    from compas.tolerance import TOL
+
+    def index(vertex):
+        try:
+            return vertex.native_vertex.VertexIndex
+        except AttributeError:
+            return next(i for i, v in enumerate(brep.vertices) if TOL.is_allclose(vertex.point, v.point))
+
+    edges = [(index(e.start_vertex), index(e.end_vertex)) for e in loop.edges]
+    first, second = edges[0], edges[1] if len(edges) > 1 else ()
+    indices = list(first) if first[1] in second else [first[1], first[0]]
+    for a, b in edges[1:]:
+        following = b if a == indices[-1] else a
+        if following != indices[0]:
+            indices.append(following)
+    indices.append(indices[0])
+    return indices
+
+
+def patch_compas_timber_brep_loops():
+    """Make ``Plate.from_brep`` / ``Panel.from_brep`` order brep loops correctly."""
+    # shortcut: monkeypatches compas_timber.utils (unfixed upstream as of 3.0.0); remove once compas_timber orders loops by edge direction
+    import compas_timber.utils
+
+    compas_timber.utils.get_brep_loop_vertex_indices = brep_loop_vertex_indices

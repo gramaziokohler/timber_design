@@ -9,6 +9,9 @@ from compas_rhino.conversions import brep_to_compas
 from compas_timber.elements import Plate as CTPlate
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
+from timber_design.ghpython.ghcomponent_helpers import patch_compas_timber_brep_loops
+
+patch_compas_timber_brep_loops()
 
 
 class PlateFromBrep(Grasshopper.Kernel.GH_ScriptInstance):

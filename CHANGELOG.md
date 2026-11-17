@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Worked around `compas_timber` 3.0.0 not setting `b_segment_index` on edge-face plate joint candidates, which broke plate T-butt joint rules.
 * Fixed `CT: ShowTopologyTypes` importing the removed `GenericJoint` and passing non-Rhino types to `Draw2dText`.
 * `CT: NestPlates` requires `PlateNester`, which is not yet in a `compas_timber` release (see [compas_timber#720](https://github.com/gramaziokohler/compas_timber/pull/720)).
+* Fixed `CT: Model` re-adding features from earlier solutions (and from other Model components sharing the same elements) on every recompute, which duplicated joint cuts, panel openings and interfaces.
+* Fixed `CT: Model` and `CT: Show_Elements_by_Type` failing on models with fasteners.
+* Fixed `CT: Install` pinning `compas_timber==2.2.0`; its `timber_design` pin is now bumped on release.
+* Fixed `CT: Plate From Brep` and `CT: Panel From Brep` producing twisted geometry for plain box breps (works around a loop ordering bug in `compas_timber`).
+* Fixed `CT: Joint Rule From List` passing joint parameters to the wrong arguments.
+* Fixed `CT: FindByGuid` always failing.
+* Fixed `CT: ShowElementIndex` failing on any model, and `CT: ShowJointTypes` failing on plate and panel joints.
+* Fixed `CT: ShowTopologyTypes` drawing invisible text.
+* Fixed `CT: Beams From Mesh` skipping one edge of every quad face.
+* Fixed `CT: Fastener Timber Interface` failing on its `shapes` input and passing Rhino types where `compas_timber` expects COMPAS ones. `CT: Plate Fastener` cutouts still fail in `compas_timber` 3.0.0 (coplanar boolean difference).
+* Fixed `Lap` and `Pocket` features from `CT: BTLx From Geometry` being rejected by `compas_timber` 3.
+* Replaced deprecated `inspect.getargspec` in the plate and X joint rule components.
 
 ### Removed
 

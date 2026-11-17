@@ -30,7 +30,7 @@ class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
             return None
         else:
             ghenv.Component.Message = self.joint_type.__name__
-            if not list_input_valid_cpython(ghenv, elements, self.arg_names[0]):
+            if not list_input_valid_cpython(ghenv, elements, "elements"):
                 return
             if not self.joint_type.element_count_complies(elements):
                 ghenv.Component.AddRuntimeMessage(
@@ -39,7 +39,7 @@ class JointRuleFromList(Grasshopper.Kernel.GH_ScriptInstance):
                 )
                 return
             kwargs = {}
-            for i, val in enumerate(args[1:]):
+            for i, val in enumerate(args):  # args holds only the inputs after elements
                 if val is not None:
                     kwargs[self.arg_names[i]] = val
 

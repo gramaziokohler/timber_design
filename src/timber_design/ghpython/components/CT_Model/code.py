@@ -98,10 +98,13 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
     def add_elements_to_model(self, model, elements):
         elements = [e for e in elements if e is not None]
         for element in elements:
-            saved_features = list(getattr(element, "_features", []))
+            # GH passes the same element objects to every run and every Model component, so joint and Features-input
+            # features from earlier runs are still on them. Remember the features the element came with, restore only those.
+            if not hasattr(element, "_td_own_features"):
+                element._td_own_features = list(getattr(element, "_features", []))
             element.reset()
-            if saved_features and hasattr(element, "_features"):
-                element._features.extend(saved_features)
+            if hasattr(element, "_features"):
+                element._features = list(element._td_own_features)  # Panel.reset() keeps non-joinery features, replace them too
             model.add_element(element)
 
     def handle_features(self, features):
@@ -131,7 +134,10 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
                     geo = element.compute_modelgeometry()
                 else:
                     geo = element.geometry
-                scene.add(geo)
+                if geo is None and hasattr(element, "compute_geometry"):
+                    geo = element.compute_geometry()  # fasteners don't compute their geometry lazily in compas_timber 3
+                if geo is not None:
+                    scene.add(geo)
                 if getattr(element, "debug_info", False):
                     errors.append(element.debug_info)
             else:

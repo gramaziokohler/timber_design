@@ -27,7 +27,7 @@ class ShowTopologyTypes(Grasshopper.Kernel.GH_ScriptInstance):
     def DrawViewportWires(self, arg):
         if ghenv.Component.Locked:
             return
-        col = System.Drawing.Color.FromArgb(0, 0, 255, 0)
+        col = System.Drawing.Color.FromArgb(255, 0, 160, 0)  # first arg is alpha; 0 drew nothing
         # https://developer.rhino3d.com/api/RhinoCommon/html/M_Rhino_Display_DisplayPipeline_Draw2dText_5.htm
         for p, t in zip(self.pt, self.txt):
             arg.Display.Draw2dText(t, col, p, True, 12, "Verdana")

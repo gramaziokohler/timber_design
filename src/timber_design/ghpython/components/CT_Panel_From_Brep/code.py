@@ -9,6 +9,9 @@ from compas_rhino.conversions import brep_to_compas
 from compas_timber.elements import Panel as CTPanel
 from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 from timber_design.ghpython.ghcomponent_helpers import get_guid_and_geometry
+from timber_design.ghpython.ghcomponent_helpers import patch_compas_timber_brep_loops
+
+patch_compas_timber_brep_loops()
 
 
 class PanelFromBrep(Grasshopper.Kernel.GH_ScriptInstance):

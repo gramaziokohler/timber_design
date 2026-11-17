@@ -121,6 +121,11 @@ search = "{current_version}"
 replace = "{new_version}"
 
 [[tool.bumpversion.files]]
+filename = "src/timber_design/ghpython/components/CT_Install/code.py"
+search = "timber_design=={current_version}"
+replace = "timber_design=={new_version}"
+
+[[tool.bumpversion.files]]
 filename = "CHANGELOG.md"
 search = "Unreleased"
 replace = "[{new_version}] {now:%Y-%m-%d}"

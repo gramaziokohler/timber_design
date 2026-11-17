@@ -3,7 +3,7 @@ import Grasshopper
 import System
 
 from compas_rhino.conversions import point_to_rhino
-from timber_design.ghpython.ghcomponent_helpers import list_input_valid_cpython
+from timber_design.ghpython.ghcomponent_helpers import item_input_valid_cpython
 
 
 class ShowElementIndex(Grasshopper.Kernel.GH_ScriptInstance):
@@ -11,11 +11,11 @@ class ShowElementIndex(Grasshopper.Kernel.GH_ScriptInstance):
         self.pt = []
         self.txt = []
 
-        if not list_input_valid_cpython(ghenv, model, "Model"):
+        if not item_input_valid_cpython(ghenv, model, "Model"):
             return
-        for element in model.beams + model.plates:
-            self.pt.append(point_to_rhino(element.midpoint))
-            self.txt.append(str(element.key))
+        for element in model.elements():
+            self.pt.append(point_to_rhino(element.aabb.frame.point))
+            self.txt.append(str(element.graphnode))
 
     def DrawViewportWires(self, arg):
         if ghenv.Component.Locked:

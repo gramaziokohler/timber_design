@@ -33,7 +33,8 @@ class BeamTreeFromMesh(Grasshopper.Kernel.GH_ScriptInstance):
         faces = [[pt_map[i] for i in face] for face in faces]
 
         for face in faces:  # get all the edges of the mesh
-            for ind in range(len(face) - 1):
+            face = list(dict.fromkeys(face))  # triangles come back as quads with a repeated last vertex
+            for ind in range(len(face)):
                 edge_set = set([face[ind - 1], face[ind]])
                 if edge_set not in edge_index_pairs:
                     edge_index_pairs.append(edge_set)

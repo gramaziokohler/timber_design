@@ -19,6 +19,6 @@ class ShowElementsByType(Grasshopper.Kernel.GH_ScriptInstance):
         for plate in model.plates:
             plate_scene.add(plate._geometry or plate.blank)
         for fastener in model.fasteners:
-            fastener_scene.add(fastener.geometry)
+            fastener_scene.add(fastener.geometry or fastener.compute_geometry())  # fasteners don't compute their geometry lazily in compas_timber 3
 
         return beam_scene.draw(), plate_scene.draw(), fastener_scene.draw()

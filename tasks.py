@@ -34,5 +34,9 @@ ns.configure(
             "target_dir": "src/timber_design/ghpython/components/ghuser",
             "prefix": "CT: ",
         },
+        "yak": {
+            "manifest_path": "src/timber_design/ghpython/yak_template/manifest.yml",
+            "logo_path": "src/timber_design/ghpython/yak_template/icon.png",
+        },
     }
 )

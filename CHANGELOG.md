@@ -9,13 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* `CompositeRule`: bundles multiple pairwise joint rules into a single `CompositeJoint` for clusters of 3+ elements (TOPO_Y, TOPO_K, etc.).
+* `CT_Composite_Joint_Rule` Grasshopper component with TOPO_Y / TOPO_K context menu.
+* COMPAS Data serialization (`__data__` / `__from_data__`) for `JointRule`, `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
+* `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`.
 * Added `CT: PlateStocks` and `CT: NestPlates` GH components.
 * Added `Nesting` input parameter to `CT_BTLx` GH component.
 * Migrated the Grasshopper plugin documentation from `compas_timber` (per [compas_timber#825](https://github.com/gramaziokohler/compas_timber/issues/825)): tutorial pages, images, and a new "Grasshopper Plugin" section in the docs navigation. API cross-references now point to the compas_timber documentation site.
+* `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
+* `pairwise_fallback` parameter on `joints_from_rules_and_clusters`, so a caller driving its own pairwise pass can stop the solver recursing into pairwise sub-clusters. Defaults to `True`, preserving existing behaviour.
 
 ### Changed
 
+* `get_clusters_from_model` no longer calls `connect_adjacent_beams` / `connect_adjacent_plates` internally. Callers must connect the model before calling `apply_rules_to_model`.
+* `_joints_from_rules_and_clusters` renamed to `joints_from_rules_and_clusters` (now public).
+* `CompositeRule.create_instance` returns a joint (or `None`) rather than a `(joint, error)` tuple, and lets `BeamJoiningError` propagate; `try_create_joint` wraps it and registers the joint in the model.
+* `CT: Model` no longer saves and re-appends `element._features` around `element.reset()`. `reset()` already drops joinery features and keeps user ones, so the save/restore duplicated every opening on each Grasshopper solve.
+* compas_timber dependency: requires a release providing `CompositeJoint`. **TODO:** set the exact version here and in `pyproject.toml` once that release lands — they currently disagree (`pyproject.toml` pins `>=2.1.1`).
+
 ### Removed
+
+* `ContainerDefinition` class (dead code).
+* `max_cluster_size` parameter from `get_clusters_from_model`.
 
 
 ## [0.3.1] 2026-07-09
@@ -67,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Removed `CT: Wall`, `CT: Slab`, and `CT: WallConfigSet` GH components.
 
+
 ## [0.2.0] 2026-04-01
 
 ### Added
@@ -90,4 +106,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed `OliGinaJoint` to `TOliGinaJoint` and `TenonMortiseJoint`to `LTenonMortiseJoint` and `TTenonMortiseJoint`for consistency wrt to the supported topology.
 
 ### Removed
-

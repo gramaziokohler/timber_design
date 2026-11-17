@@ -18,6 +18,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           generator: mkdocs
+          python: '3.12'
           extras: dev,mkdocs
           test_docs: false
           

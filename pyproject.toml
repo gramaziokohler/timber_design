@@ -78,7 +78,7 @@ include-package-data = true
 zip-safe = false
 
 [tool.setuptools.dynamic]
-version = { attr = "compas_timber_rules.__version__" }
+version = { attr = "timber_design_rules.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -116,17 +116,17 @@ commit = true
 tag = true
 
 [[tool.bumpversion.files]]
-filename = "src/compas_timber_rules/__init__.py"
+filename = "src/timber_design_rules/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
 [[tool.bumpversion.files]]
-filename = "src/compas_timber_populator/__init__.py"
+filename = "src/timber_design_populator/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
 [[tool.bumpversion.files]]
-filename = "src/compas_timber_gh/__init__.py"
+filename = "src/timber_design_gh/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
@@ -154,11 +154,11 @@ select = ["E", "F", "I"]
 "__init__.py" = ["I001"]
 "tests/*" = ["I001"]
 "tasks.py" = ["I001"]
-"src/compas_timber_gh/components/*/*/code.py" = ["F821"]
+"src/timber_design_gh/components/*/*/code.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
-known-first-party = ["compas_timber_rules", "compas_timber_populator", "compas_timber_gh"]
+known-first-party = ["timber_design_rules", "timber_design_populator", "timber_design_gh"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

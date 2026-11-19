@@ -30,9 +30,9 @@ from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.model import TimberModel
 
-from compas_timber_populator import stud_panel
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_rules import CategoryRule
+from timber_design_populator import stud_panel
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_rules import CategoryRule
 
 try:
     from compas_timber.panel_features.opening import Opening
@@ -387,7 +387,7 @@ class TestMultiPanelWorkflow:
 class TestWindowOpening:
     @pytest.fixture(scope="class")
     def result(self):
-        from compas_timber_populator import OpeningPopulatorAgent
+        from timber_design_populator import OpeningPopulatorAgent
 
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
@@ -425,8 +425,8 @@ class TestWindowOpening:
 class TestDoorOpening:
     @pytest.fixture(scope="class")
     def result(self):
-        from compas_timber_populator import DoorPopulatorAgent
-        from compas_timber_populator import OpeningPopulatorAgent
+        from timber_design_populator import DoorPopulatorAgent
+        from timber_design_populator import OpeningPopulatorAgent
 
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR)
@@ -475,21 +475,21 @@ class TestOpeningAgentDispatch:
         return Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=opening_type)
 
     def test_binding_door_dispatches_to_door_subclass(self):
-        from compas_timber_populator import DoorPopulatorAgent, OpeningPopulatorAgent
+        from timber_design_populator import DoorPopulatorAgent, OpeningPopulatorAgent
 
         agent = OpeningPopulatorAgent()
         agent.feature = self._make_opening(OpeningType.DOOR)
         assert isinstance(agent, DoorPopulatorAgent)
 
     def test_binding_window_dispatches_to_window_subclass(self):
-        from compas_timber_populator import OpeningPopulatorAgent, WindowPopulatorAgent
+        from timber_design_populator import OpeningPopulatorAgent, WindowPopulatorAgent
 
         agent = OpeningPopulatorAgent()
         agent.feature = self._make_opening(OpeningType.WINDOW)
         assert isinstance(agent, WindowPopulatorAgent)
 
     def test_explicit_subclass_is_not_redispatched(self):
-        from compas_timber_populator import DoorPopulatorAgent
+        from timber_design_populator import DoorPopulatorAgent
 
         agent = DoorPopulatorAgent()
         agent.feature = self._make_opening(OpeningType.WINDOW)
@@ -506,7 +506,7 @@ class TestSplitBottomPlateBeam:
     """
 
     def _make_door_agent(self, split_bottom_plate_beam, lintel_posts=False):
-        from compas_timber_populator import OpeningPopulatorAgent
+        from timber_design_populator import OpeningPopulatorAgent
 
         opening = self._make_opening()
         agent = OpeningPopulatorAgent(
@@ -602,7 +602,7 @@ class TestJointCreation:
 
     def test_debug_info_present_and_clean_on_happy_path(self):
         """``pop.debug_info`` exists and stays empty when nothing goes wrong."""
-        from compas_timber_rules import DebugInfomation
+        from timber_design_rules import DebugInfomation
 
         panel = make_panel()
         model = TimberModel()
@@ -643,7 +643,7 @@ class TestCornerClusterJoints:
         EdgePopulatorAgent, exactly like elements the agents generated
         themselves would.
         """
-        layer = next(l for l in pop.model.layers if l.children)
+        layer = next(la for la in pop.model.layers if la.children)
         stud_agent = next(a for a in pop.agents if "stud" in a.BEAM_CATEGORY_NAMES)
         edge_agent = next(a for a in pop.agents if "edge_stud" in a.BEAM_CATEGORY_NAMES)
         w = 60.0
@@ -717,7 +717,7 @@ class TestJoinClusterRuleOrder:
 
     def _add_beam(self, pop, agent, category, direction):
         """Add one beam running from the shared anchor along *direction*, owned by *agent*."""
-        layer = next(l for l in pop.model.layers if l.children)
+        layer = next(la for la in pop.model.layers if la.children)
         z = layer.center_height
         start = Point(self.ANCHOR.x, self.ANCHOR.y, z)
         end = Point(start.x + direction[0], start.y + direction[1], z)

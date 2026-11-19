@@ -1,9 +1,9 @@
 {
-    "name": "FilterDisplay",
-    "nickname": "FilterDisplay",
+    "name": "PanelViewer",
+    "nickname": "PanelViewer",
     "category": "Timber Design",
     "subcategory": "07 Model",
-    "description": "Filters and displays elements from a TimberModel by level or layer path.",
+    "description": "Filters and displays elements from a TimberModel by level, layer path or group, optionally in the group's local space.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -23,7 +23,7 @@
             },
             {
                 "name": "group_filter",
-                "description": "Optional list of group Elements to restrict output to those elements and their children.",
+                "description": "Optional list of group Elements (e.g. Panels or Layers) to restrict output to those elements and their children. Matched to the Model by guid.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
@@ -35,7 +35,7 @@
             },
             {
                 "name": "group_space",
-                "description": "If True, geometry is transformed into each group's local space instead of world space.",
+                "description": "If True, geometry is transformed into each group's local space (the group frame placed at world XY) instead of model space.",
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             },

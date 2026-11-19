@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from compas_timber.elements import Plate
 
-from compas_timber_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.layer_agent import LayerAgent
 
 
 class PlatePopulatorAgent(LayerAgent):
@@ -11,7 +11,7 @@ class PlatePopulatorAgent(LayerAgent):
     Parameters
     ----------
     layer : :class:`~compas_timber.elements.Layer` or str, optional
-        The sheathing layer to generate the plate for, or its path. 
+        The sheathing layer to generate the plate for, or its path.
     """
 
     BEAM_CATEGORY_NAMES = ["plate"]

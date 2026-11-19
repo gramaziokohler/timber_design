@@ -13,12 +13,12 @@ from compas_rhino.conversions import polyline_to_compas
 
 from compas_timber.fabrication import BTLxFromGeometryDefinition
 from compas_timber.fabrication import BTLxProcessing
-from compas_timber_gh import get_leaf_subclasses
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
-from compas_timber_gh import warning
-from compas_timber_gh import error
-from compas_timber_gh import message
+from timber_design_gh import get_leaf_subclasses
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
+from timber_design_gh import warning
+from timber_design_gh import error
+from timber_design_gh import message
 
 import rhinoscriptsyntax as rs
 

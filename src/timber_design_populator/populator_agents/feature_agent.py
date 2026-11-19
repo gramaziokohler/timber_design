@@ -18,10 +18,10 @@ class FeatureAgent(PopulatorAgent):
     Extends :class:`PopulatorAgent` by accepting a
     :class:`~compas_timber.panel_features.PanelFeature` and storing it as
     :attr:`feature`.  Subclasses handle specific feature types (e.g.
-    :class:`~compas_timber_populator.OpeningPopulatorAgent` for
+    :class:`~timber_design_populator.OpeningPopulatorAgent` for
     :class:`~compas_timber.panel_features.Opening`).
 
-    Unlike a :class:`~compas_timber_populator.LayerAgent`, a feature agent can
+    Unlike a :class:`~timber_design_populator.LayerAgent`, a feature agent can
     act on several layers.  Which layers receive generated elements (*framing*)
     and which only have peer elements trimmed (*trimming*) is controlled by two
     explicit path lists recorded at construction and rebound to live layers by
@@ -103,7 +103,7 @@ class FeatureAgent(PopulatorAgent):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
         """
         self.outline_by_layer.clear()
         elements_by_layer = {}
@@ -121,7 +121,7 @@ class FeatureAgent(PopulatorAgent):
 
         Returns
         -------
-        tuple[list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
+        tuple[list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
             The elements and the agent's boundary outline on *layer*.
         """
         raise NotImplementedError

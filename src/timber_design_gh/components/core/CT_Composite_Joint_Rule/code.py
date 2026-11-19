@@ -5,9 +5,9 @@ import Grasshopper  # type: ignore
 import System  # type: ignore
 from compas_timber.connections import JointTopology
 
-from compas_timber_gh import rename_cpython_gh_output
-from compas_timber_gh import warning
-from compas_timber_rules import CompositeRule
+from timber_design_gh import rename_cpython_gh_output
+from timber_design_gh import warning
+from timber_design_rules import CompositeRule
 
 topo_dict = {
     "TOPO_Y": JointTopology.TOPO_Y,

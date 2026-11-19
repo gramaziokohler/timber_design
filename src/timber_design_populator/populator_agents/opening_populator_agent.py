@@ -20,13 +20,13 @@ from compas_timber.panel_features import OpeningType
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
-from compas_timber_populator.connections_2d.connection_solver_2d import aabb_overlap
-from compas_timber_populator.populator_agents.feature_agent import FeatureAgent
-from compas_timber_populator.populator_agents.populator_agent import AgentBoundaryType
-from compas_timber_rules import CategoryRule
-from compas_timber_rules import CompositeRule
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design_populator.connections_2d.connection_solver_2d import aabb_overlap
+from timber_design_populator.populator_agents.feature_agent import FeatureAgent
+from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
+from timber_design_rules import CategoryRule
+from timber_design_rules import CompositeRule
 
 if TYPE_CHECKING:
     from compas_timber.elements import Layer  # noqa: F401
@@ -81,12 +81,12 @@ class OpeningPopulatorAgent(FeatureAgent):
         clones it and binds each matching opening.
     element_layers, trimming_layers : list, optional
         Layers (or layer paths) to frame on and to trim, see
-        :class:`~compas_timber_populator.FeatureAgent`.
+        :class:`~timber_design_populator.FeatureAgent`.
     header_width, sill_width, king_stud_width, jack_stud_width : float, optional
         Explicit per-category beam widths.  Unset widths are filled with the
         populator's ``standard_beam_width``.
     internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
-        Per-agent joint-rule overrides, see :class:`~compas_timber_populator.PopulatorAgent`.
+        Per-agent joint-rule overrides, see :class:`~timber_design_populator.PopulatorAgent`.
     lintel_posts : bool, optional
         Generate jack studs (lintel posts) under the header.
     split_bottom_plate_beam : bool, optional
@@ -214,11 +214,11 @@ class OpeningPopulatorAgent(FeatureAgent):
         return self.opening.opening_type if self.opening is not None else None
 
     def cull_beam(self, beam: Beam2D) -> bool:
-        """ Culls `beam` if its centerpoint in inside this agent's cull zone or it's a stud that coincides with one of this agent's king or jack studs.
+        """Culls `beam` if its centerpoint in inside this agent's cull zone or it's a stud that coincides with one of this agent's king or jack studs.
 
         Parameters
         ----------
-        beam : :class:`~compas_timber_populator.connections_2d.Beam2D`
+        beam : :class:`~timber_design_populator.connections_2d.Beam2D`
             The beam to check for culling.
 
         Returns
@@ -442,7 +442,7 @@ class DoorPopulatorAgent(OpeningPopulatorAgent):
 
         Returns
         -------
-        list[:class:`~compas_timber_populator.connections_2d.Beam2D`]
+        list[:class:`~timber_design_populator.connections_2d.Beam2D`]
         """
         if beam.attributes.get("category") == "bottom_plate_beam" and not self.split_bottom_plate_beam:
             return [beam]

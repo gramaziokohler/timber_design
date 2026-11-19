@@ -3,7 +3,7 @@ import Grasshopper
 import Rhino
 
 from compas_timber.fabrication import BTLxWriter
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 class WriteBTLx(Grasshopper.Kernel.GH_ScriptInstance):

@@ -10,7 +10,7 @@ from compas_timber.connections import GenericJoint
 from compas_timber.connections import get_clusters_from_joint_candidates
 from compas_timber.connections import JointTopology
 from compas_timber.utils import intersection_line_line_param
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 class ShowTopologyTypes(Grasshopper.Kernel.GH_ScriptInstance):

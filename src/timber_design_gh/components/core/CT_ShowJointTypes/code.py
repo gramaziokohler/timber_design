@@ -4,7 +4,7 @@ import System
 from compas_rhino.conversions import point_to_rhino
 
 from compas_timber.utils import intersection_line_line_param
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 class ShowJointTypes(Grasshopper.Kernel.GH_ScriptInstance):

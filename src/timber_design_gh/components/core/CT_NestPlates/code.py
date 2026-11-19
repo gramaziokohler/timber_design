@@ -6,7 +6,7 @@ import warnings
 
 from compas_timber.planning import PlateNester as CTPlateNester
 from compas_timber.planning import PlateStock
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 class PlateNester(Grasshopper.Kernel.GH_ScriptInstance):

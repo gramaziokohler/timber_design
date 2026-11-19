@@ -28,7 +28,7 @@ uv venv <myenvname> --python 3.13
 source <myenvname>/bin/activate
 ```
 
-Install the package (`compas_timber_rules`, `compas_timber_populator` and `compas_timber_gh`) in editable mode with its development dependencies
+Install the package (`timber_design_rules`, `timber_design_populator` and `timber_design_gh`) in editable mode with its development dependencies
 
 ```bash
 uv pip install -e ".[dev]"

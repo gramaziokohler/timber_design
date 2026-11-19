@@ -1,1 +1,1 @@
-# ::: compas_timber_rules
+# ::: timber_design_rules

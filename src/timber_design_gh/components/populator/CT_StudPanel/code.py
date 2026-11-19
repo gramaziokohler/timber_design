@@ -2,7 +2,7 @@
 import Grasshopper
 import System
 
-from compas_timber_populator import stud_panel
+from timber_design_populator import stud_panel
 
 
 class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):

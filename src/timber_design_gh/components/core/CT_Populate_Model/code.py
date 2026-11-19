@@ -3,9 +3,10 @@
 
 import Grasshopper
 import System
-from compas.data import json_dumps, json_loads
+from compas.data import json_dumps
+from compas.data import json_loads
 
-from compas_timber_rules import DebugInfomation
+from timber_design_rules import DebugInfomation
 
 
 class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):

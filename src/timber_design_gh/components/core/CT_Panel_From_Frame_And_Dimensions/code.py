@@ -12,8 +12,8 @@ from compas_rhino.conversions import polyline_to_compas
 
 from compas_timber.elements import Panel as CTPanel
 from compas_timber.elements.panel import Opening, OpeningType
-from compas_timber_gh import list_input_valid_cpython
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import list_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 def _curve_to_polyline(curve):

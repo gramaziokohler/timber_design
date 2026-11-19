@@ -11,8 +11,8 @@ from compas.geometry import oriented_bounding_box_numpy
 from compas_rhino.conversions import point_to_compas
 
 from compas_timber.elements import Beam as CTBeam
-from compas_timber_gh import list_input_valid_cpython
-from compas_timber_gh import get_guid_and_geometry
+from timber_design_gh import list_input_valid_cpython
+from timber_design_gh import get_guid_and_geometry
 
 
 class BeamFromBox(Grasshopper.Kernel.GH_ScriptInstance):

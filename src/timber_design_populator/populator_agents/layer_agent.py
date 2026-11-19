@@ -12,7 +12,7 @@ from .populator_agent import PopulatorAgent
 if TYPE_CHECKING:
     from compas.geometry import Line  # noqa: F401
 
-    from compas_timber_populator.connections_2d.beam2d import Beam2D  # noqa: F401
+    from timber_design_populator.connections_2d.beam2d import Beam2D  # noqa: F401
 
 
 class LayerAgent(PopulatorAgent, ABC):
@@ -94,7 +94,7 @@ class LayerAgent(PopulatorAgent, ABC):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
         """
         self.outline_by_layer.clear()
         elements, outline = self.generate_layer_elements()
@@ -109,7 +109,7 @@ class LayerAgent(PopulatorAgent, ABC):
 
         Returns
         -------
-        tuple[list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
+        tuple[list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
             The elements and the agent's boundary outline on :attr:`layer`.
         """
         raise NotImplementedError

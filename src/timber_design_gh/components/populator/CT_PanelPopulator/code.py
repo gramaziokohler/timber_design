@@ -4,8 +4,8 @@
 import Grasshopper
 import System
 
-from compas_timber_populator import PanelPopulator
-from compas_timber_populator import FeatureAgent
+from timber_design_populator import FeatureAgent
+from timber_design_populator import PanelPopulator
 
 
 class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):

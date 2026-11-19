@@ -8,11 +8,11 @@ from compas_timber.connections import PanelJoint
 from compas_timber.connections import PlateJoint
 from System.Windows.Forms import ToolStripSeparator
 
-from compas_timber_gh import item_input_valid_cpython
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
-from compas_timber_gh import warning
-from compas_timber_rules import DirectRule
+from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
+from timber_design_gh import warning
+from timber_design_rules import DirectRule
 
 
 class DirectPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):

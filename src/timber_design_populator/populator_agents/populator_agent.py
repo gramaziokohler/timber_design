@@ -15,13 +15,13 @@ from compas_timber.elements import Plate
 from compas_timber.utils import StrEnum
 from compas_timber.utils import is_point_in_polyline
 
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_populator.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
-from compas_timber_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
-from compas_timber_rules import CategoryRule
-from compas_timber_rules import CompositeRule
-from compas_timber_rules import JointRuleSolver
-from compas_timber_rules import TopologyRule
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
+from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design_rules import CategoryRule
+from timber_design_rules import CompositeRule
+from timber_design_rules import JointRuleSolver
+from timber_design_rules import TopologyRule
 
 if TYPE_CHECKING:
     from compas.geometry import Polyline  # noqa: F401
@@ -40,7 +40,7 @@ class AgentBoundaryType(StrEnum):
     ----------
     EXCLUSIVE : str
         The outline defines a *no-go zone*.  Segments whose midpoints are inside
-        the outline are discarded. 
+        the outline are discarded.
     INCLUSIVE : str
         The outline defines an *allowed zone*.  Segments whose midpoints fall
         *outside* the outline are discarded.  U
@@ -61,12 +61,12 @@ class PopulatorAgent(Data, ABC):
     logical group of framing elements within a panel (edge beams, studs,
     plates, opening surround, …).  Agents do not hold element lists and never
     write to the populator's model; the
-    :class:`~compas_timber_populator.PanelPopulator` owns the model and is its
+    :class:`~timber_design_populator.PanelPopulator` owns the model and is its
     sole writer.  Ownership is recorded on the elements themselves: an agent
     stamps ``attributes["agent"] = self`` on everything it generates, so
     :meth:`elements_for_layer` can recover its own elements from a layer's
     children at any later stage.  Split segments inherit the tag automatically,
-    because :meth:`~compas_timber_populator.connections_2d.beam2d.Beam2D.get_beam_segment`
+    because :meth:`~timber_design_populator.connections_2d.beam2d.Beam2D.get_beam_segment`
     rebuilds a beam from its ``__data__`` (which carries ``attributes``).
 
     An agent provides:
@@ -84,18 +84,18 @@ class PopulatorAgent(Data, ABC):
     Class-level attributes
     ----------------------
     BEAM_CATEGORY_NAMES : list[str]
-        The beam categories this agent can create.  
-    INTERNAL_JOINT_RULES : list[:class:`~compas_timber_rules.CategoryRule`]
+        The beam categories this agent can create.
+    INTERNAL_JOINT_RULES : list[:class:`~timber_design_rules.CategoryRule`]
         Default joint rules for **within-agent** pairs — elements that belong
         to this agent and are joined to each other.
         Overridable per-instance via ``internal_joint_overrides``.
-    EXTERNAL_JOINT_RULES : list[:class:`~compas_timber_rules.CategoryRule`]
+    EXTERNAL_JOINT_RULES : list[:class:`~timber_design_rules.CategoryRule`]
         Default joint rules for **cross-agent** pairs — elements from this
         agent that are joined to elements from a different agent.
         Overridable per-instance via ``external_joint_overrides``.
-    COMPOSITE_RULES : list[:class:`~compas_timber_rules.CompositeRule`]
+    COMPOSITE_RULES : list[:class:`~timber_design_rules.CompositeRule`]
         Rules tried for a joint cluster of 3+ elements that this agent has any
-        element in — see :meth:`~compas_timber_populator.PanelPopulator._join_cluster`.
+        element in — see :meth:`~timber_design_populator.PanelPopulator._join_cluster`.
         Overridable per-instance via ``composite_joint_overrides``.
     BOUNDARY_TYPE : :class:`AgentBoundaryType`
         Controls how the agent's outline is used during trimming.
@@ -103,13 +103,13 @@ class PopulatorAgent(Data, ABC):
 
     Parameters
     ----------
-    internal_joint_overrides : list[:class:`~compas_timber_rules.CategoryRule`], optional
+    internal_joint_overrides : list[:class:`~timber_design_rules.CategoryRule`], optional
         Overrides merged into :attr:`INTERNAL_JOINT_RULES` to form
         :attr:`internal_rules`.
-    external_joint_overrides : list[:class:`~compas_timber_rules.CategoryRule`], optional
+    external_joint_overrides : list[:class:`~timber_design_rules.CategoryRule`], optional
         Overrides merged into :attr:`EXTERNAL_JOINT_RULES` to form
         :attr:`external_rules`.
-    composite_joint_overrides : list[:class:`~compas_timber_rules.CompositeRule`], optional
+    composite_joint_overrides : list[:class:`~timber_design_rules.CompositeRule`], optional
         Overrides merged into :attr:`COMPOSITE_RULES` to form
         :attr:`composite_rules`.
 
@@ -122,13 +122,13 @@ class PopulatorAgent(Data, ABC):
         The layers on which this agent's boundary trims peer elements.
     element_layers : list[:class:`~compas_timber.elements.Layer`]
         The layers this agent generates elements on.
-    elements : list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
+    elements : list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         Every element currently in the model that carries this agent's tag.
-    external_rules : list[:class:`~compas_timber_rules.CategoryRule`]
+    external_rules : list[:class:`~timber_design_rules.CategoryRule`]
         Active cross-agent joint rules.
-    composite_rules : list[:class:`~compas_timber_rules.CompositeRule`]
+    composite_rules : list[:class:`~timber_design_rules.CompositeRule`]
         Active rules for clusters of three or more elements.
-    internal_rules : list[:class:`~compas_timber_rules.CategoryRule`]
+    internal_rules : list[:class:`~timber_design_rules.CategoryRule`]
         Active within-agent joint rules.
     outline_by_layer : dict[:class:`~compas_timber.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
         This agent's boundary outline per layer.  Filled during
@@ -210,7 +210,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
+        list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         """
         return [e for e in layer.children if not isinstance(e, Layer) and e.attributes.get("agent") is self]
 
@@ -230,7 +230,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
             The generated elements per framing layer.
         """
         raise NotImplementedError
@@ -248,13 +248,11 @@ class PopulatorAgent(Data, ABC):
             raise ValueError("Unknown beam category for {}: {!r}".format(type(self).__name__, category))
         width = self.beam_widths[category]
         if width is None:
-            raise ValueError(
-                "{} has no width for beam category {!r}. Pass it explicitly or set the populator's standard_beam_width.".format(type(self).__name__, category)
-            )
+            raise ValueError("{} has no width for beam category {!r}. Pass it explicitly or set the populator's standard_beam_width.".format(type(self).__name__, category))
         return width
 
     def beam_from_category(self, centerline: Line, category: str, layer: "Layer", **kwargs) -> Beam2D:
-        """Create a :class:`~compas_timber_populator.connections_2d.Beam2D` from a centreline and category.
+        """Create a :class:`~timber_design_populator.connections_2d.Beam2D` from a centreline and category.
 
         The beam width comes from :attr:`beam_widths` (filled by the config /
         populator before generation).  The beam height is always taken from
@@ -268,14 +266,14 @@ class PopulatorAgent(Data, ABC):
             Beam category; must be present in :attr:`beam_widths`.
         layer : :class:`~compas_timber.elements.Layer`
             The layer the beam belongs to.  Its thickness is used as the beam
-            height.  :class:`~compas_timber_populator.LayerAgent` subclasses
+            height.  :class:`~timber_design_populator.LayerAgent` subclasses
             automatically pass their own layer when the argument is omitted.
         kwargs : dict, optional
             Extra key/value pairs stored as ``beam.attributes``.
 
         Returns
         -------
-        :class:`~compas_timber_populator.connections_2d.Beam2D`
+        :class:`~timber_design_populator.connections_2d.Beam2D`
         """
         width = self.beam_width(category)
         height = layer.thickness
@@ -333,12 +331,12 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        element: :class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`
+        element: :class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`
             the element to be split.
 
         Returns
         -------
-        list[:class:`~compas_timber_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
+        list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
             ``[element]`` when this agent's boundary leaves *element* intact.
             The populator swaps the original for the returned list only when
             they differ.
@@ -365,7 +363,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        list[:class:`~compas_timber_populator.connections_2d.Beam2D`]
+        list[:class:`~timber_design_populator.connections_2d.Beam2D`]
             ``[beam]`` (the untouched original) when the agent has no boundary
             on *layer* or the boundary does not cross the beam.
         """
@@ -401,7 +399,7 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        beam : :class:`~compas_timber_populator.connections_2d.Beam2D`
+        beam : :class:`~timber_design_populator.connections_2d.Beam2D`
             A beam (or beam segment) on one of this agent's trimming layers.
 
         Returns
@@ -410,7 +408,6 @@ class PopulatorAgent(Data, ABC):
         """
         layer = beam.parent
         return self.cull_element_at_point(beam.centerline.midpoint, layer)
-
 
     def cull_element_at_point(self, point, layer: Optional[Layer] = None) -> bool:
         """Return ``True`` if an element whose midpoint is at *point* falls in this agent's cull zone."""
@@ -501,7 +498,7 @@ class PopulatorAgent(Data, ABC):
 
         Only the agent's *own* constructor overrides pass through here.
         Panel-level rules given to
-        :class:`~compas_timber_populator.PanelPopulator` are never merged into
+        :class:`~timber_design_populator.PanelPopulator` are never merged into
         an agent — the populator keeps them and tries them itself once an
         agent's rules have failed on a cluster.
 
@@ -517,9 +514,9 @@ class PopulatorAgent(Data, ABC):
         may carry multiple rules as long as their topologies differ (e.g. a
         ``TButtJoint`` and an ``LButtJoint`` for ``(stud, top_plate_beam)``).
 
-        Only :class:`~compas_timber_rules.CategoryRule` instances participate
+        Only :class:`~timber_design_rules.CategoryRule` instances participate
         in the category-based replace logic — anything else (e.g. a
-        :class:`~compas_timber_rules.CompositeRule`) has no ``category_a``/
+        :class:`~timber_design_rules.CompositeRule`) has no ``category_a``/
         ``category_b`` to compare, so it is appended rather than matched.
 
         The class-level :attr:`INTERNAL_JOINT_RULES` / :attr:`EXTERNAL_JOINT_RULES`
@@ -527,9 +524,9 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        base_rules : list[:class:`~compas_timber_rules.CategoryRule`]
+        base_rules : list[:class:`~timber_design_rules.CategoryRule`]
             Either :attr:`INTERNAL_JOINT_RULES` or :attr:`EXTERNAL_JOINT_RULES`.
-        overrides : list[:class:`~compas_timber_rules.CategoryRule`] or None
+        overrides : list[:class:`~timber_design_rules.CategoryRule`] or None
             Per-agent overrides from ``internal_joint_overrides`` /
             ``external_joint_overrides``.
         """

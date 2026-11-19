@@ -21,13 +21,13 @@ from compas_timber.model import TimberModel
 from compas_timber.panel_features import Opening
 from compas_timber.panel_features import OpeningType
 
-from compas_timber_populator import EdgePopulatorAgent
-from compas_timber_populator import OpeningPopulatorAgent
-from compas_timber_populator import PanelPopulator
-from compas_timber_populator import PlatePopulatorAgent
-from compas_timber_populator import StudPopulatorAgent
-from compas_timber_populator import stud_panel
-from compas_timber_rules import CategoryRule
+from timber_design_populator import EdgePopulatorAgent
+from timber_design_populator import OpeningPopulatorAgent
+from timber_design_populator import PanelPopulator
+from timber_design_populator import PlatePopulatorAgent
+from timber_design_populator import StudPopulatorAgent
+from timber_design_populator import stud_panel
+from timber_design_rules import CategoryRule
 
 
 def rectangle(x0, y0, x1, y1):

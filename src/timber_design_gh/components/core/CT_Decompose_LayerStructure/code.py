@@ -4,7 +4,7 @@
 # flake8: noqa
 import Grasshopper
 
-from compas_timber_gh import manage_cpython_dynamic_output_params
+from timber_design_gh import manage_cpython_dynamic_output_params
 
 
 def _collect(layer_def, parent_name=None):

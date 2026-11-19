@@ -5,10 +5,10 @@ from compas_timber.elements import Layer
 from compas_timber.elements import Panel
 from compas_timber.errors import BeamJoiningError
 
-from compas_timber_populator.connections_2d import Beam2D
-from compas_timber_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
-from compas_timber_rules import DebugInfomation
-from compas_timber_rules import JointRuleSolver
+from timber_design_populator.connections_2d import Beam2D
+from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design_rules import DebugInfomation
+from timber_design_rules import JointRuleSolver
 
 
 class PanelPopulator:
@@ -16,7 +16,7 @@ class PanelPopulator:
 
     ``PanelPopulator`` is the top-level coordinator for the panel-population
     workflow and the **sole writer** to its internal model.  It holds a list of
-    :class:`~compas_timber_populator.PopulatorAgent` instances — each a pure
+    :class:`~timber_design_populator.PopulatorAgent` instances — each a pure
     per-domain compute unit responsible for one logical group of elements
     (edge beams, studs, plates, openings, …) — and drives them through a fixed
     sequence of stages.  Agents never touch the model or each other; each
@@ -51,26 +51,26 @@ class PanelPopulator:
     All geometry during stages 1–5 lives in a flat 2D *populator space*: the
     panel is re-expressed as a local axis-aligned rectangle (X = panel length,
     Y = panel width, Z = panel thickness).  This simplifies topology detection
-    and trimming, which are performed in 2D by :class:`~compas_timber_populator.connections_2d.ConnectionSolver2D`.
+    and trimming, which are performed in 2D by :class:`~timber_design_populator.connections_2d.ConnectionSolver2D`.
 
     Parameters
     ----------
     panel : :class:`compas_timber.elements.Panel`
         The source panel in the caller's model space (or its guid).
-    agents : list[:class:`~compas_timber_populator.PopulatorAgent`]
+    agents : list[:class:`~timber_design_populator.PopulatorAgent`]
         Ordered list of agents.  Ordering sets joint precedence: when
         several agents own elements in a cluster, the earlier agent's rules
         are tried first.  Each agent is cloned (see
-        :meth:`~compas_timber_populator.PopulatorAgent.clone`), so the
+        :meth:`~timber_design_populator.PopulatorAgent.clone`), so the
         same agent instances can be passed to several populators; use
         :attr:`agents` to inspect the populated ones.
-    default_feature_agents : dict[type, :class:`~compas_timber_populator.FeatureAgent`], optional
+    default_feature_agents : dict[type, :class:`~timber_design_populator.FeatureAgent`], optional
         Prototype feature agent per feature class, instantiated for any panel
         feature no existing agent already handles.
     standard_beam_width : float, optional
         Panel-wide default beam width, used to fill any per-category width an
         agent constructor did not set.
-    joint_rule_overrides : list[:class:`~compas_timber_rules.CategoryRule` | :class:`~compas_timber_rules.CompositeRule`], optional
+    joint_rule_overrides : list[:class:`~timber_design_rules.CategoryRule` | :class:`~timber_design_rules.CompositeRule`], optional
         Panel-level joint rules kept on the populator itself — they are never
         merged into any agent's rule lists.  :meth:`_join_cluster` tries them
         on a cluster only after every owning agent's own rules have failed,
@@ -78,15 +78,15 @@ class PanelPopulator:
     max_distance : float, optional
         Maximum gap distance considered when finding and creating joints in
         :meth:`join_elements` — both the geometric candidate search
-        (:class:`~compas_timber_populator.connections_2d.connection_solver_2d.ConnectionSolver2D`
-        / :class:`~compas_timber_populator.connections_2d.connection_solver_2d.Cluster2DFinder`)
+        (:class:`~timber_design_populator.connections_2d.connection_solver_2d.ConnectionSolver2D`
+        / :class:`~timber_design_populator.connections_2d.connection_solver_2d.Cluster2DFinder`)
         and joint creation itself (:meth:`_join_cluster`, which falls back to
         this value for any rule that doesn't specify its own ``max_distance``).
         ``None`` (the default) resolves to ``0.1``.
 
     Attributes
     ----------
-    agents : list[:class:`~compas_timber_populator.PopulatorAgent`]
+    agents : list[:class:`~timber_design_populator.PopulatorAgent`]
         Ordered list of agents.  Each tags every element it generates with
         itself, which is how ownership is tracked from then on.
     panel : :class:`compas_timber.elements.Panel`
@@ -94,10 +94,10 @@ class PanelPopulator:
     model : :class:`compas_timber.model.TimberModel`
         Internal model that accumulates elements and joints during population.
         Owned exclusively by the populator — agents never write to it.
-    debug_info : :class:`~compas_timber_rules.DebugInfomation`
+    debug_info : :class:`~timber_design_rules.DebugInfomation`
         Collects joining errors from :meth:`join_elements` and
         :meth:`process_joinery` instead of silently dropping them.
-    joint_rule_overrides : list[:class:`~compas_timber_rules.CategoryRule` | :class:`~compas_timber_rules.CompositeRule`]
+    joint_rule_overrides : list[:class:`~timber_design_rules.CategoryRule` | :class:`~timber_design_rules.CompositeRule`]
         Panel-level joint rules, tried by :meth:`_join_cluster` after the
         owning agents' own rules (first on the whole cluster, then per
         pairwise candidate).
@@ -109,7 +109,7 @@ class PanelPopulator:
     --------
     Typical usage::
 
-        from compas_timber_populator import stud_panel
+        from timber_design_populator import stud_panel
 
         populator = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         populator.populate_elements()
@@ -180,7 +180,7 @@ class PanelPopulator:
 
         Parameters
         ----------
-        default_feature_agents : dict[type, :class:`~compas_timber_populator.FeatureAgent`]
+        default_feature_agents : dict[type, :class:`~timber_design_populator.FeatureAgent`]
             Prototype feature agent per feature class.
         """
         for feature in self.panel.features:
@@ -248,8 +248,7 @@ class PanelPopulator:
                     self.model.add_element(element, parent=layer)
 
     def _define_outlines(self):
-        """Ask each agent to record its boundary outline for every layer it trims.
-        """
+        """Ask each agent to record its boundary outline for every layer it trims."""
         for agent in self.agents:
             agent.define_outlines([sub for layer in agent.trimming_layers for sub in _layer_and_sublayers(layer)])
 
@@ -382,7 +381,7 @@ class PanelPopulator:
 
 
 def _get_ancestor_beams_for_layer(layer):
-    """Every :class:`~compas_timber_populator.connections_2d.Beam2D` on *layer* or any of its ancestor layers."""
+    """Every :class:`~timber_design_populator.connections_2d.Beam2D` on *layer* or any of its ancestor layers."""
     beams = []
 
     def walk_up(current_layer):

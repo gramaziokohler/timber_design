@@ -11,8 +11,8 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from compas_timber_populator.populator_agents.layer_agent import LayerAgent
-from compas_timber_populator.populator_agents.populator_agent import AgentBoundaryType
+from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
 
 if TYPE_CHECKING:
     from compas.geometry import Polyline  # noqa: F401
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class PanelBoundaryPopulatorAgent(LayerAgent):
     """Contributes the panel outline as a boundary, without generating any elements.
 
-    Unlike :class:`~compas_timber_populator.EdgePopulatorAgent`, this agent
+    Unlike :class:`~timber_design_populator.EdgePopulatorAgent`, this agent
     creates no beams — it exists purely to publish the panel's own outline as
     an :attr:`~AgentBoundaryType.INCLUSIVE` boundary, so that peer agents'
     elements falling outside the panel are split and culled at its edge.

@@ -7,9 +7,9 @@ import compas_timber.connections as _ct_connections
 from compas_timber.connections import PanelJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import PanelTButtJoint
-from compas_timber_rules import TopologyRule
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
+from timber_design_rules import TopologyRule
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
 
 
 def _get_panel_joint_classes(topology):

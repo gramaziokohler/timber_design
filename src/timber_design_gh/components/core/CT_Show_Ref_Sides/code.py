@@ -5,7 +5,7 @@ import rhinoscriptsyntax as rs
 
 
 from compas_rhino.conversions import frame_to_rhino
-from compas_timber_gh import list_input_valid_cpython
+from timber_design_gh import list_input_valid_cpython
 
 
 class ShowElementFaces(Grasshopper.Kernel.GH_ScriptInstance):

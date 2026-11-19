@@ -70,8 +70,8 @@ class Beam2D(Beam):
     """A :class:`~compas_timber.elements.Beam` extended with 2D blank geometry.
 
     Adds lazy properties for the beam's projected blank edges and polygon,
-    used by :class:`~compas_timber_populator.connections_2d.Beam2DPolylineIntersectionResult` and
-    :meth:`~compas_timber_populator.Model2D.connect_adjacent_beams` for intersection
+    used by :class:`~timber_design_populator.connections_2d.Beam2DPolylineIntersectionResult` and
+    :meth:`~timber_design_populator.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
     All geometry is expressed in the beam's own local XY plane (the panel

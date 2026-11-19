@@ -10,7 +10,7 @@ from compas_rhino.conversions import line_to_compas
 from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Beam as CTBeam
-from compas_timber_gh import list_input_valid_cpython
+from timber_design_gh import list_input_valid_cpython
 
 
 class Beam_fromCurve(Grasshopper.Kernel.GH_ScriptInstance):

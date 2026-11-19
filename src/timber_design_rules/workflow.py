@@ -712,14 +712,14 @@ class CompositeRule(JointRule):
 
     Parameters
     ----------
-    rules : list[:class:`~compas_timber_rules.JointRule`]
+    rules : list[:class:`~timber_design_rules.JointRule`]
         The sub-rules applied to pairwise candidates within the cluster.
     max_distance : float, optional
         The maximum distance to consider two elements as intersecting.
 
     Attributes
     ----------
-    rules : list[:class:`~compas_timber_rules.JointRule`]
+    rules : list[:class:`~timber_design_rules.JointRule`]
         The sub-rules applied to pairwise candidates.
     """
 

@@ -11,8 +11,8 @@ from compas.geometry import angle_vectors
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_plane_plane
 from compas.tolerance import TOL
-from compas_timber.connections import LButtJoint
 from compas_timber.connections import CutPlaneSpec
+from compas_timber.connections import LButtJoint
 from compas_timber.connections import LMiterJoint
 from compas_timber.connections import beam_ref_side_incidence
 from compas_timber.fabrication import JackRafterCutProxy
@@ -22,18 +22,18 @@ from compas_timber.utils import get_interior_corner_indices
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_populator.populator_agents.populator_agent import AgentBoundaryType
-from compas_timber_populator.populator_agents.layer_agent import LayerAgent
-from compas_timber_rules import CategoryRule
-from compas_timber_rules import DirectRule
-from compas_timber_rules import CompositeRule
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
+from timber_design_rules import CategoryRule
+from timber_design_rules import CompositeRule
+from timber_design_rules import DirectRule
 
 
 class EdgePopulatorAgent(LayerAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
-    Creates one :class:`~compas_timber_populator.connections_2d.Beam2D` per segment of the
+    Creates one :class:`~timber_design_populator.connections_2d.Beam2D` per segment of the
     panel outline (``layer.outline_a``).  Each beam's width comes from
     :attr:`~PopulatorAgent.beam_widths` — resolved from explicit per-category
     constructor kwargs (``edge_stud_width``, ``top_plate_beam_width``,
@@ -54,7 +54,7 @@ class EdgePopulatorAgent(LayerAgent):
     edge-beam inner faces.  Its :attr:`~PopulatorAgent.BOUNDARY_TYPE` is
     :attr:`~AgentBoundaryType.INCLUSIVE`, meaning that elements from other
     agents that fall outside this outline are discarded during
-    :meth:`~compas_timber_populator.PanelPopulator._cull_elements`.
+    :meth:`~timber_design_populator.PanelPopulator._cull_elements`.
 
     Parameters
     ----------
@@ -63,7 +63,7 @@ class EdgePopulatorAgent(LayerAgent):
     edge_stud_width, top_plate_beam_width, bottom_plate_beam_width : float, optional
         Explicit per-category beam widths.  Any left unset are filled with the
         panel-wide ``standard_beam_width`` by
-        :class:`~compas_timber_populator.PanelPopulator`.
+        :class:`~timber_design_populator.PanelPopulator`.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     standard_beam_width_increment : float, optional
@@ -159,8 +159,7 @@ class EdgePopulatorAgent(LayerAgent):
         return elements, outline
 
     def _get_segment_category(self, segment_index: int) -> str:
-        """Return the beam category for the outline segment at *segment_index*.
-        """
+        """Return the beam category for the outline segment at *segment_index*."""
         seg = self.layer.outline_a.lines[segment_index]
         direction = Vector.from_start_end(seg.start, seg.end)
         if abs(direction[0]) < abs(direction[1]):

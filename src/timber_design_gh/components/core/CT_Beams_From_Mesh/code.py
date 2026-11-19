@@ -11,7 +11,7 @@ from Grasshopper import DataTree
 from Grasshopper.Kernel.Data import GH_Path
 
 from compas_timber.elements import Beam
-from compas_timber_gh import item_input_valid_cpython
+from timber_design_gh import item_input_valid_cpython
 
 
 class BeamTreeFromMesh(Grasshopper.Kernel.GH_ScriptInstance):

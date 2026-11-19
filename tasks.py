@@ -15,7 +15,7 @@ from invoke.collection import Collection
 
 HERE = os.path.dirname(__file__)
 SRC = os.path.join(HERE, "src")
-GH_PACKAGE = os.path.join(SRC, "compas_timber_gh")
+GH_PACKAGE = os.path.join(SRC, "timber_design_gh")
 
 # All packages ship in the single `timber_design` distribution; components require it via `# r:`.
 DIST_NAME = "timber_design"
@@ -40,7 +40,7 @@ GH_HEADER_SKIP = {"CT_Install"}
 
 def _version():
     """Version of the `timber_design` distribution (bump-my-version keeps all package __init__ files in sync)."""
-    init = os.path.join(SRC, "compas_timber_rules", "__init__.py")
+    init = os.path.join(SRC, "timber_design_rules", "__init__.py")
     with open(init, "r", encoding="utf-8") as f:
         return re.search(r'__version__\s*=\s*"([^"]+)"', f.read()).group(1)
 

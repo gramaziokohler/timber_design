@@ -18,12 +18,12 @@ from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
 
-from compas_timber_populator import stud_panel
+from timber_design_populator import stud_panel
 
 try:
     from compas_timber.panel_features.opening import Opening
     from compas_timber.panel_features.opening import OpeningType
-    from compas_timber_populator import OpeningPopulatorAgent
+    from timber_design_populator import OpeningPopulatorAgent
 
     HAS_OPENING = True
 except ImportError:

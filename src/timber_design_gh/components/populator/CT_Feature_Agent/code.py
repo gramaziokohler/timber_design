@@ -4,9 +4,9 @@ import inspect
 import Grasshopper
 import System
 
-from compas_timber_populator import FeatureAgent
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
+from timber_design_populator import FeatureAgent
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
 
 # Number of permanent (non-dynamic) input parameters that always appear first.
 _PERMANENT_PARAM_NAMES = ["feature", "element_layers", "trimming_layers", "external_joint_overrides", "internal_joint_overrides"]

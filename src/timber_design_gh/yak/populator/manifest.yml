@@ -1,4 +1,4 @@
-name: compas_timber_populator
+name: timber_design_populator
 version: {{ version }}
 authors:
   - Gramazio Kohler Research, ETH Zurich

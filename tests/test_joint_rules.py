@@ -5,8 +5,8 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.geometry import Frame
 
-from compas_timber_rules import JointRuleSolver
-from compas_timber_rules import get_clusters_from_model
+from timber_design_rules import JointRuleSolver
+from timber_design_rules import get_clusters_from_model
 from compas_timber.connections import JointTopology
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import LLapJoint
@@ -22,9 +22,9 @@ from compas_timber.connections import PlateJointCandidate
 from compas_timber.connections import Cluster
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
-from compas_timber_rules import DirectRule
-from compas_timber_rules import CategoryRule
-from compas_timber_rules import TopologyRule
+from timber_design_rules import DirectRule
+from timber_design_rules import CategoryRule
+from timber_design_rules import TopologyRule
 from compas_timber.model import TimberModel
 
 

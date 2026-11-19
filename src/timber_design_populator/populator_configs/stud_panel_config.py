@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from compas_timber.panel_features import Opening
 
-from compas_timber_populator.populator import PanelPopulator
-from compas_timber_populator.populator_agents.edge_populator_agent import EdgePopulatorAgent
-from compas_timber_populator.populator_agents.opening_populator_agent import OpeningPopulatorAgent
-from compas_timber_populator.populator_agents.plate_populator_agent import PlatePopulatorAgent
-from compas_timber_populator.populator_agents.stud_populator_agent import StudPopulatorAgent
+from timber_design_populator.populator import PanelPopulator
+from timber_design_populator.populator_agents.edge_populator_agent import EdgePopulatorAgent
+from timber_design_populator.populator_agents.opening_populator_agent import OpeningPopulatorAgent
+from timber_design_populator.populator_agents.plate_populator_agent import PlatePopulatorAgent
+from timber_design_populator.populator_agents.stud_populator_agent import StudPopulatorAgent
 
 
 def stud_panel(
@@ -31,7 +31,7 @@ def stud_panel(
     Uses the panel's layers named ``"exterior"``, ``"core"`` and ``"interior"``
     (see :class:`~compas_timber.elements.LayerStructure`): the exterior and
     interior layers, when present, each receive a
-    :class:`~compas_timber_populator.PlatePopulatorAgent` and the core layer
+    :class:`~timber_design_populator.PlatePopulatorAgent` and the core layer
     receives the framing agents.  A panel without a ``layer_structure`` has a
     single full-thickness ``"core"`` layer, so only framing is generated.
 

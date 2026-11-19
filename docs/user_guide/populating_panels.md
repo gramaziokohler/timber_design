@@ -1,7 +1,7 @@
 # Populating Panels
 
 This guide walks through framing a :class:`~compas_timber.elements.Panel` with
-beams and plates using `compas_timber_populator`.  A runnable version of every
+beams and plates using `timber_design_populator`.  A runnable version of every
 scenario below lives in `examples/panel_population.py`.
 
 All lengths are in the model's native units (mm in the examples).
@@ -32,7 +32,7 @@ All lengths are in the model's native units (mm in the examples).
 from compas.geometry import Point, Polyline
 from compas_timber.elements import Panel
 from compas_timber.model import TimberModel
-from compas_timber_populator import stud_panel
+from timber_design_populator import stud_panel
 
 outline = Polyline([Point(0, 0, 0), Point(4000, 0, 0), Point(4000, 2700, 0), Point(0, 2700, 0), Point(0, 0, 0)])
 panel = Panel.from_outline_thickness(outline, 160)
@@ -107,7 +107,7 @@ To customise the framing, pass your own prototype under
 you:
 
 ```python
-from compas_timber_populator import OpeningPopulatorAgent
+from timber_design_populator import OpeningPopulatorAgent
 
 populator = stud_panel(
     panel,
@@ -175,8 +175,8 @@ other override is added.
 
 ```python
 from compas_timber.connections import TButtJoint
-from compas_timber_populator import StudPopulatorAgent
-from compas_timber_rules import CategoryRule
+from timber_design_populator import StudPopulatorAgent
+from timber_design_rules import CategoryRule
 
 studs = StudPopulatorAgent(
     panel.core_layer,
@@ -200,7 +200,7 @@ them to `PanelPopulator`.  Agents refer to layers by path, so they can be given
 the live `Layer` or its `layer_path`.  Sublayers are layers like any other:
 
 ```python
-from compas_timber_populator import EdgePopulatorAgent, PanelPopulator, PlatePopulatorAgent
+from timber_design_populator import EdgePopulatorAgent, PanelPopulator, PlatePopulatorAgent
 
 panel.layer_structure = LayerStructure(
     layer_defs=[

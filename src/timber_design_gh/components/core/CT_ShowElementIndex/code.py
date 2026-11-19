@@ -3,7 +3,7 @@ import Grasshopper
 import System
 
 from compas_rhino.conversions import point_to_rhino
-from compas_timber_gh import list_input_valid_cpython
+from timber_design_gh import list_input_valid_cpython
 
 
 class ShowElementIndex(Grasshopper.Kernel.GH_ScriptInstance):

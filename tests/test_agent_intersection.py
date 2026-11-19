@@ -16,9 +16,9 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_populator.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
-from compas_timber_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator.connections_2d.connection_solver_2d import Beam2DPolylineIntersectionResult
+from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
 
 
 # =============================================================================
@@ -301,7 +301,7 @@ class TestBeam2DHelpers:
         assert beam.blank_outline.points[0].x > 0.5
 
     def test_aabb_covers_blank(self):
-        from compas_timber_populator.connections_2d.beam2d import AABB2D
+        from timber_design_populator.connections_2d.beam2d import AABB2D
 
         beam = make_beam(0, 0, 4, 0, width=1.0)
         aabb = beam.aabb

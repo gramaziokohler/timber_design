@@ -3,7 +3,7 @@ import Grasshopper
 from compas.scene import Scene
 from System.Windows.Forms import ToolStripSeparator
 
-from compas_timber_gh import rename_gh_output
+from timber_design_gh import rename_gh_output
 
 
 class ShowElementsByCategory(Grasshopper.Kernel.GH_ScriptInstance):

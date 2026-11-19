@@ -7,12 +7,12 @@ from System.Windows.Forms import ToolStripSeparator
 
 import compas_timber.connections as _ct_connections
 from compas_timber.connections import PanelJoint
-from compas_timber_rules import CategoryRule
-from compas_timber_gh import item_input_valid_cpython
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
-from compas_timber_gh import warning
-from compas_timber_gh import message
+from timber_design_rules import CategoryRule
+from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
+from timber_design_gh import warning
+from timber_design_gh import message
 
 
 class CategoryPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):

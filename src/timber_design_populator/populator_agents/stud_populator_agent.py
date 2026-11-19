@@ -6,8 +6,8 @@ from typing import Optional
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
-from compas_timber_populator.populator_agents.layer_agent import LayerAgent
-from compas_timber_rules import CategoryRule
+from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_rules import CategoryRule
 
 if TYPE_CHECKING:
     from compas_timber.elements import Layer  # noqa: F401
@@ -21,9 +21,9 @@ class StudPopulatorAgent(LayerAgent):
     the right edge.  Each stud runs the full panel height (Y axis) at the
     Z-centre of the layer.
 
-    Stud segments that fall inside an :class:`~compas_timber_populator.OpeningPopulatorAgent`
+    Stud segments that fall inside an :class:`~timber_design_populator.OpeningPopulatorAgent`
     boundary are removed during
-    :meth:`~compas_timber_populator.PanelPopulator._cull_elements`; studs
+    :meth:`~timber_design_populator.PanelPopulator._cull_elements`; studs
     overlapping a king or jack stud are culled by
     :meth:`~OpeningPopulatorAgent._cull_stud`.
 
@@ -34,7 +34,7 @@ class StudPopulatorAgent(LayerAgent):
     stud_width : float, optional
         Explicit stud width.  When unset it is filled with the panel-wide
         ``standard_beam_width`` by
-        :class:`~compas_timber_populator.PanelPopulator`.
+        :class:`~timber_design_populator.PanelPopulator`.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     stud_spacing : float, optional
@@ -84,7 +84,7 @@ class StudPopulatorAgent(LayerAgent):
 
         Returns
         -------
-        tuple[list[:class:`~compas_timber_populator.connections_2d.Beam2D`], None]
+        tuple[list[:class:`~timber_design_populator.connections_2d.Beam2D`], None]
             The studs and this agent's boundary outline — always ``None``,
             studs define no boundary.
         """

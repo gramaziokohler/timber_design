@@ -10,8 +10,8 @@ from compas_rhino.conversions import polyline_to_compas
 from compas_rhino.conversions import vector_to_compas
 
 from compas_timber.elements import Plate as CTPlate
-from compas_timber_gh import item_input_valid_cpython
-from compas_timber_gh import get_guid_and_geometry
+from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import get_guid_and_geometry
 
 
 class Plate(Grasshopper.Kernel.GH_ScriptInstance):

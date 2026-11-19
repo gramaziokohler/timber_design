@@ -15,10 +15,10 @@ from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
 from compas_timber.model import TimberModel
 
-from compas_timber_gh import error
-from compas_timber_gh import warning
-from compas_timber_rules import DebugInfomation
-from compas_timber_rules import JointRuleSolver
+from timber_design_gh import error
+from timber_design_gh import warning
+from timber_design_rules import DebugInfomation
+from timber_design_rules import JointRuleSolver
 
 # workaround for https://github.com/gramaziokohler/compas_timber/issues/280
 TOL.absolute = 1e-6

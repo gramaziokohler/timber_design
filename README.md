@@ -6,9 +6,9 @@ The `timber_design` distribution contains three top-level packages:
 
 | Package | Contents |
 |---|---|
-| [`compas_timber_rules`](src/compas_timber_rules) | Joint-rule workflow (`DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`, `JointRuleSolver`) |
-| [`compas_timber_populator`](src/compas_timber_populator) | `PanelPopulator`, populator agents, 2D connection solver (depends on `compas_timber_rules`) |
-| [`compas_timber_gh`](src/compas_timber_gh) | Grasshopper helpers and the sources of the **core** and **populator** Yak packages |
+| [`timber_design_rules`](src/timber_design_rules) | Joint-rule workflow (`DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`, `JointRuleSolver`) |
+| [`timber_design_populator`](src/timber_design_populator) | `PanelPopulator`, populator agents, 2D connection solver (depends on `timber_design_rules`) |
+| [`timber_design_gh`](src/timber_design_gh) | Grasshopper helpers and the sources of the **core** and **populator** Yak packages |
 
 ## Installation
 
@@ -19,7 +19,7 @@ pip install timber_design
 ```
 
 In Rhino 8, install the `compas_timber` package (core components) from the Package Manager, and additionally
-`compas_timber_populator` for the panel populator components. The populator package requires the core package.
+`timber_design_populator` for the panel populator components. The populator package requires the core package.
 
 To install the latest version for development, do:
 

@@ -7,8 +7,8 @@ from compas.scene import Scene
 from compas_rhino.conversions import brep_to_compas
 
 from compas_timber.elements import Panel as CTPanel
-from compas_timber_gh import item_input_valid_cpython
-from compas_timber_gh import get_guid_and_geometry
+from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import get_guid_and_geometry
 
 
 class PanelFromBrep(Grasshopper.Kernel.GH_ScriptInstance):

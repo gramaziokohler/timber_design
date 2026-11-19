@@ -7,10 +7,10 @@ from compas_timber.connections import PlateJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import TButtJoint
 from compas_timber.fabrication.btlx import StepShapeType
-from compas_timber_rules import TopologyRule
-from compas_timber_gh import get_createable_joints
-from compas_timber_gh import manage_cpython_dynamic_params
-from compas_timber_gh import rename_cpython_gh_output
+from timber_design_rules import TopologyRule
+from timber_design_gh import get_createable_joints
+from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import rename_cpython_gh_output
 
 
 class T_TopologyJointRule(Grasshopper.Kernel.GH_ScriptInstance):

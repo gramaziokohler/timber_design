@@ -21,16 +21,16 @@ from compas_timber.elements import LayerStructure
 from compas_timber.elements import Panel
 from compas_timber.elements import Plate
 
-from compas_timber_populator import EdgePopulatorAgent
-from compas_timber_populator import PanelPopulator
-from compas_timber_populator import PlatePopulatorAgent
-from compas_timber_populator import StudPopulatorAgent
-from compas_timber_populator.connections_2d.beam2d import Beam2D
-from compas_timber_populator import stud_panel
-from compas_timber_rules import CategoryRule
+from timber_design_populator import EdgePopulatorAgent
+from timber_design_populator import PanelPopulator
+from timber_design_populator import PlatePopulatorAgent
+from timber_design_populator import StudPopulatorAgent
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator import stud_panel
+from timber_design_rules import CategoryRule
 
 try:
-    from compas_timber_populator import OpeningPopulatorAgent
+    from timber_design_populator import OpeningPopulatorAgent
 
     _HAS_OPENING = True
 except ImportError:  # Opening not in the installed compas_timber
@@ -72,7 +72,7 @@ def make_panel(width=4000.0, height=2700.0, thickness=160.0, sheeting_inside=0.0
 
 def make_agent(agent_cls, layer, standard_beam_width=60.0, **kwargs):
     """Construct an agent bound to *layer*, filling beam widths as
-    :meth:`~compas_timber_populator.PanelPopulator.resolve_beam_widths` would."""
+    :meth:`~timber_design_populator.PanelPopulator.resolve_beam_widths` would."""
     agent = agent_cls(layer, **kwargs)
     for category in agent.BEAM_CATEGORY_NAMES:
         if agent.beam_widths.get(category) is None:
@@ -121,7 +121,7 @@ class TestEdgePopulatorAgent:
         assert agent.outline_for_layer(agent.layer) is not None
 
     def test_aabb_covers_all_elements(self, elements):
-        from compas_timber_populator.connections_2d.beam2d import AABB2D
+        from timber_design_populator.connections_2d.beam2d import AABB2D
 
         aabb = AABB2D.from_points([p for e in elements for p in e.aabb.points])
         for e in elements:

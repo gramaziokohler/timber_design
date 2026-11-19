@@ -4,8 +4,8 @@
 import compas
 import compas_timber
 
-import compas_timber_rules
+import timber_design_rules
 
 print(f"compas: {compas.__version__}")
 print(f"compas_timber: {compas_timber.__version__}")
-print(f"timber_design: {compas_timber_rules.__version__}")
+print(f"timber_design: {timber_design_rules.__version__}")

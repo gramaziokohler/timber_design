@@ -1,0 +1,92 @@
+{
+    "name": "Stud Panel",
+    "nickname": "StudPanel",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a stud-framed PanelPopulator. If the panel has layers (from CT_Panel_Layer_Definition), they are used directly for sheeting and framing. Without layers, a single full-thickness framing layer is created and no sheeting plates are generated.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel element. If it already owns layers (from CT_Panel_Layer_Definition), those layers drive sheeting and framing.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Default width for every framing beam category not given an explicit width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stud_spacing",
+                "description": "On-centre stud spacing. None -> 8 x stud_width. 0 -> no studs.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stud_width",
+                "description": "Explicit stud beam width. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_stud_width",
+                "description": "Width of vertical edge studs. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "top_plate_beam_width",
+                "description": "Width of top plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom_plate_beam_width",
+                "description": "Width of bottom plate beams. Falls back to standard_beam_width when omitted.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width_increment",
+                "description": "Rounding increment for edge-beam widths.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of panel-level joint rules (CategoryRule / CompositeRule). Tried on a cluster only after the owning agents' own rules fail, as a panel-wide fallback.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "List of FeatureAgent prototypes (one per feature type). Pass an OpeningPopulatorAgent here to customise opening framing.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "instance_feature_configs",
+                "description": "List of per-feature-instance FeatureAgent overrides, already bound to specific panel features.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum gap distance applied to all joint finding and creation. None -> PanelPopulator's default.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "populator",
+                "description": "PanelPopulator for a stud-framed panel. Connect to CT_Populate_Model."
+            }
+        ]
+    }
+}

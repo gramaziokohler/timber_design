@@ -10,6 +10,13 @@ on:
         options:
           - test
           - prod
+      package:
+        description: "Which Yak package to publish"
+        required: true
+        type: choice
+        options:
+          - core
+          - populator
       version:
         description: "Version to publish (e.g. 1.2.3). Leave empty to use the version from the manifest."
         required: false
@@ -42,17 +49,14 @@ jobs:
 
     - name: Create CPython Grasshopper user objects
       run: |
-        invoke build-cpython-ghuser-components
+        invoke build-gh-components --target ${{ github.event.inputs.package }}
 
     - name: Create Rhino8 Yak package
       shell: pwsh
       run: |
         $version_flag = if ("${{ github.event.inputs.version }}") { "--version ${{ github.event.inputs.version }}" } else { "" }
-        $command = "invoke yakerize -m $Env:YAK_TEMPLATE\manifest.yml -l $Env:YAK_TEMPLATE\icon.png -g $Env:USER_OBJECTS -t rh8 $version_flag".Trim()
+        $command = "invoke yakerize-gh --target ${{ github.event.inputs.package }} --target-rhino rh8 $version_flag".Trim()
         Invoke-Expression $command
-      env:
-        USER_OBJECTS: src\timber_design\ghpython\components\ghuser
-        YAK_TEMPLATE: src\timber_design\ghpython\yak_template
 
     - name: Publish to Yak server (Rhino 8)
       shell: pwsh

@@ -36,7 +36,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "compas_timber>=2.1.1"
+    "compas_timber>=3.0.0"
 ]
 
 [project.optional-dependencies]
@@ -78,7 +78,7 @@ include-package-data = true
 zip-safe = false
 
 [tool.setuptools.dynamic]
-version = { attr = "timber_design.__version__" }
+version = { attr = "timber_design_rules.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -89,7 +89,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = ["tests", "src/timber_design"]
+testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
     "-ra",
@@ -116,7 +116,17 @@ commit = true
 tag = true
 
 [[tool.bumpversion.files]]
-filename = "src/timber_design/__init__.py"
+filename = "src/timber_design_rules/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "src/timber_design_populator/__init__.py"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "src/timber_design_gh/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
@@ -144,11 +154,11 @@ select = ["E", "F", "I"]
 "__init__.py" = ["I001"]
 "tests/*" = ["I001"]
 "tasks.py" = ["I001"]
-"src/timber_design/ghpython/components/*/code.py" = ["F821"]
+"src/timber_design_gh/components/*/*/code.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
-known-first-party = ["timber_design"]
+known-first-party = ["timber_design_rules", "timber_design_populator", "timber_design_gh"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

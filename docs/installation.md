@@ -9,16 +9,16 @@
 ```bash
 uv venv <myenvname> --python 3.13
 source <myenvname>/bin/activate
-uv pip install compas_timber
+uv pip install timber_design
 ```
 
 ## Developer
 
-If you wish to contribute to or modify COMPAS Timber, [fork the repository](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) and clone the fork
+If you wish to contribute to or modify timber_design, [fork the repository](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) and clone the fork
 
 ```bash
-git clone https://github.com/<yourgithub_username>/compas_timber.git
-cd compas_timber
+git clone https://github.com/<yourgithub_username>/timber_design.git
+cd timber_design
 ```
 
 Create a new environment if necessary
@@ -28,14 +28,14 @@ uv venv <myenvname> --python 3.13
 source <myenvname>/bin/activate
 ```
 
-Install the package in editable mode with its development dependencies
+Install the package (`timber_design_rules`, `timber_design_populator` and `timber_design_gh`) in editable mode with its development dependencies
 
 ```bash
 uv pip install -e ".[dev]"
 ```
 
-To compile the Rhino8 Grasshopper components
+To compile the Rhino8 Grasshopper components (core and populator add-on)
 
 ```bash
-invoke build-cpython-ghuser-components
+invoke build-gh-components            # or --target core / --target populator
 ```

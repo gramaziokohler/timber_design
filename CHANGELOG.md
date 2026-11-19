@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Migrated the Grasshopper plugin documentation from `compas_timber` (per [compas_timber#825](https://github.com/gramaziokohler/compas_timber/issues/825)): tutorial pages, images, and a new "Grasshopper Plugin" section in the docs navigation. API cross-references now point to the compas_timber documentation site.
 * `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
 * `pairwise_fallback` parameter on `joints_from_rules_and_clusters`, so a caller driving its own pairwise pass can stop the solver recursing into pairwise sub-clusters. Defaults to `True`, preserving existing behaviour.
+* Added a generic panel-populator subsystem (`timber_design_populator`) that frames any `Panel` cross-section with beams and plates. `PanelPopulator` drives an ordered list of agents through generate / extend / split / cull / join stages: `LayerAgent`s act on one layer (`EdgePopulatorAgent`, `StudPopulatorAgent`, `PlatePopulatorAgent`, `PanelBoundaryPopulatorAgent`) and `FeatureAgent`s on a panel feature (`OpeningPopulatorAgent`, dispatching to `WindowPopulatorAgent` / `DoorPopulatorAgent` by opening type).
+* Added `stud_panel()` factory (`timber_design_populator.stud_panel`) that builds a `PanelPopulator` for a stud-framed wall from the panel's `exterior` / `core` / `interior` layers.
+* Added per-agent joint rules (`internal_joint_overrides`, `external_joint_overrides`, `composite_joint_overrides`; an override replaces the default with the same topology and categories, otherwise it is added) and panel-level fallback rules (`joint_rule_overrides`) on `PanelPopulator` / `stud_panel()`.
+* Added `max_distance` to `PanelPopulator` / `stud_panel()`, bounding the gap for all joint candidate finding and creation in `join_elements()`.
+* Added `PopulatorAgent.clone()` and `PopulatorAgent.beam_width()`. A missing beam width now raises a `ValueError` naming the agent and category.
+* Added `Beam2D.to_beam()` (in-place conversion to a plain `Beam`) and `AABB2D.aabb`.
+* Added GH components for the panel-populator workflow: `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: Layer Agent`, `CT: Feature Agent`, `CT: Stud Panel`, `CT: Panel Populator`, `CT: Populate Model`.
+* Added `CT: Filter Display` GH component to filter and display model elements by layer path or group.
+* Added `CT: Panel Viewer` GH component: like `CT: Filter Display`, but resolves `group_filter` elements in the model by guid and lays each group out at world XY in group space, with the corner of its trimmed outline at the origin.
+* Added `layer_structure` input to `CT: Panel` to attach a `LayerStructure` to the panel.
+* Added `manage_cpython_dynamic_output_params` GH helper.
+* Added the "Populating Panels" user guide, the `timber_design_populator` API page and contributor class diagrams to the docs.
 
 ### Changed
 
@@ -26,11 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `CompositeRule.create_instance` returns a joint (or `None`) rather than a `(joint, error)` tuple, and lets `BeamJoiningError` propagate; `try_create_joint` wraps it and registers the joint in the model.
 * `CT: Model` no longer saves and re-appends `element._features` around `element.reset()`. `reset()` already drops joinery features and keeps user ones, so the save/restore duplicated every opening on each Grasshopper solve.
 * compas_timber dependency: requires a release providing `CompositeJoint`. **TODO:** set the exact version here and in `pyproject.toml` once that release lands — they currently disagree (`pyproject.toml` pins `>=2.1.1`).
+* Split the `timber_design` package into three top-level packages in `src/`, all shipped in the `timber_design` distribution: `timber_design_rules` (was `timber_design.workflow`), `timber_design_populator` (was `timber_design.populators` and `timber_design.connections_2d`, now `timber_design_populator.connections_2d`) and `timber_design_gh` (was `timber_design.ghpython`).
+* Grasshopper components are split into `core` (published as the `compas_timber` Yak package) and `populator` (new `timber_design_populator` Yak add-on, requires the core package).
+* Replaced `invoke build-cpython-ghuser-components` / `yakerize` with `invoke build-gh-components`, `update-gh-headers` and `yakerize-gh`, each taking `--target core|populator`.
+* Bumped the `compas_timber` dependency to `>=3.0.0`.
+* `ConnectionSolver2D.find_topology` gained a `max_distance` parameter used as the containment tolerance, and returns `None` instead of raising when one beam lies entirely inside another.
+* `ConnectionSolver2D.find_topology` reports face-to-face overlaps as `TOPO_UNKNOWN` until `TOPO_FACE_FACE` is supported downstream.
+* Fixed `Beam2D.get_beam_segment` applying a parented beam's parent transformation twice, which offset segments along the panel normal.
+* `CT: Model` adds each panel's layers to the model (and resets them on every solve), so layer-aware panel joints such as `PanelLLayerButtJoint` and `CT: Populate Model` find them.
+* `CT: ShowJointTypes` places labels at `joint.location`.
 
 ### Removed
 
 * `ContainerDefinition` class (dead code).
 * `max_cluster_size` parameter from `get_clusters_from_model`.
+* Removed the old wall/slab populator modules (`wall_details.py`, `wall_from_surface.py`, `wall_populator.py`), superseded by the panel-populator subsystem.
 
 
 ## [0.3.1] 2026-07-09

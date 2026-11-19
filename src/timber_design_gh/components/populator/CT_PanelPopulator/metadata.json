@@ -1,0 +1,56 @@
+{
+    "name": "Panel Populator",
+    "nickname": "PanelPopulator",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Create a PanelPopulator from a panel and a list of agents.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "panel",
+                "description": "Panel element.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "agents",
+                "description": "List of PopulatorAgents. Bound feature agents are only used if their feature belongs to this panel.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "Default width for every beam category an agent does not set explicitly.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "default_feature_configs",
+                "description": "List of unbound FeatureAgent prototypes (one per feature type), applied to every panel feature no other agent handles.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "joint_rule_overrides",
+                "description": "List of panel-level joint rules (CategoryRule / CompositeRule). Tried on a cluster only after the owning agents' own rules fail, as a panel-wide fallback.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "max_distance",
+                "description": "Maximum gap distance applied to all joint finding and creation. None -> 0.1.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "populator",
+                "description": "PanelPopulator ready to run. Connect to CT_Populate_Model."
+            }
+        ]
+    }
+}

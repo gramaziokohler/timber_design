@@ -10,10 +10,10 @@ from compas_timber.connections import CompositeJoint
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 
-from timber_design.workflow import CompositeRule
-from timber_design.workflow import DirectRule
-from timber_design.workflow import JointRuleSolver
-from timber_design.workflow import TopologyRule
+from timber_design_rules import CompositeRule
+from timber_design_rules import DirectRule
+from timber_design_rules import JointRuleSolver
+from timber_design_rules import TopologyRule
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def test_too_few_elements_returns_none(L_beams):
     """A 2-element cluster is below the default min_element_count=3; rule must pass."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(L_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -99,7 +99,7 @@ def test_min_element_count_override(Y_beams):
     """min_element_count=4 should block a 3-element Y cluster."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], min_element_count=4)
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -112,7 +112,7 @@ def test_max_element_count_rejects_large_cluster(Y_beams):
     """A cluster with 3 elements must be rejected when max_element_count=2."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], max_element_count=2)
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -130,7 +130,7 @@ def test_topo_filter_mismatch_returns_none(Y_beams):
     """When topo is set and the cluster topology doesn't match, the rule must skip."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_T)
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -143,7 +143,7 @@ def test_topo_filter_match_succeeds(Y_beams):
     """topo=TOPO_Y should match the Y cluster and produce a CompositeJoint."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)], topo=JointTopology.TOPO_Y)
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -161,7 +161,7 @@ def test_composite_joint_created_for_y_cluster(Y_beams):
     """All three L-pairs in a Y cluster should be matched and bundled into a CompositeJoint."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -177,7 +177,7 @@ def test_composite_joint_registered_in_model(Y_beams):
     """try_create_joint must register the CompositeJoint in the model."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     joint, _ = rule.try_create_joint(model, clusters[0])
@@ -188,7 +188,7 @@ def test_composite_joint_elements_cover_all_beams(Y_beams):
     """The CompositeJoint's elements should include all three beams in the cluster."""
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     joint, _ = rule.try_create_joint(model, clusters[0])
@@ -205,7 +205,7 @@ def test_partial_match_returns_none(K_beams):
     # K cluster has both L and T candidates; TopologyRule(TOPO_L) won't match the T pair
     rule = CompositeRule([TopologyRule(JointTopology.TOPO_L, LButtJoint)])
     model = _make_model_with_clusters(K_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     assert len(clusters) == 1
@@ -223,7 +223,7 @@ def test_all_topos_covered_succeeds(K_beams):
         ]
     )
     model = _make_model_with_clusters(K_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     joint, error = rule.try_create_joint(model, clusters[0])
@@ -241,7 +241,7 @@ def test_all_topos_covered_succeeds(K_beams):
 
 def test_sub_rule_error_propagated(Y_beams):
     """A BeamJoiningError raised by a matching sub-rule should be returned as the error."""
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     # Inspect the cluster first so we can target the first candidate reliably regardless of ordering.
     model = _make_model_with_clusters(Y_beams)
@@ -269,7 +269,7 @@ def test_sub_rule_priority_direct_over_topology(Y_beams):
     """A DirectRule sub-rule should win over a TopologyRule for the same pair."""
     # Identify which pair DirectRule will target by checking the cluster
     model = _make_model_with_clusters(Y_beams)
-    from timber_design.workflow import get_clusters_from_model
+    from timber_design_rules import get_clusters_from_model
 
     clusters = get_clusters_from_model(model)
     cluster = clusters[0]

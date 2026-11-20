@@ -2,11 +2,11 @@
 from System.Windows.Forms import ToolStripSeparator
 
 import Grasshopper
-import compas_timber.connections as _ct_connections
+import compas_arch.connections as _arch_connections
 
-from compas_timber.connections import PanelJoint
+from compas_arch.connections import PanelJoint
 from compas_timber.connections import JointTopology
-from compas_timber.connections import PanelTButtJoint
+from compas_arch.connections import PanelTButtJoint
 from timber_design_rules import TopologyRule
 from timber_design_gh import manage_cpython_dynamic_params
 from timber_design_gh import rename_cpython_gh_output
@@ -15,8 +15,8 @@ from timber_design_gh import rename_cpython_gh_output
 def _get_panel_joint_classes(topology):
     """Return PanelJoint subclasses with given topology."""
     result = {}
-    for name in dir(_ct_connections):
-        cls = getattr(_ct_connections, name)
+    for name in dir(_arch_connections):
+        cls = getattr(_arch_connections, name)
         if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology:
             result[cls.__name__] = cls
     return result

@@ -1,6 +1,6 @@
 # Populating Panels
 
-This guide walks through framing a :class:`~compas_timber.elements.Panel` with
+This guide walks through framing a :class:`~compas_arch.elements.Panel` with
 beams and plates using `timber_design_populator`.  A runnable version of every
 scenario below lives in `examples/panel_population.py`.
 
@@ -9,9 +9,10 @@ All lengths are in the model's native units (mm in the examples).
 ## Concepts
 
 - **Layers belong to the panel.**  A panel's cross-section is a
-  :class:`~compas_timber.elements.LayerStructure` (from `compas_timber`): a tree
-  of :class:`~compas_timber.elements.LayerDefinition`s, each with a name, a
-  thickness and optional sublayers.  The populator never defines layers itself;
+  :class:`~compas_arch.elements.LayerStructure` (from `compas_arch`): a tree
+  of :class:`~compas_arch.elements.LayerDefinition`s, each with a name, a
+  thickness, optional sublayers and, for the exterior, core and interior
+  layers, a :class:`~compas_arch.elements.LayerRole`.  The populator never defines layers itself;
   it frames the ones the panel already has.
 - **Agents generate the framing.**  Each agent is responsible for one group of
   elements:
@@ -20,7 +21,7 @@ All lengths are in the model's native units (mm in the examples).
       `PlatePopulatorAgent` (a sheathing plate), `PanelBoundaryPopulatorAgent`
       (no elements; it only clips other agents to the panel outline).
     - **Feature agents** react to a panel feature: `OpeningPopulatorAgent`
-      frames an :class:`~compas_timber.panel_features.Opening` and becomes a
+      frames an :class:`~compas_arch.panel_features.Opening` and becomes a
       `WindowPopulatorAgent` or `DoorPopulatorAgent` depending on the opening's
       type.
 - **`PanelPopulator` runs the pipeline** and is the only thing that writes to
@@ -30,7 +31,7 @@ All lengths are in the model's native units (mm in the examples).
 
 ```python
 from compas.geometry import Point, Polyline
-from compas_timber.elements import Panel
+from compas_arch.elements import Panel
 from compas_timber.model import TimberModel
 from timber_design_populator import stud_panel
 
@@ -68,7 +69,7 @@ and `"interior"`.  `stud_panel()` puts a plate on `exterior_layer` and
 may leave `thickness` unset to absorb the remaining thickness.
 
 ```python
-from compas_timber.elements import LayerDefinition, LayerStructure
+from compas_arch.elements import LayerDefinition, LayerStructure
 
 panel = Panel.from_outline_thickness(outline, 200)
 panel.layer_structure = LayerStructure(
@@ -86,13 +87,13 @@ input.
 
 ## Openings
 
-Openings are :class:`~compas_timber.panel_features.Opening` features on the
+Openings are :class:`~compas_arch.panel_features.Opening` features on the
 panel.  `stud_panel()` registers a default `OpeningPopulatorAgent` that frames
 on the core layer and cuts its outline through every layer, so sheathing plates
 get the hole too.
 
 ```python
-from compas_timber.panel_features import Opening, OpeningType
+from compas_arch.panel_features import Opening, OpeningType
 
 window = Polyline([Point(800, 900, 0), Point(2000, 900, 0), Point(2000, 2200, 0), Point(800, 2200, 0), Point(800, 900, 0)])
 panel.add_feature(Opening.from_outline_panel(window, panel, opening_type=OpeningType.WINDOW))

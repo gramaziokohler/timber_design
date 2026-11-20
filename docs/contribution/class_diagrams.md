@@ -154,6 +154,17 @@ classDiagram
     class DoorPopulatorAgent {
         split_bottom_plate_beam
     }
+    class MEPPenetrationPopulatorAgent {
+        core surround
+        layer-specific trimming
+    }
+    class NichePopulatorAgent {
+        one-sided surround
+        blind surface trim
+    }
+    class LinearServicePopulatorAgent {
+        manual route only
+    }
 
     PopulatorAgent <|-- LayerAgent
     PopulatorAgent <|-- FeatureAgent
@@ -165,6 +176,9 @@ classDiagram
     FeatureAgent <|-- OpeningPopulatorAgent
     OpeningPopulatorAgent <|-- WindowPopulatorAgent
     OpeningPopulatorAgent <|-- DoorPopulatorAgent
+    OpeningPopulatorAgent <|-- MEPPenetrationPopulatorAgent
+    OpeningPopulatorAgent <|-- NichePopulatorAgent
+    FeatureAgent <|-- LinearServicePopulatorAgent
 ```
 
 Notes:

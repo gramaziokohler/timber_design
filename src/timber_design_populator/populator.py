@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from compas_arch.elements import Layer
+from compas_arch.elements import Panel
 from compas_timber.connections import Cluster
-from compas_timber.elements import Layer
-from compas_timber.elements import Panel
 from compas_timber.errors import BeamJoiningError
 
 from timber_design_populator.connections_2d import Beam2D
@@ -55,7 +55,7 @@ class PanelPopulator:
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
+    panel : :class:`compas_arch.elements.Panel`
         The source panel in the caller's model space (or its guid).
     agents : list[:class:`~timber_design_populator.PopulatorAgent`]
         Ordered list of agents.  Ordering sets joint precedence: when
@@ -89,7 +89,7 @@ class PanelPopulator:
     agents : list[:class:`~timber_design_populator.PopulatorAgent`]
         Ordered list of agents.  Each tags every element it generates with
         itself, which is how ownership is tracked from then on.
-    panel : :class:`compas_timber.elements.Panel`
+    panel : :class:`compas_arch.elements.Panel`
         Reference to the source panel in the caller's model space.
     model : :class:`compas_timber.model.TimberModel`
         Internal model that accumulates elements and joints during population.
@@ -127,7 +127,6 @@ class PanelPopulator:
         joint_rule_overrides=None,
         max_distance=None,
     ):
-
         self.model = None
         self.debug_info = DebugInfomation()
         self.max_distance = max_distance if max_distance is not None else 0.1
@@ -202,7 +201,7 @@ class PanelPopulator:
     @property
     def layer_tree(self):
         """``{layer_path: Layer}`` for every layer in :attr:`model`."""
-        return {layer.layer_path: layer for layer in self.model.layers}
+        return {layer.layer_path: layer for layer in self.model.find_all_elements_of_type(Layer)}
 
     def __repr__(self):
         return "PanelPopulator({})".format(self.panel)
@@ -212,7 +211,9 @@ class PanelPopulator:
     # ------------------------------------------------------------------
 
     def populate_elements(self):
-        """Generate, define outlines, extend, split, cull Elements."""
+        """Generate, define outlines, extend, split, cull and machine Elements."""
+        # a fresh record for this run; the populator is reused across Grasshopper solves
+        self.debug_info = DebugInfomation()
         # model extracted here to ensure the latest version of panel and layer geometry
         self.model = self._build_populator_model()
         self._repoint_agents()
@@ -221,6 +222,7 @@ class PanelPopulator:
         self._extend_elements()
         self._split_elements()
         self._cull_elements()
+        self._machine_elements()
 
     def _build_populator_model(self):
         """Extract a fresh populator-space model holding only :attr:`panel`'s layer tree.
@@ -271,6 +273,16 @@ class PanelPopulator:
                 for segment in segments:
                     self.model.add_element(segment, parent=parent)
 
+    def _machine_elements(self):
+        """Let each agent add machining (drillings, notches) to the final elements on its trimming layers.
+
+        Runs after splitting and culling, so machining is only added to elements that are kept.
+        Problems the agents report are recorded in :attr:`debug_info` as feature errors.
+        """
+        for agent in self.agents:
+            for element in list(self._elements_to_trim(agent)):
+                self.debug_info.add_feature_error(agent.machine_element(element))
+
     def _cull_elements(self):
         """Discard out-of-zone beam segments after splitting."""
         for agent in self.agents:
@@ -293,7 +305,7 @@ class PanelPopulator:
     def join_elements(self):
         """Resolve all joint candidates and create joints in the model."""
         solver = ConnectionSolver2D(max_distance=self.max_distance)
-        for layer in self.model.layers:
+        for layer in self.model.find_all_elements_of_type(Layer):
             if layer.sublayers:
                 continue
             for cluster in solver.find_joint_clusters(_get_ancestor_beams_for_layer(layer)):

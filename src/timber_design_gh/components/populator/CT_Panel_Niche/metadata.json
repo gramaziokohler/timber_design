@@ -1,0 +1,42 @@
+{
+    "name": "Panel Niche",
+    "nickname": "Niche",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Defines Niche features (one-sided recesses) for a panel component's 'features' input. A niche is framed in the core and cut to 'depth' into the sheathing on its side, or, without a depth, through the side sheathing and the framing. Needs the panel's interior or exterior role layer.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "outlines",
+                "description": "Closed niche outlines, drawn on or parallel to the panel they belong to.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "side",
+                "description": "Panel face of the niche: 'exterior' (default) or 'interior'.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "depth",
+                "description": "(Optional) Depth of the recess, measured from the panel face; cut into the outermost sheathing on 'side'. Leave empty to take the niche through the side layer and the framing layer, so only the opposite side's sheathing remains as its back.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "features",
+                "description": "Panel feature definitions. Connect to a panel component's 'features' input; each panel adds the ones that lie on it."
+            },
+            {
+                "name": "geometry",
+                "description": "Preview of the feature outlines."
+            }
+        ]
+    }
+}

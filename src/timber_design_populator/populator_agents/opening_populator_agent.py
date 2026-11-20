@@ -10,13 +10,13 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import intersection_line_plane
 from compas.tolerance import TOL
+from compas_arch.panel_features import Opening
+from compas_arch.panel_features import OpeningType
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Plate
 from compas_timber.fabrication import LongitudinalCutProxy
 from compas_timber.fabrication.free_contour import FreeContour
-from compas_timber.panel_features import Opening
-from compas_timber.panel_features import OpeningType
 from compas_timber.utils import extend_line_segments
 from compas_timber.utils import join_polyline_segments
 
@@ -29,7 +29,7 @@ from timber_design_rules import CategoryRule
 from timber_design_rules import CompositeRule
 
 if TYPE_CHECKING:
-    from compas_timber.elements import Layer  # noqa: F401
+    from compas_arch.elements import Layer  # noqa: F401
 
 
 class OpeningPopulatorAgent(FeatureAgent):
@@ -53,7 +53,7 @@ class OpeningPopulatorAgent(FeatureAgent):
     -------------------------------
     Panel populator configs register a single prototype agent per feature
     *class* (``default_feature_configs[Opening] = OpeningPopulatorAgent(...)``)
-    because :class:`~compas_timber.panel_features.Opening` is used for both
+    because :class:`~compas_arch.panel_features.Opening` is used for both
     doors and windows — there is no separate Python class per opening type to
     key the dispatch on.  To still get door/window-specific behaviour from
     that single registration, binding a concrete :class:`Opening` feature to a
@@ -75,7 +75,7 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     Parameters
     ----------
-    feature : :class:`compas_timber.panel_features.Opening`, optional
+    feature : :class:`compas_arch.panel_features.Opening`, optional
         The opening to frame.  Leave unset for a prototype registered under
         ``default_feature_agents`` / ``default_feature_configs``; the populator
         clones it and binds each matching opening.
@@ -94,10 +94,10 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     Attributes
     ----------
-    opening : :class:`compas_timber.panel_features.Opening`
+    opening : :class:`compas_arch.panel_features.Opening`
         The opening feature that drives element placement.
         Alias for ``self.feature``.
-    opening_type : :class:`compas_timber.panel_features.OpeningType`
+    opening_type : :class:`compas_arch.panel_features.OpeningType`
         The opening type read from the opening feature.
     lintel_posts : bool
         Whether jack studs (lintel posts) are generated.
@@ -210,7 +210,7 @@ class OpeningPopulatorAgent(FeatureAgent):
 
     @property
     def opening_type(self):
-        """:class:`~compas_timber.panel_features.OpeningType` of the bound opening, or ``None`` if unbound."""
+        """:class:`~compas_arch.panel_features.OpeningType` of the bound opening, or ``None`` if unbound."""
         return self.opening.opening_type if self.opening is not None else None
 
     def cull_beam(self, beam: Beam2D) -> bool:
@@ -306,7 +306,6 @@ class OpeningPopulatorAgent(FeatureAgent):
         return join_polyline_segments(segments, close_loop=True)[0][0]
 
     def _create_frame_polylines(self, opening: Opening, layer) -> tuple[Polyline, Polyline]:
-
         opening_a_pts = []
         opening_b_pts = []
         for pt_a, pt_b in zip(opening.outline_a.points, opening.outline_b.points):

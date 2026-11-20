@@ -1,7 +1,7 @@
 # Panel Populators
 
 The `timber_design_populator` package frames a
-:class:`~compas_timber.elements.Panel` with beams and plates.  See the
+:class:`~compas_arch.elements.Panel` with beams and plates.  See the
 [Populating Panels](../user_guide/populating_panels.md) guide for the workflow.
 
 ```python
@@ -53,6 +53,12 @@ populator.merge_with_model(model)
 ::: timber_design_populator.populator_agents.opening_populator_agent.WindowPopulatorAgent
 
 ::: timber_design_populator.populator_agents.opening_populator_agent.DoorPopulatorAgent
+
+::: timber_design_populator.populator_agents.panel_feature_populator_agents.MEPPenetrationPopulatorAgent
+
+::: timber_design_populator.populator_agents.panel_feature_populator_agents.NichePopulatorAgent
+
+::: timber_design_populator.populator_agents.panel_feature_populator_agents.LinearServicePopulatorAgent
 
 ---
 

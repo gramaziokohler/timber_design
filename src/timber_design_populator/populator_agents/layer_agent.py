@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from compas_timber.elements import Layer
+from compas_arch.elements import Layer
 
 from .populator_agent import PopulatorAgent
 
@@ -21,7 +21,7 @@ class LayerAgent(PopulatorAgent, ABC):
     A ``LayerAgent`` frames exactly one layer of the panel cross-section
     (edge beams, studs, plates).  It records the layer by its ``layer_path``
     so the agent survives panel re-solves; :meth:`repoint_to_layer_tree`
-    rebinds the path to the live :class:`~compas_timber.elements.Layer` before
+    rebinds the path to the live :class:`~compas_arch.elements.Layer` before
     each generation pass.
 
     Subclasses implement :meth:`generate_layer_elements`, which produces the
@@ -29,14 +29,14 @@ class LayerAgent(PopulatorAgent, ABC):
 
     Parameters
     ----------
-    layer : :class:`~compas_timber.elements.Layer` or str, optional
+    layer : :class:`~compas_arch.elements.Layer` or str, optional
         The layer this agent operates within, or its layer path.
     internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
 
     Attributes
     ----------
-    layer : :class:`~compas_timber.elements.Layer` or None
+    layer : :class:`~compas_arch.elements.Layer` or None
         The live layer this agent is bound to; ``None`` until
         :meth:`repoint_to_layer_tree` is called.
     layer_path : str or None
@@ -94,7 +94,7 @@ class LayerAgent(PopulatorAgent, ABC):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
         """
         self.outline_by_layer.clear()
         elements, outline = self.generate_layer_elements()

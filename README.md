@@ -32,7 +32,8 @@ pip install -e ".[dev]"
 Grasshopper tasks:
 
 ```bash
-invoke build-gh-components --target core|populator  # build .ghuser files into dist/ghuser/<target>
+invoke build-gh-components --target core|populator  # build .ghuser files into src/timber_design_gh/ghuser/<target>
+invoke install-gh-components                        # build, then copy them into Grasshopper's UserObjects folder
 invoke update-gh-headers --target core|populator    # rewrite `# r:` headers (use --dev for the local src folder)
 invoke yakerize-gh --target core|populator          # build a Yak package
 ```

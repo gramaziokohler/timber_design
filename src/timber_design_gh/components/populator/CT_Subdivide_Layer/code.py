@@ -5,8 +5,8 @@
 import Grasshopper
 import System
 
-from compas_timber.elements.layer import LayerDefinition
-from compas_timber.elements.layer import LayerStructure
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerStructure
 
 
 def _deep_copy_def(d):
@@ -14,6 +14,7 @@ def _deep_copy_def(d):
         name=d.name,
         thickness=d.thickness,
         sublayer_defs=[_deep_copy_def(s) for s in d.sublayer_defs],
+        role=d.role,
     )
 
 

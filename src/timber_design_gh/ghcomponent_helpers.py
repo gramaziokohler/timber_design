@@ -537,3 +537,70 @@ def get_guid_and_geometry(obj):
         guid = obj
         geometry = rhino_obj.Geometry
     return guid, geometry
+
+
+def curve_to_compas_polyline(obj, closed=False):
+    """Convert a Grasshopper curve input (geometry or referenced Rhino object) to a COMPAS Polyline.
+
+    Curves that are not polylines are approximated with straight segments.
+
+    Parameters
+    ----------
+    obj : Rhino.Geometry.Curve | System.Guid
+        The curve, or an object id. Untyped script inputs receive geometry as an id in
+        the Grasshopper document (``ghdoc``), which ``rhinoscriptsyntax`` resolves through
+        ``scriptcontext.doc``.
+    closed : bool, optional
+        If True, raise ``ValueError`` when the curve is not closed.
+
+    Returns
+    -------
+    :class:`compas.geometry.Polyline`
+    """
+    import rhinoscriptsyntax as rs  # type: ignore
+    from compas_rhino.conversions import polyline_to_compas
+
+    geometry = obj
+    if not isinstance(obj, (Rhino.Geometry.GeometryBase, Rhino.Geometry.Polyline)):
+        geometry = rs.coercecurve(obj)
+    if isinstance(geometry, Rhino.Geometry.Polyline):
+        polyline = geometry
+    else:
+        curve = geometry
+        if not isinstance(curve, Rhino.Geometry.Curve):
+            raise ValueError("Input is not a curve: {}".format(obj))
+        success, polyline = curve.TryGetPolyline()
+        if not success:
+            polyline = curve.ToPolyline(0, 0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.001, 0.001).ToPolyline()
+    if closed and not polyline.IsClosed:
+        raise ValueError("Curve must be closed.")
+    return polyline_to_compas(polyline)
+
+
+def add_panel_feature_definitions(ghenv, panel, definitions):
+    """Add the features of every definition that lies on *panel*, reporting problems on the component.
+
+    Call this after the panel's layer structure is assigned.
+
+    Parameters
+    ----------
+    ghenv : object
+        The component's ``ghenv``.
+    panel : :class:`compas_arch.elements.Panel`
+    definitions : list[:class:`timber_design_gh.panel_feature_helpers.PanelFeatureDefinition`]
+
+    Returns
+    -------
+    list[:class:`compas_arch.panel_features.PanelFeature`]
+        The added features.
+    """
+    from timber_design_gh.panel_feature_helpers import add_feature_definitions
+
+    if not definitions:
+        return []
+    added, skipped, messages = add_feature_definitions(panel, definitions)
+    for text in messages:
+        warning(ghenv.Component, text)
+    if skipped:
+        remark(ghenv.Component, "{} feature definition(s) do not lie on this panel and were skipped.".format(skipped))
+    return added

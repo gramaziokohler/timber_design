@@ -10,8 +10,9 @@ from compas.scene import Scene
 from compas_rhino.conversions import polyline_to_compas
 from compas_rhino.conversions import vector_to_compas
 
-from compas_timber.elements import Panel as CTPanel
+from compas_arch.elements import Panel as CTPanel
 from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import add_panel_feature_definitions
 from timber_design_gh import get_guid_and_geometry
 
 
@@ -21,8 +22,8 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
         outline,
         thickness: float,
         orientation: Rhino.Geometry.Vector3d,
-        openings: System.Collections.Generic.List[object],
         layer_structure,
+        features: System.Collections.Generic.List[object],
         identify_doors: bool,
         category: str,
         updateRefObj: bool,
@@ -36,18 +37,14 @@ class Panel(Grasshopper.Kernel.GH_ScriptInstance):
         rhino_polyline = rs.coercecurve(geometry)
         line = polyline_to_compas(rhino_polyline.ToPolyline())
         v = vector_to_compas(orientation) if orientation else None
-        o = []
-        if openings:
-            for o_outline in openings:
-                o_guid, o_geometry = get_guid_and_geometry(o_outline)
-                o_rhino_polyline = rs.coercecurve(o_geometry)
-                o.append(polyline_to_compas(o_rhino_polyline.ToPolyline()))
-        panel = CTPanel.from_outline_thickness(line, thickness, orientation=v, openings=o, recognize_doors=bool(identify_doors))
+        panel = CTPanel.from_outline_thickness(line, thickness, orientation=v, recognize_doors=bool(identify_doors))
         panel.attributes["rhino_guid"] = str(guid) if guid else None
         panel.attributes["category"] = category
 
         if layer_structure:
             panel.layer_structure = layer_structure
+        # after the layer structure, so feature outlines are placed on the right layer faces
+        add_panel_feature_definitions(ghenv, panel, features)
 
         if panel.layers:
             for l in panel.get_leaf_layers():

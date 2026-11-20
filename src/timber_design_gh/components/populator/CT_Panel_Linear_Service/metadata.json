@@ -1,0 +1,42 @@
+{
+    "name": "Panel Linear Service",
+    "nickname": "LinearService",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Defines LinearService features (manually routed electrical or plumbing runs) for a panel component's 'features' input. When the panel is populated, every core beam the service crosses is drilled through ('core_drilling') or notched from the interior face ('frame_notching'). Sheathing is not cut. Holes over 40% and notches over 25% of the beam depth are reported in the populator's DebugInfo.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "polylines",
+                "description": "Service paths, drawn on or parallel to the panel they belong to. They are placed on the core layer's mid-plane.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "thickness",
+                "description": "Diameter of the service: the hole diameter, or the notch width and depth.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "routing_mode",
+                "description": "'core_drilling' (default): drill through each crossed beam on the core mid-plane. 'frame_notching': cut a lap notch into each crossed beam from the interior face.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "features",
+                "description": "Panel feature definitions. Connect to a panel component's 'features' input; each panel adds the ones that lie on it."
+            },
+            {
+                "name": "geometry",
+                "description": "Preview of the feature outlines."
+            }
+        ]
+    }
+}

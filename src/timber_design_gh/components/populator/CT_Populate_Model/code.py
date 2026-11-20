@@ -5,6 +5,7 @@ import Grasshopper
 import System
 from compas.data import json_dumps
 from compas.data import json_loads
+from compas_arch.connections import PanelJoint
 
 from timber_design_rules import DebugInfomation
 
@@ -19,6 +20,11 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
             return Model, None
         debug_info = DebugInfomation()
         model = json_loads(json_dumps(Model))  # copy model
+        # Extension planes are not serialized, so the copy's panels and layers come back
+        # unextended. Re-run the panel joints on the copy to restore them before population.
+        for joint in model.joints:
+            if isinstance(joint, PanelJoint):
+                joint.add_extensions()
         for panel in model.panels:
             panel.apply_edge_extensions()
 

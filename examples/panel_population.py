@@ -13,13 +13,13 @@ All lengths are in mm.
 
 from compas.geometry import Point
 from compas.geometry import Polyline
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerStructure
+from compas_arch.elements import Panel
+from compas_arch.model import ArchModel
+from compas_arch.panel_features import Opening
+from compas_arch.panel_features import OpeningType
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import LayerDefinition
-from compas_timber.elements import LayerStructure
-from compas_timber.elements import Panel
-from compas_timber.model import TimberModel
-from compas_timber.panel_features import Opening
-from compas_timber.panel_features import OpeningType
 
 from timber_design_populator import EdgePopulatorAgent
 from timber_design_populator import OpeningPopulatorAgent
@@ -67,7 +67,7 @@ def summarize(title, model):
 def basic_stud_wall():
     # Without a layer_structure the panel gets a single full-thickness "core" layer.
     panel = Panel.from_outline_thickness(rectangle(0, 0, 4000, 2700), 160)
-    model = TimberModel()
+    model = ArchModel()
     add_panel(model, panel)
 
     populator = stud_panel(panel, standard_beam_width=60, stud_spacing=625)
@@ -93,7 +93,7 @@ def sheathed_wall_with_openings():
     panel.add_feature(Opening.from_outline_panel(rectangle(800, 900, 2000, 2200), panel, opening_type=OpeningType.WINDOW))
     panel.add_feature(Opening.from_outline_panel(rectangle(3000, 0, 4000, 2100), panel, opening_type=OpeningType.DOOR))
 
-    model = TimberModel()
+    model = ArchModel()
     add_panel(model, panel)
 
     populator = stud_panel(
@@ -132,7 +132,7 @@ def custom_agent_stack():
     )
     panel.add_feature(Opening.from_outline_panel(rectangle(1000, 900, 2200, 2200), panel, opening_type=OpeningType.WINDOW))
 
-    model = TimberModel()
+    model = ArchModel()
     add_panel(model, panel)
 
     board, _battens = panel.exterior_layer.sublayers

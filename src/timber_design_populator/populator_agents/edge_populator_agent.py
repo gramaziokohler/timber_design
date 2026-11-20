@@ -58,7 +58,7 @@ class EdgePopulatorAgent(LayerAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_timber.elements.Layer` or str, optional
+    layer : :class:`~compas_arch.elements.Layer` or str, optional
         The layer whose panel outline drives edge-beam placement, or its path.
     edge_stud_width, top_plate_beam_width, bottom_plate_beam_width : float, optional
         Explicit per-category beam widths.  Any left unset are filled with the

@@ -10,8 +10,9 @@ from compas.scene import Scene
 from compas_rhino.conversions import polyline_to_compas
 from compas_rhino.conversions import vector_to_compas
 
-from compas_timber.elements import Panel as CTPanel
+from compas_arch.elements import Panel as CTPanel
 from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import add_panel_feature_definitions
 from timber_design_gh import get_guid_and_geometry
 
 
@@ -23,7 +24,15 @@ def _curve_to_polyline(curve):
 
 
 class PanelFromOutline(Grasshopper.Kernel.GH_ScriptInstance):
-    def RunScript(self, outline, thickness: float, vector, openings: System.Collections.Generic.List[object], category: str, updateRefObj: bool):
+    def RunScript(
+        self,
+        outline,
+        thickness: float,
+        vector,
+        features: System.Collections.Generic.List[object],
+        category: str,
+        updateRefObj: bool,
+    ):
         if not item_input_valid_cpython(ghenv, outline, "outline"):
             return
         if not item_input_valid_cpython(ghenv, thickness, "thickness"):
@@ -34,17 +43,11 @@ class PanelFromOutline(Grasshopper.Kernel.GH_ScriptInstance):
 
         compas_vector = vector_to_compas(vector) if vector else None
 
-        o = []
-        if openings:
-            for o_outline in openings:
-                if o_outline:
-                    o_rhino_curve = rs.coercecurve(o_outline)
-                    o.append(polyline_to_compas(_curve_to_polyline(o_rhino_curve)))
-
-        panel = CTPanel.from_outline_thickness(compas_outline, thickness, vector=compas_vector, openings=o if o else None)
+        panel = CTPanel.from_outline_thickness(compas_outline, thickness, vector=compas_vector)
         panel.debug_info = []
         panel.attributes["rhino_guid"] = str(o_guid) if o_guid else None
         panel.attributes["category"] = category
+        add_panel_feature_definitions(ghenv, panel, features)
 
         scene = Scene()
         scene.add(panel.geometry)

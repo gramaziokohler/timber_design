@@ -28,20 +28,20 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "openings",
-                "description": "List of openings in the panel.",
-                "typeHintID": "ghdoc",
-                "scriptParamAccess": 1
-            },
-            {
                 "name": "layer_structure",
                 "description": "(Optional) LayerStructure from CT_Panel_Layer_Definition or CT_Subdivide_Layer. When provided, creates bound panel layers.",
                 "typeHintID": "none",
                 "scriptParamAccess": 0
             },
             {
+                "name": "features",
+                "description": "(Optional) Panel feature definitions, including openings, from the Panel Opening, MEP Penetration, Niche or Linear Service components. Definitions that do not lie on this panel are skipped, so the same list can go to every panel.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
                 "name": "identify_doors",
-                "description": "If True, openings that reach the bottom edge of the panel are classified as doors.",
+                "description": "If True, door-shaped notches in the panel outline are cut out of the outline and added as door Openings. Other openings come in through 'features'.",
                 "typeHintID": "bool",
                 "scriptParamAccess": 0
             },

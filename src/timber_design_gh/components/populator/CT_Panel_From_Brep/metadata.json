@@ -16,6 +16,12 @@
                 "scriptParamAccess": 0
             },
             {
+                "name": "features",
+                "description": "(Optional) Panel feature definitions from the Panel Opening, MEP Penetration, Niche or Linear Service components. Definitions that do not lie on this panel are skipped, so the same list can go to every panel.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
                 "name": "category",
                 "description": "Category of the panel.",
                 "typeHintID": "str",

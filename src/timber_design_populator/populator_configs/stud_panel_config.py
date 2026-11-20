@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from compas_timber.panel_features import Opening
+from compas_arch.panel_features import LinearService
+from compas_arch.panel_features import MEPPenetration
+from compas_arch.panel_features import Niche
+from compas_arch.panel_features import Opening
 
 from timber_design_populator.populator import PanelPopulator
 from timber_design_populator.populator_agents.edge_populator_agent import EdgePopulatorAgent
 from timber_design_populator.populator_agents.opening_populator_agent import OpeningPopulatorAgent
+from timber_design_populator.populator_agents.panel_feature_populator_agents import LinearServicePopulatorAgent
+from timber_design_populator.populator_agents.panel_feature_populator_agents import MEPPenetrationPopulatorAgent
+from timber_design_populator.populator_agents.panel_feature_populator_agents import NichePopulatorAgent
 from timber_design_populator.populator_agents.plate_populator_agent import PlatePopulatorAgent
 from timber_design_populator.populator_agents.stud_populator_agent import StudPopulatorAgent
 
@@ -28,16 +34,19 @@ def stud_panel(
 ):
     """Create a config for a standard stud-framed wall panel.
 
-    Uses the panel's layers named ``"exterior"``, ``"core"`` and ``"interior"``
-    (see :class:`~compas_timber.elements.LayerStructure`): the exterior and
+    Uses the panel's exterior, core and interior role layers
+    (see :class:`~compas_arch.elements.LayerStructure`): the exterior and
     interior layers, when present, each receive a
     :class:`~timber_design_populator.PlatePopulatorAgent` and the core layer
     receives the framing agents.  A panel without a ``layer_structure`` has a
-    single full-thickness ``"core"`` layer, so only framing is generated.
+    single full-thickness core layer, so only framing is generated.
+
+    Default feature agents are provided for openings, MEP penetrations,
+    niches, and manually routed linear services.
 
     Parameters
     ----------
-    panel : :class:`compas_timber.elements.Panel`
+    panel : :class:`compas_arch.elements.Panel`
         The panel to populate.
     standard_beam_width : float, optional
         Default width for every framing beam category not given an explicit
@@ -94,30 +103,35 @@ def stud_panel(
         )
 
     all_layers = [la for la in [panel.exterior_layer, panel.core_layer, panel.interior_layer] if la]
+    surface_layers = [la for la in [panel.exterior_layer, panel.interior_layer] if la]
 
     # Build a fresh dict so we don't mutate the caller's mapping when GH (or
     # any caller) reuses the same dict across multiple panels.
     default_feature_configs = dict(default_feature_configs) if default_feature_configs else {}
-    if Opening not in default_feature_configs:
-        default_feature_configs[Opening] = OpeningPopulatorAgent(
-            element_layers=[panel.core_layer] if panel.core_layer else [],
-            trimming_layers=all_layers,
-        )
-    else:
-        # The user-supplied prototype may be a single instance shared across
-        # multiple stud_panel() calls (e.g. one CT: Feature Agent output
-        # wired into a CT_StudPanel component that processes a list of panels).
-        # Clone it so each call binds its own layer references.
-        prototype = default_feature_configs[Opening].clone()
-        prototype.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
-        prototype.trimming_layer_paths = [la.layer_path for la in all_layers]
-        default_feature_configs[Opening] = prototype
+    feature_configs = [
+        (Opening, OpeningPopulatorAgent(), [panel.core_layer] if panel.core_layer else [], all_layers),
+        (MEPPenetration, MEPPenetrationPopulatorAgent(), [panel.core_layer] if panel.core_layer else [], all_layers),
+        (Niche, NichePopulatorAgent(), [panel.core_layer] if panel.core_layer else [], surface_layers),
+        # a service creates no framing; it drills or notches the core's beams
+        (LinearService, LinearServicePopulatorAgent(), [], [panel.core_layer] if panel.core_layer else []),
+    ]
+    for feature_type, default_agent, element_layers, trimming_layers in feature_configs:
+        prototype = default_feature_configs.get(feature_type, default_agent).clone()
+        prototype.element_layer_paths = [layer.layer_path for layer in element_layers]
+        prototype.trimming_layer_paths = [layer.layer_path for layer in trimming_layers]
+        default_feature_configs[feature_type] = prototype
 
     for instance_agent in instance_feature_configs or []:
         # Clone so the caller's agent (possibly shared across panels) is not mutated.
         agent = instance_agent.clone()
-        agent.element_layer_paths = [panel.core_layer.layer_path] if panel.core_layer else []
-        agent.trimming_layer_paths = [la.layer_path for la in all_layers]
+        if isinstance(agent.feature, Niche):
+            element_layers, trimming_layers = ([panel.core_layer] if panel.core_layer else [], surface_layers)
+        elif isinstance(agent.feature, LinearService):
+            element_layers, trimming_layers = [], [panel.core_layer] if panel.core_layer else []
+        else:
+            element_layers, trimming_layers = ([panel.core_layer] if panel.core_layer else [], all_layers)
+        agent.element_layer_paths = [layer.layer_path for layer in element_layers]
+        agent.trimming_layer_paths = [layer.layer_path for layer in trimming_layers]
         agents.append(agent)
 
     return PanelPopulator(

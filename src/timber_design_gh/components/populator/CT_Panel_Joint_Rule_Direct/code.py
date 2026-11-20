@@ -2,8 +2,8 @@
 import inspect
 
 import Grasshopper
-import compas_timber.connections as _ct_connections
-from compas_timber.connections import PanelJoint
+import compas_arch.connections as _arch_connections
+from compas_arch.connections import PanelJoint
 from System.Windows.Forms import ToolStripSeparator
 
 from timber_design_gh import item_input_valid_cpython
@@ -17,8 +17,8 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(DirectPanelJointRule, self).__init__()
         self.classes = {}
-        for name in dir(_ct_connections):
-            cls = getattr(_ct_connections, name)
+        for name in dir(_arch_connections):
+            cls = getattr(_arch_connections, name)
             if (
                 isinstance(cls, type)
                 and issubclass(cls, PanelJoint)

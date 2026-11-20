@@ -10,10 +10,10 @@ from compas.scene import Scene
 from compas.tolerance import TOL
 from compas.tolerance import Tolerance
 from compas_timber.elements import Beam
-from compas_timber.elements import Panel
+from compas_arch.elements import Panel
 from compas_timber.elements import Plate
 from compas_timber.errors import FeatureApplicationError
-from compas_timber.model import TimberModel
+from compas_arch.model import ArchModel
 
 from timber_design_gh import error
 from timber_design_gh import warning
@@ -55,7 +55,7 @@ class ModelComponent(Grasshopper.Kernel.GH_ScriptInstance):
             MaxDistance = TOL.ABSOLUTE
 
         tol = self.get_tol()
-        Model = TimberModel(tolerance=tol)
+        Model = ArchModel(tolerance=tol)
         debug_info = DebugInfomation()
 
         self.add_elements_to_model(Model, Elements)

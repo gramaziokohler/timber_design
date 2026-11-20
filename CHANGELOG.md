@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `CT: Filter Display` GH component to filter and display model elements by layer path or group.
 * Added `CT: Panel Viewer` GH component: like `CT: Filter Display`, but resolves `group_filter` elements in the model by guid and lays each group out at world XY in group space, with the corner of its trimmed outline at the origin.
 * Added `layer_structure` input to `CT: Panel` to attach a `LayerStructure` to the panel.
+* Added `CT: Panel Opening`, `CT: Panel MEP Penetration`, `CT: Panel Niche` and `CT: Panel Linear Service` GH components, which output world-space panel feature definitions.
+* `LinearServicePopulatorAgent` drills (`core_drilling`) or lap-notches from the interior face (`frame_notching`) every core beam a `LinearService` crosses, and reports oversized holes (> 40% of the beam depth) and notches (> 25%) as feature errors. `stud_panel()` binds it to the core layer.
+* Added the `PopulatorAgent.machine_element()` hook, called by `PanelPopulator` after splitting and culling.
+* Added a `features` input to `CT: Panel`, `CT: Panel From Outline`, `CT: Panel From Brep`, `CT: Panel From Frame And Dimensions` and `CT: Panel From Top Bottom`. Each panel adds the feature definitions that lie on it, so one list can go to every panel.
 * Added `manage_cpython_dynamic_output_params` GH helper.
 * Added the "Populating Panels" user guide, the `timber_design_populator` API page and contributor class diagrams to the docs.
 
@@ -40,13 +44,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * compas_timber dependency: requires a release providing `CompositeJoint`. **TODO:** set the exact version here and in `pyproject.toml` once that release lands — they currently disagree (`pyproject.toml` pins `>=2.1.1`).
 * Split the `timber_design` package into three top-level packages in `src/`, all shipped in the `timber_design` distribution: `timber_design_rules` (was `timber_design.workflow`), `timber_design_populator` (was `timber_design.populators` and `timber_design.connections_2d`, now `timber_design_populator.connections_2d`) and `timber_design_gh` (was `timber_design.ghpython`).
 * Grasshopper components are split into `core` (published as the `compas_timber` Yak package) and `populator` (new `timber_design_populator` Yak add-on, requires the core package).
+* Moved the panel GH components from `core` to `populator`: `CT: Panel` and the `CT: Panel From ...` components, the panel joint rules, `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: Panel Viewer` and `CT: Populate Model`.
 * Replaced `invoke build-cpython-ghuser-components` / `yakerize` with `invoke build-gh-components`, `update-gh-headers` and `yakerize-gh`, each taking `--target core|populator`.
+* `invoke build-gh-components` writes the `.ghuser` files to `src/timber_design_gh/ghuser/<target>` instead of `dist/ghuser/<target>`.
+* Added `invoke install-gh-components`, which builds the components and copies them into Grasshopper's UserObjects folder.
 * Bumped the `compas_timber` dependency to `>=3.0.0`.
 * `ConnectionSolver2D.find_topology` gained a `max_distance` parameter used as the containment tolerance, and returns `None` instead of raising when one beam lies entirely inside another.
 * `ConnectionSolver2D.find_topology` reports face-to-face overlaps as `TOPO_UNKNOWN` until `TOPO_FACE_FACE` is supported downstream.
 * Fixed `Beam2D.get_beam_segment` applying a parented beam's parent transformation twice, which offset segments along the panel normal.
 * `CT: Model` adds each panel's layers to the model (and resets them on every solve), so layer-aware panel joints such as `PanelLLayerButtJoint` and `CT: Populate Model` find them.
 * `CT: ShowJointTypes` places labels at `joint.location`.
+* `PanelPopulator.populate_elements()` starts a fresh `debug_info`, so errors no longer accumulate across Grasshopper solves.
+* `MEPPenetrationPopulatorAgent` and `NichePopulatorAgent` frame their surround like a window, with a sill.
+* A `Niche` without a `depth` goes through the side layer and the framing layer.
+* Removed the `openings` curve input from `CT: Panel`, `CT: Panel From Outline`, `CT: Panel From Frame And Dimensions` and `CT: Panel From Top Bottom`. Openings are features now: define them with `CT: Panel Opening` and connect them to `features`.
 
 ### Removed
 

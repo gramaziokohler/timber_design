@@ -15,10 +15,10 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_timber.elements import Layer
-from compas_timber.elements import LayerDefinition
-from compas_timber.elements import LayerStructure
-from compas_timber.elements import Panel
+from compas_arch.elements import Layer
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerStructure
+from compas_arch.elements import Panel
 from compas_timber.elements import Plate
 
 from timber_design_populator import EdgePopulatorAgent
@@ -494,8 +494,8 @@ class TestAgentCloning:
 
     @requires_opening
     def test_clone_shares_feature_reference(self):
-        from compas_timber.panel_features import Opening
-        from compas_timber.panel_features import OpeningType
+        from compas_arch.panel_features import Opening
+        from compas_arch.panel_features import OpeningType
 
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)

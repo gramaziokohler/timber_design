@@ -36,7 +36,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "compas_timber>=3.0.0"
+    "compas_timber>=3.0.0",
+    "compas_arch>=0.1.0",
 ]
 
 [project.optional-dependencies]

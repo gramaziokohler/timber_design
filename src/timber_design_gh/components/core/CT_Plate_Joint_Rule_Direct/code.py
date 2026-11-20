@@ -4,7 +4,6 @@ import inspect
 
 import compas_timber.connections as _ct_connections
 import Grasshopper  # type: ignore
-from compas_timber.connections import PanelJoint
 from compas_timber.connections import PlateJoint
 from System.Windows.Forms import ToolStripSeparator
 
@@ -24,7 +23,6 @@ class DirectPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             if (
                 isinstance(cls, type)
                 and issubclass(cls, PlateJoint)
-                and not issubclass(cls, PanelJoint)
                 and cls is not PlateJoint
                 and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
                 and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2

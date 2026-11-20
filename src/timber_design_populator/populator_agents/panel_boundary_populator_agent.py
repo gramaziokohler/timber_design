@@ -16,7 +16,7 @@ from timber_design_populator.populator_agents.populator_agent import AgentBounda
 
 if TYPE_CHECKING:
     from compas.geometry import Polyline  # noqa: F401
-    from compas_timber.elements import Layer  # noqa: F401
+    from compas_arch.elements import Layer  # noqa: F401
 
 
 class PanelBoundaryPopulatorAgent(LayerAgent):
@@ -34,7 +34,7 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_timber.elements.Layer` or str, optional
+    layer : :class:`~compas_arch.elements.Layer` or str, optional
         The layer whose panel outline drives boundary generation, or its path.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.

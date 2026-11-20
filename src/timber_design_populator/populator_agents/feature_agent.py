@@ -4,22 +4,22 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from compas_timber.elements import Layer
+from compas_arch.elements import Layer
 
 from .populator_agent import PopulatorAgent
 
 if TYPE_CHECKING:
-    from compas_timber.panel_features import PanelFeature  # noqa: F401
+    from compas_arch.panel_features import PanelFeature  # noqa: F401
 
 
 class FeatureAgent(PopulatorAgent):
     """Abstract base class for feature-driven populator agents.
 
     Extends :class:`PopulatorAgent` by accepting a
-    :class:`~compas_timber.panel_features.PanelFeature` and storing it as
+    :class:`~compas_arch.panel_features.PanelFeature` and storing it as
     :attr:`feature`.  Subclasses handle specific feature types (e.g.
     :class:`~timber_design_populator.OpeningPopulatorAgent` for
-    :class:`~compas_timber.panel_features.Opening`).
+    :class:`~compas_arch.panel_features.Opening`).
 
     Unlike a :class:`~timber_design_populator.LayerAgent`, a feature agent can
     act on several layers.  Which layers receive generated elements (*framing*)
@@ -34,18 +34,18 @@ class FeatureAgent(PopulatorAgent):
 
     Parameters
     ----------
-    feature : :class:`~compas_timber.panel_features.PanelFeature`
+    feature : :class:`~compas_arch.panel_features.PanelFeature`
         The (possibly transformed) feature instance driving element placement.
-    element_layers : list[:class:`~compas_timber.elements.Layer` | str], optional
+    element_layers : list[:class:`~compas_arch.elements.Layer` | str], optional
         Explicit framing layers (or their paths).
-    trimming_layers : list[:class:`~compas_timber.elements.Layer` | str], optional
+    trimming_layers : list[:class:`~compas_arch.elements.Layer` | str], optional
         Explicit trimming layers (or their paths).
     internal_joint_overrides, external_joint_overrides, composite_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
 
     Attributes
     ----------
-    feature : :class:`~compas_timber.panel_features.PanelFeature`
+    feature : :class:`~compas_arch.panel_features.PanelFeature`
         The feature driving element placement.
     element_layer_paths : list[str]
         Paths of the framing layers, resolved to live layers by
@@ -103,7 +103,7 @@ class FeatureAgent(PopulatorAgent):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
         """
         self.outline_by_layer.clear()
         elements_by_layer = {}

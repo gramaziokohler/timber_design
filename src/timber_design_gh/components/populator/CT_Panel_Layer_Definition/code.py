@@ -5,8 +5,9 @@
 import Grasshopper
 from Grasshopper.Kernel import GH_RuntimeMessageLevel as RML
 
-from compas_timber.elements.layer import LayerDefinition
-from compas_timber.elements.layer import LayerStructure
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerRole
+from compas_arch.elements import LayerStructure
 
 
 class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
@@ -25,7 +26,7 @@ class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
 
         # If neither face layer is provided → single-layer core panel
         if ext is None and inter is None:
-            return LayerStructure(layer_defs=[LayerDefinition(name=core_name or "core", thickness=core)])
+            return LayerStructure(layer_defs=[LayerDefinition(name=core_name or "core", thickness=core, role=LayerRole.CORE)])
 
         # All three layers are included; exactly one may be None to absorb remaining thickness.
         nones = sum(1 for t in [ext, core, inter] if t is None)
@@ -37,8 +38,9 @@ class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
             return None
 
         layer_defs = [
-            LayerDefinition(name=exterior_name or "exterior", thickness=ext),
-            LayerDefinition(name=core_name or "core", thickness=core),
-            LayerDefinition(name=interior_name or "interior", thickness=inter),
+            # the role comes from the slot, so the names are free to describe the build-up
+            LayerDefinition(name=exterior_name or "exterior", thickness=ext, role=LayerRole.EXTERIOR),
+            LayerDefinition(name=core_name or "core", thickness=core, role=LayerRole.CORE),
+            LayerDefinition(name=interior_name or "interior", thickness=inter, role=LayerRole.INTERIOR),
         ]
         return LayerStructure(layer_defs=layer_defs)

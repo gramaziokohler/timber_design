@@ -5,7 +5,6 @@ import Grasshopper
 import compas_timber.connections as _ct_connections
 
 from compas_timber.connections import PlateJoint
-from compas_timber.connections import PanelJoint
 from compas_timber.connections import JointTopology
 from compas_timber.connections import PlateTButtJoint
 from timber_design_rules import TopologyRule
@@ -14,17 +13,11 @@ from timber_design_gh import rename_cpython_gh_output
 
 
 def _get_plate_joint_classes(topology):
-    """Return PlateJoint subclasses with given topology, excluding PanelJoint subclasses."""
+    """Return PlateJoint subclasses with given topology."""
     result = {}
     for name in dir(_ct_connections):
         cls = getattr(_ct_connections, name)
-        if (
-            isinstance(cls, type)
-            and issubclass(cls, PlateJoint)
-            and not issubclass(cls, PanelJoint)
-            and cls is not PlateJoint
-            and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology
-        ):
+        if isinstance(cls, type) and issubclass(cls, PlateJoint) and cls is not PlateJoint and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology:
             result[cls.__name__] = cls
     return result
 

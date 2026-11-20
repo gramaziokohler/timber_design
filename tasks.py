@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import re
+import sys
 from pathlib import Path
 
 import invoke
@@ -16,6 +17,8 @@ from invoke.collection import Collection
 HERE = os.path.dirname(__file__)
 SRC = os.path.join(HERE, "src")
 GH_PACKAGE = os.path.join(SRC, "timber_design_gh")
+# built .ghuser files go into the package, one folder per target (gitignored)
+GHUSER_DIR = os.path.join(GH_PACKAGE, "ghuser")
 
 # All packages ship in the single `timber_design` distribution; components require it via `# r:`.
 DIST_NAME = "timber_design"
@@ -24,12 +27,12 @@ DIST_NAME = "timber_design"
 GH_TARGETS = {
     "core": {
         "source_dir": os.path.join(GH_PACKAGE, "components", "core"),
-        "target_dir": os.path.join(HERE, "dist", "ghuser", "core"),
+        "target_dir": os.path.join(GHUSER_DIR, "core"),
         "yak_dir": os.path.join(GH_PACKAGE, "yak", "core"),
     },
     "populator": {
         "source_dir": os.path.join(GH_PACKAGE, "components", "populator"),
-        "target_dir": os.path.join(HERE, "dist", "ghuser", "populator"),
+        "target_dir": os.path.join(GHUSER_DIR, "populator"),
         "yak_dir": os.path.join(GH_PACKAGE, "yak", "populator"),
     },
 }
@@ -58,12 +61,90 @@ def _configure_ghuser(ctx, target):
     ctx.config.ghuser_cpython = {"source_dir": cfg["source_dir"], "target_dir": cfg["target_dir"], "prefix": "CT: "}
 
 
+def _configure_componentizer_env():
+    """Set up the environment the componentizer subprocess runs in.
+
+    compas_invocations2 launches the componentizer as a plain ``python`` command, which
+    resolves through PATH and can pick up a different interpreter than the one running
+    invoke (e.g. from a VS Code task). Put this interpreter first so both match.
+
+    On Apple Silicon, pythonnet defaults to the Mono framework in /Library/Frameworks,
+    which is x86-only. Use Homebrew's arm64 Mono instead when it is installed and no
+    runtime has been configured explicitly.
+    """
+    os.environ["PATH"] = os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", "")
+    if "PYTHONNET_RUNTIME" not in os.environ:
+        for libmono in ("/opt/homebrew/lib/libmonosgen-2.0.dylib",):
+            if os.path.isfile(libmono):
+                os.environ["PYTHONNET_RUNTIME"] = "mono"
+                os.environ["PYTHONNET_MONO_LIBMONO"] = libmono
+                break
+
+
 @invoke.task(help={"target": "core, populator or all (default)", "gh_io_folder": "Folder containing GH_IO.dll (downloaded if omitted)."})
 def build_gh_components(ctx, target="all", gh_io_folder=None):
     """Build CPython .ghuser components for one or all Grasshopper targets."""
+    _configure_componentizer_env()
     for t in _targets(target):
+        # the componentizer creates target_dir with os.mkdir, so its parent must already exist
+        os.makedirs(os.path.dirname(GH_TARGETS[t]["target_dir"]), exist_ok=True)
         _configure_ghuser(ctx, t)
         build.build_cpython_ghuser_components(ctx, gh_io_folder=gh_io_folder)
+
+
+def _cached_gh_io_folder():
+    """Folder holding a cached standalone GH_IO.dll, downloaded from NuGet on first use.
+
+    The GH_IO.dll shipped inside Rhino 8 depends on Eto and cannot be loaded on its own by
+    the componentizer, so the standalone one from the NuGet Grasshopper package is used.
+    """
+    folder = os.path.join(HERE, "dist", "gh_io")
+    if not os.path.isfile(os.path.join(folder, "GH_IO.dll")):
+        import compas_ghpython
+
+        os.makedirs(folder, exist_ok=True)
+        print("Downloading GH_IO.dll from NuGet into {}".format(folder))
+        compas_ghpython.fetch_ghio_lib(folder)
+    return folder
+
+
+def _default_userobjects_folder():
+    """Grasshopper's UserObjects folder for Rhino 8, or None if it cannot be found."""
+    if os.name == "nt":
+        folder = os.path.join(os.environ.get("APPDATA", ""), "Grasshopper", "UserObjects")
+        return folder if os.path.isdir(folder) else None
+    plugins = Path.home() / "Library" / "Application Support" / "McNeel" / "Rhinoceros" / "8.0" / "Plug-ins"
+    folders = sorted(plugins.glob("Grasshopper (*)/UserObjects"))
+    return str(folders[0]) if folders else None
+
+
+@invoke.task(
+    help={
+        "target": "core, populator or all (default)",
+        "userobjects_folder": "Destination folder (defaults to Grasshopper's Rhino 8 UserObjects folder).",
+        "build": "Build the components first (default). Use --no-build to only copy the last build.",
+    }
+)
+def install_gh_components(ctx, target="all", userobjects_folder=None, build=True):
+    """Build the .ghuser components and copy them into Grasshopper's UserObjects folder."""
+    import shutil
+
+    userobjects_folder = userobjects_folder or _default_userobjects_folder()
+    if not userobjects_folder or not os.path.isdir(userobjects_folder):
+        raise invoke.Exit("Grasshopper UserObjects folder not found; pass --userobjects-folder.")
+
+    if build:
+        build_gh_components(ctx, target=target, gh_io_folder=_cached_gh_io_folder())
+
+    count = 0
+    for t in _targets(target):
+        for ghuser in sorted(Path(GH_TARGETS[t]["target_dir"]).glob("*.ghuser")):
+            shutil.copy2(ghuser, userobjects_folder)
+            count += 1
+    if not count:
+        raise invoke.Exit("No .ghuser files found to install; build them first.")
+    print("Installed {} components into {}".format(count, userobjects_folder))
+    print("Restart Grasshopper (or Rhino) if the updated components do not show up.")
 
 
 @invoke.task(
@@ -125,6 +206,7 @@ ns = Collection(
     build.clean,
     build.release,
     build_gh_components,
+    install_gh_components,
     update_gh_headers,
     yakerize_gh,
     grasshopper.publish_yak,

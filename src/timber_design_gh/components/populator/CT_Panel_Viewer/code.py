@@ -5,10 +5,10 @@ import Grasshopper
 import System
 from compas.geometry import Translation
 from compas.scene import Scene
+from compas_arch.elements import Layer
+from compas_arch.elements import Panel
 from compas_timber.base import TimberElement
 from compas_timber.elements import Beam
-from compas_timber.elements import Layer
-from compas_timber.elements import Panel
 
 
 class PanelViewer(Grasshopper.Kernel.GH_ScriptInstance):
@@ -37,7 +37,7 @@ class PanelViewer(Grasshopper.Kernel.GH_ScriptInstance):
                 layer_paths.append(tuple([i for i in lf.Indices]))
             if isinstance(lf, str):
                 lps = set()
-                for layer in Model.layers:
+                for layer in Model.find_all_elements_of_type(Layer):
                     if layer.name == lf:
                         lps.add(layer.layer_path)
                 layer_paths.extend(list(lps))

@@ -20,6 +20,8 @@ from .ghcomponent_helpers import warning
 from .ghcomponent_helpers import error
 from .ghcomponent_helpers import remark
 from .ghcomponent_helpers import message
+from .ghcomponent_helpers import curve_to_compas_polyline
+from .ghcomponent_helpers import add_panel_feature_definitions
 
 __author__ = ["Chen Kasirer"]
 __copyright__ = "Gramazio Kohler Research"
@@ -51,4 +53,6 @@ __all__ = [
     "error",
     "remark",
     "message",
+    "curve_to_compas_polyline",
+    "add_panel_feature_definitions",
 ]

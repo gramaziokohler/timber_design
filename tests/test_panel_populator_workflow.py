@@ -6,7 +6,7 @@ Two helpers define the test patterns:
   fresh model and runs the full population pipeline once.
 
 * ``simulate_solve(panel, **kwargs)`` — matches the exact sequence CT_Model
-  performs each Grasshopper solve: ``panel.reset()``, fresh ``TimberModel``,
+  performs each Grasshopper solve: ``panel.reset()``, fresh ``ArchModel``,
   ``add_panel(model, panel)``, then full pipeline.  Running this several
   times on the same panel object is the standard GH re-solve pattern and is
   the main scenario under test in ``TestMultiSolve``.
@@ -24,19 +24,20 @@ from compas.geometry import Vector
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
-from compas_timber.elements import LayerDefinition
-from compas_timber.elements import LayerStructure
-from compas_timber.elements import Panel
+from compas_arch.elements import Layer
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerStructure
+from compas_arch.elements import Panel
 from compas_timber.elements import Plate
-from compas_timber.model import TimberModel
+from compas_arch.model import ArchModel
 
 from timber_design_populator import stud_panel
 from timber_design_populator.connections_2d.beam2d import Beam2D
 from timber_design_rules import CategoryRule
 
 try:
-    from compas_timber.panel_features.opening import Opening
-    from compas_timber.panel_features.opening import OpeningType
+    from compas_arch.panel_features.opening import Opening
+    from compas_arch.panel_features.opening import OpeningType
 
     HAS_OPENING = True
 except ImportError:
@@ -102,7 +103,7 @@ def run_workflow(panel, **stud_kwargs):
     Does NOT call ``panel.reset()`` — use ``simulate_solve`` when you need
     the exact GH re-solve sequence.
     """
-    model = TimberModel()
+    model = ArchModel()
     add_panel(model, panel)
     pop = stud_panel(panel, **stud_kwargs)
     pop.populate_elements()
@@ -116,7 +117,7 @@ def simulate_solve(panel, config_fn=stud_panel, **kwargs):
     """Simulate one Grasshopper CT_Model solve on *panel*.
 
     Sequence mirrors CT_Model.RunScript exactly:
-        1. Fresh TimberModel
+        1. Fresh ArchModel
         2. panel.reset()
         3. add_panel(model, panel)
         4. create populator from the panel's existing layer_structure
@@ -125,7 +126,7 @@ def simulate_solve(panel, config_fn=stud_panel, **kwargs):
     Run this on the same panel object multiple times to reproduce the
     multi-solve / stale-layer scenario.
     """
-    model = TimberModel()
+    model = ArchModel()
     panel.reset()
     add_panel(model, panel)
     pop = config_fn(panel, **kwargs)
@@ -317,7 +318,7 @@ class TestRepopulation:
         ref_count = framing_count(ref_model)
 
         # Double run with clear_panel=True (simulate GH re-solve)
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         for _ in range(2):
             pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
@@ -333,7 +334,7 @@ class TestRepopulation:
         _, ref = run_workflow(make_panel(), standard_beam_width=60.0, stud_spacing=625.0)
         ref_count = framing_count(ref)
 
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         for _ in range(3):
             pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
@@ -353,7 +354,7 @@ class TestRepopulation:
 class TestMultiPanelWorkflow:
     @pytest.fixture(scope="class")
     def result(self):
-        model = TimberModel()
+        model = ArchModel()
         panels = []
         for i in range(3):
             p = make_panel()
@@ -392,7 +393,7 @@ class TestWindowOpening:
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
         panel.add_feature(opening)
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(
             panel,
@@ -431,7 +432,7 @@ class TestDoorOpening:
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR)
         panel.add_feature(opening)
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(
             panel,
@@ -467,7 +468,7 @@ class TestDoorOpening:
 class TestOpeningAgentDispatch:
     """A single, unbound ``OpeningPopulatorAgent`` prototype must self-dispatch
     to :class:`DoorPopulatorAgent` / :class:`WindowPopulatorAgent` once bound
-    to a concrete feature, since :class:`~compas_timber.panel_features.Opening`
+    to a concrete feature, since :class:`~compas_arch.panel_features.Opening`
     is shared by both opening types."""
 
     def _make_opening(self, opening_type):
@@ -567,14 +568,14 @@ class TestRobustness:
 
     def test_populate_only_does_not_raise(self):
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0)
         pop.populate_elements()
 
     def test_internal_model_has_framing_after_populate(self):
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
@@ -592,7 +593,7 @@ class TestJointCreation:
         from compas_timber.connections import JointCandidate
 
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
@@ -605,7 +606,7 @@ class TestJointCreation:
         from timber_design_rules import DebugInfomation
 
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
@@ -643,7 +644,7 @@ class TestCornerClusterJoints:
         EdgePopulatorAgent, exactly like elements the agents generated
         themselves would.
         """
-        layer = next(la for la in pop.model.layers if la.children)
+        layer = next(la for la in pop.model.find_all_elements_of_type(Layer) if la.children)
         stud_agent = next(a for a in pop.agents if "stud" in a.BEAM_CATEGORY_NAMES)
         edge_agent = next(a for a in pop.agents if "edge_stud" in a.BEAM_CATEGORY_NAMES)
         w = 60.0
@@ -668,7 +669,7 @@ class TestCornerClusterJoints:
         from compas_timber.connections import CompositeJoint
 
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
         pop.populate_elements()
@@ -708,7 +709,7 @@ class TestJoinClusterRuleOrder:
     def _populated(self, **kwargs):
         """A populated, stud-free panel plus its edge agent (the owner we tag with)."""
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=0, **kwargs)
         pop.populate_elements()
@@ -717,7 +718,7 @@ class TestJoinClusterRuleOrder:
 
     def _add_beam(self, pop, agent, category, direction):
         """Add one beam running from the shared anchor along *direction*, owned by *agent*."""
-        layer = next(la for la in pop.model.layers if la.children)
+        layer = next(la for la in pop.model.find_all_elements_of_type(Layer) if la.children)
         z = layer.center_height
         start = Point(self.ANCHOR.x, self.ANCHOR.y, z)
         end = Point(start.x + direction[0], start.y + direction[1], z)

@@ -9,8 +9,8 @@ from compas.data import Data
 from compas.geometry import Line
 from compas.geometry import Vector
 from compas.itertools import pairwise
+from compas_arch.elements import Layer
 from compas_timber.connections import JointTopology
-from compas_timber.elements import Layer
 from compas_timber.elements import Plate
 from compas_timber.utils import StrEnum
 from compas_timber.utils import is_point_in_polyline
@@ -118,9 +118,9 @@ class PopulatorAgent(Data, ABC):
     beam_widths : dict[str, float]
         ``{category: width}`` mapping, resolved by the config / populator
         before generation.  Beam height is always the layer thickness.
-    trimming_layers : list[:class:`~compas_timber.elements.Layer`]
+    trimming_layers : list[:class:`~compas_arch.elements.Layer`]
         The layers on which this agent's boundary trims peer elements.
-    element_layers : list[:class:`~compas_timber.elements.Layer`]
+    element_layers : list[:class:`~compas_arch.elements.Layer`]
         The layers this agent generates elements on.
     elements : list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         Every element currently in the model that carries this agent's tag.
@@ -130,7 +130,7 @@ class PopulatorAgent(Data, ABC):
         Active rules for clusters of three or more elements.
     internal_rules : list[:class:`~timber_design_rules.CategoryRule`]
         Active within-agent joint rules.
-    outline_by_layer : dict[:class:`~compas_timber.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
+    outline_by_layer : dict[:class:`~compas_arch.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
         This agent's boundary outline per layer.  Filled during
         :meth:`generate_elements` for framing layers and by
         :meth:`define_outlines` for every other layer the agent trims.
@@ -230,7 +230,7 @@ class PopulatorAgent(Data, ABC):
 
         Returns
         -------
-        dict[:class:`~compas_timber.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~compas_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
             The generated elements per framing layer.
         """
         raise NotImplementedError
@@ -264,7 +264,7 @@ class PopulatorAgent(Data, ABC):
             The centreline of the beam.
         category : str
             Beam category; must be present in :attr:`beam_widths`.
-        layer : :class:`~compas_timber.elements.Layer`
+        layer : :class:`~compas_arch.elements.Layer`
             The layer the beam belongs to.  Its thickness is used as the beam
             height.  :class:`~timber_design_populator.LayerAgent` subclasses
             automatically pass their own layer when the argument is omitted.
@@ -305,7 +305,7 @@ class PopulatorAgent(Data, ABC):
 
         Parameters
         ----------
-        layers : list[:class:`~compas_timber.elements.Layer`]
+        layers : list[:class:`~compas_arch.elements.Layer`]
             All layers this agent frames on or trims (including sublayers),
             as determined by the populator.
         """
@@ -357,6 +357,24 @@ class PopulatorAgent(Data, ABC):
         bool
         """
         return self.cull_beam(element) if isinstance(element, Beam2D) else False
+
+    def machine_element(self, element) -> list:
+        """Add machining (drillings, notches, ...) to *element*, a peer element on a trimming layer.
+
+        Called once per element after all splitting and culling, so only elements that
+        are kept are machined. No-op by default.
+
+        Parameters
+        ----------
+        element : :class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`
+            The element to machine.
+
+        Returns
+        -------
+        list[:class:`~compas_timber.errors.FeatureApplicationError`]
+            Problems to report, e.g. machining that weakens the element too much.
+        """
+        return []
 
     def split_beam(self, beam: Beam2D) -> list[Beam2D]:
         """Split *beam* at this agent's outline boundary and return all resulting segments.
@@ -447,7 +465,7 @@ class PopulatorAgent(Data, ABC):
         boundary_outlines : list[:class:`~compas.geometry.Polyline`]
             Boundary outlines of peer agents on *layer*.  The populator filters
             out ``None`` entries and this agent's own outline before calling.
-        layer : :class:`~compas_timber.elements.Layer`
+        layer : :class:`~compas_arch.elements.Layer`
             The layer the extension applies to.
         """
         pass

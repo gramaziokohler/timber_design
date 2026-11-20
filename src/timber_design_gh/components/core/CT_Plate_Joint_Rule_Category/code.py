@@ -9,7 +9,6 @@ from System.Windows.Forms import ToolStripSeparator
 
 import compas_timber.connections as _ct_connections
 from compas_timber.connections import PlateJoint
-from compas_timber.connections import PanelJoint
 from timber_design_rules import CategoryRule
 from timber_design_gh import item_input_valid_cpython
 from timber_design_gh import manage_cpython_dynamic_params
@@ -25,7 +24,7 @@ class CategoryPlateJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         self.classes = {}
         for name in dir(_ct_connections):
             cls = getattr(_ct_connections, name)
-            if isinstance(cls, type) and issubclass(cls, PlateJoint) and not issubclass(cls, PanelJoint) and cls is not PlateJoint and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0:
+            if isinstance(cls, type) and issubclass(cls, PlateJoint) and cls is not PlateJoint and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0:
                 self.classes[cls.__name__] = cls
 
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)

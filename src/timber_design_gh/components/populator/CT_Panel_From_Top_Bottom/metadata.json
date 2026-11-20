@@ -22,9 +22,9 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "openings",
-                "description": "List of polyline openings (windows) in the panel.",
-                "typeHintID": "ghdoc",
+                "name": "features",
+                "description": "(Optional) Panel feature definitions, including openings, from the Panel Opening, MEP Penetration, Niche or Linear Service components. Definitions that do not lie on this panel are skipped, so the same list can go to every panel.",
+                "typeHintID": "none",
                 "scriptParamAccess": 1
             },
             {

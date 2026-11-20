@@ -10,6 +10,9 @@ from .populator_agents.edge_populator_agent import EdgePopulatorAgent
 from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
 from .populator_agents.opening_populator_agent import DoorPopulatorAgent
 from .populator_agents.opening_populator_agent import WindowPopulatorAgent
+from .populator_agents.panel_feature_populator_agents import MEPPenetrationPopulatorAgent
+from .populator_agents.panel_feature_populator_agents import LinearServicePopulatorAgent
+from .populator_agents.panel_feature_populator_agents import NichePopulatorAgent
 from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
 
 from .populator_configs.stud_panel_config import stud_panel
@@ -34,5 +37,8 @@ __all__ = [
     "OpeningPopulatorAgent",
     "DoorPopulatorAgent",
     "WindowPopulatorAgent",
+    "MEPPenetrationPopulatorAgent",
+    "LinearServicePopulatorAgent",
+    "NichePopulatorAgent",
     "PanelBoundaryPopulatorAgent",
 ]

@@ -10,7 +10,7 @@ from timber_design_populator.populator_agents.layer_agent import LayerAgent
 from timber_design_rules import CategoryRule
 
 if TYPE_CHECKING:
-    from compas_timber.elements import Layer  # noqa: F401
+    from compas_arch.elements import Layer  # noqa: F401
 
 
 class StudPopulatorAgent(LayerAgent):
@@ -29,7 +29,7 @@ class StudPopulatorAgent(LayerAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_timber.elements.Layer` or str, optional
+    layer : :class:`~compas_arch.elements.Layer` or str, optional
         The framing layer to fill with studs, or its path.
     stud_width : float, optional
         Explicit stud width.  When unset it is filled with the panel-wide

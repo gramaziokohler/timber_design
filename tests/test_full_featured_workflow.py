@@ -12,17 +12,17 @@ import pytest
 
 from compas.geometry import Point
 from compas.geometry import Polyline
-from compas_timber.elements import Layer
-from compas_timber.elements import LayerDefinition
-from compas_timber.elements import LayerStructure
-from compas_timber.elements import Panel
-from compas_timber.model import TimberModel
+from compas_arch.elements import Layer
+from compas_arch.elements import LayerDefinition
+from compas_arch.elements import LayerStructure
+from compas_arch.elements import Panel
+from compas_arch.model import ArchModel
 
 from timber_design_populator import stud_panel
 
 try:
-    from compas_timber.panel_features.opening import Opening
-    from compas_timber.panel_features.opening import OpeningType
+    from compas_arch.panel_features.opening import Opening
+    from compas_arch.panel_features.opening import OpeningType
     from timber_design_populator import OpeningPopulatorAgent
 
     HAS_OPENING = True
@@ -134,7 +134,7 @@ def simulate_solve(panel, with_openings=False):
     joinery features and keeps user ones (openings), so the reset needs no
     save/restore around it.
     """
-    model = TimberModel()
+    model = ArchModel()
     panel.reset()
     add_panel(model, panel)
     pop = _make_pop(panel, with_openings=with_openings)
@@ -175,7 +175,7 @@ class TestSublayers:
         """After populate_elements, the internal (extracted) model must contain
         the sublayer elements so merge_with_model can move them correctly."""
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         panel.reset()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
@@ -189,7 +189,7 @@ class TestSublayers:
     def test_sublayers_in_merged_model(self):
         """After merge_with_model, sublayers must be present in the outer model."""
         panel = make_panel()
-        model = TimberModel()
+        model = ArchModel()
         panel.reset()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
@@ -227,7 +227,7 @@ class TestSublayers:
         """
         panel = make_panel()
 
-        model = TimberModel()
+        model = ArchModel()
         panel.reset()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)
@@ -240,7 +240,7 @@ class TestSublayers:
         board_after_1 = subs_1[0]
 
         # Second solve — creates new sublayer objects
-        model = TimberModel()
+        model = ArchModel()
         panel.reset()
         add_panel(model, panel)
         pop = stud_panel(panel, standard_beam_width=STUD_WIDTH)

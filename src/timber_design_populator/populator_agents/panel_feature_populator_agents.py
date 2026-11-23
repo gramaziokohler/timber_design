@@ -206,66 +206,93 @@ class LinearServicePopulatorAgent(FeatureAgent):
         return None
 
 
-class _ServiceDrillingProxy(object):
-    """A drilling built only when needed, so it uses the beam's blank as extended by joinery.
+class _DeferredServiceCut(object):
+    """A machining built only when needed, so it uses the beam's blank as extended by joinery.
 
-    Unlike :class:`~compas_timber.fabrication.DrillingProxy` it is never joinery, so it is
-    kept when the element is reset or serialized.
+    Unlike compas_timber's proxies it is never joinery, so it is kept when the element is
+    reset or serialized. Subclasses implement :meth:`_build`.
     """
 
-    def __init__(self, line, beam, diameter):
-        self.line = line.transformed(beam.transformation_to_local())
+    def __init__(self, beam):
         self.beam = beam
-        self.diameter = diameter
         self._processing = None
+        self._building = False
 
     def __deepcopy__(self, *args, **kwargs):
         return self.unproxified()
 
+    def _build(self):
+        raise NotImplementedError
+
     def unproxified(self):
         if not self._processing:
-            line = self.line.transformed(self.beam.modeltransformation)
-            self._processing = Drilling.from_line_and_element(line, self.beam, self.diameter)
-            self._processing._is_joinery = False
+            self._building = True
+            try:
+                processing = self._build()
+            finally:
+                self._building = False
+            processing._is_joinery = False
+            self._processing = processing
         return self._processing
 
+    def apply(self, geometry, element):
+        if self._building:
+            # Building the processing can ask for the element's geometry (e.g. to report an
+            # error), which applies this cut again: skip it there instead of recursing.
+            return geometry
+        return self.unproxified().apply(geometry, element)
+
     def __getattr__(self, attr):
+        if attr.startswith("_") and not attr.startswith("__"):
+            # never forward this object's own private attributes: they are looked up before
+            # __init__ has run (e.g. while copying), and forwarding them would recurse.
+            # Dunders such as __jsondump__ are forwarded, so the cut serializes as the processing.
+            raise AttributeError(attr)
         return getattr(self.unproxified(), attr)
 
 
-class _ServiceLapProxy(object):
-    """A lap notch built only when needed, so it uses the beam's blank as extended by joinery.
+class _ServiceDrillingProxy(_DeferredServiceCut):
+    """A deferred, non-joinery :class:`~compas_timber.fabrication.Drilling` along *line*."""
 
-    Never joinery, so it is kept when the element is reset or serialized.
-    """
+    def __init__(self, line, beam, diameter):
+        super().__init__(beam)
+        self.line = line.transformed(beam.transformation_to_local())
+        self.diameter = diameter
+
+    def _build(self):
+        line = self.line.transformed(self.beam.modeltransformation)
+        return Drilling.from_line_and_element(line, self.beam, self.diameter)
+
+
+class _ServiceLapProxy(_DeferredServiceCut):
+    """A deferred, non-joinery :class:`~compas_timber.fabrication.Lap` notch."""
 
     def __init__(self, plane, beam, length, depth, ref_side_index):
+        super().__init__(beam)
         self.plane = plane.transformed(beam.transformation_to_local())
-        self.beam = beam
         self.length = length
         self.depth = depth
         self.ref_side_index = ref_side_index
-        self._processing = None
 
-    def __deepcopy__(self, *args, **kwargs):
-        return self.unproxified()
-
-    def unproxified(self):
-        if not self._processing:
-            plane = self.plane.transformed(self.beam.modeltransformation)
-            self._processing = Lap.from_plane_and_beam(plane, self.beam, self.length, self.depth, ref_side_index=self.ref_side_index)
-            self._processing._is_joinery = False
-        return self._processing
-
-    def __getattr__(self, attr):
-        return getattr(self.unproxified(), attr)
+    def _build(self):
+        plane = self.plane.transformed(self.beam.modeltransformation)
+        return Lap.from_plane_and_beam(plane, self.beam, self.length, self.depth, ref_side_index=self.ref_side_index)
 
 
-def _crossings(polyline, beam):
-    """Points where the service *polyline* crosses *beam*'s centerline in the panel plane, with the service direction there."""
+def _crossings(polyline, beam, tol=1e-6):
+    """Points where the service *polyline* runs through *beam*, with the service direction there.
+
+    The service crosses the beam where it crosses its centerline in the panel plane, and only
+    if the service lies within the beam's extent through the panel thickness: a service on the
+    core mid-plane does not run through battens or other framing on the sheathing layers.
+    """
+    zs = [point[2] for point in beam.blank.points]
+    z_min, z_max = min(zs) - tol, max(zs) + tol
     centerline = beam.centerline
     result = []
     for segment in polyline.lines:
+        if not (z_min <= segment.start.z <= z_max and z_min <= segment.end.z <= z_max):
+            continue
         hit = intersection_segment_segment_xy(segment, centerline)
         if hit:
             point = Point(hit[0], hit[1], segment.start.z)

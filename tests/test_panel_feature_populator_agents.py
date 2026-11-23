@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from compas.geometry import Frame
 from compas.geometry import Plane
 from compas.geometry import Point
@@ -187,3 +189,39 @@ def test_linear_service_agent_does_not_modify_framing():
     agent = LinearServicePopulatorAgent()
 
     assert agent.generate_elements_for_layer(object()) == ([], None)
+
+
+def test_service_only_machines_beams_it_runs_through():
+    from compas.geometry import Line
+    from compas_timber.elements import Beam
+
+    from timber_design_populator.populator_agents.panel_feature_populator_agents import _crossings
+
+    service = Polyline([Point(0, 500, 150), Point(1000, 500, 150)])  # on the core mid-plane, z=150
+    # vertical members in the panel plane at x=500, with z_vector along the panel normal
+    core_stud = Beam.from_centerline(Line(Point(500, 0, 150), Point(500, 2000, 150)), width=60, height=160, z_vector=Vector(0, 0, 1))
+    batten = Beam.from_centerline(Line(Point(500, 0, 35), Point(500, 2000, 35)), width=30, height=30, z_vector=Vector(0, 0, 1))
+
+    ((point, direction),) = _crossings(service, core_stud)
+    assert (round(point.x), round(point.y), round(point.z)) == (500, 500, 150)
+    assert _crossings(service, batten) == []  # the batten spans z=20..50
+
+
+def test_service_cut_does_not_recurse_while_being_built():
+    from compas.geometry import Line
+    from compas_timber.elements import Beam
+
+    from timber_design_populator.populator_agents.panel_feature_populator_agents import _ServiceDrillingProxy
+
+    beam = Beam.from_centerline(Line(Point(0, 0, 0), Point(0, 1000, 0)), width=60, height=160)
+    proxy = _ServiceDrillingProxy(Line(Point(-100, 500, 0), Point(100, 500, 0)), beam, 20)
+
+    # while the drilling is being built, a nested request for the beam geometry skips this cut
+    proxy._building = True
+    geometry = object()
+    assert proxy.apply(geometry, beam) is geometry
+
+    # an instance without __init__ (as when copying) does not forward its own private attributes
+    bare = _ServiceDrillingProxy.__new__(_ServiceDrillingProxy)
+    with pytest.raises(AttributeError):
+        bare._processing

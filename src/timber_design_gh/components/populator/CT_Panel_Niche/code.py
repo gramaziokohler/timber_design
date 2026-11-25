@@ -20,6 +20,7 @@ class PanelNiche(Grasshopper.Kernel.GH_ScriptInstance):
         outlines: System.Collections.Generic.List[object],
         side: str,
         depth: float,
+        detail_set: object,
     ):
         try:
             # LayerRole has explicit values, so lookup by value works on every Python version
@@ -36,7 +37,7 @@ class PanelNiche(Grasshopper.Kernel.GH_ScriptInstance):
             if outline is None:
                 continue
             try:
-                definitions.append(NicheDefinition(curve_to_compas_polyline(outline), side, depth))
+                definitions.append(NicheDefinition(curve_to_compas_polyline(outline), side, depth, detail_set))
             except Exception as e:
                 warning(ghenv.Component, "Could not define niche: {}".format(e))
 

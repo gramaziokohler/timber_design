@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
 from typing import TYPE_CHECKING
 from typing import Optional
 
@@ -54,7 +52,7 @@ class AgentBoundaryType(StrEnum):
     NONE = "none"
 
 
-class PopulatorAgent(Data, ABC):
+class PopulatorAgent(Data):
     """Abstract base class for all panel populator agents.
 
     An agent is a stateless-by-design computational unit responsible for one
@@ -100,9 +98,39 @@ class PopulatorAgent(Data, ABC):
     BOUNDARY_TYPE : :class:`AgentBoundaryType`
         Controls how the agent's outline is used during trimming.
         Defaults to :attr:`AgentBoundaryType.NONE`.
+    IS_DETAIL : bool
+        ``True`` for detail agents (created by detail sets), ``False`` for panel-wide agents.
+    PRIORITY : int
+        Order within each stage of the pipeline: lower runs first (default 0).  The
+        populator sorts its agents by priority, stably, so equal priorities keep the given
+        order.  It decides which of two agents moving the same layer edge wins (the later
+        one) and whose joint rules are tried first.
+
+    There are two kinds of agents, told apart by :attr:`IS_DETAIL`:
+
+    - **panel-wide agents** (``*Agent``: edge beams, studs, plates, layer boundaries) are
+      configured by you on the populator and frame the panel as a whole;
+    - **detail agents** (``*DetailAgent``) are created by a
+      :class:`~timber_design_populator.detail_sets.DetailAgentSet` for one feature, on every
+      run, with explicit inputs, and are tagged with that :attr:`feature`.
+
+    A new base behaviour is a new agent; a new combination of agents is a new detail set.
 
     Parameters
     ----------
+    layer : :class:`~compas_arch.elements.Layer` or tuple, optional
+        Shorthand for an agent working on one layer: sets both *element_layers* and
+        *trimming_layers* to it.
+    element_layers : list[:class:`~compas_arch.elements.Layer` | tuple], optional
+        The layers (or layer paths) this agent generates elements on.
+    trimming_layers : list[:class:`~compas_arch.elements.Layer` | tuple], optional
+        The layers (or layer paths) on which this agent's boundary trims peer elements;
+        their sublayers are trimmed too.
+    feature : :class:`~compas_arch.panel_features.PanelFeature`, optional
+        The feature a detail agent was created for; used to tag its elements and report
+        errors, never interpreted.
+    priority : int, optional
+        Overrides :attr:`PRIORITY` for this agent.
     internal_joint_overrides : list[:class:`~timber_design_rules.CategoryRule`], optional
         Overrides merged into :attr:`INTERNAL_JOINT_RULES` to form
         :attr:`internal_rules`.
@@ -142,6 +170,8 @@ class PopulatorAgent(Data, ABC):
     EXTERNAL_JOINT_RULES: list[CategoryRule] = []
     COMPOSITE_RULES: list[CompositeRule] = []
     BOUNDARY_TYPE = AgentBoundaryType.NONE
+    IS_DETAIL = False
+    PRIORITY = 0
 
     @property
     def __data__(self):
@@ -152,13 +182,36 @@ class PopulatorAgent(Data, ABC):
         per-category widths (read back out of :attr:`beam_widths`) and parameters.
         """
         return {
+            "element_layers": list(self.element_layer_paths),
+            "trimming_layers": list(self.trimming_layer_paths),
+            "feature": self.feature,
+            "priority": self.priority if self.priority != type(self).PRIORITY else None,
             "internal_joint_overrides": self.internal_overrides or None,
             "external_joint_overrides": self.external_overrides or None,
             "composite_joint_overrides": self.composite_overrides or None,
         }
 
-    def __init__(self, internal_joint_overrides=None, external_joint_overrides=None, composite_joint_overrides=None):
+    def __init__(
+        self,
+        layer=None,
+        element_layers=None,
+        trimming_layers=None,
+        feature=None,
+        priority=None,
+        internal_joint_overrides=None,
+        external_joint_overrides=None,
+        composite_joint_overrides=None,
+    ):
         super().__init__()
+        if layer is not None:
+            element_layers = [layer] if element_layers is None else element_layers
+            trimming_layers = [layer] if trimming_layers is None else trimming_layers
+        self.element_layer_paths = [_as_path(layer) for layer in element_layers or []]
+        self.trimming_layer_paths = [_as_path(layer) for layer in trimming_layers or []]
+        self._element_layers = []
+        self._trimming_layers = []
+        self.feature = feature
+        self.priority = priority if priority is not None else type(self).PRIORITY
         self.beam_widths: dict[str, float] = {}
         self.internal_overrides = list(internal_joint_overrides) if internal_joint_overrides else []
         self.external_overrides = list(external_joint_overrides) if external_joint_overrides else []
@@ -186,16 +239,31 @@ class PopulatorAgent(Data, ABC):
         return type(self)(**self.__data__)
 
     @property
-    @abstractmethod
     def element_layers(self) -> list[Layer]:
-        """The layers this agent generates elements on."""
-        raise NotImplementedError
+        """The live layers this agent generates elements on (bound by :meth:`repoint_to_layer_tree`)."""
+        return self._element_layers
 
     @property
-    @abstractmethod
     def trimming_layers(self) -> list[Layer]:
-        """The layers on which this agent's boundary trims peer elements."""
-        raise NotImplementedError
+        """The live layers on which this agent's boundary trims peer elements."""
+        return self._trimming_layers
+
+    @property
+    def layer(self) -> Optional[Layer]:
+        """The (first) layer this agent works on, for agents working on one layer."""
+        layers = self._element_layers or self._trimming_layers
+        return layers[0] if layers else None
+
+    @property
+    def layer_path(self):
+        """The path of :attr:`layer`, or ``None``."""
+        paths = self.element_layer_paths or self.trimming_layer_paths
+        return paths[0] if paths else None
+
+    @property
+    def layer_center_height(self):
+        """Z coordinate of the centre of :attr:`layer` (populator space)."""
+        return self.layer.center_height if self.layer is not None else None
 
     @property
     def elements(self) -> list:
@@ -218,22 +286,37 @@ class PopulatorAgent(Data, ABC):
     # Element generation
     # ------------------------------------------------------------------
 
-    @abstractmethod
     def generate_elements(self):
-        """Create this agent's elements, grouped per layer.
+        """Create, tag and return this agent's elements on every element layer.
 
-        Implementations must stamp ``attributes["agent"] = self`` on every
-        element they return and record the agent's boundary outline for every
-        framing layer in :attr:`outline_by_layer` (an explicit ``None`` marks a
-        layer without a boundary).  The populator adds the returned elements to
-        its model — agents never store element lists themselves.
+        Calls :meth:`generate_elements_for_layer` for each of :attr:`element_layers`, stamps
+        ``attributes["agent"] = self`` on every element and records the returned boundary
+        outline in :attr:`outline_by_layer`.  The populator adds the elements to its model;
+        agents never store element lists themselves.
 
         Returns
         -------
         dict[:class:`~compas_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
-            The generated elements per framing layer.
+            The generated elements per element layer.
         """
-        raise NotImplementedError
+        self.outline_by_layer.clear()
+        elements_by_layer = {}
+        for layer in self.element_layers:
+            elements, outline = self.generate_elements_for_layer(layer)
+            for element in elements:
+                element.attributes["agent"] = self
+            elements_by_layer[layer] = elements
+            self.outline_by_layer[layer] = outline
+        return elements_by_layer
+
+    def generate_elements_for_layer(self, layer):
+        """The elements and boundary outline of this agent on *layer*.  Nothing by default.
+
+        Returns
+        -------
+        tuple[list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`], :class:`~compas.geometry.Polyline` or None]
+        """
+        return [], None
 
     def beam_width(self, category: str) -> float:
         """Return the resolved width for beam *category*.
@@ -251,7 +334,7 @@ class PopulatorAgent(Data, ABC):
             raise ValueError("{} has no width for beam category {!r}. Pass it explicitly or set the populator's standard_beam_width.".format(type(self).__name__, category))
         return width
 
-    def beam_from_category(self, centerline: Line, category: str, layer: "Layer", **kwargs) -> Beam2D:
+    def beam_from_category(self, centerline: Line, category: str, layer: Optional[Layer] = None, **kwargs) -> Beam2D:
         """Create a :class:`~timber_design_populator.connections_2d.Beam2D` from a centreline and category.
 
         The beam width comes from :attr:`beam_widths` (filled by the config /
@@ -266,8 +349,7 @@ class PopulatorAgent(Data, ABC):
             Beam category; must be present in :attr:`beam_widths`.
         layer : :class:`~compas_arch.elements.Layer`
             The layer the beam belongs to.  Its thickness is used as the beam
-            height.  :class:`~timber_design_populator.LayerAgent` subclasses
-            automatically pass their own layer when the argument is omitted.
+            height.  Defaults to :attr:`layer`.
         kwargs : dict, optional
             Extra key/value pairs stored as ``beam.attributes``.
 
@@ -276,7 +358,7 @@ class PopulatorAgent(Data, ABC):
         :class:`~timber_design_populator.connections_2d.Beam2D`
         """
         width = self.beam_width(category)
-        height = layer.thickness
+        height = (layer if layer is not None else self.layer).thickness
         beam = Beam2D.from_centerline(centerline, width=width, height=height, z_vector=Vector(0, 0, 1))
         for key, value in kwargs.items():
             beam.attributes[key] = value
@@ -284,8 +366,29 @@ class PopulatorAgent(Data, ABC):
         return beam
 
     def repoint_to_layer_tree(self, tree):
-        """Rebind this agent to the current panel layer tree. No-op for agents with no layer refs."""
-        pass
+        """Rebind this agent's layers to the live layers of the current panel, by path."""
+        self._element_layers = [tree[p] for p in self.element_layer_paths if p in tree]
+        self._trimming_layers = [tree[p] for p in self.trimming_layer_paths if p in tree]
+
+    def modify_layers(self, layer_tree) -> list:
+        """Set extension planes on the panel's layers before any element is generated.
+
+        Called once per run, after :meth:`repoint_to_layer_tree`.  The populator applies all
+        extension planes afterwards, so agents only call
+        :meth:`~compas_arch.elements.Layer.set_extension_plane`.  Used by connection details
+        that stagger layers at a panel edge.  No-op by default.
+
+        Parameters
+        ----------
+        layer_tree : dict[tuple, :class:`~compas_arch.elements.Layer`]
+            Every layer of the panel, by layer path.
+
+        Returns
+        -------
+        list[:class:`~compas_timber.errors.FeatureApplicationError`]
+            Problems to report.
+        """
+        return []
 
     # ------------------------------------------------------------------
     # Boundary outlines
@@ -294,10 +397,18 @@ class PopulatorAgent(Data, ABC):
     def compute_outline_for_layer(self, layer):
         """Return this agent's boundary outline on *layer*, or ``None`` for no boundary.
 
+        By default a sublayer shares the outline this agent generated on its nearest
+        ancestor layer (e.g. the edge beams bound the sublayers of the core too).
+
         Returns
         -------
         :class:`~compas.geometry.Polyline` or None
         """
+        ancestor = getattr(layer, "parent", None)
+        while isinstance(ancestor, Layer):
+            if ancestor in self.outline_by_layer:
+                return self.outline_by_layer[ancestor]
+            ancestor = ancestor.parent
         return None
 
     def define_outlines(self, layers):
@@ -580,3 +691,12 @@ class PopulatorAgent(Data, ABC):
             else:
                 rules.append(override)
         return rules
+
+
+def _as_path(layer_or_path):
+    """A layer's path, or *layer_or_path* itself; a list (a path that came back from JSON) becomes a tuple."""
+    if isinstance(layer_or_path, Layer):
+        return layer_or_path.layer_path
+    if isinstance(layer_or_path, list):
+        return tuple(layer_or_path)
+    return layer_or_path

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from compas_timber.elements import Plate
 
-from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
 
 
-class PlatePopulatorAgent(LayerAgent):
+class PlateAgent(PopulatorAgent):
     """Generates a flat sheathing plate for one cross-section layer of a panel.
 
     Parameters
@@ -15,9 +15,9 @@ class PlatePopulatorAgent(LayerAgent):
     """
 
     BEAM_CATEGORY_NAMES = ["plate"]
-    NAME = "PlatePopulatorAgent"
+    NAME = "PlateAgent"
 
-    def generate_layer_elements(self):
+    def generate_elements_for_layer(self, layer):
         """Create a :class:`~compas_timber.elements.Plate` spanning this layer.
 
         Returns

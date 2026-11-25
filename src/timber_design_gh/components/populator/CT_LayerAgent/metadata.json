@@ -3,7 +3,7 @@
     "nickname": "LayerAgent",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Creates a LayerAgent that frames a single panel layer (edge beams, studs, sheathing plate, panel boundary). Right-click to choose the agent type; its parameters appear as additional inputs.",
+    "description": "Creates a panel-wide agent that frames or sheathes panel layers (EdgeAgent, StudAgent, PlateAgent, LayerBoundaryAgent). Right-click to choose the agent type; its parameters appear as additional inputs. 'priority' orders agents in the populator (lower runs first; equal priorities keep the given order). Detail agents are not listed: detail sets create them.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -31,7 +31,7 @@
         "outputParameters": [
             {
                 "name": "Agent",
-                "description": "Configured LayerAgent. Connect to CT_PanelPopulator's 'agents' input."
+                "description": "Configured agent. Connect to CT_PanelPopulator's 'agents' input."
             }
         ]
     }

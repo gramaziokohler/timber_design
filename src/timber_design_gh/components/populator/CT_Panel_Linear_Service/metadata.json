@@ -3,7 +3,7 @@
     "nickname": "LinearService",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Defines LinearService features (manually routed electrical or plumbing runs) for a panel component's 'features' input. When the panel is populated, every core beam the service crosses is drilled through ('core_drilling') or notched from the interior face ('frame_notching'). Sheathing is not cut. Holes over 40% and notches over 25% of the beam depth are reported in the populator's DebugInfo.",
+    "description": "Defines LinearService features (manually routed electrical or plumbing runs) for a panel component's 'features' input. By default the populator's LinearServiceDetailSet drills every core beam the service crosses; give it LinearServiceDetailSet(mode='notching') via 'detail_set' to notch them from the interior face instead. Sheathing is not cut. Holes over 40% and notches over 25% of the beam depth are reported in the populator's DebugInfo.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -22,9 +22,9 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "routing_mode",
-                "description": "'core_drilling' (default): drill through each crossed beam on the core mid-plane. 'frame_notching': cut a lap notch into each crossed beam from the interior face.",
-                "typeHintID": "str",
+                "name": "detail_set",
+                "description": "(Optional) A detail set (CT: Detail Agent Set) that builds these features, in place of the populator's default for this feature type.",
+                "typeHintID": "none",
                 "scriptParamAccess": 0
             }
         ],

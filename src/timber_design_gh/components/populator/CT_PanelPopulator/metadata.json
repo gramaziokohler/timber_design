@@ -17,7 +17,7 @@
             },
             {
                 "name": "agents",
-                "description": "List of PopulatorAgents. Bound feature agents are only used if their feature belongs to this panel.",
+                "description": "Panel-wide PopulatorAgents (CT: Layer Agent). Detail agents are created by detail sets and are skipped here.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },
@@ -28,8 +28,8 @@
                 "scriptParamAccess": 0
             },
             {
-                "name": "default_feature_configs",
-                "description": "List of unbound FeatureAgent prototypes (one per feature type), applied to every panel feature no other agent handles.",
+                "name": "default_detail_sets",
+                "description": "Detail sets (CT: Detail Agent Set) used for every feature of the types they build that has no detail_set of its own.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },

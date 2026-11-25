@@ -19,6 +19,7 @@ class PanelOpening(Grasshopper.Kernel.GH_ScriptInstance):
         outlines: System.Collections.Generic.List[object],
         opening_type: str,
         project_horizontal: bool,
+        detail_set: object,
     ):
         try:
             # look up by member name: on Python 3.9 compas_timber's StrEnum values are not the lowercase names
@@ -33,7 +34,7 @@ class PanelOpening(Grasshopper.Kernel.GH_ScriptInstance):
             if outline is None:
                 continue
             try:
-                definitions.append(OpeningDefinition(curve_to_compas_polyline(outline), opening_type, project_horizontal))
+                definitions.append(OpeningDefinition(curve_to_compas_polyline(outline), opening_type, project_horizontal, detail_set))
             except Exception as e:
                 warning(ghenv.Component, "Could not define opening: {}".format(e))
 

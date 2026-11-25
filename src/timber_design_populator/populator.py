@@ -4,9 +4,11 @@ from compas_arch.elements import Layer
 from compas_arch.elements import Panel
 from compas_timber.connections import Cluster
 from compas_timber.errors import BeamJoiningError
+from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.connections_2d import Beam2D
 from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
+from timber_design_populator.detail_sets.detail_agent_set import DetailAgentSet
 from timber_design_rules import DebugInfomation
 from timber_design_rules import JointRuleSolver
 
@@ -64,9 +66,12 @@ class PanelPopulator:
         :meth:`~timber_design_populator.PopulatorAgent.clone`), so the
         same agent instances can be passed to several populators; use
         :attr:`agents` to inspect the populated ones.
-    default_feature_agents : dict[type, :class:`~timber_design_populator.FeatureAgent`], optional
-        Prototype feature agent per feature class, instantiated for any panel
-        feature no existing agent already handles.
+        Panel-wide agents only: detail agents are created by detail sets (given here, they are
+        skipped and reported).  The populator orders all agents by
+        :attr:`~timber_design_populator.PopulatorAgent.priority`, stably.
+    default_detail_sets : dict[type, :class:`~timber_design_populator.detail_sets.DetailAgentSet`], optional
+        The detail set per feature class, used for every panel feature of that class that has
+        no ``detail_set`` of its own.
     standard_beam_width : float, optional
         Panel-wide default beam width, used to fill any per-category width an
         agent constructor did not set.
@@ -122,7 +127,7 @@ class PanelPopulator:
         self,
         panel,
         agents,
-        default_feature_agents=None,
+        default_detail_sets=None,
         standard_beam_width=None,
         joint_rule_overrides=None,
         max_distance=None,
@@ -130,11 +135,16 @@ class PanelPopulator:
         self.model = None
         self.debug_info = DebugInfomation()
         self.max_distance = max_distance if max_distance is not None else 0.1
-        self.agents = [agent.clone() for agent in agents] if agents else []
         self.panel = panel
         self.panel_guid = panel.guid if isinstance(panel, Panel) else panel
-        self._parse_default_feature_agents(default_feature_agents or {})
+        self.default_detail_sets = dict(default_detail_sets) if default_detail_sets else {}
+        self.standard_beam_width = standard_beam_width
+        self.agents, self._agent_errors = _panel_wide_agents(agents)
+        self._feature_agents = []
+        self._feature_sets = []
+        self._bind_feature_agents()
         self._resolve_beam_widths(standard_beam_width)
+        self._sort_agents()
         self.joint_rule_overrides = list(joint_rule_overrides) if joint_rule_overrides else []
 
     # ------------------------------------------------------------------
@@ -174,24 +184,60 @@ class PanelPopulator:
         """
         self.panel = model.element_by_guid(str(self.panel_guid))
 
-    def _parse_default_feature_agents(self, default_feature_agents):
-        """Instantiate a feature agent for every panel feature lacking one.
+    def _bind_feature_agents(self):
+        """Pick the detail set for every feature :attr:`panel` has now, dropping the previous run's agents.
 
-        Parameters
-        ----------
-        default_feature_agents : dict[type, :class:`~timber_design_populator.FeatureAgent`]
-            Prototype feature agent per feature class.
+        Each feature is built by exactly one detail set: its own ``detail_set`` (e.g. the half
+        of a connection detail a panel joint put on its interface), or else this populator's
+        default for its type.  The sets are expanded by :meth:`_expand_feature_sets` once the
+        layers are in populator space.  Runs on every :meth:`populate_elements`: joint-generated
+        features are recreated on every model solve, and :meth:`update_panel_from_model` may swap
+        :attr:`panel` for a copy.
+
+        Returns
+        -------
+        list[:class:`~compas_timber.errors.FeatureApplicationError`]
+            One per detail set that cannot build its feature, which is skipped.
         """
+        bound = set(id(agent) for agent in self._feature_agents)
+        self.agents = [agent for agent in self.agents if id(agent) not in bound]
+        self._feature_agents = []
+        self._feature_sets = []
+        errors = []
         for feature in self.panel.features:
-            if any(getattr(agent, "feature", None) is feature for agent in self.agents):
-                continue  # a feature agent already handles this feature
-            prototype = default_feature_agents.get(type(feature))
-            if prototype is None:
+            detail_set = feature.detail_set if feature.detail_set is not None else self.default_detail_sets.get(type(feature))
+            if detail_set is None:
                 continue
+            problem = _cannot_build(detail_set, feature)
+            if problem:
+                errors.append(FeatureApplicationError(None, None, problem))
+                continue
+            self._feature_sets.append((feature, detail_set.clone()))
+        return errors
 
-            agent = prototype.clone()
-            agent.feature = feature
-            self.agents.append(agent)
+    def _expand_feature_sets(self):
+        """Expand every bound detail set into its agents, now that the layers are in populator space.
+
+        Returns
+        -------
+        list[:class:`~compas_timber.errors.FeatureApplicationError`]
+            The problems the sets report.
+        """
+        errors = []
+        layer_tree = self.layer_tree
+        for feature, detail_set in self._feature_sets:
+            agents, set_errors = detail_set.expand(feature, self.panel, layer_tree, self.standard_beam_width)
+            errors.extend(set_errors)
+            for agent in agents:
+                self.agents.append(agent)
+                self._feature_agents.append(agent)
+        self._resolve_beam_widths(self.standard_beam_width)
+        self._sort_agents()
+        return errors
+
+    def _sort_agents(self):
+        """Order the agents by :attr:`~timber_design_populator.PopulatorAgent.priority`, keeping the given order for equal priorities."""
+        self.agents.sort(key=lambda agent: agent.priority)
 
     @property
     def elements(self):
@@ -215,8 +261,12 @@ class PanelPopulator:
         # a fresh record for this run; the populator is reused across Grasshopper solves
         self.debug_info = DebugInfomation()
         # model extracted here to ensure the latest version of panel and layer geometry
+        self.debug_info.add_feature_error(self._agent_errors)
+        self.debug_info.add_feature_error(self._bind_feature_agents())
         self.model = self._build_populator_model()
+        self.debug_info.add_feature_error(self._expand_feature_sets())
         self._repoint_agents()
+        self._modify_layers()
         self._generate_elements()
         self._define_outlines()
         self._extend_elements()
@@ -240,6 +290,29 @@ class PanelPopulator:
             if not isinstance(element, Layer):
                 model.remove_element(element)
         return model
+
+    def _modify_layers(self):
+        """Let each agent set layer extension planes, then apply them to every layer.
+
+        Layers are the panel's own (moved, not copied, into :attr:`model`), so the
+        extensions persist after :meth:`merge_with_model`.  Re-applying the same planes
+        on a later run is a no-op.
+        """
+        layer_tree = self.layer_tree
+        claimed = {}  # (layer_path, edge_index) -> the agent that set its extension plane
+        for agent in self.agents:
+            before = _extension_planes(layer_tree)
+            self.debug_info.add_feature_error(agent.modify_layers(layer_tree))
+            for key, plane in _extension_planes(layer_tree).items():
+                if before.get(key) is plane:
+                    continue
+                if key in claimed and claimed[key] is not agent:
+                    message = "{} and {} both set the extension of edge {} on layer {}; the last one wins.".format(type(claimed[key]).__name__, type(agent).__name__, key[1], key[0])
+                    self.debug_info.add_feature_error(FeatureApplicationError(None, None, message))
+                claimed[key] = agent
+        for layer in layer_tree.values():
+            if not isinstance(layer.parent, Layer):  # root layers apply to their sublayers
+                layer.apply_edge_extensions()
 
     def _generate_elements(self):
         """Ask each agent to create its elements and add them to the model."""
@@ -403,6 +476,37 @@ def _get_ancestor_beams_for_layer(layer):
 
     walk_up(layer)
     return beams
+
+
+def _panel_wide_agents(agents):
+    """Clones of the panel-wide *agents*, plus an error for each detail agent, which is skipped.
+
+    Detail agents are created by detail sets for one feature; given directly they would be
+    bound to nothing.
+    """
+    kept, errors = [], []
+    for agent in agents or []:
+        if agent.IS_DETAIL:
+            message = "{} is a detail agent; detail sets create these for a feature (set the feature's detail_set). Skipped.".format(type(agent).__name__)
+            errors.append(FeatureApplicationError(None, None, message))
+            continue
+        kept.append(agent.clone())
+    return kept, errors
+
+
+def _cannot_build(detail_set, feature):
+    """Why *detail_set* cannot build *feature*, or ``None`` if it can."""
+    if not isinstance(detail_set, DetailAgentSet):
+        return "Not a detail set, skipped: {!r}".format(detail_set)
+    if detail_set.FEATURE_TYPES and not isinstance(feature, detail_set.FEATURE_TYPES):
+        names = ", ".join(t.__name__ for t in detail_set.FEATURE_TYPES)
+        return "{} builds {} features, not {}; skipped.".format(type(detail_set).__name__, names, type(feature).__name__)
+    return None
+
+
+def _extension_planes(layer_tree):
+    """``{(layer_path, edge_index): plane}`` of every layer's current edge planes, for spotting which ones an agent set."""
+    return {(path, edge): plane for path, layer in layer_tree.items() for edge, plane in layer.plate_geometry.edge_planes.items()}
 
 
 def _layer_and_sublayers(layer):

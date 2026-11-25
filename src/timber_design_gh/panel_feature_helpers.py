@@ -20,7 +20,6 @@ from compas.geometry import centroid_points
 from compas.geometry import is_point_in_polygon_xy
 from compas_arch.elements import LayerRole
 from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import LinearServiceMode
 from compas_arch.panel_features import MEPPenetration
 from compas_arch.panel_features import Niche
 from compas_arch.panel_features import Opening
@@ -84,7 +83,16 @@ class PanelFeatureDefinition(object):
     """World-space description of a panel feature, turned into a feature per panel.
 
     Subclasses implement :meth:`feature_for_panel` and :attr:`polylines`.
+
+    Every definition may carry a ``detail_set`` that builds the features it creates, in place of
+    the populator's default for the feature type.  It is attached to every feature made from the
+    definition (the populator expands a clone, so sharing it is safe).
     """
+
+    detail_set = None
+
+    def _set_detail_set(self, detail_set):
+        self.detail_set = _unwrap(detail_set)
 
     @property
     def polylines(self):
@@ -137,8 +145,9 @@ class OpeningDefinition(PanelFeatureDefinition):
         Extrude sloped openings horizontally instead of along the panel normal.
     """
 
-    def __init__(self, outline, opening_type=None, project_horizontal=False):
+    def __init__(self, outline, opening_type=None, project_horizontal=False, detail_set=None):
         _check_closed(outline, "Opening")
+        self._set_detail_set(detail_set)
         self.outline = outline
         self.opening_type = opening_type or OpeningType.WINDOW
         self.project_horizontal = bool(project_horizontal)
@@ -168,7 +177,8 @@ class MEPPenetrationDefinition(PanelFeatureDefinition):
         core outline.
     """
 
-    def __init__(self, outline_core, outline_interior=None, outline_exterior=None):
+    def __init__(self, outline_core, outline_interior=None, outline_exterior=None, detail_set=None):
+        self._set_detail_set(detail_set)
         self.outline_core = outline_core
         self.outline_interior = outline_interior or outline_core
         self.outline_exterior = outline_exterior or outline_core
@@ -205,8 +215,9 @@ class NicheDefinition(PanelFeatureDefinition):
         niche through the side layer and the framing layer.
     """
 
-    def __init__(self, outline, side, depth=None):
+    def __init__(self, outline, side, depth=None, detail_set=None):
         _check_closed(outline, "Niche")
+        self._set_detail_set(detail_set)
         side = LayerRole(side)
         if side not in Niche.SIDES:
             raise ValueError("Niche side must be one of: {}.".format(", ".join(s.value for s in Niche.SIDES)))
@@ -241,16 +252,17 @@ class LinearServiceDefinition(PanelFeatureDefinition):
         World-space service path, drawn on or parallel to the panel.
     thickness : float
         Diameter of the service.
-    routing_mode : :class:`compas_arch.panel_features.LinearServiceMode`, optional
-        Core drilling (default) or frame notching.
+    detail_set : :class:`~timber_design_populator.detail_sets.DetailAgentSet`, optional
+        How to build the service, e.g. ``LinearServiceDetailSet(mode="notching")``.  Unset: the
+        populator's default.
     """
 
-    def __init__(self, polyline, thickness, routing_mode=None):
+    def __init__(self, polyline, thickness, detail_set=None):
+        self._set_detail_set(detail_set)
         if not thickness or thickness <= 0:
             raise ValueError("Linear service thickness must be greater than zero.")
         self.polyline = polyline
         self.thickness = thickness
-        self.routing_mode = routing_mode or LinearServiceMode.CORE_DRILLING
 
     @property
     def polylines(self):
@@ -258,7 +270,7 @@ class LinearServiceDefinition(PanelFeatureDefinition):
 
     def feature_for_panel(self, panel):
         z = layer_mid_z(panel.core_layer, default=panel.thickness / 2.0)
-        return LinearService(Frame.worldXY(), project_to_local_z(to_panel_local(self.polyline, panel), z), self.thickness, routing_mode=self.routing_mode)
+        return LinearService(Frame.worldXY(), project_to_local_z(to_panel_local(self.polyline, panel), z), self.thickness)
 
 
 # ------------------------------------------------------------------
@@ -301,6 +313,7 @@ def add_feature_definitions(panel, definitions):
         except Exception as e:
             messages.append("Could not add {}: {}".format(type(definition).__name__, e))
             continue
+        feature.detail_set = definition.detail_set
         panel.add_feature(feature)
         added.append(feature)
         messages.extend(definition.warnings_for_panel(panel))

@@ -5,7 +5,6 @@
 import Grasshopper
 import System
 from compas_rhino.conversions import polyline_to_rhino_curve
-from compas_arch.panel_features import LinearServiceMode
 
 from timber_design_gh import curve_to_compas_polyline
 from timber_design_gh import error
@@ -19,15 +18,8 @@ class PanelLinearService(Grasshopper.Kernel.GH_ScriptInstance):
         self,
         polylines: System.Collections.Generic.List[object],
         thickness: float,
-        routing_mode: str,
+        detail_set: object,
     ):
-        try:
-            # look up by member name: on Python 3.9 compas_timber's StrEnum values are not the lowercase names
-            routing_mode = LinearServiceMode[routing_mode.strip().upper()] if routing_mode else LinearServiceMode.CORE_DRILLING
-        except KeyError:
-            error(ghenv.Component, "routing_mode must be one of: {}".format(", ".join(m.name.lower() for m in LinearServiceMode)))
-            return
-        ghenv.Component.Message = routing_mode.name.lower()
         if not item_input_valid_cpython(ghenv, thickness, "thickness"):
             return
 
@@ -36,7 +28,7 @@ class PanelLinearService(Grasshopper.Kernel.GH_ScriptInstance):
             if polyline is None:
                 continue
             try:
-                definitions.append(LinearServiceDefinition(curve_to_compas_polyline(polyline), thickness, routing_mode))
+                definitions.append(LinearServiceDefinition(curve_to_compas_polyline(polyline), thickness, detail_set))
             except Exception as e:
                 warning(ghenv.Component, "Could not define linear service: {}".format(e))
 

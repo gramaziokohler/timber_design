@@ -1,33 +1,23 @@
 # flake8: noqa
-import inspect
-
 import Grasshopper
-import compas_arch.connections as _arch_connections
-from compas_arch.connections import PanelJoint
 from System.Windows.Forms import ToolStripSeparator
 
+from timber_design_rules import DirectRule
 from timber_design_gh import item_input_valid_cpython
+from timber_design_gh import kwargs_by_input_name
 from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import panel_joint_classes
+from timber_design_gh import panel_joint_flag_names
 from timber_design_gh import rename_cpython_gh_output
 from timber_design_gh import warning
-from timber_design_rules import DirectRule
+
+_FIRST_NAMES = ["panel_a", "panel_b"]
 
 
 class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(DirectPanelJointRule, self).__init__()
-        self.classes = {}
-        for name in dir(_arch_connections):
-            cls = getattr(_arch_connections, name)
-            if (
-                isinstance(cls, type)
-                and issubclass(cls, PanelJoint)
-                and cls is not PanelJoint
-                and getattr(cls, "SUPPORTED_TOPOLOGY", 0) != 0
-                and getattr(cls, "MAX_ELEMENT_COUNT", 0) == 2
-            ):
-                self.classes[cls.__name__] = cls
-
+        self.classes = panel_joint_classes(max_element_count=2)
         self.joint_type = self.classes.get(self.component.Params.Output[0].NickName, None)
 
     @property
@@ -39,23 +29,16 @@ class DirectPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             self.component.Message = "Select joint type from context menu (right click)"
             warning(self.component, "Select joint type from context menu (right click)")
             return None
-
         self.component.Message = self.joint_type.__name__
-        panel_a = args[0]
-        panel_b = args[1]
-
-        if not item_input_valid_cpython(ghenv, panel_a, self.arg_names()[0]) or not item_input_valid_cpython(ghenv, panel_b, self.arg_names()[1]):
+        a, b = args[:2]
+        if not item_input_valid_cpython(ghenv, a, _FIRST_NAMES[0]) or not item_input_valid_cpython(ghenv, b, _FIRST_NAMES[1]):
             return
-
-        kwargs = {}
-        for i, val in enumerate(args[2:]):
-            if val is not None:
-                kwargs[self.arg_names()[i + 2]] = val
-
-        return DirectRule(self.joint_type, [panel_a, panel_b], **kwargs)
+        kwargs = kwargs_by_input_name(ghenv, args, self.arg_names()[2:])
+        return DirectRule(self.joint_type, [a, b], **kwargs)
 
     def arg_names(self):
-        return inspect.getfullargspec(self.joint_type.__init__)[0][1:3] + ["max_distance"]
+        # the joint's flags (e.g. backing_studs on the generic joints) become inputs
+        return _FIRST_NAMES + ["max_distance"] + panel_joint_flag_names(self.joint_type)
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():

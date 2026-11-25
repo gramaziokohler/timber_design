@@ -21,12 +21,12 @@ from compas_arch.panel_features import Opening
 from compas_arch.panel_features import OpeningType
 from compas_timber.connections import TButtJoint
 
-from timber_design_populator import EdgePopulatorAgent
-from timber_design_populator import OpeningPopulatorAgent
+from timber_design_populator import EdgeAgent
 from timber_design_populator import PanelPopulator
-from timber_design_populator import PlatePopulatorAgent
-from timber_design_populator import StudPopulatorAgent
+from timber_design_populator import PlateAgent
+from timber_design_populator import StudAgent
 from timber_design_populator import stud_panel
+from timber_design_populator.detail_sets import FramedOpeningDetailSet
 from timber_design_rules import CategoryRule
 
 
@@ -101,10 +101,9 @@ def sheathed_wall_with_openings():
         standard_beam_width=60,
         stud_spacing=625,
         edge_stud_width=80,
-        default_feature_configs={
-            # One prototype serves every Opening; it becomes a Window- or
-            # DoorPopulatorAgent depending on each opening's type.
-            Opening: OpeningPopulatorAgent(lintel_posts=True, header_width=120, split_bottom_plate_beam=True),
+        default_detail_sets={
+            # One detail set builds every Opening: a sill for windows, a split bottom plate for doors.
+            Opening: FramedOpeningDetailSet(lintel_posts=True, header_width=120, split_bottom_plate_beam=True),
         },
     )
     run(populator, model)
@@ -137,10 +136,10 @@ def custom_agent_stack():
 
     board, _battens = panel.exterior_layer.sublayers
     agents = [
-        PlatePopulatorAgent(board),
-        PlatePopulatorAgent(panel.interior_layer),
-        EdgePopulatorAgent(panel.core_layer, standard_beam_width_increment=20),
-        StudPopulatorAgent(
+        PlateAgent(board),
+        PlateAgent(panel.interior_layer),
+        EdgeAgent(panel.core_layer, standard_beam_width_increment=20),
+        StudAgent(
             panel.core_layer,
             stud_spacing=600,
             # Replaces the default (stud, top_plate_beam) T-butt: same topology and categories.
@@ -151,13 +150,10 @@ def custom_agent_stack():
         panel,
         agents,
         standard_beam_width=60,
-        default_feature_agents={
+        default_detail_sets={
             # Frame the opening in the core; cut its outline through every layer
-            # (sublayers of "exterior" included) so the sheathing gets the hole.
-            Opening: OpeningPopulatorAgent(
-                element_layers=[panel.core_layer],
-                trimming_layers=[panel.exterior_layer, panel.core_layer, panel.interior_layer],
-            ),
+            # (sublayers of "exterior" included) so the sheathing and battens get the hole.
+            Opening: FramedOpeningDetailSet(),
         },
         # Panel-level fallback, tried only when no agent rule matches a cluster.
         joint_rule_overrides=[CategoryRule(TButtJoint, "stud", "sill")],

@@ -384,165 +384,105 @@ class TestMultiPanelWorkflow:
 # =============================================================================
 
 
+def _populated_opening(opening_type, outline, **detail_set_options):
+    """Populate a stud wall with one opening; return the model and the populator."""
+    from timber_design_populator.detail_sets import FramedOpeningDetailSet
+
+    panel = make_panel()
+    panel.add_feature(Opening.from_outline_panel(outline, panel, opening_type=opening_type))
+    model = ArchModel()
+    add_panel(model, panel)
+    pop = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0, default_detail_sets={Opening: FramedOpeningDetailSet(**detail_set_options)})
+    pop.populate_elements()
+    pop.join_elements()
+    pop.process_joinery()
+    pop.merge_with_model(model)
+    return model, pop
+
+
+def _void_framing(pop):
+    from timber_design_populator import VoidFramingDetailAgent
+
+    agents = [a for a in pop.agents if isinstance(a, VoidFramingDetailAgent)]
+    assert len(agents) == 1
+    return agents[0]
+
+
 @requires_opening
 class TestWindowOpening:
     @pytest.fixture(scope="class")
     def result(self):
-        from timber_design_populator import OpeningPopulatorAgent
-
-        panel = make_panel()
-        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
-        panel.add_feature(opening)
-        model = ArchModel()
-        add_panel(model, panel)
-        pop = stud_panel(
-            panel,
-            standard_beam_width=60.0,
-            stud_spacing=625.0,
-            default_feature_configs={
-                Opening: OpeningPopulatorAgent(
-                    element_layers=[panel.core_layer],
-                    trimming_layers=[panel.core_layer],
-                )
-            },
-        )
-        pop.populate_elements()
-        pop.join_elements()
-        pop.process_joinery()
-        pop.merge_with_model(model)
-        return model
+        return _populated_opening(OpeningType.WINDOW, make_outline(1000, 900, 2400, 2200))
 
     def test_header_created(self, result):
-        assert "header" in categories(result)
+        assert "header" in categories(result[0])
 
     def test_sill_created(self, result):
-        assert "sill" in categories(result)
+        assert "sill" in categories(result[0])
 
     def test_two_king_studs(self, result):
-        assert len(by_category(result, "king_stud")) == 2
+        assert len(by_category(result[0], "king_stud")) == 2
+
+    def test_framed_with_a_sill_and_no_bottom_offset(self, result):
+        framing = _void_framing(result[1])
+        assert framing.sill and framing.bottom_offset == 0
 
 
 @requires_opening
 class TestDoorOpening:
     @pytest.fixture(scope="class")
     def result(self):
-        from timber_design_populator import DoorPopulatorAgent
-        from timber_design_populator import OpeningPopulatorAgent
-
-        panel = make_panel()
-        opening = Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR)
-        panel.add_feature(opening)
-        model = ArchModel()
-        add_panel(model, panel)
-        pop = stud_panel(
-            panel,
-            standard_beam_width=60.0,
-            stud_spacing=625.0,
-            default_feature_configs={
-                Opening: OpeningPopulatorAgent(
-                    element_layers=[panel.core_layer],
-                    trimming_layers=[panel.core_layer],
-                )
-            },
-        )
-        pop.populate_elements()
-        pop.join_elements()
-        pop.process_joinery()
-        pop.merge_with_model(model)
-        opening_agents = [a for a in pop.agents if isinstance(a, OpeningPopulatorAgent)]
-        assert len(opening_agents) == 1
-        assert isinstance(opening_agents[0], DoorPopulatorAgent)
-        return model
+        return _populated_opening(OpeningType.DOOR, make_outline(1000, 0, 2200, 2200))
 
     def test_header_created(self, result):
-        assert "header" in categories(result)
+        assert "header" in categories(result[0])
 
     def test_no_sill(self, result):
-        assert "sill" not in categories(result)
+        assert "sill" not in categories(result[0])
 
     def test_two_king_studs(self, result):
-        assert len(by_category(result, "king_stud")) == 2
+        assert len(by_category(result[0], "king_stud")) == 2
 
-
-@requires_opening
-class TestOpeningAgentDispatch:
-    """A single, unbound ``OpeningPopulatorAgent`` prototype must self-dispatch
-    to :class:`DoorPopulatorAgent` / :class:`WindowPopulatorAgent` once bound
-    to a concrete feature, since :class:`~compas_arch.panel_features.Opening`
-    is shared by both opening types."""
-
-    def _make_opening(self, opening_type):
-        panel = make_panel()
-        return Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=opening_type)
-
-    def test_binding_door_dispatches_to_door_subclass(self):
-        from timber_design_populator import DoorPopulatorAgent, OpeningPopulatorAgent
-
-        agent = OpeningPopulatorAgent()
-        agent.feature = self._make_opening(OpeningType.DOOR)
-        assert isinstance(agent, DoorPopulatorAgent)
-
-    def test_binding_window_dispatches_to_window_subclass(self):
-        from timber_design_populator import OpeningPopulatorAgent, WindowPopulatorAgent
-
-        agent = OpeningPopulatorAgent()
-        agent.feature = self._make_opening(OpeningType.WINDOW)
-        assert isinstance(agent, WindowPopulatorAgent)
-
-    def test_explicit_subclass_is_not_redispatched(self):
-        from timber_design_populator import DoorPopulatorAgent
-
-        agent = DoorPopulatorAgent()
-        agent.feature = self._make_opening(OpeningType.WINDOW)
-        assert isinstance(agent, DoorPopulatorAgent)
+    def test_framed_without_a_sill_and_clear_of_the_bottom_plate(self, result):
+        framing = _void_framing(result[1])
+        assert not framing.sill and framing.bottom_offset > 0
 
 
 @requires_opening
 class TestSplitBottomPlateBeam:
-    """Regression tests for the ``split_bottom_plate_beam`` door option.
+    """The ``split_bottom_plate_beam`` door option.
 
-    The (king_stud/jack_stud, bottom_plate_beam) joint is between elements
-    owned by two different agents (the bottom plate belongs to the edge
-    agent), so it is resolved via ``external_rules`` — not ``internal_rules``.
+    The (king_stud/jack_stud, bottom_plate_beam) joint is between elements owned by two
+    different agents (the bottom plate belongs to the edge agent), so it is resolved via
+    ``external_rules``, not ``internal_rules``.
     """
 
-    def _make_door_agent(self, split_bottom_plate_beam, lintel_posts=False):
-        from timber_design_populator import OpeningPopulatorAgent
+    def _framing(self, split_bottom_plate_beam, lintel_posts=False):
+        from timber_design_populator import VoidFramingDetailAgent
 
-        opening = self._make_opening()
-        agent = OpeningPopulatorAgent(
-            feature=opening,
-            header_width=60.0,
-            king_stud_width=60.0,
-            jack_stud_width=60.0,
-            lintel_posts=lintel_posts,
-            split_bottom_plate_beam=split_bottom_plate_beam,
-        )
-        agent._apply_split_bottom_plate_rules()
-        return agent
-
-    def _make_opening(self):
-        panel = make_panel()
-        return Opening.from_outline_panel(make_outline(1000, 0, 2200, 2200), panel, opening_type=OpeningType.DOOR)
+        return VoidFramingDetailAgent(lintel_posts=lintel_posts, split_bottom_plate_beam=split_bottom_plate_beam)
 
     def _bottom_plate_rule(self, agent, category_a):
-        # Excludes the unrelated "HACK" corner rule (max_distance=1.0) also
-        # registered for this category pair; the split-mode rule is unrestricted.
+        # Excludes the unrelated corner rule (max_distance=1.0) also registered for this
+        # category pair; the split-mode rule is unrestricted.
         matching = [r for r in agent.external_rules if r.category_a == category_a and r.category_b == "bottom_plate_beam" and r.max_distance is None]
         assert len(matching) == 1
         return matching[0]
 
     def test_split_bottom_plate_beam_true_swaps_to_l_butt(self):
-        agent = self._make_door_agent(split_bottom_plate_beam=True)
-        assert self._bottom_plate_rule(agent, "king_stud").joint_type is LButtJoint
+        assert self._bottom_plate_rule(self._framing(True), "king_stud").joint_type is LButtJoint
 
     def test_split_bottom_plate_beam_false_keeps_t_butt(self):
-        agent = self._make_door_agent(split_bottom_plate_beam=False)
-        assert self._bottom_plate_rule(agent, "king_stud").joint_type is TButtJoint
+        assert self._bottom_plate_rule(self._framing(False), "king_stud").joint_type is TButtJoint
 
     def test_split_bottom_plate_beam_targets_jack_stud_with_lintel_posts(self):
-        agent = self._make_door_agent(split_bottom_plate_beam=True, lintel_posts=True)
-        assert self._bottom_plate_rule(agent, "jack_stud").joint_type is LButtJoint
+        assert self._bottom_plate_rule(self._framing(True, lintel_posts=True), "jack_stud").joint_type is LButtJoint
+
+    def test_only_doors_split_the_bottom_plate(self):
+        _, door = _populated_opening(OpeningType.DOOR, make_outline(1000, 0, 2200, 2200), split_bottom_plate_beam=True)
+        _, window = _populated_opening(OpeningType.WINDOW, make_outline(1000, 900, 2400, 2200), split_bottom_plate_beam=True)
+        assert _void_framing(door).split_bottom_plate_beam
+        assert not _void_framing(window).split_bottom_plate_beam
 
 
 # =============================================================================
@@ -624,7 +564,7 @@ class TestJointCreation:
 class TestCornerClusterJoints:
     """A stud (or king/jack stud) landing exactly on a panel corner forms a
     3-element TOPO_Y/TOPO_K cluster spanning two agents (the stud agent and
-    EdgePopulatorAgent) plus EdgePopulatorAgent's own internal edge-to-edge
+    EdgeAgent) plus EdgeAgent's own internal edge-to-edge
     joint.  This should resolve to one CompositeJoint via COMPOSITE_RULES rather
     than independent pairwise joints — see PanelPopulator._resolve_cluster.
 
@@ -640,8 +580,8 @@ class TestCornerClusterJoints:
         Adding elements to ``pop.model`` alone isn't enough — since
         PanelPopulator._join_cluster determines which agents are "involved"
         in a cluster by each element's ``attributes["agent"]`` tag (not by
-        category), these beams must carry the real StudPopulatorAgent's /
-        EdgePopulatorAgent, exactly like elements the agents generated
+        category), these beams must carry the real StudAgent's /
+        EdgeAgent, exactly like elements the agents generated
         themselves would.
         """
         layer = next(la for la in pop.model.find_all_elements_of_type(Layer) if la.children)

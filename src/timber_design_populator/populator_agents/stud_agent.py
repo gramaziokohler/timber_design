@@ -6,14 +6,14 @@ from typing import Optional
 from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
-from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
 from timber_design_rules import CategoryRule
 
 if TYPE_CHECKING:
     from compas_arch.elements import Layer  # noqa: F401
 
 
-class StudPopulatorAgent(LayerAgent):
+class StudAgent(PopulatorAgent):
     """Generates evenly-spaced vertical studs for a stud-framed wall panel.
 
     Studs are placed at fixed ``stud_spacing`` intervals along the panel X
@@ -21,11 +21,10 @@ class StudPopulatorAgent(LayerAgent):
     the right edge.  Each stud runs the full panel height (Y axis) at the
     Z-centre of the layer.
 
-    Stud segments that fall inside an :class:`~timber_design_populator.OpeningPopulatorAgent`
+    Stud segments that fall inside a :class:`~timber_design_populator.VoidFramingDetailAgent`
     boundary are removed during
-    :meth:`~timber_design_populator.PanelPopulator._cull_elements`; studs
-    overlapping a king or jack stud are culled by
-    :meth:`~OpeningPopulatorAgent._cull_stud`.
+    :meth:`~timber_design_populator.PanelPopulator._cull_elements`, and so are studs
+    overlapping one of its king or jack studs.
 
     Parameters
     ----------
@@ -49,7 +48,7 @@ class StudPopulatorAgent(LayerAgent):
     """
 
     BEAM_CATEGORY_NAMES = ["stud"]
-    NAME = "StudPopulatorAgent"
+    NAME = "StudAgent"
     INTERNAL_JOINT_RULES = []
     EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -68,7 +67,7 @@ class StudPopulatorAgent(LayerAgent):
         stud_spacing: Optional[float] = None,
         **kwargs,
     ) -> None:
-        super().__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
+        super().__init__(layer=layer, internal_joint_overrides=internal_joint_overrides, external_joint_overrides=external_joint_overrides, **kwargs)
         self.beam_widths["stud"] = stud_width
         self.stud_spacing = stud_spacing
 
@@ -79,7 +78,7 @@ class StudPopulatorAgent(LayerAgent):
         data["stud_spacing"] = self.stud_spacing
         return data
 
-    def generate_layer_elements(self):
+    def generate_elements_for_layer(self, layer):
         """Populate the layer with stud beams at ``stud_spacing`` intervals.
 
         Returns
@@ -91,7 +90,7 @@ class StudPopulatorAgent(LayerAgent):
         spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_width("stud") * 8
         if spacing <= 0:
             raise ValueError(
-                "StudPopulatorAgent requires a positive stud_spacing; got {!r}. "
+                "StudAgent requires a positive stud_spacing; got {!r}. "
                 "Pass an explicit stud_spacing or ensure standard_beam_width is set "
                 "so the default (stud_width * 8) is positive.".format(spacing)
             )

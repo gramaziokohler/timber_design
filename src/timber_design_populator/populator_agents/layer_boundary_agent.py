@@ -11,7 +11,7 @@ from compas_timber.utils import extend_line_segments
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
-from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
 from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
 
 if TYPE_CHECKING:
@@ -19,10 +19,10 @@ if TYPE_CHECKING:
     from compas_arch.elements import Layer  # noqa: F401
 
 
-class PanelBoundaryPopulatorAgent(LayerAgent):
-    """Contributes the panel outline as a boundary, without generating any elements.
+class LayerBoundaryAgent(PopulatorAgent):
+    """Bounds a layer by its own outline, without generating any elements.
 
-    Unlike :class:`~timber_design_populator.EdgePopulatorAgent`, this agent
+    Unlike :class:`~timber_design_populator.EdgeAgent`, this agent
     creates no beams — it exists purely to publish the panel's own outline as
     an :attr:`~AgentBoundaryType.INCLUSIVE` boundary, so that peer agents'
     elements falling outside the panel are split and culled at its edge.
@@ -40,8 +40,9 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
     """
 
-    NAME = "PanelBoundaryPopulatorAgent"
+    NAME = "LayerBoundaryAgent"
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
+    PRIORITY = -10
 
     def __init__(
         self,
@@ -50,9 +51,9 @@ class PanelBoundaryPopulatorAgent(LayerAgent):
         external_joint_overrides: Optional[list] = None,
         **kwargs,
     ) -> None:
-        super().__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
+        super().__init__(layer=layer, internal_joint_overrides=internal_joint_overrides, external_joint_overrides=external_joint_overrides, **kwargs)
 
-    def generate_layer_elements(self):
+    def generate_elements_for_layer(self, layer):
         """Generate no elements, contributing only the panel outline as a boundary.
 
         Returns

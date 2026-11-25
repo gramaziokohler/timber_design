@@ -21,16 +21,17 @@ from compas_arch.elements import LayerStructure
 from compas_arch.elements import Panel
 from compas_timber.elements import Plate
 
-from timber_design_populator import EdgePopulatorAgent
+from timber_design_populator import EdgeAgent
 from timber_design_populator import PanelPopulator
-from timber_design_populator import PlatePopulatorAgent
-from timber_design_populator import StudPopulatorAgent
+from timber_design_populator import PlateAgent
+from timber_design_populator import StudAgent
+from timber_design_populator import VoidFramingDetailAgent
 from timber_design_populator.connections_2d.beam2d import Beam2D
 from timber_design_populator import stud_panel
 from timber_design_rules import CategoryRule
 
 try:
-    from timber_design_populator import OpeningPopulatorAgent
+    from compas_arch.panel_features import Opening  # noqa: F401
 
     _HAS_OPENING = True
 except ImportError:  # Opening not in the installed compas_timber
@@ -87,7 +88,7 @@ def generate_flat(agent):
 
 
 # =============================================================================
-# EdgePopulatorAgent
+# EdgeAgent
 # =============================================================================
 
 
@@ -96,7 +97,7 @@ class TestEdgePopulatorAgent:
     def agent(self):
         panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
         # standard_beam_width=60.0 (make_agent default) fills all edge categories
-        return make_agent(EdgePopulatorAgent, panel.core_layer)
+        return make_agent(EdgeAgent, panel.core_layer)
 
     @pytest.fixture
     def elements(self, agent):
@@ -136,7 +137,7 @@ class TestEdgePopulatorAgent:
     def test_explicit_per_category_width(self):
         panel = make_panel(width=3000.0, height=2000.0, thickness=160.0)
         g = make_agent(
-            EdgePopulatorAgent,
+            EdgeAgent,
             panel.core_layer,
             edge_stud_width=80.0,
             top_plate_beam_width=60.0,
@@ -151,13 +152,13 @@ class TestEdgePopulatorAgent:
     def test_standard_width_increment_rounds_up(self):
         panel = make_panel()
         # standard_beam_width=60.0 → 60 is already a multiple of 20
-        g = make_agent(EdgePopulatorAgent, panel.core_layer, standard_beam_width_increment=20.0)
+        g = make_agent(EdgeAgent, panel.core_layer, standard_beam_width_increment=20.0)
         for e in generate_flat(g):
             assert e.width % 20.0 < 1.0
 
 
 # =============================================================================
-# StudPopulatorAgent
+# StudAgent
 # =============================================================================
 
 
@@ -165,7 +166,7 @@ class TestStudPopulatorAgent:
     @pytest.fixture
     def elements(self):
         panel = make_panel(width=4000.0, height=2700.0, thickness=160.0)
-        g = make_agent(StudPopulatorAgent, panel.core_layer, stud_spacing=625.0)
+        g = make_agent(StudAgent, panel.core_layer, stud_spacing=625.0)
         return generate_flat(g)
 
     def test_produces_studs(self, elements):
@@ -195,32 +196,32 @@ class TestStudPopulatorAgent:
     def test_fewer_studs_with_wider_spacing(self):
         panel = make_panel(width=4000.0, height=2700.0)
 
-        g_narrow = make_agent(StudPopulatorAgent, panel.core_layer, stud_spacing=300.0)
-        g_wide = make_agent(StudPopulatorAgent, panel.core_layer, stud_spacing=900.0)
+        g_narrow = make_agent(StudAgent, panel.core_layer, stud_spacing=300.0)
+        g_wide = make_agent(StudAgent, panel.core_layer, stud_spacing=900.0)
 
         assert len(generate_flat(g_narrow)) > len(generate_flat(g_wide))
 
 
 # =============================================================================
-# PlatePopulatorAgent
+# PlateAgent
 # =============================================================================
 
 
 class TestPlatePopulatorAgent:
     def test_interior_plate_produced(self):
         panel = make_panel(thickness=160.0, sheeting_inside=15.0)
-        g = make_agent(PlatePopulatorAgent, panel.interior_layer)
+        g = make_agent(PlateAgent, panel.interior_layer)
         assert any(isinstance(e, Plate) for e in generate_flat(g))
 
     def test_exterior_plate_produced(self):
         panel = make_panel(thickness=160.0, sheeting_outside=22.0)
-        g = make_agent(PlatePopulatorAgent, panel.exterior_layer)
+        g = make_agent(PlateAgent, panel.exterior_layer)
         assert any(isinstance(e, Plate) for e in generate_flat(g))
 
     def test_both_plates_produced(self):
         panel = make_panel(thickness=160.0, sheeting_inside=15.0, sheeting_outside=22.0)
-        g_i = make_agent(PlatePopulatorAgent, panel.interior_layer)
-        g_e = make_agent(PlatePopulatorAgent, panel.exterior_layer)
+        g_i = make_agent(PlateAgent, panel.interior_layer)
+        g_e = make_agent(PlateAgent, panel.exterior_layer)
         plates = [e for e in generate_flat(g_i) + generate_flat(g_e) if isinstance(e, Plate)]
         assert len(plates) == 2
 
@@ -231,7 +232,7 @@ class TestPlatePopulatorAgent:
 
     def test_plate_category(self):
         panel = make_panel(thickness=160.0, sheeting_inside=15.0)
-        g = make_agent(PlatePopulatorAgent, panel.interior_layer)
+        g = make_agent(PlateAgent, panel.interior_layer)
         plates = [e for e in generate_flat(g) if isinstance(e, Plate)]
         assert all(e.attributes.get("category") == "plate" for e in plates)
 
@@ -307,24 +308,24 @@ class TestStudPanelFactory:
 
     def test_edge_agent_present(self):
         pop = self._pop()
-        assert any(isinstance(a, EdgePopulatorAgent) for a in pop.agents)
+        assert any(isinstance(a, EdgeAgent) for a in pop.agents)
 
     def test_stud_agent_present_when_spacing_set(self):
         pop = self._pop()
-        assert any(isinstance(a, StudPopulatorAgent) for a in pop.agents)
+        assert any(isinstance(a, StudAgent) for a in pop.agents)
 
     def test_default_stud_spacing_when_spacing_none(self):
         panel = make_panel()
         pop = stud_panel(panel=panel, standard_beam_width=60.0, stud_spacing=None)
-        assert any(isinstance(a, StudPopulatorAgent) for a in pop.agents)
+        assert any(isinstance(a, StudAgent) for a in pop.agents)
 
     def test_plate_agent_present_when_sheeting_set(self):
         pop = self._pop(panel=make_panel(sheeting_inside=15.0))
-        assert any(isinstance(a, PlatePopulatorAgent) for a in pop.agents)
+        assert any(isinstance(a, PlateAgent) for a in pop.agents)
 
     def test_no_plate_agent_without_sheeting(self):
         pop = self._pop()
-        assert not any(isinstance(a, PlatePopulatorAgent) for a in pop.agents)
+        assert not any(isinstance(a, PlateAgent) for a in pop.agents)
 
     def test_beam_widths_resolved_on_agents(self):
         pop = self._pop()
@@ -349,19 +350,19 @@ class TestPanelLevelJointRules:
         return PanelPopulator(panel=make_panel(), agents=list(agents), **kwargs)
 
     def test_none_gives_an_empty_list(self):
-        pop = self._pop(EdgePopulatorAgent(None))
+        pop = self._pop(EdgeAgent(None))
         assert pop.joint_rule_overrides == []
 
     def test_rules_are_kept_on_the_populator(self):
         rule = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=5.0)
-        pop = self._pop(EdgePopulatorAgent(None), joint_rule_overrides=[rule])
+        pop = self._pop(EdgeAgent(None), joint_rule_overrides=[rule])
         assert pop.joint_rule_overrides == [rule]
 
     def test_agent_rule_lists_are_untouched(self):
         """Even when one agent owns both of a rule's categories, its rule lists
         must be exactly what its own constructor produced."""
-        edge = EdgePopulatorAgent(None)
-        stud = StudPopulatorAgent(None)
+        edge = EdgeAgent(None)
+        stud = StudAgent(None)
         internal_before = {a: list(a.internal_rules) for a in (edge, stud)}
         external_before = {a: list(a.external_rules) for a in (edge, stud)}
 
@@ -379,7 +380,7 @@ class TestPanelLevelJointRules:
         """Mutating the populator's list must not write back to the caller's."""
         rule = CategoryRule(LButtJoint, "edge_stud", "top_plate_beam")
         caller_list = [rule]
-        pop = self._pop(EdgePopulatorAgent(None), joint_rule_overrides=caller_list)
+        pop = self._pop(EdgeAgent(None), joint_rule_overrides=caller_list)
         pop.joint_rule_overrides.append(CategoryRule(LButtJoint, "foo", "bar"))
         assert caller_list == [rule]
 
@@ -411,29 +412,29 @@ class TestPanelLevelJointRules:
 class TestJointRuleOverrides:
     def test_matching_override_replaces_default(self):
         override = CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=3.0)
-        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        agent = StudAgent(None, external_joint_overrides=[override])
         matching = [r for r in agent.external_rules if (r.category_a, r.category_b) == ("stud", "top_plate_beam")]
         assert matching == [override]
-        assert len(agent.external_rules) == len(StudPopulatorAgent.EXTERNAL_JOINT_RULES)
+        assert len(agent.external_rules) == len(StudAgent.EXTERNAL_JOINT_RULES)
 
     def test_override_for_new_pair_is_appended(self):
         override = CategoryRule(TButtJoint, "stud", "custom_beam")
-        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        agent = StudAgent(None, external_joint_overrides=[override])
         assert override in agent.external_rules
-        assert len(agent.external_rules) == len(StudPopulatorAgent.EXTERNAL_JOINT_RULES) + 1
+        assert len(agent.external_rules) == len(StudAgent.EXTERNAL_JOINT_RULES) + 1
 
     def test_override_with_other_topology_is_appended(self):
         """The same category pair may carry one rule per topology."""
         override = CategoryRule(LButtJoint, "stud", "top_plate_beam")
-        agent = StudPopulatorAgent(None, external_joint_overrides=[override])
+        agent = StudAgent(None, external_joint_overrides=[override])
         pair_rules = [r for r in agent.external_rules if (r.category_a, r.category_b) == ("stud", "top_plate_beam")]
         assert len(pair_rules) == 2
         assert override in pair_rules
 
     def test_class_defaults_not_mutated(self):
-        before = list(StudPopulatorAgent.EXTERNAL_JOINT_RULES)
-        StudPopulatorAgent(None, external_joint_overrides=[CategoryRule(TButtJoint, "stud", "custom_beam")])
-        assert StudPopulatorAgent.EXTERNAL_JOINT_RULES == before
+        before = list(StudAgent.EXTERNAL_JOINT_RULES)
+        StudAgent(None, external_joint_overrides=[CategoryRule(TButtJoint, "stud", "custom_beam")])
+        assert StudAgent.EXTERNAL_JOINT_RULES == before
 
 
 # =============================================================================
@@ -444,15 +445,15 @@ class TestJointRuleOverrides:
 class TestBeamWidthValidation:
     def test_unset_width_raises_value_error(self):
         with pytest.raises(ValueError, match="stud"):
-            StudPopulatorAgent(None).beam_width("stud")
+            StudAgent(None).beam_width("stud")
 
     def test_unknown_category_raises_value_error(self):
         with pytest.raises(ValueError, match="header"):
-            StudPopulatorAgent(None).beam_width("header")
+            StudAgent(None).beam_width("header")
 
     def test_generate_without_widths_raises_value_error(self):
         panel = make_panel()
-        agent = EdgePopulatorAgent(panel.core_layer)
+        agent = EdgeAgent(panel.core_layer)
         agent.repoint_to_layer_tree({panel.core_layer.layer_path: panel.core_layer})
         with pytest.raises(ValueError, match="standard_beam_width"):
             agent.generate_elements()
@@ -465,32 +466,47 @@ class TestBeamWidthValidation:
 
 class TestAgentCloning:
     def test_clone_keeps_construction_parameters(self):
-        agent = StudPopulatorAgent("core", stud_width=45.0, stud_spacing=500.0)
+        agent = StudAgent("core", stud_width=45.0, stud_spacing=500.0)
         clone = agent.clone()
         assert clone is not agent
-        assert type(clone) is StudPopulatorAgent
+        assert type(clone) is StudAgent
         assert clone.__data__ == agent.__data__
 
     def test_populator_does_not_mutate_caller_agents(self):
-        stud = StudPopulatorAgent(None)
+        stud = StudAgent(None)
         pop = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
         assert stud.beam_widths["stud"] is None
         assert pop.agents[0] is not stud
         assert pop.agents[0].beam_widths["stud"] == 60.0
 
     def test_shared_agent_across_populators_stays_independent(self):
-        stud = StudPopulatorAgent(None)
+        stud = StudAgent(None)
         pop_a = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
         pop_b = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=80.0)
         assert pop_a.agents[0].beam_widths["stud"] == 60.0
         assert pop_b.agents[0].beam_widths["stud"] == 80.0
 
     @requires_opening
-    def test_stud_panel_does_not_mutate_instance_feature_agents(self):
-        instance_agent = OpeningPopulatorAgent(element_layers=["foo"], trimming_layers=["bar"])
-        stud_panel(panel=make_panel(sheeting_inside=15.0), standard_beam_width=60.0, instance_feature_configs=[instance_agent])
-        assert instance_agent.element_layer_paths == ["foo"]
-        assert instance_agent.trimming_layer_paths == ["bar"]
+    def test_binding_does_not_mutate_a_features_detail_set(self):
+        from compas_arch.panel_features import Opening
+        from compas_arch.panel_features import OpeningType
+
+        from compas_arch.model import ArchModel
+        from timber_design_populator.detail_sets import FramedOpeningDetailSet
+
+        panel = make_panel(sheeting_inside=15.0)
+        prototype = FramedOpeningDetailSet(header_width=120.0)
+        before = prototype.__data__
+        opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW, detail_set=prototype)
+        panel.add_feature(opening)
+        model = ArchModel()
+        model.add_element(panel)
+        panel.merge_layer_structure(model)
+        pop = stud_panel(panel=panel, standard_beam_width=60.0)
+        pop.populate_elements()
+        assert any(getattr(agent, "feature", None) is opening for agent in pop.agents)
+        assert prototype.__data__ == before
+        assert opening.detail_set is prototype
 
     @requires_opening
     def test_clone_shares_feature_reference(self):
@@ -499,7 +515,7 @@ class TestAgentCloning:
 
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)
-        agent = OpeningPopulatorAgent(feature=opening)
+        agent = VoidFramingDetailAgent(feature=opening, sill=True)
         clone = agent.clone()
         assert clone.feature is opening
         assert type(clone) is type(agent)

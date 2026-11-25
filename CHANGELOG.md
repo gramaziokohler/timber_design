@@ -18,20 +18,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Migrated the Grasshopper plugin documentation from `compas_timber` (per [compas_timber#825](https://github.com/gramaziokohler/compas_timber/issues/825)): tutorial pages, images, and a new "Grasshopper Plugin" section in the docs navigation. API cross-references now point to the compas_timber documentation site.
 * `create_instance()` method on `DirectRule`, `CategoryRule`, `TopologyRule`, `CompositeRule`.
 * `pairwise_fallback` parameter on `joints_from_rules_and_clusters`, so a caller driving its own pairwise pass can stop the solver recursing into pairwise sub-clusters. Defaults to `True`, preserving existing behaviour.
-* Added a generic panel-populator subsystem (`timber_design_populator`) that frames any `Panel` cross-section with beams and plates. `PanelPopulator` drives an ordered list of agents through generate / extend / split / cull / join stages: `LayerAgent`s act on one layer (`EdgePopulatorAgent`, `StudPopulatorAgent`, `PlatePopulatorAgent`, `PanelBoundaryPopulatorAgent`) and `FeatureAgent`s on a panel feature (`OpeningPopulatorAgent`, dispatching to `WindowPopulatorAgent` / `DoorPopulatorAgent` by opening type).
+* Added a generic panel-populator subsystem (`timber_design_populator`) that frames any `Panel` cross-section with beams and plates. `PanelPopulator` drives its agents through modify layers / generate / extend / split / cull / machine / join stages. Every agent is a `PopulatorAgent` with element and trimming layer paths (`layer=` sets both), one generation hook (`generate_elements_for_layer(layer)`) and a `priority` (lower runs first; equal priorities keep the given order). Panel-wide agents (one module each): `EdgeAgent`, `StudAgent`, `PlateAgent`, `LayerBoundaryAgent`.
 * Added `stud_panel()` factory (`timber_design_populator.stud_panel`) that builds a `PanelPopulator` for a stud-framed wall from the panel's `exterior` / `core` / `interior` layers.
 * Added per-agent joint rules (`internal_joint_overrides`, `external_joint_overrides`, `composite_joint_overrides`; an override replaces the default with the same topology and categories, otherwise it is added) and panel-level fallback rules (`joint_rule_overrides`) on `PanelPopulator` / `stud_panel()`.
 * Added `max_distance` to `PanelPopulator` / `stud_panel()`, bounding the gap for all joint candidate finding and creation in `join_elements()`.
 * Added `PopulatorAgent.clone()` and `PopulatorAgent.beam_width()`. A missing beam width now raises a `ValueError` naming the agent and category.
 * Added `Beam2D.to_beam()` (in-place conversion to a plain `Beam`) and `AABB2D.aabb`.
-* Added GH components for the panel-populator workflow: `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: Layer Agent`, `CT: Feature Agent`, `CT: Stud Panel`, `CT: Panel Populator`, `CT: Populate Model`.
+* Added GH components for the panel-populator workflow: `CT: Panel Layer Definition`, `CT: Subdivide Layer`, `CT: Decompose LayerStructure`, `CT: Layer Agent`, `CT: Detail Agent Set`, `CT: Stud Panel`, `CT: Panel Populator`, `CT: Populate Model`.
 * Added `CT: Filter Display` GH component to filter and display model elements by layer path or group.
 * Added `CT: Panel Viewer` GH component: like `CT: Filter Display`, but resolves `group_filter` elements in the model by guid and lays each group out at world XY in group space, with the corner of its trimmed outline at the origin.
 * Added `layer_structure` input to `CT: Panel` to attach a `LayerStructure` to the panel.
 * Added `CT: Panel Opening`, `CT: Panel MEP Penetration`, `CT: Panel Niche` and `CT: Panel Linear Service` GH components, which output world-space panel feature definitions.
-* `LinearServicePopulatorAgent` drills (`core_drilling`) or lap-notches from the interior face (`frame_notching`) every core beam a `LinearService` crosses, and reports oversized holes (> 40% of the beam depth) and notches (> 25%) as feature errors. `stud_panel()` binds it to the core layer.
+* Added `ServiceDrillingDetailAgent` and `ServiceNotchDetailAgent`: drill, or lap-notch from a given side, every core beam a service path crosses, and report oversized holes (> 40% of the beam depth) and notches (> 25%) as feature errors.
 * Added the `PopulatorAgent.machine_element()` hook, called by `PanelPopulator` after splitting and culling.
 * Added a `features` input to `CT: Panel`, `CT: Panel From Outline`, `CT: Panel From Brep`, `CT: Panel From Frame And Dimensions` and `CT: Panel From Top Bottom`. Each panel adds the feature definitions that lie on it, so one list can go to every panel.
+* Added the `compas_arch` package (merged in from the standalone `compas_arch` repository) as a fourth top-level package in `src/`, shipped in the `timber_design` distribution: `Panel`, `PanelType`, `Layer`, `LayerDefinition`, `LayerRole` and `LayerStructure` (`compas_arch.elements`); `PanelJoint`, `PanelLButtJoint`, `PanelTButtJoint`, and `PanelMiterJoint` (`compas_arch.connections`); `PanelFeature`, `Opening`, `MEPPenetration`, `LinearService`, `Niche` and `PanelConnectionInterface` (`compas_arch.panel_features`); `ArchModel` (`compas_arch.model`); and its `compas_pb` serializer plugin. Its tests, API pages and class diagrams came along.
+* Added detail sets (`timber_design_populator.detail_sets`, one module per set). Every panel feature is built by exactly one detail set: `feature.detail_set`, or else the populator's default for its type (`default_detail_sets`). A set reads the feature and the panel's layers and expands into detail agents with explicit inputs on every `populate_elements()`. The built-in sets are one possible way to build a feature, not the only one: `FramedOpeningDetailSet` (with `cut_offsets` per layer role), `FramedPenetrationDetailSet`, `FramedNicheDetailSet` and `LinearServiceDetailSet(mode="drilling" | "notching")`, the `stud_panel()` defaults. New behaviour is a new detail agent; a new combination of agents is a new detail set; a new connection detail is a new panel joint / detail set pair.
+* Added the detail agents `VoidFramingDetailAgent` (frames a void: header, king/jack studs, optional sill, door bottom-plate handling) and `LayerCutDetailAgent` (cuts one layer and its sublayers: splits and removes beams such as battens inside the cut, and cuts plates through, by a prism, or as a blind pocket). Detail agents (`IS_DETAIL = True`) take explicit inputs and are created by detail sets; given to `PanelPopulator(agents=...)` they are skipped and reported.
+* Added the `CT: Detail Agent Set` GH component (lists the feature detail sets), and the `feature_defaults_by_type()` GH helper that keys `default_detail_sets` by the feature types a set builds.
+* Added `PanelFeature.detail_set` (e.g. `Opening.from_outline_panel(..., detail_set=FramedOpeningDetailSet(header_width=200))`). Every `PanelPopulator` expands a clone of it in place of its default for the feature's type.
+* Added connection details built by panel joints (`timber_design_populator.panel_joints`, one module per joint): `LGenericPanelJoint` (flags `stagger_layers`, `backing_studs`, `backing_stud_width`, `backing_stud_inset`) and `TGenericPanelJoint` (flags `backing_studs`, `backing_stud_width`, `backing_stud_inset`). The joint does all cross-panel calculation with both panels in view and gives each panel's `PanelConnectionInterface` its half as an `LGenericPanelJointDetailSet` / `TGenericPanelJointDetailSet`, in that panel's local frame, so each populator still knows only its own panel. `PanelConnectionInterface` carries its edge, `interface_role` (`MAIN` / `CROSS` on butt joints) and `detail_set`.
+* Added `LayerStructure.resolve(thickness)` and `LayerSlot`: a layer structure's slots at absolute offsets, without building layers.
+* Added `LayerExtensionDetailAgent` (priority -100: moves layer edges onto given planes before anything is generated; two details moving the same layer edge are reported, and the later one by priority wins) and `BackingStudDetailAgent` (studs on given lines; merges studs closer than one width, drops one next to a parallel panel edge, and removes parallel overlapping regular studs).
+* Added the `PopulatorAgent.modify_layers()` hook, called by `PanelPopulator` before element generation; the populator applies the extension planes agents set there.
+* The panel joint rule GH components list the joints of `compas_arch.connections` and `timber_design_populator.panel_joints`, and offer a joint's flags (e.g. `backing_studs`) as inputs, mapped by name. Added a `detail_set` input to `CT: Panel Opening`, `CT: Panel MEP Penetration`, `CT: Panel Niche` and `CT: Panel Linear Service`.
+* `timber_design_populator.populator_agents`, `.detail_sets` and `.panel_joints` export their classes, so agents, sets and joints serialize; layer paths that come back from JSON as lists become tuples.
 * Added `manage_cpython_dynamic_output_params` GH helper.
 * Added the "Populating Panels" user guide, the `timber_design_populator` API page and contributor class diagrams to the docs.
 
@@ -48,20 +59,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Replaced `invoke build-cpython-ghuser-components` / `yakerize` with `invoke build-gh-components`, `update-gh-headers` and `yakerize-gh`, each taking `--target core|populator`.
 * `invoke build-gh-components` writes the `.ghuser` files to `src/timber_design_gh/ghuser/<target>` instead of `dist/ghuser/<target>`.
 * Added `invoke install-gh-components`, which builds the components and copies them into Grasshopper's UserObjects folder.
-* Bumped the `compas_timber` dependency to `>=3.0.0`.
+* Bumped the `compas_timber` dependency to `>=3.0, <4.0`.
+* Dropped the external `compas_arch` dependency now that the package lives in this repository, and took over its requirements: `compas >=2.15.1, <2.16`, `compas_model == 0.9.2`, `compas_brep >= 0.3.1` and `compas_pb >= 1.2.0, < 2.0`.
 * `ConnectionSolver2D.find_topology` gained a `max_distance` parameter used as the containment tolerance, and returns `None` instead of raising when one beam lies entirely inside another.
 * `ConnectionSolver2D.find_topology` reports face-to-face overlaps as `TOPO_UNKNOWN` until `TOPO_FACE_FACE` is supported downstream.
 * Fixed `Beam2D.get_beam_segment` applying a parented beam's parent transformation twice, which offset segments along the panel normal.
-* `CT: Model` adds each panel's layers to the model (and resets them on every solve), so layer-aware panel joints such as `PanelLLayerButtJoint` and `CT: Populate Model` find them.
+* `CT: Model` adds each panel's layers to the model (and resets them on every solve), so `CT: Populate Model` finds them.
+* `PanelPopulator` binds and expands the features' detail sets at the start of every `populate_elements()`, so joint-generated interfaces and the model copy in `CT: Populate Model` are picked up.
+* `CT: Populate Model` recreates the panel joints' connection interfaces on its model copy.
 * `CT: ShowJointTypes` places labels at `joint.location`.
 * `PanelPopulator.populate_elements()` starts a fresh `debug_info`, so errors no longer accumulate across Grasshopper solves.
-* `MEPPenetrationPopulatorAgent` and `NichePopulatorAgent` frame their surround like a window, with a sill.
+* MEP penetrations and niches are framed like a window, with a sill (`FramedPenetrationDetailSet`, `FramedNicheDetailSet`).
 * A `Niche` without a `depth` goes through the side layer and the framing layer.
 * Removed the `openings` curve input from `CT: Panel`, `CT: Panel From Outline`, `CT: Panel From Frame And Dimensions` and `CT: Panel From Top Bottom`. Openings are features now: define them with `CT: Panel Opening` and connect them to `features`.
 
 ### Removed
 
 * `ContainerDefinition` class (dead code).
+* `PanelLLayerButtJoint` (from the standalone `compas_arch`). Use `LGenericPanelJoint` (`stagger_layers=True` by default); the populator now does the layer stagger.
+* `instance_feature_configs` from `stud_panel()` and `CT: Stud Panel`: give the feature a `detail_set` instead.
 * `max_cluster_size` parameter from `get_clusters_from_model`.
 * Removed the old wall/slab populator modules (`wall_details.py`, `wall_from_surface.py`, `wall_populator.py`), superseded by the panel-populator subsystem.
 

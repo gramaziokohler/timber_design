@@ -61,7 +61,7 @@ def aabb_overlap(a, b, tolerance: float = 0.0) -> bool:
 
     Parameters
     ----------
-    a, b : :class:`~timber_design_populator.connections_2d.Beam2D` or :class:`~timber_design_populator.populator_agents.LayerAgent`
+    a, b : :class:`~timber_design_populator.connections_2d.Beam2D` or :class:`~timber_design_populator.populator_agents.PopulatorAgent`
         Objects with an ``aabb`` attribute exposing ``xmin``, ``xmax``, ``ymin``, ``ymax``.
     tolerance : float
         Each AABB is expanded by this amount in every direction before the

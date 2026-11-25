@@ -3,6 +3,7 @@ import Grasshopper
 import System
 
 from timber_design_populator import stud_panel
+from timber_design_gh import feature_defaults_by_type
 
 
 class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
@@ -17,8 +18,7 @@ class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
         bottom_plate_beam_width: float,
         standard_beam_width_increment: float,
         joint_rule_overrides: System.Collections.Generic.List[object],
-        default_feature_configs: System.Collections.Generic.List[object],
-        instance_feature_configs: System.Collections.Generic.List[object],
+        default_detail_sets: System.Collections.Generic.List[object],
         max_distance: float,
     ):
         return stud_panel(
@@ -31,7 +31,6 @@ class StudPanelConfigurator(Grasshopper.Kernel.GH_ScriptInstance):
             bottom_plate_beam_width=bottom_plate_beam_width,
             standard_beam_width_increment=standard_beam_width_increment,
             joint_rule_overrides=list(joint_rule_overrides) if joint_rule_overrides else None,
-            default_feature_configs={d.FEATURE_TYPE: d for d in default_feature_configs} if default_feature_configs else None,
-            instance_feature_configs=list(instance_feature_configs) if instance_feature_configs else None,
+            default_detail_sets=feature_defaults_by_type(default_detail_sets),
             max_distance=max_distance,
         )

@@ -604,3 +604,88 @@ def add_panel_feature_definitions(ghenv, panel, definitions):
     if skipped:
         remark(ghenv.Component, "{} feature definition(s) do not lie on this panel and were skipped.".format(skipped))
     return added
+
+
+def feature_defaults_by_type(defaults):
+    """Key populator default detail sets by the feature types they build.
+
+    A detail set declares ``FEATURE_TYPES`` (it may build several).  Later entries win for the
+    same type.
+
+    Parameters
+    ----------
+    defaults : list
+        Detail sets, e.g. from ``CT: Detail Agent Set``.
+
+    Returns
+    -------
+    dict[type, :class:`~timber_design_populator.detail_sets.DetailAgentSet`] or None
+    """
+    result = {}
+    for item in defaults or []:
+        item = getattr(item, "Value", item)  # CPython GH does not unwrap custom objects
+        if item is None:
+            continue
+        for feature_type in getattr(item, "FEATURE_TYPES", None) or ():
+            result[feature_type] = item
+    return result or None
+
+
+# ------------------------------------------------------------------
+# panel joint rules
+# ------------------------------------------------------------------
+
+# constructor arguments a joint rule fills itself, not offered as joint flags
+_PANEL_JOINT_STANDARD_ARGS = ("panel_a", "panel_b", "topology", "a_segment_index", "b_segment_index", "key", "frame")
+
+
+def panel_joint_classes(topology=None, max_element_count=None):
+    """Concrete panel joints offered by the panel joint rule components, by class name.
+
+    Lists the joints of :mod:`compas_arch.connections` (envelope only) and of
+    :mod:`timber_design_populator.panel_joints` (which also build a connection detail).
+
+    Parameters
+    ----------
+    topology : int, optional
+        Only joints whose ``SUPPORTED_TOPOLOGY`` is this one.  Unset: any joint with a topology.
+    max_element_count : int, optional
+        Only joints with this ``MAX_ELEMENT_COUNT``.
+
+    Returns
+    -------
+    dict[str, type]
+    """
+    import compas_arch.connections as arch_connections
+    import timber_design_populator.panel_joints as detail_joints
+    from compas_arch.connections import PanelJoint
+
+    result = {}
+    for module in (arch_connections, detail_joints):
+        for name in dir(module):
+            cls = getattr(module, name)
+            if not (isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint):
+                continue
+            supported = getattr(cls, "SUPPORTED_TOPOLOGY", 0)
+            if not supported or (topology is not None and supported != topology):
+                continue
+            if max_element_count is not None and getattr(cls, "MAX_ELEMENT_COUNT", 0) != max_element_count:
+                continue
+            result[cls.__name__] = cls
+    return result
+
+
+def panel_joint_flag_names(joint_type):
+    """The constructor arguments of *joint_type* a rule passes on as joint flags (e.g. ``backing_studs``)."""
+    import inspect
+
+    return [name for name in inspect.getfullargspec(joint_type.__init__).args[1:] if name not in _PANEL_JOINT_STANDARD_ARGS]
+
+
+def kwargs_by_input_name(ghenv, args, names):
+    """``{input name: value}`` for the inputs named in *names* that have a value.
+
+    Maps by name, not position, so inputs may be in any order (e.g. after switching joint types).
+    """
+    accepted = set(names)
+    return {param.Name: val for param, val in zip(ghenv.Component.Params.Input, args) if val is not None and param.Name in accepted}

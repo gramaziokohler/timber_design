@@ -1,19 +1,29 @@
 from .populator import PanelPopulator
 
-from .populator_agents.populator_agent import AgentBoundaryType
-from .populator_agents.populator_agent import PopulatorAgent
-from .populator_agents.layer_agent import LayerAgent
-from .populator_agents.feature_agent import FeatureAgent
-from .populator_agents.stud_populator_agent import StudPopulatorAgent
-from .populator_agents.plate_populator_agent import PlatePopulatorAgent
-from .populator_agents.edge_populator_agent import EdgePopulatorAgent
-from .populator_agents.opening_populator_agent import OpeningPopulatorAgent
-from .populator_agents.opening_populator_agent import DoorPopulatorAgent
-from .populator_agents.opening_populator_agent import WindowPopulatorAgent
-from .populator_agents.panel_feature_populator_agents import MEPPenetrationPopulatorAgent
-from .populator_agents.panel_feature_populator_agents import LinearServicePopulatorAgent
-from .populator_agents.panel_feature_populator_agents import NichePopulatorAgent
-from .populator_agents.panel_boundary_populator_agent import PanelBoundaryPopulatorAgent
+from .populator_agents import AgentBoundaryType
+from .populator_agents import PopulatorAgent
+from .populator_agents import EdgeAgent
+from .populator_agents import StudAgent
+from .populator_agents import PlateAgent
+from .populator_agents import LayerBoundaryAgent
+from .populator_agents import VoidFramingDetailAgent
+from .populator_agents import LayerCutDetailAgent
+from .populator_agents import LayerExtensionDetailAgent
+from .populator_agents import BackingStudDetailAgent
+from .populator_agents import ServiceDrillingDetailAgent
+from .populator_agents import ServiceNotchDetailAgent
+
+from .detail_sets import DetailAgentSet
+from .detail_sets import FramedOpeningDetailSet
+from .detail_sets import FramedPenetrationDetailSet
+from .detail_sets import FramedNicheDetailSet
+from .detail_sets import LinearServiceDetailSet
+from .detail_sets import PanelJointDetailSet
+from .detail_sets import LGenericPanelJointDetailSet
+from .detail_sets import TGenericPanelJointDetailSet
+
+from .panel_joints import LGenericPanelJoint
+from .panel_joints import TGenericPanelJoint
 
 from .populator_configs.stud_panel_config import stud_panel
 
@@ -29,16 +39,24 @@ __all__ = [
     "stud_panel",
     "AgentBoundaryType",
     "PopulatorAgent",
-    "LayerAgent",
-    "FeatureAgent",
-    "StudPopulatorAgent",
-    "PlatePopulatorAgent",
-    "EdgePopulatorAgent",
-    "OpeningPopulatorAgent",
-    "DoorPopulatorAgent",
-    "WindowPopulatorAgent",
-    "MEPPenetrationPopulatorAgent",
-    "LinearServicePopulatorAgent",
-    "NichePopulatorAgent",
-    "PanelBoundaryPopulatorAgent",
+    "EdgeAgent",
+    "StudAgent",
+    "PlateAgent",
+    "LayerBoundaryAgent",
+    "VoidFramingDetailAgent",
+    "LayerCutDetailAgent",
+    "LayerExtensionDetailAgent",
+    "BackingStudDetailAgent",
+    "ServiceDrillingDetailAgent",
+    "ServiceNotchDetailAgent",
+    "DetailAgentSet",
+    "FramedOpeningDetailSet",
+    "FramedPenetrationDetailSet",
+    "FramedNicheDetailSet",
+    "LinearServiceDetailSet",
+    "PanelJointDetailSet",
+    "LGenericPanelJointDetailSet",
+    "TGenericPanelJointDetailSet",
+    "LGenericPanelJoint",
+    "TGenericPanelJoint",
 ]

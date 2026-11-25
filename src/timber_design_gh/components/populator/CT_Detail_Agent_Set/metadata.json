@@ -1,0 +1,19 @@
+{
+    "name": "Detail Agent Set",
+    "nickname": "DetailAgentSet",
+    "category": "Timber Design",
+    "subcategory": "03 Panels",
+    "description": "Creates a detail set: one way to build a panel feature (opening, MEP penetration, niche, linear service). The built-in sets are examples and the stud panel defaults, not the only options. Right-click to choose the set; its parameters appear as inputs. Connect it to a feature component's 'detail_set' to build those features with it, or to a populator's 'default_detail_sets' to build every feature of the types it supports.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [],
+        "outputParameters": [
+            {
+                "name": "DetailSet",
+                "description": "Detail set. Connect to a feature component's 'detail_set', or to a populator's 'default_detail_sets'."
+            }
+        ]
+    }
+}

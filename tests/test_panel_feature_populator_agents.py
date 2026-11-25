@@ -18,10 +18,11 @@ from compas_arch.panel_features import Niche
 from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
 
-from timber_design_populator import LinearServicePopulatorAgent
-from timber_design_populator import MEPPenetrationPopulatorAgent
-from timber_design_populator import NichePopulatorAgent
+from timber_design_populator import LayerCutDetailAgent
+from timber_design_populator import ServiceDrillingDetailAgent
+from timber_design_populator import VoidFramingDetailAgent
 from timber_design_populator import stud_panel
+from timber_design_populator.detail_sets import FramedPenetrationDetailSet
 
 
 def _outline(xmin, ymin, xmax, ymax, z=0.0):
@@ -67,7 +68,16 @@ def _add_features(panel):
     return mep, niche, service
 
 
-def test_stud_panel_automatically_dispatches_new_features():
+def _agents_by_feature(populator):
+    agents = {}
+    for agent in populator.agents:
+        feature = getattr(agent, "feature", None)
+        if feature is not None:
+            agents.setdefault(id(feature), []).append(agent)
+    return agents
+
+
+def test_stud_panel_builds_new_features_with_their_detail_sets():
     panel = _panel_with_layers()
     mep, niche, service = _add_features(panel)
 
@@ -79,44 +89,51 @@ def test_stud_panel_automatically_dispatches_new_features():
     interior_path = panel.interior_layer.layer_path
     populator = stud_panel(panel, standard_beam_width=60, stud_spacing=0)
     populator.populate_elements()
-    agents = {type(agent): agent for agent in populator.agents if getattr(agent, "feature", None) is not None}
+    agents = _agents_by_feature(populator)
 
-    mep_agent = agents[MEPPenetrationPopulatorAgent]
-    niche_agent = agents[NichePopulatorAgent]
-    service_agent = agents[LinearServicePopulatorAgent]
-    assert mep_agent.feature is mep
-    assert niche_agent.feature is niche
-    assert service_agent.feature is service
-    assert mep_agent.element_layer_paths == [core_path]
-    assert set(mep_agent.trimming_layer_paths) == {exterior_path, core_path, interior_path}
-    assert niche_agent.element_layer_paths == [core_path]
-    assert set(niche_agent.trimming_layer_paths) == {exterior_path, interior_path}
+    mep_framing, *mep_cuts = agents[id(mep)]
+    niche_framing, niche_cut = agents[id(niche)]
+    (service_agent,) = agents[id(service)]
+    assert type(mep_framing) is VoidFramingDetailAgent and all(type(c) is LayerCutDetailAgent for c in mep_cuts)
+    assert (type(niche_framing), type(niche_cut)) == (VoidFramingDetailAgent, LayerCutDetailAgent)
+    assert type(service_agent) is ServiceDrillingDetailAgent
+    assert mep_framing.element_layer_paths == [core_path]
+    mep_cut = {c.trimming_layer_paths[0]: c for c in mep_cuts}  # one cut agent per role layer
+    assert sorted(mep_cut) == sorted([exterior_path, core_path, interior_path])
+    assert niche_framing.element_layer_paths == [core_path]
+    assert niche_cut.trimming_layer_paths == [exterior_path]  # only the niche's side
     assert service_agent.element_layer_paths == []
     assert service_agent.trimming_layer_paths == [core_path]
     # framed like a window: header, sill and two king studs
     framing = ["header", "king_stud", "king_stud", "sill"]
-    assert sorted(e.attributes["category"] for e in mep_agent.elements) == framing
-    assert sorted(e.attributes["category"] for e in niche_agent.elements) == framing
+    assert sorted(e.attributes["category"] for e in mep_framing.elements) == framing
+    assert sorted(e.attributes["category"] for e in niche_framing.elements) == framing
     assert service_agent.elements == []
     exterior_plate = next(plate for plate in populator.model.find_all_elements_of_type(Plate) if plate.parent.name == "exterior")
     niche_depths = [feature.contour_param_object.depth for feature in exterior_plate._features if isinstance(feature, FreeContour)]
-    assert sorted(niche_depths) == [10, 20]
+    assert sorted(niche_depths) == [10, 20]  # the niche's blind pocket, and the MEP cut through the 20 thick plate
+
+    def width(outline):
+        xs = [point.x for point in outline.points]
+        return max(xs) - min(xs)
+
     widths = {
-        layer_name: max(point.x for point in mep_agent.compute_outline_for_layer(populator.layer_tree[layer_path]).points)
-        - min(point.x for point in mep_agent.compute_outline_for_layer(populator.layer_tree[layer_path]).points)
-        for layer_name, layer_path in (("exterior", exterior_path), ("core", core_path), ("interior", interior_path))
+        "exterior": width(mep_cut[exterior_path].outline_for_layer(populator.layer_tree[exterior_path])),
+        "core": width(mep_framing.boundary),
+        "interior": width(mep_cut[interior_path].outline_for_layer(populator.layer_tree[interior_path])),
     }
     assert widths == {"exterior": 200, "core": 300, "interior": 400}
 
 
-def test_mep_agent_uses_layer_specific_outline_for_trim(monkeypatch):
-    feature = MEPPenetration(
-        Frame.worldXY(),
-        _outline(0, 0, 10, 10, 0),
-        _outline(0, 0, 20, 20, 20),
-        _outline(0, 0, 30, 30, 40),
-    )
-    agent = MEPPenetrationPopulatorAgent(feature=feature)
+def test_mep_detail_set_uses_the_outline_of_each_layer_role():
+    feature = MEPPenetration(Frame.worldXY(), _outline(0, 0, 10, 10, 0), _outline(0, 0, 20, 20, 20), _outline(0, 0, 30, 30, 40))
+    assert FramedPenetrationDetailSet.outline_for_role(feature, LayerRole.INTERIOR).points == feature.outline_interior.points
+    assert FramedPenetrationDetailSet.outline_for_role(feature, LayerRole.CORE).points == feature.outline_core.points
+    assert FramedPenetrationDetailSet.outline_for_role(feature, LayerRole.EXTERIOR).points == feature.outline_exterior.points
+
+
+def test_a_through_cut_cuts_the_plate_through(monkeypatch):
+    outline = _outline(0, 0, 30, 30, 40)
     added = []
     calls = []
 
@@ -128,42 +145,42 @@ def test_mep_agent_uses_layer_specific_outline_for_trim(monkeypatch):
     layer = _fake_layer(LayerRole.EXTERIOR, 40, 60)
     plate = SimpleNamespace(parent=layer, thickness=20, add_feature=added.append)
 
-    agent.trim_plate(plate)
+    LayerCutDetailAgent((0,), outline_a=outline).trim_plate(plate)
 
-    ((outline, called_plate, kwargs),) = calls
-    assert outline.points == feature.outline_exterior.points
+    ((called_outline, called_plate, kwargs),) = calls
+    assert called_outline.points == outline.points
     assert (called_plate, kwargs) == (plate, {"depth": 20, "interior": True})
     assert added == ["free-contour"]
 
 
-def test_mep_agent_projects_outline_onto_sublayer_plate_face(monkeypatch):
-    feature = MEPPenetration(Frame.worldXY(), _outline(0, 0, 10, 10, 0), _outline(0, 0, 20, 20, 20), _outline(0, 0, 30, 30, 40))
-    agent = MEPPenetrationPopulatorAgent(feature=feature)
+def test_a_through_cut_projects_its_outline_onto_a_sublayer_plate_face(monkeypatch):
+    outline = _outline(0, 0, 30, 30, 40)
     calls = []
     monkeypatch.setattr(FreeContour, "from_polyline_and_element", lambda outline, plate, **kwargs: calls.append(outline))
     # an inner sublayer of a subdivided exterior layer: same role, different faces
     plate = SimpleNamespace(parent=_fake_layer(LayerRole.EXTERIOR, 45, 50), thickness=5, add_feature=lambda f: None)
 
-    agent.trim_plate(plate)
+    LayerCutDetailAgent((0,), outline_a=outline).trim_plate(plate)
 
     assert [point.z for point in calls[0].points] == [45] * 5
-    assert [(point.x, point.y) for point in calls[0].points] == [(point.x, point.y) for point in feature.outline_exterior.points]
+    assert [(point.x, point.y) for point in calls[0].points] == [(point.x, point.y) for point in outline.points]
 
 
-def test_mep_agent_ignores_layers_without_a_role(monkeypatch):
-    feature = MEPPenetration(Frame.worldXY(), _outline(0, 0, 10, 10, 0), _outline(0, 0, 20, 20, 20), _outline(0, 0, 30, 30, 40))
-    agent = MEPPenetrationPopulatorAgent(feature=feature)
-    calls = []
-    monkeypatch.setattr(FreeContour, "from_polyline_and_element", lambda *args, **kwargs: calls.append(args))
-
-    agent.trim_plate(SimpleNamespace(parent=_fake_layer(None, 0, 10), thickness=10, add_feature=lambda f: None))
-
-    assert calls == []
+def test_a_cut_agent_trims_its_layer_and_creates_nothing():
+    agent = LayerCutDetailAgent((0,), outline_a=_outline(0, 0, 10, 10, 0))
+    assert agent.trimming_layer_paths == [(0,)] and agent.element_layer_paths == []
+    clone = agent.clone()
+    assert clone.trimming_layer_paths == [(0,)] and clone.element_layer_paths == [] and clone.outline_a.points == agent.outline_a.points
 
 
-def test_niche_agent_trims_only_selected_surface_with_blind_depth(monkeypatch):
-    feature = Niche(Frame.worldXY(), _outline(0, 0, 10, 10), LayerRole.INTERIOR, 8)
-    agent = NichePopulatorAgent(feature=feature)
+def test_a_cut_that_leaves_beams_alone_has_no_boundary():
+    layer = _fake_layer(LayerRole.CORE, 0, 10)
+    assert LayerCutDetailAgent((0,), outline_a=_outline(0, 0, 10, 10, 0), cut_beams=False).compute_outline_for_layer(layer) is None
+
+
+def test_a_blind_cut_only_cuts_the_plate_whose_face_holds_the_outline(monkeypatch):
+    outline = _outline(0, 0, 10, 10)
+    cut = LayerCutDetailAgent((2,), outline_a=outline, depth=8)
     calls = []
     added = []
 
@@ -172,21 +189,19 @@ def test_niche_agent_trims_only_selected_surface_with_blind_depth(monkeypatch):
         return "free-contour"
 
     monkeypatch.setattr(FreeContour, "from_polyline_and_element", fake_free_contour)
-    interior_plate = SimpleNamespace(parent=_fake_layer(LayerRole.INTERIOR, 0, 20), add_feature=added.append)
-    exterior_plate = SimpleNamespace(parent=_fake_layer(LayerRole.EXTERIOR, 180, 200), add_feature=added.append)
-    # inner sublayer of the interior layer: right role, but the outline is not on its faces
-    inner_interior_plate = SimpleNamespace(parent=_fake_layer(LayerRole.INTERIOR, 20, 40), add_feature=added.append)
+    face_plate = SimpleNamespace(parent=_fake_layer(LayerRole.INTERIOR, 0, 20), add_feature=added.append)
+    # an inner sublayer: the outline is not on its faces
+    inner_plate = SimpleNamespace(parent=_fake_layer(LayerRole.INTERIOR, 20, 40), add_feature=added.append)
 
-    agent.trim_plate(exterior_plate)
-    agent.trim_plate(inner_interior_plate)
-    agent.trim_plate(interior_plate)
+    cut.trim_plate(inner_plate)
+    cut.trim_plate(face_plate)
 
-    assert calls == [(feature.outline, interior_plate, {"depth": 8, "interior": True})]
+    assert calls == [(outline, face_plate, {"depth": 8, "interior": True})]
     assert added == ["free-contour"]
 
 
-def test_linear_service_agent_does_not_modify_framing():
-    agent = LinearServicePopulatorAgent()
+def test_service_agents_do_not_modify_framing():
+    agent = ServiceDrillingDetailAgent(path=Polyline([Point(0, 0, 0), Point(1, 0, 0)]), diameter=20)
 
     assert agent.generate_elements_for_layer(object()) == ([], None)
 
@@ -195,23 +210,23 @@ def test_service_only_machines_beams_it_runs_through():
     from compas.geometry import Line
     from compas_timber.elements import Beam
 
-    from timber_design_populator.populator_agents.panel_feature_populator_agents import _crossings
+    from timber_design_populator.populator_agents.service_geometry import crossings
 
     service = Polyline([Point(0, 500, 150), Point(1000, 500, 150)])  # on the core mid-plane, z=150
     # vertical members in the panel plane at x=500, with z_vector along the panel normal
     core_stud = Beam.from_centerline(Line(Point(500, 0, 150), Point(500, 2000, 150)), width=60, height=160, z_vector=Vector(0, 0, 1))
     batten = Beam.from_centerline(Line(Point(500, 0, 35), Point(500, 2000, 35)), width=30, height=30, z_vector=Vector(0, 0, 1))
 
-    ((point, direction),) = _crossings(service, core_stud)
+    ((point, direction),) = crossings(service, core_stud)
     assert (round(point.x), round(point.y), round(point.z)) == (500, 500, 150)
-    assert _crossings(service, batten) == []  # the batten spans z=20..50
+    assert crossings(service, batten) == []  # the batten spans z=20..50
 
 
 def test_service_cut_does_not_recurse_while_being_built():
     from compas.geometry import Line
     from compas_timber.elements import Beam
 
-    from timber_design_populator.populator_agents.panel_feature_populator_agents import _ServiceDrillingProxy
+    from timber_design_populator.populator_agents.service_geometry import _ServiceDrillingProxy
 
     beam = Beam.from_centerline(Line(Point(0, 0, 0), Point(0, 1000, 0)), width=60, height=160)
     proxy = _ServiceDrillingProxy(Line(Point(-100, 500, 0), Point(100, 500, 0)), beam, 20)

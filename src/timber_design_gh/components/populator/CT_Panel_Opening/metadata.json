@@ -3,7 +3,7 @@
     "nickname": "PanelOpening",
     "category": "Timber Design",
     "subcategory": "03 Panels",
-    "description": "Defines Opening features (windows or doors) for a panel component's 'features' input. Openings are framed by an OpeningPopulatorAgent (Window/Door) and cut through every layer.",
+    "description": "Defines Opening features (windows or doors) for a panel component's 'features' input. By default an opening is built by the populator's FramedOpeningDetailSet: framed in the core and cut through every layer; give it its own detail set via 'detail_set'.",
     "exposure": 2,
     "ghpython": {
         "isAdvancedMode": true,
@@ -25,6 +25,12 @@
                 "name": "project_horizontal",
                 "description": "If True, sloped openings are extruded horizontally through the panel instead of along its normal.",
                 "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "detail_set",
+                "description": "(Optional) A detail set (CT: Detail Agent Set) that builds these features, in place of the populator's default for this feature type.",
+                "typeHintID": "none",
                 "scriptParamAccess": 0
             }
         ],

@@ -26,6 +26,12 @@
                 "description": "(Optional) Depth of the recess, measured from the panel face; cut into the outermost sheathing on 'side'. Leave empty to take the niche through the side layer and the framing layer, so only the opposite side's sheathing remains as its back.",
                 "typeHintID": "float",
                 "scriptParamAccess": 0
+            },
+            {
+                "name": "detail_set",
+                "description": "(Optional) A detail set (CT: Detail Agent Set) that builds these features, in place of the populator's default for this feature type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
             }
         ],
         "outputParameters": [

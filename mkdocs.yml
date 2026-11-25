@@ -163,6 +163,11 @@ nav:
       - 2D Connection Solving: connections_2d.md
       - Populating Panels: user_guide/populating_panels.md
   - API Reference:
+      - compas_arch:
+          - model: api/compas_arch.model.md
+          - elements: api/compas_arch.elements.md
+          - connections: api/compas_arch.connections.md
+          - panel_features: api/compas_arch.panel_features.md
       - timber_design_rules: api/timber_design_rules.md
       - timber_design_populator: api/timber_design_populator.md
   - Contribution:

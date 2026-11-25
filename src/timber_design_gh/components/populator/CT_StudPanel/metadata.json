@@ -64,14 +64,8 @@
                 "scriptParamAccess": 1
             },
             {
-                "name": "default_feature_configs",
-                "description": "List of FeatureAgent prototypes (one per feature type). Pass an OpeningPopulatorAgent here to customise opening framing.",
-                "typeHintID": "none",
-                "scriptParamAccess": 1
-            },
-            {
-                "name": "instance_feature_configs",
-                "description": "List of per-feature-instance FeatureAgent overrides, already bound to specific panel features.",
+                "name": "default_detail_sets",
+                "description": "Detail sets (CT: Detail Agent Set) used for every feature of the types they build that has no detail_set of its own.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
             },

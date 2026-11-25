@@ -26,6 +26,12 @@
                 "description": "(Optional) Closed outlines for the exterior layer, matched to outline_core by index. Defaults to the core outline.",
                 "typeHintID": "none",
                 "scriptParamAccess": 1
+            },
+            {
+                "name": "detail_set",
+                "description": "(Optional) A detail set (CT: Detail Agent Set) that builds these features, in place of the populator's default for this feature type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
             }
         ],
         "outputParameters": [

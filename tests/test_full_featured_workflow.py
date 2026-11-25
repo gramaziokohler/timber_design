@@ -23,7 +23,7 @@ from timber_design_populator import stud_panel
 try:
     from compas_arch.panel_features.opening import Opening
     from compas_arch.panel_features.opening import OpeningType
-    from timber_design_populator import OpeningPopulatorAgent
+    from timber_design_populator.detail_sets import FramedOpeningDetailSet
 
     HAS_OPENING = True
 except ImportError:
@@ -121,8 +121,8 @@ def _make_pop(panel, with_openings=False):
         stud_spacing=STUD_SPACING,
     )
     if with_openings:
-        kwargs["default_feature_configs"] = {
-            Opening: OpeningPopulatorAgent(lintel_posts=True),
+        kwargs["default_detail_sets"] = {
+            Opening: FramedOpeningDetailSet(lintel_posts=True),
         }
     return stud_panel(panel, **kwargs)
 

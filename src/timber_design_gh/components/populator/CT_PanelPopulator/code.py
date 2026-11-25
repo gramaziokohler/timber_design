@@ -4,8 +4,8 @@
 import Grasshopper
 import System
 
-from timber_design_populator import FeatureAgent
 from timber_design_populator import PanelPopulator
+from timber_design_gh import feature_defaults_by_type
 
 
 class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):
@@ -14,22 +14,16 @@ class PanelPopulatorComponent(Grasshopper.Kernel.GH_ScriptInstance):
         panel,
         agents: System.Collections.Generic.List[object],
         standard_beam_width: float,
-        default_feature_configs: System.Collections.Generic.List[object],
+        default_detail_sets: System.Collections.Generic.List[object],
         joint_rule_overrides: System.Collections.Generic.List[object],
         max_distance: float,
     ):
 
-        these_agents = []
-        for a in agents or []:
-            if not isinstance(a, FeatureAgent):
-                these_agents.append(a)
-            elif getattr(a, "feature", None) in panel.features:
-                these_agents.append(a)
         return PanelPopulator(
             panel=panel,
             standard_beam_width=standard_beam_width,
-            agents=these_agents if these_agents else None,
-            default_feature_agents={d.FEATURE_TYPE: d for d in default_feature_configs} if default_feature_configs else None,
+            agents=[a for a in agents or [] if a is not None],
+            default_detail_sets=feature_defaults_by_type(default_detail_sets),
             joint_rule_overrides=list(joint_rule_overrides) if joint_rule_overrides else None,
             max_distance=max_distance,
         )

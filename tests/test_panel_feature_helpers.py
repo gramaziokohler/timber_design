@@ -9,7 +9,6 @@ from compas_arch.elements import LayerStructure
 from compas_arch.elements import Panel
 from compas_arch.model import ArchModel
 from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import LinearServiceMode
 from compas_arch.panel_features import MEPPenetration
 from compas_arch.panel_features import Niche
 from compas_arch.panel_features import Opening
@@ -27,6 +26,7 @@ from timber_design_gh.panel_feature_helpers import OpeningDefinition
 from timber_design_gh.panel_feature_helpers import add_feature_definitions
 from timber_design_gh.panel_feature_helpers import layer_mid_z
 from timber_design_gh.panel_feature_helpers import layer_outer_face_z
+from timber_design_populator import LinearServiceDetailSet
 from timber_design_populator import stud_panel
 
 
@@ -75,7 +75,7 @@ def test_definitions_place_outlines_on_their_layer_faces():
     assert (_local_zs(mep._outline_interior), _local_zs(mep._outline_core), _local_zs(mep._outline_exterior)) == ([200.0], [100.0], [0.0])
     assert isinstance(niche, Niche) and niche.side == LayerRole.INTERIOR
     assert _local_zs(niche._outline) == [200.0]
-    assert isinstance(service, LinearService) and service.routing_mode == LinearServiceMode.CORE_DRILLING
+    assert isinstance(service, LinearService) and service.detail_set is None
     assert _local_zs(service._polyline) == [100.0]
 
 
@@ -220,7 +220,8 @@ def _populate_with_service(diameter, mode, interior_first=False):
             ]
         )
     # a horizontal run at z=1000 crossing the studs at x=1800, 2200, 2600 and 3000
-    add_feature_definitions(panel, [LinearServiceDefinition(Polyline([Point(1500, 500, 1000), Point(3000, 500, 1000)]), diameter, mode)])
+    path = Polyline([Point(1500, 500, 1000), Point(3000, 500, 1000)])
+    add_feature_definitions(panel, [LinearServiceDefinition(path, diameter, LinearServiceDetailSet(mode=mode))])
     model = ArchModel()
     model.add_element(panel)
     panel.merge_layer_structure(model)
@@ -240,7 +241,7 @@ def _populate_with_service(diameter, mode, interior_first=False):
 
 
 def test_core_drilling_drills_through_every_crossed_stud():
-    model, machined, warnings = _populate_with_service(30, LinearServiceMode.CORE_DRILLING)
+    model, machined, warnings = _populate_with_service(30, "drilling")
 
     assert sorted(machined) == [1800, 2200, 2600, 3000]
     for beam, cuts in machined.values():
@@ -258,7 +259,7 @@ def test_core_drilling_drills_through_every_crossed_stud():
 
 
 def test_frame_notching_cuts_a_lap_into_the_interior_face():
-    _, machined, warnings = _populate_with_service(30, LinearServiceMode.FRAME_NOTCHING)
+    _, machined, warnings = _populate_with_service(30, "notching")
 
     assert sorted(machined) == [1800, 2200, 2600, 3000]
     for beam, cuts in machined.values():
@@ -275,7 +276,7 @@ def test_frame_notching_cuts_a_lap_into_the_interior_face():
 
 
 def test_frame_notching_follows_the_interior_layer():
-    _, machined, _ = _populate_with_service(30, LinearServiceMode.FRAME_NOTCHING, interior_first=True)
+    _, machined, _ = _populate_with_service(30, "notching", interior_first=True)
 
     for beam, (lap,) in machined.values():
         ys = [p[1] for p in lap.volume_from_params_and_beam(beam).vertices]
@@ -285,8 +286,8 @@ def test_frame_notching_follows_the_interior_layer():
 @pytest.mark.parametrize(
     "diameter, mode, expected",
     [
-        (70, LinearServiceMode.CORE_DRILLING, "hole is more than 40%"),
-        (50, LinearServiceMode.FRAME_NOTCHING, "notch is more than 25%"),
+        (70, "drilling", "hole is more than 40%"),
+        (50, "notching", "notch is more than 25%"),
     ],
 )
 def test_oversized_service_cuts_are_reported(diameter, mode, expected):

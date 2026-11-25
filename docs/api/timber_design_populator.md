@@ -8,7 +8,7 @@ The `timber_design_populator` package frames a
 from timber_design_populator import stud_panel
 
 populator = stud_panel(panel, standard_beam_width=60, stud_spacing=625)
-populator.populate_elements()   # generate -> define outlines -> extend -> split -> cull
+populator.populate_elements()   # expand detail sets -> modify layers -> generate -> extend -> split -> cull -> machine
 populator.join_elements()       # agent rules, then panel-level fallback rules
 populator.process_joinery()     # fabrication features for the joints
 populator.merge_with_model(model)
@@ -26,39 +26,64 @@ populator.merge_with_model(model)
 
 ---
 
-## Agent base classes
+## Agent base class
 
 ::: timber_design_populator.populator_agents.populator_agent.PopulatorAgent
 
 ::: timber_design_populator.populator_agents.populator_agent.AgentBoundaryType
 
-::: timber_design_populator.populator_agents.layer_agent.LayerAgent
+## Panel-wide agents
 
-::: timber_design_populator.populator_agents.feature_agent.FeatureAgent
+::: timber_design_populator.populator_agents.edge_agent.EdgeAgent
 
-## Layer agents
+::: timber_design_populator.populator_agents.stud_agent.StudAgent
 
-::: timber_design_populator.populator_agents.edge_populator_agent.EdgePopulatorAgent
+::: timber_design_populator.populator_agents.plate_agent.PlateAgent
 
-::: timber_design_populator.populator_agents.stud_populator_agent.StudPopulatorAgent
+::: timber_design_populator.populator_agents.layer_boundary_agent.LayerBoundaryAgent
 
-::: timber_design_populator.populator_agents.plate_populator_agent.PlatePopulatorAgent
+## Detail sets
 
-::: timber_design_populator.populator_agents.panel_boundary_populator_agent.PanelBoundaryPopulatorAgent
+Each built-in set is one way to build a feature, not the only one.
 
-## Feature agents
+::: timber_design_populator.detail_sets.DetailAgentSet
 
-::: timber_design_populator.populator_agents.opening_populator_agent.OpeningPopulatorAgent
+::: timber_design_populator.detail_sets.FramedOpeningDetailSet
 
-::: timber_design_populator.populator_agents.opening_populator_agent.WindowPopulatorAgent
+::: timber_design_populator.detail_sets.FramedPenetrationDetailSet
 
-::: timber_design_populator.populator_agents.opening_populator_agent.DoorPopulatorAgent
+::: timber_design_populator.detail_sets.FramedNicheDetailSet
 
-::: timber_design_populator.populator_agents.panel_feature_populator_agents.MEPPenetrationPopulatorAgent
+::: timber_design_populator.detail_sets.LinearServiceDetailSet
 
-::: timber_design_populator.populator_agents.panel_feature_populator_agents.NichePopulatorAgent
+## Detail agents
 
-::: timber_design_populator.populator_agents.panel_feature_populator_agents.LinearServicePopulatorAgent
+::: timber_design_populator.populator_agents.void_framing_detail_agent.VoidFramingDetailAgent
+
+::: timber_design_populator.populator_agents.layer_cut_detail_agent.LayerCutDetailAgent
+
+::: timber_design_populator.populator_agents.service_drilling_detail_agent.ServiceDrillingDetailAgent
+
+::: timber_design_populator.populator_agents.service_notch_detail_agent.ServiceNotchDetailAgent
+
+::: timber_design_populator.populator_agents.layer_extension_detail_agent.LayerExtensionDetailAgent
+
+::: timber_design_populator.populator_agents.backing_stud_detail_agent.BackingStudDetailAgent
+
+## Connection details
+
+A panel joint and its detail set form a pair: the joint computes each panel's half, the set
+expands it in that panel's populator.
+
+::: timber_design_populator.panel_joints.LGenericPanelJoint
+
+::: timber_design_populator.panel_joints.TGenericPanelJoint
+
+::: timber_design_populator.detail_sets.PanelJointDetailSet
+
+::: timber_design_populator.detail_sets.LGenericPanelJointDetailSet
+
+::: timber_design_populator.detail_sets.TGenericPanelJointDetailSet
 
 ---
 

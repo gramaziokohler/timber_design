@@ -2,30 +2,21 @@
 from System.Windows.Forms import ToolStripSeparator
 
 import Grasshopper
-import compas_arch.connections as _arch_connections
 
-from compas_arch.connections import PanelJoint
 from compas_timber.connections import JointTopology
 from compas_arch.connections import PanelTButtJoint
 from timber_design_rules import TopologyRule
+from timber_design_gh import kwargs_by_input_name
 from timber_design_gh import manage_cpython_dynamic_params
+from timber_design_gh import panel_joint_classes
+from timber_design_gh import panel_joint_flag_names
 from timber_design_gh import rename_cpython_gh_output
-
-
-def _get_panel_joint_classes(topology):
-    """Return PanelJoint subclasses with given topology."""
-    result = {}
-    for name in dir(_arch_connections):
-        cls = getattr(_arch_connections, name)
-        if isinstance(cls, type) and issubclass(cls, PanelJoint) and cls is not PanelJoint and getattr(cls, "SUPPORTED_TOPOLOGY", None) == topology:
-            result[cls.__name__] = cls
-    return result
 
 
 class EdgeFaceTopologyPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
     def __init__(self):
         super(EdgeFaceTopologyPanelJointRule, self).__init__()
-        self.classes = _get_panel_joint_classes(JointTopology.TOPO_EDGE_FACE)
+        self.classes = panel_joint_classes(JointTopology.TOPO_EDGE_FACE)
         self.joint_type = self.classes.get(ghenv.Component.Params.Output[0].NickName, None)
 
     def RunScript(self, *args):
@@ -33,13 +24,8 @@ class EdgeFaceTopologyPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
             ghenv.Component.Message = "Default: PanelTButtJoint"
             ghenv.Component.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "PanelTButtJoint is default, change in context menu (right click)")
             return TopologyRule(JointTopology.TOPO_EDGE_FACE, PanelTButtJoint)
-        else:
-            ghenv.Component.Message = self.joint_type.__name__
-            kwargs = {}
-            for i, val in enumerate(args):
-                if val is not None:
-                    kwargs[self.arg_names()[i]] = val
-            return TopologyRule(JointTopology.TOPO_EDGE_FACE, self.joint_type, **kwargs)
+        ghenv.Component.Message = self.joint_type.__name__
+        return TopologyRule(JointTopology.TOPO_EDGE_FACE, self.joint_type, **kwargs_by_input_name(ghenv, args, self.arg_names()))
 
     def AppendAdditionalMenuItems(self, menu):
         for name in self.classes.keys():
@@ -49,7 +35,8 @@ class EdgeFaceTopologyPanelJointRule(Grasshopper.Kernel.GH_ScriptInstance):
         menu.Items.Add(ToolStripSeparator())
 
     def arg_names(self):
-        return ["max_distance"]
+        # the joint's flags (e.g. backing_studs on the generic joints) become inputs
+        return ["max_distance"] + panel_joint_flag_names(self.joint_type)
 
     def on_item_click(self, sender, event_info):
         self.joint_type = self.classes[str(sender)]

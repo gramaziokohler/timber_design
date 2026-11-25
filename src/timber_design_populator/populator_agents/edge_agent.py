@@ -23,14 +23,14 @@ from compas_timber.utils import get_polyline_segment_perpendicular_vector
 from compas_timber.utils import join_polyline_segments
 
 from timber_design_populator.connections_2d.beam2d import Beam2D
-from timber_design_populator.populator_agents.layer_agent import LayerAgent
+from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
 from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
 from timber_design_rules import CategoryRule
 from timber_design_rules import CompositeRule
 from timber_design_rules import DirectRule
 
 
-class EdgePopulatorAgent(LayerAgent):
+class EdgeAgent(PopulatorAgent):
     """Generates edge beams (plates and edge studs) along the panel outline.
 
     Creates one :class:`~timber_design_populator.connections_2d.Beam2D` per segment of the
@@ -78,7 +78,7 @@ class EdgePopulatorAgent(LayerAgent):
     """
 
     BEAM_CATEGORY_NAMES = ["edge_stud", "top_plate_beam", "bottom_plate_beam"]
-    NAME = "EdgePopulatorAgent"
+    NAME = "EdgeAgent"
     INTERNAL_JOINT_RULES = [
         CategoryRule(LButtJoint, "edge_stud", "edge_stud", mill_depth=10.0, max_distance=1.0),
         CategoryRule(LButtJoint, "edge_stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -103,6 +103,7 @@ class EdgePopulatorAgent(LayerAgent):
         ),
     ]
     BOUNDARY_TYPE = AgentBoundaryType.INCLUSIVE
+    PRIORITY = -10  # the panel edges own their corner joints
 
     def __init__(
         self,
@@ -115,7 +116,7 @@ class EdgePopulatorAgent(LayerAgent):
         standard_beam_width_increment=None,
         **kwargs,
     ):
-        super(EdgePopulatorAgent, self).__init__(layer, internal_joint_overrides, external_joint_overrides, **kwargs)
+        super().__init__(layer=layer, internal_joint_overrides=internal_joint_overrides, external_joint_overrides=external_joint_overrides, **kwargs)
         self.beam_widths["edge_stud"] = edge_stud_width
         self.beam_widths["top_plate_beam"] = top_plate_beam_width
         self.beam_widths["bottom_plate_beam"] = bottom_plate_beam_width
@@ -134,7 +135,7 @@ class EdgePopulatorAgent(LayerAgent):
     # private methods for creating edge beams
     # ==========================================================================
 
-    def generate_layer_elements(self):
+    def generate_elements_for_layer(self, layer):
         """Get the edge beams for the outer polyline of the panel."""
         segs, widths = [], []
         elements = []
@@ -245,7 +246,7 @@ class EdgePopulatorAgent(LayerAgent):
         return TOL.is_zero(plane.normal[2])
 
     def _create_edge_beam_joint_rule(self, beam_a: Beam2D, beam_b: Beam2D) -> DirectRule:
-        """Generate the joint definition between two edge beams. Used when there is no interface on either edge."""
+        """Generate the joint definition between two of this agent's edge beams at a sloped corner."""
 
         edge_a_index = beam_a.attributes["edge_index"]
         edge_b_index = beam_b.attributes["edge_index"]

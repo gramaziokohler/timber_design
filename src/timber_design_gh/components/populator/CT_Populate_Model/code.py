@@ -20,13 +20,16 @@ class PopulateModel(Grasshopper.Kernel.GH_ScriptInstance):
             return Model, None
         debug_info = DebugInfomation()
         model = json_loads(json_dumps(Model))  # copy model
-        # Extension planes are not serialized, so the copy's panels and layers come back
-        # unextended. Re-run the panel joints on the copy to restore them before population.
-        for joint in model.joints:
-            if isinstance(joint, PanelJoint):
-                joint.add_extensions()
+        # Extension planes and connection interfaces are not serialized, so the copy's panels
+        # and layers come back unextended and without interfaces. Re-run the panel joints on
+        # the copy to restore them before population; interfaces read the extended outlines.
+        panel_joints = [joint for joint in model.joints if isinstance(joint, PanelJoint)]
+        for joint in panel_joints:
+            joint.add_extensions()
         for panel in model.panels:
             panel.apply_edge_extensions()
+        for joint in panel_joints:
+            joint.add_features()
 
         for pop in Populators:
             if pop is None:

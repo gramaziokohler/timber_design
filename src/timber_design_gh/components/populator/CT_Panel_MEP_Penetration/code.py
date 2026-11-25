@@ -18,6 +18,7 @@ class PanelMEPPenetration(Grasshopper.Kernel.GH_ScriptInstance):
         outline_core: System.Collections.Generic.List[object],
         outline_interior: System.Collections.Generic.List[object],
         outline_exterior: System.Collections.Generic.List[object],
+        detail_set: object,
     ):
         if not list_input_valid_cpython(ghenv, outline_core, "outline_core"):
             return
@@ -36,6 +37,7 @@ class PanelMEPPenetration(Grasshopper.Kernel.GH_ScriptInstance):
                         curve_to_compas_polyline(core),
                         curve_to_compas_polyline(interior) if interior is not None else None,
                         curve_to_compas_polyline(exterior) if exterior is not None else None,
+                        detail_set,
                     )
                 )
             except Exception as e:

@@ -2,7 +2,7 @@
     "name": "ShowElementIndex",
     "nickname": "ShowElementIndex",
     "category": "COMPAS Timber",
-    "subcategory": "09 Show",
+    "subcategory": "07 Show",
     "description": "Shows the key of the Element in the Model.",
     "exposure": 4,
     "ghpython": {

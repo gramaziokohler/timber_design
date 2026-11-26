@@ -5,9 +5,9 @@ from typing import List
 from compas_timber.model import TimberModel
 
 # importing connections registers the panel pairs with compas_timber's candidate dispatch
-import compas_arch.connections  # noqa: F401
-from compas_arch.elements import Layer
-from compas_arch.elements import Panel
+import timber_design_arch.connections  # noqa: F401
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import Panel
 
 
 class ArchModel(TimberModel):
@@ -15,14 +15,14 @@ class ArchModel(TimberModel):
 
     Everything a ``TimberModel`` does (beams, plates, joints, candidates, joinery
     processing, serialization) works unchanged. On top of that, ``panels`` and
-    ``layers`` return the :mod:`compas_arch.elements` types, so
+    ``layers`` return the :mod:`timber_design_arch.elements` types, so
     ``compute_topologies()`` and ``connect_adjacent_panels()`` pick them up.
 
     Attributes
     ----------
-    panels : list[:class:`~compas_arch.elements.Panel`]
+    panels : list[:class:`~timber_design_arch.elements.Panel`]
         All panels in this model.
-    layers : list[:class:`~compas_arch.elements.Layer`]
+    layers : list[:class:`~timber_design_arch.elements.Layer`]
         All layers in this model.
 
     """

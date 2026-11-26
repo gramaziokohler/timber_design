@@ -8,9 +8,9 @@ from compas.geometry import dot_vectors
 from compas_timber.connections import JointTopology
 from compas_timber.connections import PlateJoint
 
-from compas_arch.elements import Panel
-from compas_arch.panel_features import InterfaceRole
-from compas_arch.panel_features import PanelConnectionInterface
+from timber_design_arch.elements import Panel
+from timber_design_arch.panel_features import InterfaceRole
+from timber_design_arch.panel_features import PanelConnectionInterface
 
 
 def _get_edge_face_outline(panel: Panel, edge_index: int) -> Polyline:
@@ -30,9 +30,9 @@ class PanelJoint(PlateJoint):
 
     Parameters
     ----------
-    panel_a : :class:`compas_arch.elements.Panel`
+    panel_a : :class:`timber_design_arch.elements.Panel`
         The first plate.
-    panel_b : :class:`compas_arch.elements.Panel`
+    panel_b : :class:`timber_design_arch.elements.Panel`
         The second plate.
     topology : literal(JointTopology)
         The topology in which the plates are connected.
@@ -45,15 +45,15 @@ class PanelJoint(PlateJoint):
 
     Attributes
     ----------
-    panel_a : :class:`compas_arch.elements.Panel`
+    panel_a : :class:`timber_design_arch.elements.Panel`
         The first plate.
-    panel_b : :class:`compas_arch.elements.Panel`
+    panel_b : :class:`timber_design_arch.elements.Panel`
         The second plate.
-    panels : tuple of :class:`compas_arch.elements.Panel`
+    panels : tuple of :class:`timber_design_arch.elements.Panel`
         The panels that are connected.
-    interface_a : :class:`~compas_arch.panel_features.PanelConnectionInterface`
+    interface_a : :class:`~timber_design_arch.panel_features.PanelConnectionInterface`
         The interface of panel_a where it meets panel_b.
-    interface_b : :class:`~compas_arch.panel_features.PanelConnectionInterface`
+    interface_b : :class:`~timber_design_arch.panel_features.PanelConnectionInterface`
         The interface of panel_b where it meets panel_a.
 
     """

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from compas.datastructures import Mesh  # noqa: F401
     from compas_brep import Brep  # noqa: F401
 
-    from compas_arch.panel_features import PanelFeature  # noqa: F401
+    from timber_design_arch.panel_features import PanelFeature  # noqa: F401
 
 from compas.geometry import Box
 from compas.geometry import Frame
@@ -35,9 +35,9 @@ from compas_timber.utils import get_polyline_normal_vector
 from compas_timber.utils import join_polyline_segments
 from compas_timber.utils import polylines_from_brep_face
 
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
-from compas_arch.panel_features import PanelFeatureType
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
+from timber_design_arch.panel_features import PanelFeatureType
 
 from .layer import Layer
 from .layer import LayerRole
@@ -224,7 +224,7 @@ class Panel(RigidPlacement, Element):
 
     @property
     def interfaces(self):
-        """list[:class:`~compas_arch.panel_features.PanelConnectionInterface`]: The interfaces associated with this panel."""
+        """list[:class:`~timber_design_arch.panel_features.PanelConnectionInterface`]: The interfaces associated with this panel."""
         return [f for f in self.features if f.panel_feature_type == PanelFeatureType.CONNECTION_INTERFACE]
 
     def reset(self):
@@ -239,7 +239,7 @@ class Panel(RigidPlacement, Element):
 
         Parameters
         ----------
-        features : :class:`~compas_arch.panel_features.PanelFeature` | list[:class:`~compas_arch.panel_features.PanelFeature`], optional
+        features : :class:`~timber_design_arch.panel_features.PanelFeature` | list[:class:`~timber_design_arch.panel_features.PanelFeature`], optional
             The features to be removed. If None, all features will be removed.
 
         """
@@ -256,7 +256,7 @@ class Panel(RigidPlacement, Element):
 
     @property
     def layer_structure(self):
-        """The :class:`~compas_arch.elements.LayerStructure` definition for this panel."""
+        """The :class:`~timber_design_arch.elements.LayerStructure` definition for this panel."""
         return self._layer_structure
 
     @layer_structure.setter
@@ -280,11 +280,11 @@ class Panel(RigidPlacement, Element):
 
         Parameters
         ----------
-        role : :class:`~compas_arch.elements.LayerRole` | str
+        role : :class:`~timber_design_arch.elements.LayerRole` | str
 
         Returns
         -------
-        :class:`~compas_arch.elements.Layer` or None
+        :class:`~timber_design_arch.elements.Layer` or None
         """
         path = self._layer_structure.get_path_for_role(role)
         return self._get_layer_at_path(path) if path is not None else None
@@ -452,7 +452,7 @@ class Panel(RigidPlacement, Element):
 
         Returns
         -------
-        :class:`~compas_arch.elements.Panel`
+        :class:`~timber_design_arch.elements.Panel`
             A Panel object representing the panel geometry with the given outline and thickness.
         """
         # this ensure the plate geometry can always be computed
@@ -480,11 +480,11 @@ class Panel(RigidPlacement, Element):
             A vector indicating the desired orientation of the panel's local y-axis. If None, orientation is determined from the outline.
         **kwargs : dict, optional
             Additional keyword arguments.
-            These are passed to the :class:`~compas_arch.elements.Panel` constructor.
+            These are passed to the :class:`~timber_design_arch.elements.Panel` constructor.
 
         Returns
         -------
-        :class:`~compas_arch.elements.Panel`
+        :class:`~timber_design_arch.elements.Panel`
             A Panel object representing the panel with the given brep and thickness.
         """
 
@@ -509,11 +509,11 @@ class Panel(RigidPlacement, Element):
             A vector indicating the desired orientation of the panel's local y-axis. If None, orientation is determined from the outline.
         **kwargs : dict, optional
             Additional keyword arguments.
-            These are passed to the :class:`~compas_arch.elements.Panel` constructor.
+            These are passed to the :class:`~timber_design_arch.elements.Panel` constructor.
 
         Returns
         -------
-        :class:`~compas_arch.elements.Panel`
+        :class:`~timber_design_arch.elements.Panel`
             A Panel object created from the two parallel faces of the brep.
         """
         if len(brep.faces) < 2:
@@ -546,7 +546,7 @@ class Panel(RigidPlacement, Element):
 
         Returns
         -------
-        :class:`~compas_arch.elements.Panel`
+        :class:`~timber_design_arch.elements.Panel`
             A Panel object representing the panel with the given outlines.
         """
 

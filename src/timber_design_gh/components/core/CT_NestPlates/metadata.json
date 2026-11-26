@@ -1,8 +1,8 @@
 {
     "name": "NestPlates",
     "nickname": "NestPlates",
-    "category": "Timber Design",
-    "subcategory": "10 Fabrication",
+    "category": "COMPAS Timber",
+    "subcategory": "08 Fabrication",
     "description": "Executes 2-D nesting of plates into stock sheets based on a given stock catalog. Outputs a NestingResult for downstream fabrication export.",
     "exposure": 4,
     "ghpython": {

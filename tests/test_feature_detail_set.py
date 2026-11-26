@@ -9,18 +9,19 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas_timber.elements import Beam
 
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import LinearService
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import LayerCutDetailAgent
 from timber_design_populator import LinearServiceDetailSet
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import ServiceDrillingDetailAgent
 from timber_design_populator import ServiceNotchDetailAgent
@@ -108,7 +109,7 @@ def test_a_features_detail_set_works_without_any_populator_defaults():
     window = _window(panel, detail_set=FramedOpeningDetailSet())
     panel.add_feature(window)
     model = _model(panel)
-    pop = PanelPopulator(panel, agents=[EdgeAgent(panel.core_layer)], standard_beam_width=STANDARD)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=[EdgeAgent(panel.core_layer)], standard_beam_width=STANDARD))
     _populate(pop, model)
     assert _beams(model, "header")
 
@@ -130,13 +131,9 @@ def test_a_detail_agent_is_not_accepted_as_a_panel_wide_agent():
     panel = _panel()
     window = _window(panel)
     panel.add_feature(window)
-    model = _model(panel)
     bound = VoidFramingDetailAgent(feature=window)
-    pop = PanelPopulator(panel, agents=[EdgeAgent(panel.core_layer), bound], standard_beam_width=STANDARD)
-    _populate(pop, model)
-
-    assert not any(isinstance(a, VoidFramingDetailAgent) for a in pop.agents)
-    assert any("is a detail agent" in e.message for e in pop.debug_info.feature_errors)
+    with pytest.raises(ValueError, match="detail agent"):
+        PanelType("test", panel.layer_structure, agents=[EdgeAgent(panel.core_layer), bound], standard_beam_width=STANDARD)
 
 
 def test_a_features_detail_set_survives_the_model_copy():
@@ -166,7 +163,7 @@ def _service_agents(mode=None):
     service.detail_set = LinearServiceDetailSet() if mode is None else LinearServiceDetailSet(mode=mode)
     panel.add_feature(service)
     model = _model(panel)
-    pop = PanelPopulator(panel, agents=[], standard_beam_width=STANDARD)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, standard_beam_width=STANDARD))
     _populate(pop, model)
     return panel, _agents_for(pop, pop.panel.features[0])
 

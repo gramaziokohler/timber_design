@@ -1,0 +1,34 @@
+{
+    "name": "Panel Type From JSON",
+    "nickname": "PanelTypeFromJSON",
+    "category": "Timber Arch",
+    "subcategory": "05 Populator",
+    "description": "Read a PanelType from a JSON file: a library type shipped with timber_design (e.g. the dataholz.eu buildups awrhho05b, awrhhi01a, awmhhi01a), or a file written by CT: Custom Panel Type, CT: Stud Wall Panel Type or save_panel_type().",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "filepath",
+                "description": "Path of a JSON file, or the name of a library type (see 'available').",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "panel_type",
+                "description": "PanelType. Connect to CT: Create Populator."
+            },
+            {
+                "name": "info",
+                "description": "The type's thickness, layers, agents and detail sets."
+            },
+            {
+                "name": "available",
+                "description": "The names of the library types."
+            }
+        ]
+    }
+}

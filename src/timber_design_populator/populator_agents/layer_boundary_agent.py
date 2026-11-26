@@ -16,7 +16,7 @@ from timber_design_populator.populator_agents.populator_agent import AgentBounda
 
 if TYPE_CHECKING:
     from compas.geometry import Polyline  # noqa: F401
-    from compas_arch.elements import Layer  # noqa: F401
+    from timber_design_arch.elements import Layer  # noqa: F401
 
 
 class LayerBoundaryAgent(PopulatorAgent):
@@ -34,7 +34,7 @@ class LayerBoundaryAgent(PopulatorAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or str, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or str, optional
         The layer whose panel outline drives boundary generation, or its path.
     internal_joint_overrides, external_joint_overrides : list, optional
         Per-agent joint-rule overrides, see :class:`PopulatorAgent`.
@@ -70,26 +70,36 @@ class LayerBoundaryAgent(PopulatorAgent):
         -------
         :class:`~compas.geometry.Polyline`
         """
-        inner_segs = []
-        outer_segs = []
-        for i in range(len(self.layer.outline_a) - 1):
-            inner_seg, outer_seg = self._get_inner_and_outer_segments(i)
-            inner_segs.append(inner_seg)
-            outer_segs.append(outer_seg)
-        extend_line_segments(inner_segs, close_loop=True)
-        extend_line_segments(outer_segs, close_loop=True)
-        return join_polyline_segments(outer_segs, close_loop=True)[0][0]
+        return layer_outer_boundary(self.layer)
 
-    def _get_inner_and_outer_segments(self, segment_index: int) -> tuple[Line, Line]:
-        perp_vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, segment_index)
-        seg_a = Line(self.layer.outline_a[segment_index], self.layer.outline_a[segment_index + 1])
-        seg_b = Line(self.layer.outline_b[segment_index], self.layer.outline_b[segment_index + 1])
 
-        projected_a = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
-        projected_b = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
-        dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
+def layer_outer_boundary(layer) -> Polyline:
+    """The outer flat boundary of *layer*: per segment, the one of its two outlines further from the panel centre.
 
-        if dot < 0:  # seg_b is closer to the middle
-            return projected_b, projected_a
-        else:  # seg_a is closer to the middle
-            return projected_a, projected_b
+    Parameters
+    ----------
+    layer : :class:`~timber_design_arch.elements.Layer`
+
+    Returns
+    -------
+    :class:`~compas.geometry.Polyline`
+        Closed, in the layer's XY plane (z = 0).
+    """
+    outer_segs = [_inner_and_outer_segments(layer, i)[1] for i in range(len(layer.outline_a) - 1)]
+    extend_line_segments(outer_segs, close_loop=True)
+    return join_polyline_segments(outer_segs, close_loop=True)[0][0]
+
+
+def _inner_and_outer_segments(layer, segment_index: int) -> tuple[Line, Line]:
+    perp_vector = get_polyline_segment_perpendicular_vector(layer.outline_a, segment_index)
+    seg_a = Line(layer.outline_a[segment_index], layer.outline_a[segment_index + 1])
+    seg_b = Line(layer.outline_b[segment_index], layer.outline_b[segment_index + 1])
+
+    projected_a = Line(Point(seg_a.start[0], seg_a.start[1], 0), Point(seg_a.end[0], seg_a.end[1], 0))
+    projected_b = Line(Point(seg_b.start[0], seg_b.start[1], 0), Point(seg_b.end[0], seg_b.end[1], 0))
+    dot = dot_vectors(perp_vector, Vector.from_start_end(seg_a.start, seg_b.start))
+
+    if dot < 0:  # seg_b is closer to the middle
+        return projected_b, projected_a
+    else:  # seg_a is closer to the middle
+        return projected_a, projected_b

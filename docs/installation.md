@@ -34,8 +34,9 @@ Install the package (`timber_design_rules`, `timber_design_populator` and `timbe
 uv pip install -e ".[dev]"
 ```
 
-To compile the Rhino8 Grasshopper components (core and populator add-on)
+To compile the Rhino8 Grasshopper components (core and the timber_arch add-on)
 
 ```bash
-invoke build-gh-components            # or --target core / --target populator
+invoke build-gh-components            # or --target compas_timber / --target timber_arch
+invoke install-gh-components          # build, then install them into Grasshopper's UserObjects/<package>
 ```

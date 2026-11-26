@@ -1,4 +1,4 @@
-name: timber_design_populator
+name: timber_arch
 version: {{ version }}
 authors:
   - Gramazio Kohler Research, ETH Zurich

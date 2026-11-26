@@ -12,17 +12,17 @@ import pytest
 
 from compas.geometry import Point
 from compas.geometry import Polyline
-from compas_arch.elements import Layer
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 from timber_design_populator import stud_panel
 
 try:
-    from compas_arch.panel_features.opening import Opening
-    from compas_arch.panel_features.opening import OpeningType
+    from timber_design_arch.panel_features.opening import Opening
+    from timber_design_arch.panel_features.opening import OpeningType
     from timber_design_populator.detail_sets import FramedOpeningDetailSet
 
     HAS_OPENING = True

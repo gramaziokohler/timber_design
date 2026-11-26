@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import Niche
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import Niche
 from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.populator_agents.layer_cut_detail_agent import LayerCutDetailAgent
 from timber_design_populator.populator_agents.void_framing_detail_agent import VoidFramingDetailAgent
 from timber_design_populator.populator_agents.void_geometry import frame_boundary
 from timber_design_populator.populator_agents.void_geometry import frame_on_layer_faces
+from timber_design_populator.populator_agents.void_geometry import outer_face_plane
+from timber_design_populator.populator_agents.void_geometry import project_to_plane
 
 from .detail_agent_set import DetailAgentSet
 
@@ -88,5 +90,8 @@ class FramedNicheDetailSet(DetailAgentSet):
         side = self.root_layer(layer_tree, feature.side)
         if side is None:
             return [framing], []
-        cutting = LayerCutDetailAgent(side.layer_path, outline_a=feature.outline, depth=feature.depth, feature=feature)
+        # the recess starts at the side layer's outer face, wherever the outline was drawn
+        face = outer_face_plane(side, core)
+        outline = project_to_plane(feature.outline, face, side.normal)
+        cutting = LayerCutDetailAgent(side.layer_path, outline_a=outline, depth=feature.depth, feature=feature)
         return [framing, cutting], []

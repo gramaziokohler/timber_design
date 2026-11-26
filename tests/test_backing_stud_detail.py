@@ -10,10 +10,10 @@ from compas.geometry import Vector
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Beam
 
-from compas_arch.connections import PanelJoint
-from compas_arch.connections import PanelTButtJoint
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.connections import PanelJoint
+from timber_design_arch.connections import PanelTButtJoint
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 from timber_design_populator import BackingStudDetailAgent
 from timber_design_populator import LGenericPanelJoint

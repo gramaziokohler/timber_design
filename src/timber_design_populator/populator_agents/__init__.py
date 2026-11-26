@@ -9,6 +9,8 @@ decoding (e.g. detail agents in a serialized model).
 from .populator_agent import AgentBoundaryType
 from .populator_agent import PopulatorAgent
 from .edge_agent import EdgeAgent
+from .fascia_edge_agent import FasciaEdgeAgent
+from .board_agent import BoardAgent
 from .stud_agent import StudAgent
 from .plate_agent import PlateAgent
 from .layer_boundary_agent import LayerBoundaryAgent
@@ -23,6 +25,8 @@ __all__ = [
     "AgentBoundaryType",
     "PopulatorAgent",
     "EdgeAgent",
+    "FasciaEdgeAgent",
+    "BoardAgent",
     "StudAgent",
     "PlateAgent",
     "LayerBoundaryAgent",

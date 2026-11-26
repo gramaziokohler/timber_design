@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from compas_arch.connections import PanelTButtJoint
+from timber_design_arch.connections import PanelTButtJoint
 
 from timber_design_populator.detail_sets.t_generic_panel_joint_detail_set import TGenericPanelJointDetailSet
 from timber_design_populator.panel_joints.panel_joint_geometry import backing_stud_lines
@@ -11,14 +11,14 @@ from timber_design_populator.panel_joints.panel_joint_geometry import backing_st
 class TGenericPanelJoint(PanelTButtJoint):
     """A T-butt junction (one panel's edge on another's face), with a generic connection detail.
 
-    Shapes the panel envelopes like :class:`~compas_arch.connections.PanelTButtJoint`, then
+    Shapes the panel envelopes like :class:`~timber_design_arch.connections.PanelTButtJoint`, then
     works out each panel's half of the detail with both panels in view and gives each panel's
     interface a :class:`~timber_design_populator.detail_sets.TGenericPanelJointDetailSet`.
 
     Parameters
     ----------
     panel_a, panel_b, topology, a_segment_index, b_segment_index : optional
-        See :class:`~compas_arch.connections.PanelTButtJoint`; panel_a is the main panel (its
+        See :class:`~timber_design_arch.connections.PanelTButtJoint`; panel_a is the main panel (its
         edge lands on panel_b's face).
     backing_studs : bool, optional
         Add backing studs to the cross panel under both inside corners.  Default ``False``.

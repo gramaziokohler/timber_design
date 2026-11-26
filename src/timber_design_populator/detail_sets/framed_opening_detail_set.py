@@ -4,9 +4,9 @@ from typing import Optional
 
 from compas.geometry import Polyline
 from compas.geometry import offset_polygon
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.populator_agents.layer_cut_detail_agent import LayerCutDetailAgent

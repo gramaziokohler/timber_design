@@ -11,10 +11,10 @@ from compas.geometry import Vector
 from compas.geometry import Translation
 from compas.tolerance import TOL
 
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Panel
 from compas_timber.elements import Beam
-from compas_arch.elements.panel import extract_door_openings
-from compas_arch.model import ArchModel
+from timber_design_arch.elements.panel import extract_door_openings
+from timber_design_arch.model import ArchModel
 
 from brep_mocks import make_plate_brep
 from brep_mocks import make_single_face_brep
@@ -256,7 +256,7 @@ def test_panel_geometry_triggers_model_geometry_calculation(mocker):
 
     mock_geometry = mocker.MagicMock()
     mock_compute = mocker.MagicMock(return_value=mock_geometry)
-    mocker.patch("compas_arch.elements.Panel.compute_modelgeometry", side_effect=mock_compute)
+    mocker.patch("timber_design_arch.elements.Panel.compute_modelgeometry", side_effect=mock_compute)
 
     geometry = panel.geometry
 

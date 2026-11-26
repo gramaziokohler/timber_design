@@ -5,11 +5,11 @@ from compas.geometry import Frame
 from compas.geometry import Point
 from compas.geometry import Polyline
 
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.panel_features import Niche
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.panel_features import Niche
 
 
 @pytest.fixture

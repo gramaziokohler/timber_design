@@ -1,1 +1,1 @@
-# ::: compas_arch.panel_features
+# ::: timber_design_arch.panel_features

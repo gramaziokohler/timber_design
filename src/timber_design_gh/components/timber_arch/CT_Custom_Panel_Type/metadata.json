@@ -1,0 +1,66 @@
+{
+    "name": "Custom Panel Type",
+    "nickname": "CustomPanelType",
+    "category": "Timber Arch",
+    "subcategory": "05 Populator",
+    "description": "Assemble a PanelType from a layer structure, the agents that build its layers and detail sets.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "name",
+                "description": "The type's name.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "layer_structure",
+                "description": "LayerStructure (CT: Panel Layer Definition, CT: Subdivide Layer): the cross-section.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "agents",
+                "description": "Panel-wide agents (CT: Layer Agent) that build the layers, on layer paths of the same layer structure (CT: Decompose LayerStructure).",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "detail_sets",
+                "description": "(Optional) Detail sets (CT: Detail Agent Set): how features of the types they build are made in this panel type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "(Optional) Default width of beams whose agents set none.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "filepath",
+                "description": "(Optional) A JSON file to write the type to when 'save' is True. Read it back with CT: Panel Type From JSON.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "save",
+                "description": "(Optional) True: write the type to 'filepath'.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "panel_type",
+                "description": "PanelType. Connect to CT: Create Populator."
+            },
+            {
+                "name": "info",
+                "description": "The type's thickness, layers, agents and detail sets."
+            }
+        ]
+    }
+}

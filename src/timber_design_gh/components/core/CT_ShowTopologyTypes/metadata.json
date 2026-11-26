@@ -2,7 +2,7 @@
     "name": "ShowTopologyTypes",
     "nickname": "ShowTopo",
     "category": "COMPAS Timber",
-    "subcategory": "09 Show",
+    "subcategory": "07 Show",
     "description": "Shows the names of the connection topology types.",
     "exposure": 4,
     "ghpython": {

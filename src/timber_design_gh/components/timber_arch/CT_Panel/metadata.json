@@ -1,0 +1,66 @@
+{
+    "name": "Panel From Outline and Thickness",
+    "nickname": "PanelFromThickness",
+    "category": "Timber Arch",
+    "subcategory": "01 Panels",
+    "description": "Creates a Panel from a Polyline and Thickness.",
+    "exposure": 4,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "outline",
+                "description": "Referenced polyline, Guid of polyline in the active Rhino document.",
+                "typeHintID": "ghdoc",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "thickness",
+                "description": "Thickness of the panel.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "orientation",
+                "description": "(Optional) Direction of the panel's local y-axis, e.g. up for a wall. Unset: derived from the outline.",
+                "typeHintID": "vector",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "features",
+                "description": "(Optional) Panel feature definitions, including openings, from the Panel Opening, MEP Penetration, Niche or Linear Service components. Definitions that do not lie on this panel are skipped, so the same list can go to every panel.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "identify_doors",
+                "description": "If True, door-shaped notches in the panel outline are cut out of the outline and added as door Openings. Other openings come in through 'features'.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "category",
+                "description": "Category of the panel.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "updateRefObj",
+                "description": "(optional) If True, the attributes in the referenced object will be updated/overwritten with the new values given here.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Panel",
+                "description": "Panel object(s)."
+            },
+            {
+                "name": "Geometry",
+                "description": "Shape of the panel."
+            }
+        ]
+    }
+}

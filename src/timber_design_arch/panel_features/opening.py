@@ -64,7 +64,7 @@ class Opening(PanelFeature):
         ----------
         panel_geometry : :class:`compas.geometry.Brep`
             The geometry of the panel to which the opening will be applied.
-        panel : :class:`compas_arch.elements.Panel`
+        panel : :class:`timber_design_arch.elements.Panel`
             The panel element.
 
         Returns
@@ -94,7 +94,7 @@ class Opening(PanelFeature):
         ----------
         outline : :class:`compas.geometry.Polyline`
             The outline of the opening.
-        panel : :class:`compas_arch.elements.Panel`
+        panel : :class:`timber_design_arch.elements.Panel`
             The panel in which the opening is located.
         name : str, optional
             The name of the opening.

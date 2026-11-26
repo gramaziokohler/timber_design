@@ -19,10 +19,10 @@ from compas.tolerance import TOL
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 T = Translation.from_vector([500, -300, 1000]) * Rotation.from_axis_and_angle([0, 0, 1], math.radians(35))
 
@@ -76,7 +76,7 @@ def test_transformed_panel_survives_serialization(panel_model):
 def test_transformed_hierarchy_survives_serialization():
     """Every element of a moved panel tree loads back where it was: layers, sublayers, and children with their own placement.
 
-    JSON only: compas_arch does not support protobuf yet.
+    JSON only: timber_design_arch does not support protobuf yet.
     """
     model = ArchModel()
     outline = Polyline([Point(1000, 0, 0), Point(4000, 0, 0), Point(4000, 2400, 0), Point(1000, 2400, 0), Point(1000, 0, 0)])

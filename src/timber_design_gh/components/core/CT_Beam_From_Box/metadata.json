@@ -2,7 +2,7 @@
     "name": "Beam From Box",
     "nickname": "BeamFromBox",
     "category": "COMPAS Timber",
-    "subcategory": "01 Timber elements",
+    "subcategory": "01 Elements",
     "description": "Creates a Beam from a Box.",
     "exposure": 2,
     "ghpython": {

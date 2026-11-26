@@ -130,3 +130,9 @@ def project_to_plane(outline, plane, direction):
 
 def lies_on_plane(outline, plane, tol=1e-3):
     return all(abs(distance_point_plane(point, plane)) < tol for point in outline.points)
+
+
+def outer_face_plane(layer, core):
+    """The face plane of *layer* away from *core*: the panel face, for a surface layer."""
+    mid = core.outline_a[0] + core.normal * (core.thickness / 2)
+    return max(layer.planes, key=lambda plane: abs((plane.point - mid).dot(core.normal)))

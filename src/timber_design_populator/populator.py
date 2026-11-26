@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from compas_arch.elements import Layer
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Layer
 from compas_timber.connections import Cluster
 from compas_timber.errors import BeamJoiningError
 from compas_timber.errors import FeatureApplicationError
@@ -57,44 +56,37 @@ class PanelPopulator:
 
     Parameters
     ----------
-    panel : :class:`compas_arch.elements.Panel`
+    panel : :class:`timber_design_arch.elements.Panel`
         The source panel in the caller's model space (or its guid).
-    agents : list[:class:`~timber_design_populator.PopulatorAgent`]
-        Ordered list of agents.  Ordering sets joint precedence: when
-        several agents own elements in a cluster, the earlier agent's rules
-        are tried first.  Each agent is cloned (see
-        :meth:`~timber_design_populator.PopulatorAgent.clone`), so the
-        same agent instances can be passed to several populators; use
-        :attr:`agents` to inspect the populated ones.
-        Panel-wide agents only: detail agents are created by detail sets (given here, they are
-        skipped and reported).  The populator orders all agents by
-        :attr:`~timber_design_populator.PopulatorAgent.priority`, stably.
-    default_detail_sets : dict[type, :class:`~timber_design_populator.detail_sets.DetailAgentSet`], optional
-        The detail set per feature class, used for every panel feature of that class that has
-        no ``detail_set`` of its own.
-    standard_beam_width : float, optional
-        Panel-wide default beam width, used to fill any per-category width an
-        agent constructor did not set.
-    joint_rule_overrides : list[:class:`~timber_design_rules.CategoryRule` | :class:`~timber_design_rules.CompositeRule`], optional
-        Panel-level joint rules kept on the populator itself — they are never
-        merged into any agent's rule lists.  :meth:`_join_cluster` tries them
-        on a cluster only after every owning agent's own rules have failed,
-        and again per pairwise candidate after the agents' pairwise rules.
-    max_distance : float, optional
-        Maximum gap distance considered when finding and creating joints in
-        :meth:`join_elements` — both the geometric candidate search
-        (:class:`~timber_design_populator.connections_2d.connection_solver_2d.ConnectionSolver2D`
-        / :class:`~timber_design_populator.connections_2d.connection_solver_2d.Cluster2DFinder`)
-        and joint creation itself (:meth:`_join_cluster`, which falls back to
-        this value for any rule that doesn't specify its own ``max_distance``).
-        ``None`` (the default) resolves to ``0.1``.
+    panel_type : :class:`~timber_design_populator.PanelType`
+        How the panel is built: its layer structure, the panel-wide agents that build each
+        layer, the default detail set per feature type, and the populator settings below.
+        The populator takes its own copies, so one type serves any number of populators.
+
+        - **agents**: ordered; the order sets joint precedence (an earlier agent's rules are
+          tried first on a cluster).  The populator orders them by
+          :attr:`~timber_design_populator.PopulatorAgent.priority`, stably.
+        - **default_detail_sets**: the detail set per feature class, used for every panel
+          feature of that class that has no ``detail_set`` of its own.
+        - **standard_beam_width**: fills any per-category width an agent did not set.
+        - **joint_rule_overrides**: panel-level joint rules, tried by :meth:`_join_cluster`
+          on a cluster only after every owning agent's own rules have failed, and again per
+          pairwise candidate.
+        - **max_distance**: the maximum gap for finding and creating joints in
+          :meth:`join_elements`.  ``None`` resolves to ``0.1``.
+        - **layer_structure**: see :attr:`layer_structure`.
+
+    Raises
+    ------
+    ValueError
+        If *panel_type* has a fixed thickness and *panel* is not that thick.
 
     Attributes
     ----------
     agents : list[:class:`~timber_design_populator.PopulatorAgent`]
         Ordered list of agents.  Each tags every element it generates with
         itself, which is how ownership is tracked from then on.
-    panel : :class:`compas_arch.elements.Panel`
+    panel : :class:`timber_design_arch.elements.Panel`
         Reference to the source panel in the caller's model space.
     model : :class:`compas_timber.model.TimberModel`
         Internal model that accumulates elements and joints during population.
@@ -109,43 +101,47 @@ class PanelPopulator:
     max_distance : float
         Maximum gap distance applied to all joint candidate finding and
         creation in :meth:`join_elements`.
+    panel_type : :class:`~timber_design_populator.PanelType`
+        The type the panel is built as.
+    layer_structure : :class:`~timber_design_arch.elements.LayerStructure`
+        A copy of the type's cross-section.  Given to the panel by
+        :meth:`apply_layer_structure` where it has no layers in its model yet,
+        so a panel can enter the model without layers.
 
     Examples
     --------
     Typical usage::
 
-        from timber_design_populator import stud_panel
+        from timber_design_populator import PanelPopulator, get_panel_type
 
-        populator = stud_panel(panel, standard_beam_width=60.0, stud_spacing=625.0)
+        populator = PanelPopulator(panel, get_panel_type("stud_wall", stud_spacing=625.0))
         populator.populate_elements()
         populator.join_elements()
         populator.process_joinery()
         populator.merge_with_model(model)
     """
 
-    def __init__(
-        self,
-        panel,
-        agents,
-        default_detail_sets=None,
-        standard_beam_width=None,
-        joint_rule_overrides=None,
-        max_distance=None,
-    ):
+    def __init__(self, panel, panel_type):
+        # duck-typed, not isinstance: in Grasshopper the panel may come from an earlier import of the module
+        is_panel = hasattr(panel, "guid") and hasattr(panel, "thickness")
+        if is_panel:
+            panel_type.check_thickness(panel)
+        self.panel_type = panel_type
         self.model = None
+        self.layer_structure = panel_type.layer_structure.copy()
         self.debug_info = DebugInfomation()
-        self.max_distance = max_distance if max_distance is not None else 0.1
+        self.max_distance = panel_type.max_distance if panel_type.max_distance is not None else 0.1
         self.panel = panel
-        self.panel_guid = panel.guid if isinstance(panel, Panel) else panel
-        self.default_detail_sets = dict(default_detail_sets) if default_detail_sets else {}
-        self.standard_beam_width = standard_beam_width
-        self.agents, self._agent_errors = _panel_wide_agents(agents)
+        self.panel_guid = panel.guid if is_panel else panel
+        self.default_detail_sets = dict(panel_type.default_detail_sets)
+        self.standard_beam_width = panel_type.standard_beam_width
+        self.agents, self._agent_errors = _panel_wide_agents(panel_type.agents)
         self._feature_agents = []
         self._feature_sets = []
         self._bind_feature_agents()
-        self._resolve_beam_widths(standard_beam_width)
+        self._resolve_beam_widths(self.standard_beam_width)
         self._sort_agents()
-        self.joint_rule_overrides = list(joint_rule_overrides) if joint_rule_overrides else []
+        self.joint_rule_overrides = list(panel_type.joint_rule_overrides)
 
     # ------------------------------------------------------------------
     # Initialization methods
@@ -183,6 +179,27 @@ class PanelPopulator:
         model : :class:`compas_timber.model.TimberModel`
         """
         self.panel = model.element_by_guid(str(self.panel_guid))
+        self.apply_layer_structure()
+
+    def apply_layer_structure(self):
+        """Give :attr:`panel` :attr:`layer_structure`, and add its layers to the panel's model, if it has none there.
+
+        A panel whose layers are already in its model (e.g. from
+        :meth:`~timber_design_populator.PanelType.apply` and
+        :meth:`~timber_design_arch.elements.Panel.merge_layer_structure`) keeps them.  Call it
+        before the panel joints compute their features: layer-aware joints read the layers.
+
+        Returns
+        -------
+        bool
+            Whether the layers were applied.
+        """
+        panel = self.panel
+        if panel is None or panel.model is None or panel.layers:
+            return False
+        panel.layer_structure = self.layer_structure.copy()
+        panel.merge_layer_structure(panel.model)
+        return True
 
     def _bind_feature_agents(self):
         """Pick the detail set for every feature :attr:`panel` has now, dropping the previous run's agents.
@@ -260,6 +277,7 @@ class PanelPopulator:
         """Generate, define outlines, extend, split, cull and machine Elements."""
         # a fresh record for this run; the populator is reused across Grasshopper solves
         self.debug_info = DebugInfomation()
+        self.apply_layer_structure()
         # model extracted here to ensure the latest version of panel and layer geometry
         self.debug_info.add_feature_error(self._agent_errors)
         self.debug_info.add_feature_error(self._bind_feature_agents())

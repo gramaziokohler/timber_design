@@ -8,14 +8,14 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 
 from compas_timber.connections import JointTopology
-from compas_arch.connections import PanelLButtJoint
-from compas_arch.connections import PanelMiterJoint
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.panel_features import InterfaceRole
-from compas_arch.panel_features import Opening
+from timber_design_arch.connections import PanelLButtJoint
+from timber_design_arch.connections import PanelMiterJoint
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.panel_features import InterfaceRole
+from timber_design_arch.panel_features import Opening
 
 
 def _three_layer_structure():

@@ -15,8 +15,8 @@ on:
         required: true
         type: choice
         options:
-          - core
-          - populator
+          - compas_timber
+          - timber_arch
       version:
         description: "Version to publish (e.g. 1.2.3). Leave empty to use the version from the manifest."
         required: false

@@ -8,11 +8,11 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import PanelFeatureType
+from timber_design_arch.panel_features import LinearService
+from timber_design_arch.panel_features import MEPPenetration
+from timber_design_arch.panel_features import Niche
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import PanelFeatureType
 
 
 @pytest.fixture

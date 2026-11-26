@@ -24,18 +24,19 @@ from compas.geometry import Polyline
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import MEPPenetration
+from timber_design_arch.panel_features import Niche
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import StudAgent
 
@@ -135,7 +136,7 @@ def populate(case, defaults):
     model = ArchModel()
     model.add_element(panel)
     panel.merge_layer_structure(model)
-    pop = PanelPopulator(panel, agents=make_agents(panel), default_detail_sets=defaults, standard_beam_width=60.0)
+    pop = PanelPopulator(panel, PanelType("parity", panel.layer_structure, agents=make_agents(panel), default_detail_sets=defaults, standard_beam_width=60.0))
     pop.populate_elements()
     pop.join_elements()
     pop.process_joinery()

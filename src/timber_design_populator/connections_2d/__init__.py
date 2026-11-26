@@ -1,5 +1,6 @@
 from .beam2d import AABB2D
 from .beam2d import Beam2D
+from .fascia_beam import FasciaBeam
 
 from .connection_solver_2d import Beam2DPolylineIntersectionResult
 from .connection_solver_2d import Beam2DSolverResult
@@ -12,6 +13,7 @@ from .connection_solver_2d import aabb_overlap
 __all__ = [
     "AABB2D",
     "Beam2D",
+    "FasciaBeam",
     "Beam2DPolylineIntersectionResult",
     "Beam2DSolverResult",
     "Cluster2D",

@@ -11,7 +11,7 @@ from __future__ import annotations
 from compas.geometry import Point
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_segment_segment_xy
-from compas_arch.elements import LayerRole
+from timber_design_arch.elements import LayerRole
 from compas_timber.fabrication import Drilling
 from compas_timber.fabrication import Lap
 

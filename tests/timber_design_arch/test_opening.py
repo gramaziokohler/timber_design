@@ -6,9 +6,9 @@ from compas.geometry import Polyline
 from compas.geometry import Vector
 from compas.tolerance import TOL
 
-from compas_arch.elements import Panel
-from compas_arch.panel_features.opening import Opening
-from compas_arch.panel_features.opening import OpeningType
+from timber_design_arch.elements import Panel
+from timber_design_arch.panel_features.opening import Opening
+from timber_design_arch.panel_features.opening import OpeningType
 
 
 @pytest.fixture

@@ -580,18 +580,18 @@ def curve_to_compas_polyline(obj, closed=False):
 def add_panel_feature_definitions(ghenv, panel, definitions):
     """Add the features of every definition that lies on *panel*, reporting problems on the component.
 
-    Call this after the panel's layer structure is assigned.
+    The panel's layers are not used: they may be set later, from the panel type (``CT: Populate Model``).
 
     Parameters
     ----------
     ghenv : object
         The component's ``ghenv``.
-    panel : :class:`compas_arch.elements.Panel`
+    panel : :class:`timber_design_arch.elements.Panel`
     definitions : list[:class:`timber_design_gh.panel_feature_helpers.PanelFeatureDefinition`]
 
     Returns
     -------
-    list[:class:`compas_arch.panel_features.PanelFeature`]
+    list[:class:`timber_design_arch.panel_features.PanelFeature`]
         The added features.
     """
     from timber_design_gh.panel_feature_helpers import add_feature_definitions
@@ -604,6 +604,59 @@ def add_panel_feature_definitions(ghenv, panel, definitions):
     if skipped:
         remark(ghenv.Component, "{} feature definition(s) do not lie on this panel and were skipped.".format(skipped))
     return added
+
+
+def resolve_panel_type(ghenv, panel_type):
+    """The PanelType given to ``CT: Create Populator``, or ``None`` (with an error on the component).
+
+    Parameters
+    ----------
+    ghenv : object
+        The component's ``ghenv``.
+    panel_type : :class:`~timber_design_populator.PanelType`
+        From ``CT: Stud Wall Panel Type``, ``CT: Custom Panel Type`` or ``CT: Panel Type From JSON``.
+
+    Returns
+    -------
+    :class:`~timber_design_populator.PanelType` or None
+    """
+    from compas.data import json_dumps
+    from compas.data import json_loads
+    from timber_design_populator import PanelType
+
+    panel_type = getattr(panel_type, "Value", panel_type)
+    if isinstance(panel_type, PanelType):
+        return panel_type
+    if type(panel_type).__name__ == "PanelType" and hasattr(panel_type, "__data__"):
+        # made by a component that still holds an earlier import of the module (e.g. after the
+        # modules were reloaded): re-create it with the current classes
+        return json_loads(json_dumps(panel_type))
+    if panel_type is None:
+        error(ghenv.Component, "Give a panel type: from CT: Stud Wall Panel Type, CT: Custom Panel Type or CT: Panel Type From JSON.")
+    else:
+        error(ghenv.Component, "{!r} is not a PanelType: make one with a panel type component (a library type: CT: Panel Type From JSON).".format(panel_type))
+    return None
+
+
+def describe_panel_type(panel_type):
+    """A readable summary of *panel_type*: thickness, source, layers, agents and detail sets."""
+    lines = ["{} ({})".format(panel_type.name, "{} thick".format(panel_type.thickness) if panel_type.thickness else "fills the panel")]
+    if panel_type.reference:
+        lines.append("after: " + ", ".join(str(v) for v in panel_type.reference.values()))
+
+    def walk(defs, depth):
+        for d in defs:
+            extras = ", ".join("{}: {}".format(k, v) for k, v in sorted(d.attributes.items()))
+            text = "{}{} {} {}".format("  " * depth, d.name, d.thickness if d.thickness is not None else "(fill)", d.material or "")
+            lines.append((text + (" [{}]".format(extras) if extras else "")).rstrip())
+            walk(d.sublayer_defs, depth + 1)
+
+    walk(panel_type.layer_structure.layer_defs, 1)
+    for agent in panel_type.agents:
+        lines.append("  {} on {}".format(type(agent).__name__, agent.layer_path))
+    for feature_type, detail_set in panel_type.default_detail_sets.items():
+        lines.append("  {} -> {}".format(feature_type.__name__, type(detail_set).__name__))
+    return "\n".join(lines)
 
 
 def feature_defaults_by_type(defaults):
@@ -642,7 +695,7 @@ _PANEL_JOINT_STANDARD_ARGS = ("panel_a", "panel_b", "topology", "a_segment_index
 def panel_joint_classes(topology=None, max_element_count=None):
     """Concrete panel joints offered by the panel joint rule components, by class name.
 
-    Lists the joints of :mod:`compas_arch.connections` (envelope only) and of
+    Lists the joints of :mod:`timber_design_arch.connections` (envelope only) and of
     :mod:`timber_design_populator.panel_joints` (which also build a connection detail).
 
     Parameters
@@ -656,9 +709,9 @@ def panel_joint_classes(topology=None, max_element_count=None):
     -------
     dict[str, type]
     """
-    import compas_arch.connections as arch_connections
+    import timber_design_arch.connections as arch_connections
     import timber_design_populator.panel_joints as detail_joints
-    from compas_arch.connections import PanelJoint
+    from timber_design_arch.connections import PanelJoint
 
     result = {}
     for module in (arch_connections, detail_joints):

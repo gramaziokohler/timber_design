@@ -55,7 +55,7 @@ See :meth:`LayerStructure.resolve`.
 
 
 class Layer(RigidPlacement, Element):
-    """A resolved cross-section layer of a :class:`~compas_arch.elements.Panel`.
+    """A resolved cross-section layer of a :class:`~timber_design_arch.elements.Panel`.
 
     A ``Layer`` represents a slice of a parent panel between two
     through-thickness levels, measured from the ``outline_a`` face.  It is a
@@ -63,12 +63,12 @@ class Layer(RigidPlacement, Element):
     :class:`~compas_timber.elements.PlateGeometry` and lives as a child of the
     parent panel in the model tree.
 
-    Like :class:`~compas_arch.elements.Panel` and
+    Like :class:`~timber_design_arch.elements.Panel` and
     :class:`~compas_timber.elements.Plate`, a ``Layer`` is constructed directly
     from a :class:`~compas_timber.elements.PlateGeometry` -- it holds no
     reference to whatever produced that geometry. Use
     :meth:`from_parent_start_end` to build a ``Layer`` by interpolating the
-    outlines of a parent :class:`~compas_arch.elements.Panel` or another
+    outlines of a parent :class:`~timber_design_arch.elements.Panel` or another
     ``Layer`` between two through-thickness levels.
 
     Parameters
@@ -185,7 +185,7 @@ class Layer(RigidPlacement, Element):
 
         Parameters
         ----------
-        host : :class:`~compas_arch.elements.Panel` or :class:`Layer`
+        host : :class:`~timber_design_arch.elements.Panel` or :class:`Layer`
             The panel (for root layers) or enclosing layer (for sublayers) to
             interpolate outlines from.  Not stored: the resulting ``Layer`` holds
             no reference back to *host*.
@@ -419,7 +419,7 @@ class Layer(RigidPlacement, Element):
     def get_outlines_from_parent(parent: Union[Panel, Layer], start_offset: float, end_offset: float):
         """Interpolate *parent*'s local outlines at the given panel-absolute levels.
 
-        *parent* is either the :class:`~compas_arch.elements.Panel` (for root
+        *parent* is either the :class:`~timber_design_arch.elements.Panel` (for root
         layers) or the enclosing :class:`Layer` (for sublayers).
         """
         parent_start = getattr(parent, "start_offset", 0.0)  # Panel has no start_offset: it starts at 0.
@@ -440,12 +440,16 @@ class Layer(RigidPlacement, Element):
         return layer_outline_a, layer_outline_b
 
 
+# Layer.__data__ keys (and material, set from LayerDefinition.material): not usable as free layer attributes.
+_RESERVED_LAYER_KEYS = {"frame", "plate_geometry", "start_offset", "name", "layer_path", "role", "sublayers", "material"}
+
+
 class LayerDefinition(Data):
     """Definition of a single layer slot within a :class:`LayerStructure`.
 
     ``LayerDefinition`` is the panel-agnostic description of one layer: its name, thickness
     fraction, and optional children.  A :class:`LayerStructure` holds a tree of
-    ``LayerDefinition`` objects; when applied to a :class:`~compas_arch.elements.Panel`
+    ``LayerDefinition`` objects; when applied to a :class:`~timber_design_arch.elements.Panel`
     each ``LayerDefinition`` produces one geometry-bearing :class:`Layer` instance.
 
     Parameters
@@ -462,6 +466,13 @@ class LayerDefinition(Data):
         The role of this slot.  Only root-level definitions may have a role.  A root
         definition without a role whose name is a role value (``"exterior"``, ``"core"``,
         ``"interior"``) gets that role when added to a :class:`LayerStructure`.
+    material : str, optional
+        What the layer is made of, e.g. ``"C24"``, ``"MDF"`` or ``"gypsum fibre board"``.
+        Stored on each :class:`Layer` built from this definition as ``attributes["material"]``.
+    attributes : dict, optional
+        Free data about the layer without geometry of its own, e.g. ``{"fill": "mineral wool"}``
+        (insulation between the members) or ``{"membrane_b": "vapour retarder"}`` (a membrane
+        on the layer's b face).  Copied into each :class:`Layer`'s ``attributes``.
 
     Attributes
     ----------
@@ -469,6 +480,8 @@ class LayerDefinition(Data):
     thickness : float or None
     sublayer_defs : list[:class:`LayerDefinition`]
     role : :class:`LayerRole` or None
+    material : str or None
+    attributes : dict
     layer_path : tuple[int, ...]
         Position in the :class:`LayerStructure` tree, e.g. ``(1,)`` for the second root
         slot or ``(1, 0)`` for its first child.  Set automatically by
@@ -482,18 +495,32 @@ class LayerDefinition(Data):
             "thickness": self.thickness,
             "sublayer_defs": self.sublayer_defs,
             "role": self.role.value if self.role is not None else None,
+            "material": self.material,
+            "attributes": dict(self.attributes),
         }
 
-    def __init__(self, name=None, thickness=None, sublayer_defs=None, role=None):
+    def __init__(self, name=None, thickness=None, sublayer_defs=None, role=None, material=None, attributes=None):
         super().__init__()
         self.name = name
         self.thickness = thickness
         self.sublayer_defs = list(sublayer_defs) if sublayer_defs else []
         self.role = LayerRole(role) if role is not None else None
+        self.material = material
+        self.attributes = dict(attributes) if attributes else {}
+        reserved = sorted(set(self.attributes) & _RESERVED_LAYER_KEYS)
+        if reserved:
+            raise ValueError("LayerDefinition attributes may not use the reserved key(s): {}.".format(", ".join(reserved)))
         self.layer_path = ()
 
     def __repr__(self):
         return "LayerDefinition(name={!r}, thickness={}, path={})".format(self.name, self.thickness, self.layer_path)
+
+    def layer_attributes(self):
+        """The attributes a :class:`Layer` built from this definition carries: :attr:`attributes` plus ``material``."""
+        attributes = dict(self.attributes)
+        if self.material is not None:
+            attributes["material"] = self.material
+        return attributes
 
 
 class LayerStructure(Data):
@@ -504,7 +531,7 @@ class LayerStructure(Data):
     :class:`Layer` instances for each specific panel.
 
     Root definitions can carry a :class:`LayerRole` (exterior, core, interior), which
-    enables the matching properties on :class:`~compas_arch.elements.Panel`.  Each role
+    enables the matching properties on :class:`~timber_design_arch.elements.Panel`.  Each role
     may appear on at most one root definition; role layers can be subdivided, and their
     sublayers carry the same role.
     A sibling with ``thickness=None`` absorbs remaining thickness; at most one
@@ -584,7 +611,7 @@ class LayerStructure(Data):
         layers = []
         for def_, slot_start, slot_end in self._sibling_spans(defs, start, total):
             layer_role = def_.role or role  # sublayers carry the role of the root layer they subdivide
-            layer = Layer.from_parent_start_end(parent, slot_start, slot_end, name=def_.name, layer_path=def_.layer_path, role=layer_role)
+            layer = Layer.from_parent_start_end(parent, slot_start, slot_end, name=def_.name, layer_path=def_.layer_path, role=layer_role, **def_.layer_attributes())
             if def_.sublayer_defs:
                 layer.sublayers = self._create_layers(layer, def_.sublayer_defs, slot_start, slot_end - slot_start, role=layer_role)
             layers.append(layer)

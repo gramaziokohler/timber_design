@@ -15,18 +15,19 @@ from compas.tolerance import TOL
 from compas_timber.connections import JointTopology
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 
-from compas_arch.connections import PanelJoint
-from compas_arch.connections import PanelLButtJoint
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import PanelConnectionInterface
+from timber_design_arch.connections import PanelJoint
+from timber_design_arch.connections import PanelLButtJoint
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import PanelConnectionInterface
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import LayerExtensionDetailAgent
 from timber_design_populator import LGenericPanelJoint
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import StudAgent
 from timber_design_populator import stud_panel
@@ -81,8 +82,10 @@ def _ct_model(structure=True, joint_type=LGenericPanelJoint, **joint_kwargs):
 
 
 def _ct_populate_model(model, populators):
-    """What CT: Populate Model does: copy the model, re-run the panel joints on the copy, populate."""
+    """What CT: Populate Model does: copy the model, bind the populators (they bring their layers), re-run the panel joints on the copy, populate."""
     copy = json_loads(json_dumps(model))
+    for pop in populators:
+        pop.update_panel_from_model(copy)
     panel_joints = [joint for joint in copy.joints if isinstance(joint, PanelJoint)]
     for joint in panel_joints:
         joint.add_extensions()
@@ -91,7 +94,6 @@ def _ct_populate_model(model, populators):
     for joint in panel_joints:
         joint.add_features()
     for pop in populators:
-        pop.update_panel_from_model(copy)
         pop.populate_elements()
         pop.join_elements()
         pop.process_joinery()
@@ -197,7 +199,7 @@ def test_missing_layers_are_reported_by_each_panel():
 
 def test_a_populator_built_from_explicit_agents_builds_the_detail_too():
     def explicit(panel):
-        return PanelPopulator(panel, agents=[EdgeAgent(panel.core_layer)], standard_beam_width=60.0)
+        return PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=[EdgeAgent(panel.core_layer)], standard_beam_width=60.0))
 
     copy, populators, panel_a, panel_b = _populate_both(make_populator=explicit)
     old_main, old_cross = _old_layer_butt()
@@ -231,6 +233,26 @@ def test_repeated_solves_give_the_same_layers():
             _assert_same_outlines(getattr(second.element_by_guid(str(panel.guid)), role), getattr(first.element_by_guid(str(panel.guid)), role))
 
 
+def test_panels_enter_the_model_without_layers_and_their_panel_type_brings_them():
+    """The GH workflow: CT: Model gets bare panels; the populators carry the type's layers."""
+    panel_a, panel_b = _corner_panels(structure=False)
+    model = ArchModel()
+    for panel in (panel_a, panel_b):
+        model.add_element(panel)  # no layers in the model
+    LGenericPanelJoint.create(model, panel_a, panel_b, topology=JointTopology.TOPO_EDGE_EDGE, a_segment_index=EDGE_A, b_segment_index=EDGE_B)
+    model.process_joinery()
+    wall = PanelType("wall", _structure(), agents=[EdgeAgent("core")], standard_beam_width=60.0)
+    populators = [wall.populator(panel) for panel in (panel_a, panel_b)]
+    copy = _ct_populate_model(model, populators)
+    for pop in populators:
+        assert pop.debug_info.feature_errors == []  # the joint saw all three role layers
+    old_main, old_cross = _old_layer_butt()
+    for panel, old in ((panel_a, old_main), (panel_b, old_cross)):
+        for role in ROLES:
+            _assert_same_outlines(getattr(copy.element_by_guid(str(panel.guid)), role), getattr(old, role))
+    assert model.element_by_guid(str(panel_a.guid)).layers == []  # the input model is left alone
+
+
 def test_the_joint_serializes_its_flags():
     model, _, _ = _ct_model(backing_studs=True, backing_stud_width=45.0)
     (joint,) = [j for j in json_loads(json_dumps(model)).joints if isinstance(j, LGenericPanelJoint)]
@@ -255,7 +277,7 @@ def test_equal_priorities_keep_the_given_order():
     _model([panel])
     stud, plate_a, plate_b = StudAgent(panel.core_layer), PlateAgent(panel.exterior_layer), PlateAgent(panel.interior_layer)
     edge = EdgeAgent(panel.core_layer)
-    pop = PanelPopulator(panel, agents=[stud, plate_a, edge, plate_b], standard_beam_width=60.0)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=[stud, plate_a, edge, plate_b], standard_beam_width=60.0))
     assert [type(a) for a in pop.agents] == [EdgeAgent, StudAgent, PlateAgent, PlateAgent]
     assert [a.layer_path for a in pop.agents[2:]] == [plate_a.layer_path, plate_b.layer_path]
 
@@ -299,7 +321,7 @@ def _core_edge_reach(first, second):
     edge_index = panel_a.interfaces[0].edge_index
     core_path = panel_a.layer_structure.get_path_for_role("core")
     panel_a.interfaces[0].detail_set = _TwoExtensions(first, second)
-    pop = PanelPopulator(panel_a, agents=[EdgeAgent(panel_a.core_layer)], standard_beam_width=60.0)
+    pop = PanelPopulator(panel_a, PanelType("test", panel_a.layer_structure, agents=[EdgeAgent(panel_a.core_layer)], standard_beam_width=60.0))
     before, outward = _edge(panel_a.core_layer, edge_index)
     before = before.transformed(panel_a.modeltransformation.inverse())
     outward = outward.transformed(panel_a.modeltransformation.inverse())

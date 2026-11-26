@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from compas_arch.connections import PanelLButtJoint
+from timber_design_arch.connections import PanelLButtJoint
 
 from timber_design_populator.detail_sets.l_generic_panel_joint_detail_set import LGenericPanelJointDetailSet
 from timber_design_populator.panel_joints.panel_joint_geometry import backing_stud_lines
@@ -12,14 +12,14 @@ from timber_design_populator.panel_joints.panel_joint_geometry import layer_stag
 class LGenericPanelJoint(PanelLButtJoint):
     """An L-butt corner between two panels, with a generic connection detail.
 
-    Shapes the panel envelopes like :class:`~compas_arch.connections.PanelLButtJoint`, then
+    Shapes the panel envelopes like :class:`~timber_design_arch.connections.PanelLButtJoint`, then
     works out each panel's half of the detail with both panels in view and gives each panel's
     interface an :class:`~timber_design_populator.detail_sets.LGenericPanelJointDetailSet`.
 
     Parameters
     ----------
     panel_a, panel_b, topology, a_segment_index, b_segment_index : optional
-        See :class:`~compas_arch.connections.PanelLButtJoint`; panel_a is the main panel.
+        See :class:`~timber_design_arch.connections.PanelLButtJoint`; panel_a is the main panel.
     stagger_layers : bool, optional
         Stagger the exterior, core and interior layers at the corner: the main panel's core butts
         against the cross panel's core, while the cladding layers wrap the corner.  Both panels

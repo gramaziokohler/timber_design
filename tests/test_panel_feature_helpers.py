@@ -3,16 +3,16 @@ from compas.data import json_dumps
 from compas.data import json_loads
 from compas.geometry import Point
 from compas.geometry import Polyline
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import LinearService
+from timber_design_arch.panel_features import MEPPenetration
+from timber_design_arch.panel_features import Niche
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 from compas_timber.fabrication import Drilling
@@ -24,8 +24,7 @@ from timber_design_gh.panel_feature_helpers import MEPPenetrationDefinition
 from timber_design_gh.panel_feature_helpers import NicheDefinition
 from timber_design_gh.panel_feature_helpers import OpeningDefinition
 from timber_design_gh.panel_feature_helpers import add_feature_definitions
-from timber_design_gh.panel_feature_helpers import layer_mid_z
-from timber_design_gh.panel_feature_helpers import layer_outer_face_z
+from timber_design_gh.panel_feature_helpers import side_z
 from timber_design_populator import LinearServiceDetailSet
 from timber_design_populator import stud_panel
 
@@ -57,16 +56,15 @@ def _local_zs(polyline):
     return sorted({round(point.z, 6) for point in polyline.points})
 
 
-def test_layer_face_heights():
-    panel = _wall()
-    assert layer_outer_face_z(panel.exterior_layer) == 0.0
-    assert layer_outer_face_z(panel.interior_layer) == 200.0
-    assert layer_mid_z(panel.core_layer) == 100.0
-    assert layer_outer_face_z(None, default=7.0) == 7.0
+def test_side_face_heights():
+    panel = _wall(layered=False)
+    assert side_z(panel, LayerRole.EXTERIOR) == 0.0
+    assert side_z(panel, "interior") == 200.0
 
 
-def test_definitions_place_outlines_on_their_layer_faces():
-    panel = _wall()
+@pytest.mark.parametrize("layered", [True, False])
+def test_definitions_place_outlines_on_the_panel_faces_whatever_the_layers(layered):
+    panel = _wall(layered)
     mep = MEPPenetrationDefinition(_world_rect(2000, 2400, 1000, 1300)).feature_for_panel(panel)
     niche = NicheDefinition(_world_rect(3000, 3400, 500, 900), "interior", 10).feature_for_panel(panel)
     service = LinearServiceDefinition(Polyline([Point(1500, 500, 100), Point(1500, 500, 2000)]), 20).feature_for_panel(panel)
@@ -135,8 +133,7 @@ def test_add_feature_definitions_reports_problems():
     added, skipped, messages = add_feature_definitions(panel, [NicheDefinition(_world_rect(2000, 2400, 1000, 1300), LayerRole.EXTERIOR, 10), "not a definition"])
 
     assert len(added) == 1
-    assert any("no exterior layer" in m for m in messages)
-    assert any("Not a panel feature definition" in m for m in messages)
+    assert messages == ["Not a panel feature definition: 'not a definition'"]
 
 
 def test_features_from_definitions_are_framed_and_trimmed_on_rotated_wall():

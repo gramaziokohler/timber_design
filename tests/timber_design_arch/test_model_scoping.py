@@ -9,8 +9,8 @@ from compas_timber.connections import JointTopology
 from compas_timber.elements import Beam
 from compas_timber.elements import Plate
 
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 
 def _mixed_type_model():

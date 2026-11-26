@@ -2,7 +2,7 @@
     "name": "Plate From Brep",
     "nickname": "PlateFromBrep",
     "category": "COMPAS Timber",
-    "subcategory": "01 Timber elements",
+    "subcategory": "01 Elements",
     "description": "Creates a Plate from a Brep.",
     "exposure": 4,
     "ghpython": {

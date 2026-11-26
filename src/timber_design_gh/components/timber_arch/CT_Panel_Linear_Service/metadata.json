@@ -1,0 +1,42 @@
+{
+    "name": "Panel Linear Service",
+    "nickname": "LinearService",
+    "category": "Timber Arch",
+    "subcategory": "03 Features",
+    "description": "Defines LinearService features (manually routed electrical or plumbing runs) for a panel component's 'features' input. By default the populator's LinearServiceDetailSet drills every core beam the service crosses; give it LinearServiceDetailSet(mode='notching') via 'detail_set' to notch them from the interior face instead. Sheathing is not cut. Holes over 40% and notches over 25% of the beam depth are reported in the populator's DebugInfo.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "polylines",
+                "description": "Service paths, drawn on or parallel to the panel they belong to. They are placed on the core layer's mid-plane.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "thickness",
+                "description": "Diameter of the service: the hole diameter, or the notch width and depth.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "detail_set",
+                "description": "(Optional) A detail set (CT: Detail Agent Set) that builds these features, in place of the populator's default for this feature type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "features",
+                "description": "Panel feature definitions. Connect to a panel component's 'features' input; each panel adds the ones that lie on it."
+            },
+            {
+                "name": "geometry",
+                "description": "Preview of the feature outlines."
+            }
+        ]
+    }
+}

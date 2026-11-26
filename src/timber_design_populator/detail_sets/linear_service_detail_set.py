@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import LinearService
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import LinearService
 from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.populator_agents.service_drilling_detail_agent import ServiceDrillingDetailAgent
 from timber_design_populator.populator_agents.service_geometry import interior_direction
 from timber_design_populator.populator_agents.service_notch_detail_agent import ServiceNotchDetailAgent
+from timber_design_populator.populator_agents.void_geometry import project_to_layer_midplane
 
 from .detail_agent_set import DetailAgentSet
 
@@ -45,7 +46,8 @@ class LinearServiceDetailSet(DetailAgentSet):
         core = self.root_layer(layer_tree, LayerRole.CORE)
         if core is None:
             return [], [FeatureApplicationError(None, None, "{}: the panel has no core layer to machine.".format(type(self).__name__))]
-        common = dict(path=feature.polyline, diameter=feature.thickness, feature=feature, trimming_layers=[core.layer_path])
+        path = project_to_layer_midplane(feature.polyline, core)  # the run is in the core, wherever it was drawn
+        common = dict(path=path, diameter=feature.thickness, feature=feature, trimming_layers=[core.layer_path])
         if self.mode == NOTCHING:
             return [ServiceNotchDetailAgent(side=interior_direction(layer_tree), **common)], []
         return [ServiceDrillingDetailAgent(**common)], []

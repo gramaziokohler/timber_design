@@ -1,0 +1,56 @@
+{
+    "name": "PanelViewer",
+    "nickname": "PanelViewer",
+    "category": "Timber Arch",
+    "subcategory": "06 Model",
+    "description": "Filters and displays elements from a TimberModel by level, layer path or group, optionally in the group's local space.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "Model",
+                "description": "TimberModel to display.",
+                "typeHintID": "none",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "layer_filter",
+                "description": "Optional list of Layer elements, layer_paths as GH_Paths, or layer name strings to filter geometry output by layer.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "group_filter",
+                "description": "Optional list of group Elements (e.g. Panels or Layers) to restrict output to those elements and their children. Matched to the Model by guid.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "display_level",
+                "description": "What level of the hierarchy to display: 'panel', 'layer', 'timber'.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "group_space",
+                "description": "If True, geometry is transformed into each group's local space (the group frame placed at world XY) instead of model space.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "CreateGeometry",
+                "description": "If True, full geometry is created. Otherwise blank/shape.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "Geometry",
+                "description": "Filtered and displayed geometry."
+            }
+        ]
+    }
+}

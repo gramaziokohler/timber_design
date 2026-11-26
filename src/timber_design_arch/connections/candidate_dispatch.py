@@ -1,4 +1,4 @@
-"""Registers compas_arch element types with compas_timber's candidate dispatch.
+"""Registers timber_design_arch element types with compas_timber's candidate dispatch.
 
 ``TimberModel.compute_topologies()`` looks up a handler for each adjacent pair by the
 pair's exact element types. compas_timber only knows its own types, so the panel
@@ -13,12 +13,12 @@ module rather than used directly elsewhere.
 
 from compas_timber.connections import candidate_dispatch as _ct_dispatch
 
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Panel
 
 
 def register_connection_handlers():
-    """Registers the compas_arch element type pairs with compas_timber's candidate dispatch.
+    """Registers the timber_design_arch element type pairs with compas_timber's candidate dispatch.
 
-    Idempotent; called on import of :mod:`compas_arch.connections`.
+    Idempotent; called on import of :mod:`timber_design_arch.connections`.
     """
     _ct_dispatch._register(Panel, Panel)(_ct_dispatch._plate_connection_candidate)

@@ -1,1 +1,1 @@
-# ::: compas_arch.model
+# ::: timber_design_arch.model

@@ -74,9 +74,12 @@ class Beam2D(Beam):
     :meth:`~timber_design_populator.Model2D.connect_adjacent_beams` for intersection
     detection and classification.
 
-    All geometry is expressed in the beam's own local XY plane (the panel
-    plane), where ``frame.xaxis`` runs along the centerline and ``frame.yaxis``
-    is the width direction.
+    All geometry is expressed in the panel plane (XY), on the beam's *footprint*:
+    :attr:`footprint_frame` (``xaxis`` along the centerline, ``yaxis`` the width
+    direction in the panel plane) and :attr:`footprint_width`.  For a beam lying
+    flat in the panel these are its frame and width; a subclass whose 3D frame is
+    rotated (e.g. :class:`FasciaBeam`) overrides them with its section in the
+    panel plane, so the 2D logic is unchanged.
 
     Parameters
     ----------
@@ -100,6 +103,21 @@ class Beam2D(Beam):
         super().__init__(frame, length, width, height, **kwargs)
         self._blank_outline = None
         self._blank_polygon = None
+
+    # ------------------------------------------------------------------
+    # Footprint in the panel plane
+    # ------------------------------------------------------------------
+
+    @property
+    def footprint_frame(self):
+        """The frame of the beam's footprint in the panel plane: origin on the centerline start,
+        ``xaxis`` along the beam, ``yaxis`` the width direction in the panel plane."""
+        return self.frame
+
+    @property
+    def footprint_width(self):
+        """The width of the beam's footprint in the panel plane."""
+        return self.width
 
     # ------------------------------------------------------------------
     # Blank edge properties
@@ -192,9 +210,10 @@ class Beam2D(Beam):
             Closed five-point polyline ``[bl, br, tr, tl, bl]``.
         """
         if not self._blank_outline:
-            origin = self.frame.point
-            end = origin + self.frame.xaxis * self.length
-            half_y = self.frame.yaxis * (self.width / 2.0)
+            frame = self.footprint_frame
+            origin = frame.point
+            end = origin + frame.xaxis * self.length
+            half_y = frame.yaxis * (self.footprint_width / 2.0)
             bl = origin - half_y
             br = end - half_y
             tr = end + half_y
@@ -213,9 +232,10 @@ class Beam2D(Beam):
         :class:`compas.geometry.Polygon`
         """
         if not self._blank_polygon:
-            origin = self.frame.point
-            end = origin + self.frame.xaxis * self.length
-            half_y = self.frame.yaxis * (self.width / 2.0)
+            frame = self.footprint_frame
+            origin = frame.point
+            end = origin + frame.xaxis * self.length
+            half_y = frame.yaxis * (self.footprint_width / 2.0)
             self._blank_polygon = Polygon([origin - half_y, end - half_y, end + half_y, origin + half_y])
         return self._blank_polygon
 
@@ -245,10 +265,12 @@ class Beam2D(Beam):
         -------
         bool
         """
-        vec = Vector.from_start_end(self.frame.point, point)
-        along = dot_vectors(vec, self.frame.xaxis)
-        perp = dot_vectors(vec, self.frame.yaxis)
-        return -tolerance <= along <= self.length + tolerance and -self.width / 2.0 - tolerance <= perp <= self.width / 2.0 + tolerance
+        frame = self.footprint_frame
+        vec = Vector.from_start_end(frame.point, point)
+        along = dot_vectors(vec, frame.xaxis)
+        perp = dot_vectors(vec, frame.yaxis)
+        half = self.footprint_width / 2.0
+        return -tolerance <= along <= self.length + tolerance and -half - tolerance <= perp <= half + tolerance
 
     def _invalidate_blank_cache(self):
         """Clear all cached blank geometry so it is recomputed on next access."""
@@ -289,7 +311,7 @@ class Beam2D(Beam):
             )
         data = self.__data__.copy()
         data["frame"] = Frame.from_transformation(self.transformation)
-        beam_seg = Beam2D(**data)
+        beam_seg = type(self)(**data)
         beam_seg.transform(Translation.from_vector(self.frame.xaxis * start_length))
         beam_seg.length = seg_length
         for feature in self.features:

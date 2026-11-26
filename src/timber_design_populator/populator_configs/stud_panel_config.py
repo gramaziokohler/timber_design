@@ -1,19 +1,5 @@
 from __future__ import annotations
 
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
-from compas_arch.panel_features import Opening
-
-from timber_design_populator.detail_sets import LinearServiceDetailSet
-from timber_design_populator.detail_sets import FramedNicheDetailSet
-from timber_design_populator.detail_sets import FramedOpeningDetailSet
-from timber_design_populator.detail_sets import FramedPenetrationDetailSet
-from timber_design_populator.populator import PanelPopulator
-from timber_design_populator.populator_agents.edge_agent import EdgeAgent
-from timber_design_populator.populator_agents.plate_agent import PlateAgent
-from timber_design_populator.populator_agents.stud_agent import StudAgent
-
 
 def stud_panel(
     panel=None,
@@ -31,10 +17,10 @@ def stud_panel(
     default_detail_sets=None,
     max_distance=None,
 ):
-    """Create a config for a standard stud-framed wall panel.
+    """Create a populator for a standard stud-framed wall panel: :func:`~timber_design_populator.stud_wall_type` for the panel's own layers.
 
     Uses the panel's exterior, core and interior role layers
-    (see :class:`~compas_arch.elements.LayerStructure`): the exterior and
+    (see :class:`~timber_design_arch.elements.LayerStructure`): the exterior and
     interior layers, when present, each receive a
     :class:`~timber_design_populator.PlateAgent` and the core layer
     receives the framing agents.  A panel without a ``layer_structure`` has a
@@ -48,7 +34,7 @@ def stud_panel(
 
     Parameters
     ----------
-    panel : :class:`compas_arch.elements.Panel`
+    panel : :class:`timber_design_arch.elements.Panel`
         The panel to populate.
     standard_beam_width : float, optional
         Default width for every framing beam category not given an explicit
@@ -77,48 +63,19 @@ def stud_panel(
         Maximum gap distance applied to all joint finding and creation.
         ``None`` (the default) resolves to ``PanelPopulator``'s own default.
     """
+    from timber_design_populator.panel_types import stud_wall_type  # the panel types build on this package's agents
 
-    agents = []
-    if panel.exterior_layer:
-        agents.append(PlateAgent(panel.exterior_layer))
-    if panel.interior_layer:
-        agents.append(PlateAgent(panel.interior_layer))
-
-    agents.append(
-        EdgeAgent(
-            panel.core_layer,
-            standard_beam_width_increment=standard_beam_width_increment,
-            edge_stud_width=edge_stud_width,
-            top_plate_beam_width=top_plate_beam_width,
-            bottom_plate_beam_width=bottom_plate_beam_width,
-        )
-    )
-
-    if stud_spacing is None or stud_spacing:
-        agents.append(
-            StudAgent(
-                panel.core_layer,
-                stud_width=stud_width,
-                stud_spacing=stud_spacing,
-            )
-        )
-
-    # Build a fresh dict so we don't mutate the caller's mapping when GH (or
-    # any caller) reuses the same dict across multiple panels.
-    default_detail_sets = dict(default_detail_sets) if default_detail_sets else {}
-    for feature_type, default_set in (
-        (Opening, FramedOpeningDetailSet()),
-        (MEPPenetration, FramedPenetrationDetailSet()),
-        (Niche, FramedNicheDetailSet()),
-        (LinearService, LinearServiceDetailSet()),
-    ):
-        default_detail_sets.setdefault(feature_type, default_set)
-
-    return PanelPopulator(
-        panel=panel,
+    panel_type = stud_wall_type(
+        panel.layer_structure,
         standard_beam_width=standard_beam_width,
-        agents=agents,
-        default_detail_sets=default_detail_sets,
+        stud_spacing=stud_spacing,
+        stud_width=stud_width,
+        edge_stud_width=edge_stud_width,
+        top_plate_beam_width=top_plate_beam_width,
+        bottom_plate_beam_width=bottom_plate_beam_width,
+        standard_beam_width_increment=standard_beam_width_increment,
         joint_rule_overrides=joint_rule_overrides,
+        default_detail_sets=default_detail_sets,
         max_distance=max_distance,
     )
+    return panel_type.populator(panel)

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from compas.data import Data
-from compas_arch.elements import LayerRole
+from timber_design_arch.elements import LayerRole
 
 
 class DetailAgentSet(Data):
     """Base class of detail sets: coordinate several agents that together build one feature.
 
-    A feature (:class:`~compas_arch.panel_features.PanelFeature`) states design intent: where an
+    A feature (:class:`~timber_design_arch.panel_features.PanelFeature`) states design intent: where an
     opening is, which side a niche is on.  A detail set decides how that is built: it reads
     the feature and the panel's layers, derives what each agent needs (frames, outlines, depths,
     shared widths), and :meth:`expand`\\ s into ordinary bound agents, e.g. a
@@ -54,11 +54,11 @@ class DetailAgentSet(Data):
 
         Parameters
         ----------
-        feature : :class:`~compas_arch.panel_features.PanelFeature`
+        feature : :class:`~timber_design_arch.panel_features.PanelFeature`
             One of :attr:`FEATURE_TYPES`.
-        panel : :class:`~compas_arch.elements.Panel`
+        panel : :class:`~timber_design_arch.elements.Panel`
             The panel being populated.
-        layer_tree : dict[tuple, :class:`~compas_arch.elements.Layer`]
+        layer_tree : dict[tuple, :class:`~timber_design_arch.elements.Layer`]
             The panel's layers in populator space, by layer path.
         standard_beam_width : float, optional
             The populator's default beam width, for coordination that depends on widths.

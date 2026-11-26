@@ -2,13 +2,18 @@
 
 A feature component outputs a *definition*: the feature's world-space geometry and its
 parameters. A panel component turns each definition into an actual
-:class:`~compas_arch.panel_features.PanelFeature` while it creates the panel, via
+:class:`~timber_design_arch.panel_features.PanelFeature` while it creates the panel, via
 :func:`add_feature_definitions`. Since the panel is created fresh on every solve, features
 never accumulate, and they are in place before any populator is configured from the panel.
 
 Panel features store their geometry in the panel's local frame: the feature frame is
 ``Frame.worldXY()`` and the outlines are in panel-local coordinates, where local z runs
 through the panel thickness (z=0 on ``outline_a``, z=thickness on ``outline_b``).
+
+Features do not depend on the panel's layers, so a panel can get its layers (e.g. from a panel
+type) after its features.  Outlines are placed on the panel faces (exterior on ``outline_a``,
+interior on ``outline_b``) or its mid-plane; the populator's detail sets project them onto the
+actual layers.
 
 Nothing here depends on Rhino, so it can be used and tested outside Grasshopper.
 """
@@ -18,12 +23,12 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import centroid_points
 from compas.geometry import is_point_in_polygon_xy
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import LinearService
+from timber_design_arch.panel_features import MEPPenetration
+from timber_design_arch.panel_features import Niche
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 
 TOLERANCE = 1e-6
 
@@ -43,25 +48,9 @@ def project_to_local_z(polyline, z):
     return Polyline([Point(point[0], point[1], z) for point in polyline.points])
 
 
-def layer_outer_face_z(layer, default=0.0):
-    """Local z of the face of *layer* that lies on a panel face.
-
-    A layer starting at the panel's ``outline_a`` side (``start_offset == 0``) returns 0.
-    Any other layer returns its far face, which is the panel's ``outline_b`` side for an
-    outermost layer. If *layer* is ``None``, *default* is returned.
-    """
-    if layer is None:
-        return default
-    if layer.start_offset < TOLERANCE:
-        return 0.0
-    return layer.start_offset + layer.thickness
-
-
-def layer_mid_z(layer, default=0.0):
-    """Local z of the mid-plane of *layer*, or *default* if *layer* is ``None``."""
-    if layer is None:
-        return default
-    return layer.start_offset + layer.thickness / 2.0
+def side_z(panel, role):
+    """Local z of the panel face on the side of *role*: 0 for exterior (``outline_a``), the thickness for interior."""
+    return panel.thickness if LayerRole(role) == LayerRole.INTERIOR else 0.0
 
 
 def _check_closed(polyline, what):
@@ -104,12 +93,12 @@ class PanelFeatureDefinition(object):
 
         Parameters
         ----------
-        panel : :class:`compas_arch.elements.Panel`
-            The panel, with its layer structure already assigned.
+        panel : :class:`timber_design_arch.elements.Panel`
+            The panel.  Its layers are not used.
 
         Returns
         -------
-        :class:`compas_arch.panel_features.PanelFeature`
+        :class:`timber_design_arch.panel_features.PanelFeature`
         """
         raise NotImplementedError
 
@@ -139,7 +128,7 @@ class OpeningDefinition(PanelFeatureDefinition):
     ----------
     outline : :class:`compas.geometry.Polyline`
         Closed world-space outline, drawn on or parallel to the panel.
-    opening_type : :class:`compas_arch.panel_features.OpeningType`, optional
+    opening_type : :class:`timber_design_arch.panel_features.OpeningType`, optional
         Window (default) or door.
     project_horizontal : bool, optional
         Extrude sloped openings horizontally instead of along the panel normal.
@@ -165,8 +154,8 @@ class MEPPenetrationDefinition(PanelFeatureDefinition):
     """A service penetration with its own outline per layer role.
 
     The core outline defines the surround framing, and each layer's sheathing is trimmed
-    by its own outline. Outlines are moved onto their layer's outer face, where the
-    plates are trimmed.
+    by its own outline. The interior and exterior outlines are placed on their panel face,
+    the core outline on the mid-plane.
 
     Parameters
     ----------
@@ -190,9 +179,9 @@ class MEPPenetrationDefinition(PanelFeatureDefinition):
         return [self.outline_interior, self.outline_core, self.outline_exterior]
 
     def feature_for_panel(self, panel):
-        z_interior = layer_outer_face_z(panel.interior_layer, default=panel.thickness)
-        z_core = layer_mid_z(panel.core_layer, default=panel.thickness / 2.0)
-        z_exterior = layer_outer_face_z(panel.exterior_layer, default=0.0)
+        z_interior = side_z(panel, LayerRole.INTERIOR)
+        z_core = panel.thickness / 2.0
+        z_exterior = side_z(panel, LayerRole.EXTERIOR)
         return MEPPenetration(
             Frame.worldXY(),
             project_to_local_z(to_panel_local(self.outline_interior, panel), z_interior),
@@ -208,7 +197,7 @@ class NicheDefinition(PanelFeatureDefinition):
     ----------
     outline : :class:`compas.geometry.Polyline`
         Closed world-space outline, drawn on or parallel to the panel.
-    side : :class:`compas_arch.elements.LayerRole` | str
+    side : :class:`timber_design_arch.elements.LayerRole` | str
         :attr:`LayerRole.EXTERIOR` or :attr:`LayerRole.INTERIOR`.
     depth : float, optional
         Depth of the recess, measured from the panel face. ``None`` (default) takes the
@@ -232,19 +221,13 @@ class NicheDefinition(PanelFeatureDefinition):
         return [self.outline]
 
     def feature_for_panel(self, panel):
-        # the outline must lie on the outer face of the side layer, where the recess starts
-        default = panel.thickness if self.side == LayerRole.INTERIOR else 0.0
-        z = layer_outer_face_z(panel.layer_for_role(self.side), default=default)
+        # on the panel face of its side, where the recess starts
+        z = side_z(panel, self.side)
         return Niche(Frame.worldXY(), project_to_local_z(to_panel_local(self.outline, panel), z), self.side, self.depth)
-
-    def warnings_for_panel(self, panel):
-        if panel.layer_for_role(self.side) is None:
-            return ["Panel has no {} layer, so a niche on that side will not trim any sheathing.".format(self.side.value)]
-        return []
 
 
 class LinearServiceDefinition(PanelFeatureDefinition):
-    """A manually routed service run, placed on the core layer's mid-plane.
+    """A manually routed service run, placed on the panel's mid-plane (the populator moves it into the core).
 
     Parameters
     ----------
@@ -269,7 +252,7 @@ class LinearServiceDefinition(PanelFeatureDefinition):
         return [self.polyline]
 
     def feature_for_panel(self, panel):
-        z = layer_mid_z(panel.core_layer, default=panel.thickness / 2.0)
+        z = panel.thickness / 2.0
         return LinearService(Frame.worldXY(), project_to_local_z(to_panel_local(self.polyline, panel), z), self.thickness)
 
 
@@ -281,11 +264,11 @@ class LinearServiceDefinition(PanelFeatureDefinition):
 def add_feature_definitions(panel, definitions):
     """Add a feature to *panel* for every definition that lies on it.
 
-    Call this after the panel's layer structure is assigned.
+    The panel's layers are not used, so they may be set before or after.
 
     Parameters
     ----------
-    panel : :class:`compas_arch.elements.Panel`
+    panel : :class:`timber_design_arch.elements.Panel`
     definitions : list[:class:`PanelFeatureDefinition`]
         Definitions that do not lie on *panel* are skipped, so the same list can be given
         to every panel.

@@ -7,17 +7,18 @@ from compas.geometry import Polyline
 from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
 
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import LayerCutDetailAgent
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import VoidFramingDetailAgent
 from timber_design_populator.detail_sets import DetailAgentSet
@@ -48,7 +49,7 @@ def _populated(detail_set, opening_type=OpeningType.WINDOW, structure=True):
         layer = panel.layer_for_role(role)
         if layer is not None:
             agents.append(PlateAgent(layer))
-    pop = PanelPopulator(panel, agents=agents, standard_beam_width=60.0)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=agents, standard_beam_width=60.0))
     pop.populate_elements()
     return pop, opening
 
@@ -180,7 +181,7 @@ def test_a_panel_without_a_core_is_reported():
     model.add_element(panel)
     panel.merge_layer_structure(model)
     panel.add_feature(Opening.from_outline_panel(_outline(1000, 900, 2200, 2100), panel, detail_set=FramedOpeningDetailSet()))
-    pop = PanelPopulator(panel, agents=[], standard_beam_width=60.0)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, standard_beam_width=60.0))
     pop.populate_elements()
     assert any("no core layer" in e.message for e in pop.debug_info.feature_errors)
 
@@ -209,14 +210,14 @@ def test_sets_are_expanded_only_when_populating():
     model = ArchModel()
     model.add_element(panel)
     panel.merge_layer_structure(model)
-    pop = PanelPopulator(panel, agents=[], standard_beam_width=60.0)
+    pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, standard_beam_width=60.0))
     assert _set_agents(pop, opening) == []
     pop.populate_elements()
     assert len(_set_agents(pop, opening)) == 4  # framing + a cut per role layer
 
 
 def test_grasshopper_defaults_are_keyed_by_the_feature_types_they_build():
-    from compas_arch.panel_features import Niche
+    from timber_design_arch.panel_features import Niche
     from timber_design_gh.ghcomponent_helpers import feature_defaults_by_type
     from timber_design_populator.detail_sets import FramedNicheDetailSet
 
@@ -229,7 +230,7 @@ def test_grasshopper_defaults_are_keyed_by_the_feature_types_they_build():
 def test_panels_with_pathless_sublayers_are_still_cut():
     """Sublayers assigned directly (as Grasshopper does) have no layer path.  Agents find layers by path,
     so nothing is built on those sublayers; the sets must skip them and still cut the layers above."""
-    from compas_arch.elements import Layer
+    from timber_design_arch.elements import Layer
     from timber_design_populator import stud_panel
 
     panel = _panel()

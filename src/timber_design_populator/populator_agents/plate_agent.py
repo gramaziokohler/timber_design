@@ -10,7 +10,7 @@ class PlateAgent(PopulatorAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or str, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or str, optional
         The sheathing layer to generate the plate for, or its path.
     """
 

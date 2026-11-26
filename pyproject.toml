@@ -74,7 +74,7 @@ Issues = "https://github.com/gramaziokohler/timber_design/issues"
 Forum = "https://forum.compas-framework.org/"
 
 [project.entry-points.'compas_pb.plugins']
-compas_arch_serializers = 'compas_arch.proto.conversions'
+timber_design_arch_serializers = 'timber_design_arch.proto.conversions'
 
 # ============================================================================
 # Build configuration
@@ -84,6 +84,9 @@ compas_arch_serializers = 'compas_arch.proto.conversions'
 package-dir = { "" = "src" }
 include-package-data = true
 zip-safe = false
+
+[tool.setuptools.package-data]
+"timber_design_populator.panel_types" = ["data/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "timber_design_rules.__version__" }
@@ -127,7 +130,7 @@ commit = true
 tag = true
 
 [[tool.bumpversion.files]]
-filename = "src/compas_arch/__init__.py"
+filename = "src/timber_design_arch/__init__.py"
 search = "{current_version}"
 replace = "{new_version}"
 
@@ -174,7 +177,7 @@ select = ["E", "F", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
-known-first-party = ["compas_arch", "timber_design_rules", "timber_design_populator", "timber_design_gh"]
+known-first-party = ["timber_design_arch", "timber_design_rules", "timber_design_populator", "timber_design_gh"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

@@ -26,6 +26,8 @@ from .ghcomponent_helpers import feature_defaults_by_type
 from .ghcomponent_helpers import panel_joint_classes
 from .ghcomponent_helpers import panel_joint_flag_names
 from .ghcomponent_helpers import kwargs_by_input_name
+from .ghcomponent_helpers import describe_panel_type
+from .ghcomponent_helpers import resolve_panel_type
 
 __author__ = ["Chen Kasirer"]
 __copyright__ = "Gramazio Kohler Research"
@@ -63,4 +65,6 @@ __all__ = [
     "panel_joint_classes",
     "panel_joint_flag_names",
     "kwargs_by_input_name",
+    "describe_panel_type",
+    "resolve_panel_type",
 ]

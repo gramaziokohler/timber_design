@@ -1,8 +1,8 @@
 {
     "name": "PlateStock",
     "nickname": "PlateStock",
-    "category": "Timber Design",
-    "subcategory": "10 Fabrication",
+    "category": "COMPAS Timber",
+    "subcategory": "08 Fabrication",
     "description": "Represents a raw material stock used for nesting plates.",
     "exposure": 4,
     "ghpython": {

@@ -58,7 +58,7 @@ class EdgeAgent(PopulatorAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or str, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or str, optional
         The layer whose panel outline drives edge-beam placement, or its path.
     edge_stud_width, top_plate_beam_width, bottom_plate_beam_width : float, optional
         Explicit per-category beam widths.  Any left unset are filled with the
@@ -140,9 +140,7 @@ class EdgeAgent(PopulatorAgent):
         segs, widths = [], []
         elements = []
         for i in range(len(self.layer.outline_a) - 1):
-            category = self._get_segment_category(i)
-            width = self.beam_width(category)
-            seg, width = self._get_edge_beam_line_and_width(i, width)
+            seg, width = self._edge_beam_line_and_width(i)
             segs.append(seg)
             widths.append(width)
         extend_line_segments(segs, close_loop=True)
@@ -150,14 +148,25 @@ class EdgeAgent(PopulatorAgent):
         for i, (seg, width) in enumerate(zip(segs, widths)):
             if seg.length < TOL.absolute:
                 continue
-            edge_beam = Beam2D.from_centerline(seg, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=i, category=self._get_segment_category(i))
-            self._apply_linear_cut_to_edge_beam(edge_beam, i)
+            edge_beam = self._edge_beam(i, seg, width)
             elements.append(edge_beam)
             vector = get_polyline_segment_perpendicular_vector(self.layer.outline_a, i)
-            edges.append(seg.translated(vector * (-edge_beam.width / 2)))
+            # the inner face, in the panel plane
+            edges.append(seg.translated(vector * (-edge_beam.footprint_width / 2)))
         extend_line_segments(edges, close_loop=True)
         outline = join_polyline_segments(edges, close_loop=True)[0][0]
         return elements, outline
+
+    def _edge_beam_line_and_width(self, segment_index: int) -> tuple[Line, float]:
+        """The centerline (at the layer's mid-height, before the corners are closed) and width of the beam at *segment_index*."""
+        return self._get_edge_beam_line_and_width(segment_index, self.beam_width(self._get_segment_category(segment_index)))
+
+    def _edge_beam(self, segment_index: int, centerline: Line, width: float) -> Beam2D:
+        """The edge beam at *segment_index* on its final (corner-closed) *centerline*."""
+        category = self._get_segment_category(segment_index)
+        edge_beam = Beam2D.from_centerline(centerline, width=width, height=self.layer.thickness, z_vector=Vector(0, 0, 1), edge_index=segment_index, category=category)
+        self._apply_linear_cut_to_edge_beam(edge_beam, segment_index)
+        return edge_beam
 
     def _get_segment_category(self, segment_index: int) -> str:
         """Return the beam category for the outline segment at *segment_index*."""

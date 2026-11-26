@@ -10,11 +10,11 @@ from compas.geometry import Vector
 from compas.tolerance import TOL
 
 from compas_timber.base import clear_model_cache
-from compas_arch.elements import Layer
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 
 # ---------------------------------------------------------------------------

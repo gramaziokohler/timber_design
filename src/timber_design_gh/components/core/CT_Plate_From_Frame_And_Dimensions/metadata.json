@@ -2,7 +2,7 @@
     "name": "Plate From Frame And Dimensions",
     "nickname": "PlateFromFrameAndDimensions",
     "category": "COMPAS Timber",
-    "subcategory": "01 Timber elements",
+    "subcategory": "01 Elements",
     "description": "Creates a Plate from a frame (plane) and dimensions.",
     "exposure": 4,
     "ghpython": {

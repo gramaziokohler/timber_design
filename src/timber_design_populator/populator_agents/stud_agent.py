@@ -3,23 +3,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from compas.geometry import Line
 from compas_timber.connections import TButtJoint
 
-from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
+from timber_design_populator.populator_agents.board_agent import BoardAgent
 from timber_design_rules import CategoryRule
 
 if TYPE_CHECKING:
-    from compas_arch.elements import Layer  # noqa: F401
+    from timber_design_arch.elements import Layer  # noqa: F401
 
 
-class StudAgent(PopulatorAgent):
-    """Generates evenly-spaced vertical studs for a stud-framed wall panel.
+class StudAgent(BoardAgent):
+    """Generates evenly-spaced studs for a stud-framed wall panel.
 
-    Studs are placed at fixed ``stud_spacing`` intervals along the panel X
-    axis, starting at ``stud_spacing`` from the left edge and stopping before
-    the right edge.  Each stud runs the full panel height (Y axis) at the
-    Z-centre of the layer.
+    A :class:`~timber_design_populator.BoardAgent` of category ``"stud"``, with the stud-plate
+    joint rules.  Studs are placed at ``offset + k * stud_spacing`` along the panel X axis
+    (``k >= 1``: the first stud is one spacing from the panel origin, where the edge stud
+    is), stopping one stud width before the far edge.  They run along *direction* (default
+    the panel's Y axis) through the whole layer, at its Z-centre, and are trimmed by the
+    framing boundary (e.g. :class:`~timber_design_populator.EdgeAgent`), not by the layer
+    outline.
 
     Stud segments that fall inside a :class:`~timber_design_populator.VoidFramingDetailAgent`
     boundary are removed during
@@ -28,7 +30,7 @@ class StudAgent(PopulatorAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or str, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or tuple, optional
         The framing layer to fill with studs, or its path.
     stud_width : float, optional
         Explicit stud width.  When unset it is filled with the panel-wide
@@ -39,6 +41,8 @@ class StudAgent(PopulatorAgent):
     stud_spacing : float, optional
         On-centre spacing between studs.  ``None`` resolves to
         ``stud_width * 8`` at generation time.
+    direction, offset : optional
+        See :class:`~timber_design_populator.BoardAgent`.
 
     Attributes
     ----------
@@ -47,8 +51,9 @@ class StudAgent(PopulatorAgent):
         ``stud_width * 8`` default.  Must resolve to a positive, non-zero value.
     """
 
-    BEAM_CATEGORY_NAMES = ["stud"]
     NAME = "StudAgent"
+    DEFAULT_CATEGORY = "stud"
+    CLIP_TO_LAYER = False  # trimmed by the framing boundary, like it always was
     INTERNAL_JOINT_RULES = []
     EXTERNAL_JOINT_RULES = [
         CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=10.0, max_distance=1.0),
@@ -60,45 +65,44 @@ class StudAgent(PopulatorAgent):
 
     def __init__(
         self,
-        layer: Optional[Layer | str] = None,
+        layer: Optional[Layer | tuple] = None,
         stud_width: Optional[float] = None,
         internal_joint_overrides: Optional[list] = None,
         external_joint_overrides: Optional[list] = None,
         stud_spacing: Optional[float] = None,
         **kwargs,
     ) -> None:
-        super().__init__(layer=layer, internal_joint_overrides=internal_joint_overrides, external_joint_overrides=external_joint_overrides, **kwargs)
-        self.beam_widths["stud"] = stud_width
-        self.stud_spacing = stud_spacing
+        kwargs.pop("category", None)  # always "stud": other agents rely on it
+        super().__init__(
+            layer=layer,
+            board_width=stud_width,
+            spacing=stud_spacing,
+            internal_joint_overrides=internal_joint_overrides,
+            external_joint_overrides=external_joint_overrides,
+            **kwargs,
+        )
+
+    @property
+    def stud_spacing(self):
+        return self.spacing
+
+    @stud_spacing.setter
+    def stud_spacing(self, value):
+        self.spacing = value
 
     @property
     def __data__(self):
         data = super().__data__
-        data["stud_width"] = self.beam_widths.get("stud")
-        data["stud_spacing"] = self.stud_spacing
+        data["stud_width"] = data.pop("board_width")
+        data["stud_spacing"] = data.pop("spacing")
+        del data["category"]
         return data
 
-    def generate_elements_for_layer(self, layer):
-        """Populate the layer with stud beams at ``stud_spacing`` intervals.
-
-        Returns
-        -------
-        tuple[list[:class:`~timber_design_populator.connections_2d.Beam2D`], None]
-            The studs and this agent's boundary outline — always ``None``,
-            studs define no boundary.
-        """
-        spacing = self.stud_spacing if self.stud_spacing is not None else self.beam_width("stud") * 8
-        if spacing <= 0:
-            raise ValueError(
-                "StudAgent requires a positive stud_spacing; got {!r}. "
-                "Pass an explicit stud_spacing or ensure standard_beam_width is set "
-                "so the default (stud_width * 8) is positive.".format(spacing)
-            )
-        x_position = spacing
-        studs = []
-        while x_position < self.layer.aabb.xmax - self.beam_width("stud"):
-            studs.append(
-                self.beam_from_category(Line.from_point_and_vector((x_position, -self.layer.aabb.ymax, self.layer_center_height), (0, self.layer.aabb.ymax * 3, 0)), "stud")
-            )
-            x_position += spacing
-        return studs, None
+    def _positions(self, lo, hi, spacing, width):
+        """``offset + k * spacing`` for ``k >= 1``, up to one stud width before the far edge."""
+        positions = []
+        position = self.offset + spacing
+        while position < hi - width:
+            positions.append(position)
+            position += spacing
+        return positions

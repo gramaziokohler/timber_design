@@ -1,1 +1,1 @@
-# ::: compas_arch.connections
+# ::: timber_design_arch.connections

@@ -1,0 +1,96 @@
+{
+    "name": "Stud Wall Panel Type",
+    "nickname": "StudWallPanelType",
+    "category": "Timber Arch",
+    "subcategory": "05 Populator",
+    "description": "A stud wall PanelType: exterior and interior sheeting layers of the given thicknesses, each a plate, and a core that fills the rest of the panel, framed with edge beams and studs. Features are framed.",
+    "exposure": 2,
+    "ghpython": {
+        "isAdvancedMode": true,
+        "iconDisplay": 0,
+        "inputParameters": [
+            {
+                "name": "name",
+                "description": "(Optional) The type's name. Default: stud_wall.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "exterior_sheeting_thickness",
+                "description": "(Optional) Thickness of the exterior sheeting layer. Unset or 0: none.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "interior_sheeting_thickness",
+                "description": "(Optional) Thickness of the interior sheeting layer. Unset or 0: none.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "standard_beam_width",
+                "description": "(Optional) Default width of the framing beams. Default: 60.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stud_spacing",
+                "description": "(Optional) On-centre stud spacing. Unset: 8 x stud width. 0: no studs.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "stud_width",
+                "description": "(Optional) Stud width. Unset: standard_beam_width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "edge_stud_width",
+                "description": "(Optional) Width of the vertical edge studs. Unset: standard_beam_width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "top_plate_beam_width",
+                "description": "(Optional) Width of the top plate beams. Unset: standard_beam_width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "bottom_plate_beam_width",
+                "description": "(Optional) Width of the bottom plate beams. Unset: standard_beam_width.",
+                "typeHintID": "float",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "detail_sets",
+                "description": "(Optional) Detail sets (CT: Detail Agent Set): how features of the types they build are made in this panel type.",
+                "typeHintID": "none",
+                "scriptParamAccess": 1
+            },
+            {
+                "name": "filepath",
+                "description": "(Optional) A JSON file to write the type to when 'save' is True. Read it back with CT: Panel Type From JSON.",
+                "typeHintID": "str",
+                "scriptParamAccess": 0
+            },
+            {
+                "name": "save",
+                "description": "(Optional) True: write the type to 'filepath'.",
+                "typeHintID": "bool",
+                "scriptParamAccess": 0
+            }
+        ],
+        "outputParameters": [
+            {
+                "name": "panel_type",
+                "description": "PanelType. Connect to CT: Create Populator."
+            },
+            {
+                "name": "info",
+                "description": "The type's thickness, layers, agents and detail sets."
+            }
+        ]
+    }
+}

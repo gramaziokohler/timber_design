@@ -1,7 +1,7 @@
 # Panel Populators
 
 The `timber_design_populator` package frames a
-:class:`~compas_arch.elements.Panel` with beams and plates.  See the
+:class:`~timber_design_arch.elements.Panel` with beams and plates.  See the
 [Populating Panels](../user_guide/populating_panels.md) guide for the workflow.
 
 ```python
@@ -24,6 +24,30 @@ populator.merge_with_model(model)
 
 ::: timber_design_populator.stud_panel
 
+## Panel types
+
+::: timber_design_populator.panel_types.PanelType
+
+::: timber_design_populator.panel_types.get_panel_type
+
+::: timber_design_populator.panel_types.list_panel_types
+
+::: timber_design_populator.panel_types.load_panel_type
+
+::: timber_design_populator.panel_types.list_panel_type_files
+
+::: timber_design_populator.panel_types.write_panel_type_files
+
+::: timber_design_populator.panel_types.save_panel_type
+
+::: timber_design_populator.panel_types.stud_wall_type
+
+::: timber_design_populator.panel_types.stud_wall_layers
+
+::: timber_design_populator.panel_types.framed_detail_sets
+
+::: timber_design_populator.panel_types.dataholz
+
 ---
 
 ## Agent base class
@@ -35,6 +59,10 @@ populator.merge_with_model(model)
 ## Panel-wide agents
 
 ::: timber_design_populator.populator_agents.edge_agent.EdgeAgent
+
+::: timber_design_populator.populator_agents.fascia_edge_agent.FasciaEdgeAgent
+
+::: timber_design_populator.populator_agents.board_agent.BoardAgent
 
 ::: timber_design_populator.populator_agents.stud_agent.StudAgent
 
@@ -55,6 +83,8 @@ Each built-in set is one way to build a feature, not the only one.
 ::: timber_design_populator.detail_sets.FramedNicheDetailSet
 
 ::: timber_design_populator.detail_sets.LinearServiceDetailSet
+
+::: timber_design_populator.detail_sets.CutThroughDetailSet
 
 ## Detail agents
 
@@ -94,6 +124,8 @@ finds joint candidates with the 2D solver; see
 [2D Connection Solving](../connections_2d.md).
 
 ::: timber_design_populator.connections_2d.beam2d.Beam2D
+
+::: timber_design_populator.connections_2d.fascia_beam.FasciaBeam
 
 ::: timber_design_populator.connections_2d.beam2d.AABB2D
 

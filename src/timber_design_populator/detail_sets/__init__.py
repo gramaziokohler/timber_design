@@ -18,6 +18,7 @@ from .framed_opening_detail_set import FramedOpeningDetailSet
 from .framed_penetration_detail_set import FramedPenetrationDetailSet
 from .framed_niche_detail_set import FramedNicheDetailSet
 from .linear_service_detail_set import LinearServiceDetailSet
+from .cut_through_detail_set import CutThroughDetailSet
 from .panel_joint_detail_set import PanelJointDetailSet
 from .l_generic_panel_joint_detail_set import LGenericPanelJointDetailSet
 from .t_generic_panel_joint_detail_set import TGenericPanelJointDetailSet
@@ -28,6 +29,7 @@ __all__ = [
     "FramedPenetrationDetailSet",
     "FramedNicheDetailSet",
     "LinearServiceDetailSet",
+    "CutThroughDetailSet",
     "PanelJointDetailSet",
     "LGenericPanelJointDetailSet",
     "TGenericPanelJointDetailSet",

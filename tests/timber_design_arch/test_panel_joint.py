@@ -1,12 +1,12 @@
 from compas.data import json_dumps, json_loads
 
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Panel
 from compas_timber.connections import PlateConnectionSolver
 from compas_timber.connections import JointTopology
-from compas_arch.connections import PanelMiterJoint
-from compas_arch.connections import PanelTButtJoint
+from timber_design_arch.connections import PanelMiterJoint
+from timber_design_arch.connections import PanelTButtJoint
 from compas_timber.connections import PlateJointCandidate
-from compas_arch.model import ArchModel
+from timber_design_arch.model import ArchModel
 from compas.geometry import Polyline, Point
 
 

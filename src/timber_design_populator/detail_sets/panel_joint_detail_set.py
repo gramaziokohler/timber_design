@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Optional
 
 from compas.geometry import Vector
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import PanelConnectionInterface
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import PanelConnectionInterface
 from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.populator_agents.backing_stud_detail_agent import BackingStudDetailAgent
@@ -18,7 +18,7 @@ class PanelJointDetailSet(DetailAgentSet):
 
     A panel joint that builds a connection detail does the cross-panel calculation once, with
     both panels in view, and puts each panel's half on that panel's
-    :class:`~compas_arch.panel_features.PanelConnectionInterface` as one of these sets.  Its
+    :class:`~timber_design_arch.panel_features.PanelConnectionInterface` as one of these sets.  Its
     inputs are already in that panel's local frame (populator space), so expanding it needs
     nothing from the other panel.
 

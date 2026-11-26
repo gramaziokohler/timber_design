@@ -3,7 +3,7 @@ from typing import Optional
 from compas.geometry import Frame
 from compas.geometry import Polyline
 
-from compas_arch.elements.layer import LayerRole
+from timber_design_arch.elements.layer import LayerRole
 
 from .panel_features import PanelFeature
 from .panel_features import PanelFeatureType

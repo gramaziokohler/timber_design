@@ -7,14 +7,14 @@ from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Polyline
 from compas.geometry import Vector
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerRole
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import LinearService
-from compas_arch.panel_features import MEPPenetration
-from compas_arch.panel_features import Niche
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import LinearService
+from timber_design_arch.panel_features import MEPPenetration
+from timber_design_arch.panel_features import Niche
 from compas_timber.elements import Plate
 from compas_timber.fabrication import FreeContour
 

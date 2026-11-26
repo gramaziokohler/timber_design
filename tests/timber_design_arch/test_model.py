@@ -13,12 +13,12 @@ from compas_timber.connections.candidate_dispatch import find_connection_handler
 from compas_timber.elements import Beam
 from compas_timber.model import TimberModel
 
-from compas_arch.connections import PanelMiterJoint
-from compas_arch.elements import Layer
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
+from timber_design_arch.connections import PanelMiterJoint
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
 
 
 def _corner_panels():
@@ -84,13 +84,13 @@ def test_json_round_trip_keeps_arch_types():
 
 @pytest.mark.parametrize("model_cls", [ArchModel, TimberModel])
 def test_protobuf_refuses_arch_types_instead_of_losing_them(model_cls):
-    # compas_timber's protobuf wrappers have no slot for compas_arch types, so writing one
+    # compas_timber's protobuf wrappers have no slot for timber_design_arch types, so writing one
     # would silently fall back to a compas_timber base class. The guard must raise instead.
     model = model_cls()
     panel_a, _ = _corner_panels()
     model.add_element(panel_a)
 
-    with pytest.raises(NotImplementedError, match="compas_arch does not support protobuf"):
+    with pytest.raises(NotImplementedError, match="timber_design_arch does not support protobuf"):
         pb_dump_bts(model)
 
 

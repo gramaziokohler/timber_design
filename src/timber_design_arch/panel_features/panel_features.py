@@ -8,7 +8,7 @@ from typing import Union
 if TYPE_CHECKING:
     from compas_brep import Brep  # noqa: F401
 
-    from compas_arch.elements import Panel  # noqa: F401
+    from timber_design_arch.elements import Panel  # noqa: F401
 
 from compas.geometry import Frame
 from compas.geometry import Geometry
@@ -27,7 +27,7 @@ class PanelFeatureType(StrEnum):
 
 
 class PanelFeature(Element, ABC):
-    """Base class of the features of a :class:`~compas_arch.elements.Panel`.
+    """Base class of the features of a :class:`~timber_design_arch.elements.Panel`.
 
     Parameters
     ----------

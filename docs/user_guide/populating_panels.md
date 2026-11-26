@@ -1,25 +1,29 @@
 # Populating Panels
 
-This guide walks through framing a :class:`~compas_arch.elements.Panel` with
+This guide walks through framing a :class:`~timber_design_arch.elements.Panel` with
 beams and plates using `timber_design_populator`.  A runnable version of every
 scenario below lives in `examples/panel_population.py`.
 
 All lengths are in the model's native units (mm in the examples).
 
+For a diagram overview first, see [Panels, Joints, Features and the Populator at a Glance](populator_overview.md).
+
 ## Concepts
 
 - **Layers belong to the panel.**  A panel's cross-section is a
-  :class:`~compas_arch.elements.LayerStructure` (from `compas_arch`): a tree
-  of :class:`~compas_arch.elements.LayerDefinition`s, each with a name, a
+  :class:`~timber_design_arch.elements.LayerStructure` (from `timber_design_arch`): a tree
+  of :class:`~timber_design_arch.elements.LayerDefinition`s, each with a name, a
   thickness, optional sublayers and, for the exterior, core and interior
-  layers, a :class:`~compas_arch.elements.LayerRole`.  The populator never defines layers itself;
+  layers, a :class:`~timber_design_arch.elements.LayerRole`.  The populator never defines layers itself;
   it frames the ones the panel already has.
 - **Agents generate the framing.**  Every agent is a `PopulatorAgent`
   acting on some layers (its element layers, where it creates elements, and its
   trimming layers, whose elements it cuts; `layer=` sets both):
     - **Panel-wide agents** frame or sheathe whole layers and are given to the
       populator: `EdgeAgent` (plates and edge studs along the outline),
-      `StudAgent` (intermediate studs), `PlateAgent` (a sheathing plate),
+      `FasciaEdgeAgent` (like `EdgeAgent`, but an angled fascia on sloped
+      edges, see below), `StudAgent` (intermediate studs), `BoardAgent` (battens,
+      cladding boards: parallel members at a spacing, in any direction), `PlateAgent` (a sheathing plate),
       `LayerBoundaryAgent` (no elements; it only clips other agents to the
       layer outline).
     - **Detail agents** (`*DetailAgent`) build one part of one feature from
@@ -56,7 +60,7 @@ There are three ways to extend the populator:
 
 ```python
 from compas.geometry import Point, Polyline
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Panel
 from compas_timber.model import TimberModel
 from timber_design_populator import stud_panel
 
@@ -94,7 +98,7 @@ and `"interior"`.  `stud_panel()` puts a plate on `exterior_layer` and
 may leave `thickness` unset to absorb the remaining thickness.
 
 ```python
-from compas_arch.elements import LayerDefinition, LayerStructure
+from timber_design_arch.elements import LayerDefinition, LayerStructure
 
 panel = Panel.from_outline_thickness(outline, 200)
 panel.layer_structure = LayerStructure(
@@ -112,13 +116,13 @@ input.
 
 ## Openings
 
-Openings are :class:`~compas_arch.panel_features.Opening` features on the
+Openings are :class:`~timber_design_arch.panel_features.Opening` features on the
 panel.  `stud_panel()` builds them with a default `FramedOpeningDetailSet`,
 which frames the opening on the core layer and cuts it through every layer, so
 sheathing plates and battens get the hole too.
 
 ```python
-from compas_arch.panel_features import Opening, OpeningType
+from timber_design_arch.panel_features import Opening, OpeningType
 
 window = Polyline([Point(800, 900, 0), Point(2000, 900, 0), Point(2000, 2200, 0), Point(800, 2200, 0), Point(800, 900, 0)])
 panel.add_feature(Opening.from_outline_panel(window, panel, opening_type=OpeningType.WINDOW))
@@ -174,6 +178,126 @@ the set on every run, so one set can serve many features and panels.
 !!! note
     Openings are framed by their bounding rectangle in the panel plane, and
     only `OpeningType.WINDOW` / `OpeningType.DOOR` get type-specific framing.
+
+## Sloped edges: fascia beams
+
+`EdgeAgent` frames a sloped edge (an edge plane that is not square to the
+panel, e.g. a plumb-cut eave) with a flat beam, widened to reach the edge and
+cut along the edge plane.  `FasciaEdgeAgent` uses an angled fascia instead: the
+beam is rotated about its axis so its outer face lies on the edge plane, and
+it is made higher than the layer is thick so it covers the layer on both of
+its faces.  Studs and other beams butted against it get angled jack rafter cuts
+on its sloped inner face, from the usual joint rules.  Square edges get the same
+beams as with `EdgeAgent`.
+
+```python
+from timber_design_populator import FasciaEdgeAgent, PanelPopulator, PanelType, StudAgent
+
+roof = PanelType(
+    "roof",
+    panel.layer_structure,
+    agents=[FasciaEdgeAgent(panel.core_layer, flush_cuts=True), StudAgent(panel.core_layer, stud_spacing=600)],
+    standard_beam_width=60,
+)
+populator = PanelPopulator(panel, roof)
+```
+
+`flush_cuts=True` trims each fascia flush with the layer's two faces
+(longitudinal cuts); without it, the fascia overhangs them.  With
+`standard_beam_width_increment`, the fascia's height is rounded up as well.
+
+## Battens and cladding: BoardAgent
+
+`BoardAgent` fills a layer with parallel members at an on-centre `spacing`:
+battens, counter-battens, cladding boards, the joists of an insulation layer.
+`direction` is a vector in the panel plane (default the panel's y axis, "up"
+on a wall), `offset` shifts the grid, and `category` names the members, e.g.
+`"batten"`.  The grid is measured from the panel's origin, not from the
+layer's edge, so members with the same spacing line up from layer to layer:
+battens @ 625 sit over studs @ 625, however far a layer is extended.  Members
+are placed where their full width lies within the layer and are clipped to
+its outline.
+
+```python
+from compas.geometry import Vector
+from timber_design_populator import BoardAgent
+
+battens = BoardAgent(battens_path, board_width=50, spacing=625, category="batten")
+cladding = BoardAgent(cladding_path, board_width=146, spacing=150, direction=Vector(1, 0, 0), category="cladding")
+```
+
+`StudAgent` is a `BoardAgent` of category `"stud"`: other agents (edge plates,
+opening framing, backing studs) rely on that category.  Unlike plain boards,
+studs are trimmed by the framing boundary (`EdgeAgent`), and the first one is
+one spacing from the panel origin, where the edge stud is.
+
+## Panel types
+
+A `PanelType` names a whole buildup, e.g. an exterior wall from a catalogue
+such as [dataholz.eu](https://www.dataholz.eu/bauteile/aussenwand.htm):
+
+- its cross-section, a `LayerStructure` whose layers carry a `material` and
+  free `attributes` (`fill` for insulation between members, `membrane_a` /
+  `membrane_b` for a membrane on a layer's outer / inner face);
+- the panel-wide agents that build each layer, referring to layers by path,
+  name or role;
+- its default detail sets (how openings, services and so on are built), and
+  the populator settings.
+
+It holds no panel, so one type serves every panel of that type.  `apply` gives
+a panel the cross-section (a design step: panel joints then see the real
+layers), and `populator` makes the populator that builds it.
+
+```python
+from timber_design_populator import get_panel_type
+
+wall = get_panel_type("awrhho05b")      # timber frame, ventilated, timber cladding
+wall.apply(panel)                       # the panel must be wall.thickness (247) thick
+populator = wall.populator(panel)       # agents=, default_detail_sets= etc. add or replace
+```
+
+The built-in types are `stud_wall` (any cross-section with a core) and, after
+dataholz.eu, `awrhho05b`, `awrhhi01a` (with an installation layer) and
+`awmhhi01a` (solid timber: a CLT core whose openings are cut through with
+`CutThroughDetailSet`, not framed).  Their factories take parameters, e.g.
+`get_panel_type("awrhho05b", stud_spacing=400)`.  Values a catalogue leaves open
+(cladding board widths, some spacings) are such parameters.  A type's
+`reference` names its source and `attributes` keep the properties the source
+states (U-value, fire rating): recorded, not verified.
+
+The dataholz types also ship as JSON files in
+`timber_design_populator/panel_types/data/`, with their factories' defaults:
+`load_panel_type("awrhho05b")` reads one by name, and `list_panel_type_files()`
+lists them.  After changing one of those factories, regenerate the files with
+`write_panel_type_files()`; a test fails while they differ.
+
+Make your own from a layer structure and agents, and share it as JSON:
+
+```python
+from timber_design_arch.elements import LayerDefinition, LayerStructure
+from timber_design_populator import BoardAgent, EdgeAgent, PanelType, PlateAgent, StudAgent
+from timber_design_populator import framed_detail_sets, save_panel_type
+
+layers = LayerStructure([
+    LayerDefinition("exterior", 30, sublayer_defs=[LayerDefinition("battens", 30, material="spruce")]),
+    LayerDefinition("core", 160, material="C24", attributes={"fill": "mineral wool"}),
+    LayerDefinition("interior", 15, material="OSB"),
+])
+wall = PanelType(
+    "my_wall",
+    layers,
+    agents=[BoardAgent("battens", board_width=50, spacing=625, category="batten"),
+            EdgeAgent("core"), StudAgent("core", stud_spacing=625), PlateAgent("interior")],
+    default_detail_sets=framed_detail_sets(),
+    standard_beam_width=60,
+)
+save_panel_type(wall, "my_wall.json")
+```
+
+`stud_panel(panel, ...)` is the `stud_wall` type for the panel's own layers.
+`stud_wall_type(exterior_sheeting_thickness=15, interior_sheeting_thickness=12.5)`
+builds its own: sheeting of those thicknesses and a core that fills the rest
+(`stud_wall_layers`), so it fits any panel.
 
 ## Beam widths
 
@@ -258,8 +382,9 @@ panel.merge_layer_structure(model)
 from timber_design_populator.detail_sets import FramedOpeningDetailSet
 
 board, battens = panel.exterior_layer.sublayers
-populator = PanelPopulator(
-    panel,
+wall = PanelType(
+    "my_wall",
+    panel.layer_structure,
     agents=[
         PlateAgent(board),
         PlateAgent(panel.interior_layer),
@@ -270,10 +395,14 @@ populator = PanelPopulator(
     # the opening set frames in the core and cuts the exterior (board and battens), core and interior
     default_detail_sets={Opening: FramedOpeningDetailSet()},
 )
+populator = PanelPopulator(panel, wall)
 ```
 
-`agents=` takes panel-wide agents only; a detail agent given there is skipped
-and reported in `debug_info` (put it in a detail set instead).
+A populator is always built from a `PanelType`: `PanelPopulator(panel, panel_type)`
+(or `panel_type.populator(panel)`).  The type's `agents=` take panel-wide agents
+only; a detail agent there is refused (put it in a detail set instead).  For a
+variant of a type, e.g. one more agent or another beam width for one panel, use
+`panel_type.derive(agents=[...], standard_beam_width=...)`.
 
 Agents run in order of `priority` (lower first), and agents with the same
 priority keep the order given, detail agents after the panel-wide ones.
@@ -319,19 +448,29 @@ removes any framing the panel already had, so re-populating is safe.
 
 The same workflow as components:
 
-1. `CT: Panel Layer Definition` (and optionally `CT: Subdivide Layer`) →
-   `CT: Panel`.
-2. `CT: Stud Panel` for the standard case, or `CT: Layer Agent` →
-   `CT: Panel Populator` for a custom stack.  Use
-   `CT: Decompose LayerStructure` to get layer paths for the agents.
-   `CT: Detail Agent Set` makes detail sets for the populators'
-   `default_detail_sets` or a feature component's `detail_set`.  The panel
+1. `CT: Panel` (or another panel component) with its features.  Panels have
+   no layers yet, and features do not need them.
+2. A panel type: `CT: Stud Wall Panel Type` (exterior and interior sheeting
+   thicknesses, stud spacing and widths), `CT: Custom Panel Type` (a layer
+   structure from `CT: Panel Layer Definition` / `CT: Subdivide Layer`, the
+   layer agents that build it and detail sets) or `CT: Panel Type From JSON`.
+   The first two can save the type as JSON.  The dataholz.eu types ship as
+   JSON: give `CT: Panel Type From JSON` their name (`awrhho05b`, ...; see
+   its `available` output).
+3. `CT: Create Populator` (panel, panel type) makes the populator that
+   builds the panel as its type.  The panel itself goes into `CT: Model`
+   without layers: `CT: Populate Model` gives it the type's layers before it
+   re-runs the panel joints (layer-aware joints read them) and populates.
+   For a custom stack, `CT: Layer Agent` makes the agents for
+   `CT: Custom Panel Type`; `CT: Decompose LayerStructure` gives the layer
+   paths.  `CT: Detail Agent Set` makes detail sets for a panel type's
+   `detail_sets` or a feature component's `detail_set`.  The panel
    joint rule components offer the detail joints (`LGenericPanelJoint`,
    `TGenericPanelJoint`) with their flags as inputs.
-3. `CT: Model` → `CT: Populate Model` with the populators.  `CT: Model` adds
-   each panel's layers to the model itself, and `CT: Populate Model` frames
+4. `CT: Model` → `CT: Populate Model` with the populators.  `CT: Populate Model`
+   gives each panel its type's layers, re-runs the panel joints, and frames
    the layers as the panel joints and connection details shaped them.
-4. `CT: Filter Display` to show the result by layer.
+5. `CT: Filter Display` to show the result by layer.
 
 ## Detail sets
 
@@ -398,7 +537,7 @@ it from JSON (e.g. a feature's `detail_set`).
 A panel joint shapes the panel envelope; a *detail joint* also builds a
 connection detail.  It does all cross-panel calculation while it sees both
 panels, and gives each panel's
-:class:`~compas_arch.panel_features.PanelConnectionInterface` that panel's
+:class:`~timber_design_arch.panel_features.PanelConnectionInterface` that panel's
 half as a ready detail set, in the panel's own frame.  The populator builds
 the interface like any other feature, so nothing is configured on the
 populator and it never sees the other panel.  Pick the joint and set its
@@ -439,7 +578,7 @@ studs running alongside a backing stud are removed.
 The detail set expands into a `LayerExtensionDetailAgent`, which moves the
 layer edges before anything is generated, and a `BackingStudDetailAgent` on
 the core, which then places its studs against the staggered layers.  The plain
-`compas_arch` joints (`PanelLButtJoint`, `PanelTButtJoint`, `PanelMiterJoint`)
+`timber_design_arch` joints (`PanelLButtJoint`, `PanelTButtJoint`, `PanelMiterJoint`)
 carry no detail: their layers stay as the envelope shaped them.
 
 A new connection detail is a new joint/detail set pair: subclass a panel joint,

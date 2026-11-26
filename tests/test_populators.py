@@ -15,14 +15,15 @@ from compas.geometry import Point
 from compas.geometry import Polyline
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
-from compas_arch.elements import Layer
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
 from compas_timber.elements import Plate
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import StudAgent
 from timber_design_populator import VoidFramingDetailAgent
@@ -31,7 +32,7 @@ from timber_design_populator import stud_panel
 from timber_design_rules import CategoryRule
 
 try:
-    from compas_arch.panel_features import Opening  # noqa: F401
+    from timber_design_arch.panel_features import Opening  # noqa: F401
 
     _HAS_OPENING = True
 except ImportError:  # Opening not in the installed compas_timber
@@ -347,7 +348,8 @@ class TestPanelLevelJointRules:
     """
 
     def _pop(self, *agents, **kwargs):
-        return PanelPopulator(panel=make_panel(), agents=list(agents), **kwargs)
+        panel = make_panel()
+        return PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=list(agents), **kwargs))
 
     def test_none_gives_an_empty_list(self):
         pop = self._pop(EdgeAgent(None))
@@ -474,24 +476,26 @@ class TestAgentCloning:
 
     def test_populator_does_not_mutate_caller_agents(self):
         stud = StudAgent(None)
-        pop = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
+        panel = make_panel()
+        pop = PanelPopulator(panel, PanelType("test", panel.layer_structure, agents=[stud], standard_beam_width=60.0))
         assert stud.beam_widths["stud"] is None
         assert pop.agents[0] is not stud
         assert pop.agents[0].beam_widths["stud"] == 60.0
 
     def test_shared_agent_across_populators_stays_independent(self):
         stud = StudAgent(None)
-        pop_a = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=60.0)
-        pop_b = PanelPopulator(panel=make_panel(), agents=[stud], standard_beam_width=80.0)
+        panel = make_panel()
+        pop_a = PanelPopulator(panel, PanelType("a", panel.layer_structure, agents=[stud], standard_beam_width=60.0))
+        pop_b = PanelPopulator(panel, PanelType("b", panel.layer_structure, agents=[stud], standard_beam_width=80.0))
         assert pop_a.agents[0].beam_widths["stud"] == 60.0
         assert pop_b.agents[0].beam_widths["stud"] == 80.0
 
     @requires_opening
     def test_binding_does_not_mutate_a_features_detail_set(self):
-        from compas_arch.panel_features import Opening
-        from compas_arch.panel_features import OpeningType
+        from timber_design_arch.panel_features import Opening
+        from timber_design_arch.panel_features import OpeningType
 
-        from compas_arch.model import ArchModel
+        from timber_design_arch.model import ArchModel
         from timber_design_populator.detail_sets import FramedOpeningDetailSet
 
         panel = make_panel(sheeting_inside=15.0)
@@ -510,8 +514,8 @@ class TestAgentCloning:
 
     @requires_opening
     def test_clone_shares_feature_reference(self):
-        from compas_arch.panel_features import Opening
-        from compas_arch.panel_features import OpeningType
+        from timber_design_arch.panel_features import Opening
+        from timber_design_arch.panel_features import OpeningType
 
         panel = make_panel()
         opening = Opening.from_outline_panel(make_outline(1000, 900, 2400, 2200), panel, opening_type=OpeningType.WINDOW)

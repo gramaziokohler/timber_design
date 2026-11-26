@@ -280,12 +280,12 @@ class ConnectionSolver2D:
 
         # FACE_FACE: parallel beams on opposite sides of a shared long edge
         if abs(abs(dot_vectors(beam_a.frame.xaxis, beam_b.frame.xaxis)) - 1.0) < 1e-6:
-            perp_vec = beam_a.frame.yaxis
+            perp_vec = beam_a.footprint_frame.yaxis
             for ea, eb in product([beam_a.edge_a, beam_a.edge_b], [beam_b.edge_a, beam_b.edge_b]):
                 dist = distance_point_line(eb.start, ea)
                 if dist <= self.max_distance:
-                    dot_a = dot_vectors(Vector.from_start_end(ea.start, beam_a.frame.point), perp_vec)
-                    dot_b = dot_vectors(Vector.from_start_end(ea.start, beam_b.frame.point), perp_vec)
+                    dot_a = dot_vectors(Vector.from_start_end(ea.start, beam_a.footprint_frame.point), perp_vec)
+                    dot_b = dot_vectors(Vector.from_start_end(ea.start, beam_b.footprint_frame.point), perp_vec)
                     if dot_a * dot_b < 0:
                         dot_pts = [ea.start, ea.end, eb.start, eb.end]
                         return Beam2DSolverResult(

@@ -32,7 +32,7 @@ class InterfaceRole(StrEnum):
 
 
 class PanelConnectionInterface(PanelFeature):
-    """One panel's side of a :class:`~compas_arch.connections.PanelJoint`: the edge where it connects.
+    """One panel's side of a :class:`~timber_design_arch.connections.PanelJoint`: the edge where it connects.
 
     A panel joint creates one interface on each of its two panels.  A joint that builds a
     connection detail does all cross-panel calculation itself and puts this panel's half,

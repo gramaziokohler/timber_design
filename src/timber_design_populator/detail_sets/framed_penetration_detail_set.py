@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from compas_arch.elements import LayerRole
-from compas_arch.panel_features import MEPPenetration
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.panel_features import MEPPenetration
 from compas_timber.errors import FeatureApplicationError
 
 from timber_design_populator.populator_agents.layer_cut_detail_agent import LayerCutDetailAgent

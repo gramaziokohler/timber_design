@@ -2,8 +2,8 @@ from compas_timber.connections import JointTopology
 from compas_timber.connections import PlateLButtJoint
 from compas_timber.connections import PlateTButtJoint
 
-from compas_arch.elements import Panel
-from compas_arch.panel_features import InterfaceRole
+from timber_design_arch.elements import Panel
+from timber_design_arch.panel_features import InterfaceRole
 
 from .panel_joint import PanelJoint
 

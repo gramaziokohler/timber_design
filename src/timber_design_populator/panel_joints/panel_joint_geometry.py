@@ -12,7 +12,7 @@ from compas.geometry import Vector
 from compas.geometry import closest_point_on_line
 from compas.geometry import dot_vectors
 from compas.geometry import intersection_plane_plane
-from compas_arch.elements import LayerRole
+from timber_design_arch.elements import LayerRole
 from compas_timber.utils import get_polyline_segment_perpendicular_vector
 
 STAGGER_ROLES = (LayerRole.EXTERIOR, LayerRole.CORE, LayerRole.INTERIOR)
@@ -28,7 +28,7 @@ def layer_stagger(panel, partner, edge_index, main):
 
     Parameters
     ----------
-    panel, partner : :class:`~compas_arch.elements.Panel`
+    panel, partner : :class:`~timber_design_arch.elements.Panel`
         In a model, with their layers.
     edge_index : int
         *panel*'s edge at the joint.

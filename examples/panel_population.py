@@ -13,16 +13,17 @@ All lengths are in mm.
 
 from compas.geometry import Point
 from compas.geometry import Polyline
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
-from compas_arch.model import ArchModel
-from compas_arch.panel_features import Opening
-from compas_arch.panel_features import OpeningType
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
+from timber_design_arch.model import ArchModel
+from timber_design_arch.panel_features import Opening
+from timber_design_arch.panel_features import OpeningType
 from compas_timber.connections import TButtJoint
 
 from timber_design_populator import EdgeAgent
 from timber_design_populator import PanelPopulator
+from timber_design_populator import PanelType
 from timber_design_populator import PlateAgent
 from timber_design_populator import StudAgent
 from timber_design_populator import stud_panel
@@ -146,9 +147,11 @@ def custom_agent_stack():
             external_joint_overrides=[CategoryRule(TButtJoint, "stud", "top_plate_beam", mill_depth=0.0)],
         ),
     ]
-    populator = PanelPopulator(
-        panel,
-        agents,
+    # The buildup: the panel's layers, the agents that build them, and how features are built.
+    wall = PanelType(
+        "custom_wall",
+        panel.layer_structure,
+        agents=agents,
         standard_beam_width=60,
         default_detail_sets={
             # Frame the opening in the core; cut its outline through every layer
@@ -158,6 +161,7 @@ def custom_agent_stack():
         # Panel-level fallback, tried only when no agent rule matches a cluster.
         joint_rule_overrides=[CategoryRule(TButtJoint, "stud", "sill")],
     )
+    populator = PanelPopulator(panel, wall)
     debug_info = run(populator, model)
     summarize("Custom agent stack", model)
     print("    joining errors:", len(debug_info.joint_errors))

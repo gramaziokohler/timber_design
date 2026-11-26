@@ -5,8 +5,13 @@ from typing import Optional
 from compas.geometry import Line
 from compas.geometry import Polyline
 from compas.geometry import intersection_line_plane
+from compas.itertools import pairwise
 from compas_timber.elements import Plate
 from compas_timber.fabrication.free_contour import FreeContour
+from compas_timber.utils import is_point_in_polyline
+
+from timber_design_populator.connections_2d.beam2d import Beam2D
+from timber_design_populator.connections_2d.connection_solver_2d import ConnectionSolver2D
 
 from timber_design_populator.populator_agents.populator_agent import AgentBoundaryType
 from timber_design_populator.populator_agents.populator_agent import PopulatorAgent
@@ -22,8 +27,10 @@ class LayerCutDetailAgent(PopulatorAgent):
 
     Creates no elements.  On every layer it trims (its layer and the sublayers below it):
 
-    - **beams** (e.g. battens) are split at the cut and removed inside it, unless *cut_beams*
-      is off.  The boundary is the cut prism between *outline_a* and *outline_b* at the layer's
+    - **beams** (e.g. battens, cladding boards) are split at the cut and every piece that
+      overlaps it is removed, unless *cut_beams* is off.  A beam the cut's edge runs along
+      (a board straddling an opening's top or bottom) loses the piece alongside the cut, in any
+      direction.  The boundary is the cut prism between *outline_a* and *outline_b* at the layer's
       mid-height, or else *outline_a* projected onto the layer's mid-plane;
     - **plates** are cut: through by the prism between *outline_a* and *outline_b*; or, with
       *outline_a* alone, through along *outline_a* projected onto the layer face (no *depth*), or
@@ -31,7 +38,7 @@ class LayerCutDetailAgent(PopulatorAgent):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or tuple, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or tuple, optional
         The layer to cut (its sublayers are cut too).  Sets the trimming layers only: the agent
         creates nothing.
     outline_a : :class:`~compas.geometry.Polyline`
@@ -94,6 +101,43 @@ class LayerCutDetailAgent(PopulatorAgent):
             frame_a, frame_b = frame_through_outlines(self.outline_a, self.outline_b, layer)
             return frame_boundary(frame_a, frame_b, layer.center_height, self.bottom_offset)
         return project_to_layer_midplane(self.outline_a, layer)
+
+    #: How far into a beam's width its edges are tested against the cut: a beam merely
+    #: touching the cut is kept.
+    OVERLAP_TOLERANCE = 1.0
+
+    def split_beam(self, beam: Beam2D) -> list:
+        """Split *beam* at both ends of every stretch where the cut's outline crosses or runs inside its blank.
+
+        Unlike the base split, a cut edge running along the beam (inside its width) gives a piece
+        of its own, so :meth:`cull_beam` can remove it.
+        """
+        outline = self.outline_for_layer(beam.parent)
+        if outline is None:
+            return [beam]
+        crossings = ConnectionSolver2D.intersection_beam2d_polyline(beam, outline)
+        if not crossings:
+            return [beam]
+        cuts = {0.0, beam.length}
+        for crossing in crossings:
+            for dot in (min(crossing.all_dots), max(crossing.all_dots)):
+                cuts.add(min(max(dot, 0.0), beam.length))
+        segments = [beam.get_beam_segment(start, end) for start, end in pairwise(sorted(cuts)) if end - start > 1e-6]
+        return segments if len(segments) > 1 else [beam]
+
+    def cull_beam(self, beam: Beam2D) -> bool:
+        """Remove *beam* if any part of its width overlaps the cut, not only its centerline."""
+        outline = self.outline_for_layer(beam.parent)
+        if outline is None:
+            return False
+        center = beam.centerline.midpoint
+        points = [center]
+        for index in (0, 2):  # the blank's long edges, pulled in by the tolerance
+            edge_mid = beam.blank_outline.lines[index].midpoint
+            inward = center - edge_mid
+            if inward.length > 2 * self.OVERLAP_TOLERANCE:
+                points.append(edge_mid + inward.unitized() * self.OVERLAP_TOLERANCE)
+        return any(is_point_in_polyline(point, outline, in_plane=False) for point in points)
 
     def trim_plate(self, plate: Plate) -> None:
         if self.outline_a is None:

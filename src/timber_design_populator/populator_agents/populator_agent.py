@@ -7,7 +7,7 @@ from compas.data import Data
 from compas.geometry import Line
 from compas.geometry import Vector
 from compas.itertools import pairwise
-from compas_arch.elements import Layer
+from timber_design_arch.elements import Layer
 from compas_timber.connections import JointTopology
 from compas_timber.elements import Plate
 from compas_timber.utils import StrEnum
@@ -118,15 +118,15 @@ class PopulatorAgent(Data):
 
     Parameters
     ----------
-    layer : :class:`~compas_arch.elements.Layer` or tuple, optional
+    layer : :class:`~timber_design_arch.elements.Layer` or tuple, optional
         Shorthand for an agent working on one layer: sets both *element_layers* and
         *trimming_layers* to it.
-    element_layers : list[:class:`~compas_arch.elements.Layer` | tuple], optional
+    element_layers : list[:class:`~timber_design_arch.elements.Layer` | tuple], optional
         The layers (or layer paths) this agent generates elements on.
-    trimming_layers : list[:class:`~compas_arch.elements.Layer` | tuple], optional
+    trimming_layers : list[:class:`~timber_design_arch.elements.Layer` | tuple], optional
         The layers (or layer paths) on which this agent's boundary trims peer elements;
         their sublayers are trimmed too.
-    feature : :class:`~compas_arch.panel_features.PanelFeature`, optional
+    feature : :class:`~timber_design_arch.panel_features.PanelFeature`, optional
         The feature a detail agent was created for; used to tag its elements and report
         errors, never interpreted.
     priority : int, optional
@@ -146,9 +146,9 @@ class PopulatorAgent(Data):
     beam_widths : dict[str, float]
         ``{category: width}`` mapping, resolved by the config / populator
         before generation.  Beam height is always the layer thickness.
-    trimming_layers : list[:class:`~compas_arch.elements.Layer`]
+    trimming_layers : list[:class:`~timber_design_arch.elements.Layer`]
         The layers on which this agent's boundary trims peer elements.
-    element_layers : list[:class:`~compas_arch.elements.Layer`]
+    element_layers : list[:class:`~timber_design_arch.elements.Layer`]
         The layers this agent generates elements on.
     elements : list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]
         Every element currently in the model that carries this agent's tag.
@@ -158,7 +158,7 @@ class PopulatorAgent(Data):
         Active rules for clusters of three or more elements.
     internal_rules : list[:class:`~timber_design_rules.CategoryRule`]
         Active within-agent joint rules.
-    outline_by_layer : dict[:class:`~compas_arch.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
+    outline_by_layer : dict[:class:`~timber_design_arch.elements.Layer`, :class:`~compas.geometry.Polyline` or None]
         This agent's boundary outline per layer.  Filled during
         :meth:`generate_elements` for framing layers and by
         :meth:`define_outlines` for every other layer the agent trims.
@@ -296,7 +296,7 @@ class PopulatorAgent(Data):
 
         Returns
         -------
-        dict[:class:`~compas_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
+        dict[:class:`~timber_design_arch.elements.Layer`, list[:class:`~timber_design_populator.connections_2d.Beam2D` | :class:`~compas_timber.elements.Plate`]]
             The generated elements per element layer.
         """
         self.outline_by_layer.clear()
@@ -347,7 +347,7 @@ class PopulatorAgent(Data):
             The centreline of the beam.
         category : str
             Beam category; must be present in :attr:`beam_widths`.
-        layer : :class:`~compas_arch.elements.Layer`
+        layer : :class:`~timber_design_arch.elements.Layer`
             The layer the beam belongs to.  Its thickness is used as the beam
             height.  Defaults to :attr:`layer`.
         kwargs : dict, optional
@@ -375,12 +375,12 @@ class PopulatorAgent(Data):
 
         Called once per run, after :meth:`repoint_to_layer_tree`.  The populator applies all
         extension planes afterwards, so agents only call
-        :meth:`~compas_arch.elements.Layer.set_extension_plane`.  Used by connection details
+        :meth:`~timber_design_arch.elements.Layer.set_extension_plane`.  Used by connection details
         that stagger layers at a panel edge.  No-op by default.
 
         Parameters
         ----------
-        layer_tree : dict[tuple, :class:`~compas_arch.elements.Layer`]
+        layer_tree : dict[tuple, :class:`~timber_design_arch.elements.Layer`]
             Every layer of the panel, by layer path.
 
         Returns
@@ -416,7 +416,7 @@ class PopulatorAgent(Data):
 
         Parameters
         ----------
-        layers : list[:class:`~compas_arch.elements.Layer`]
+        layers : list[:class:`~timber_design_arch.elements.Layer`]
             All layers this agent frames on or trims (including sublayers),
             as determined by the populator.
         """
@@ -576,7 +576,7 @@ class PopulatorAgent(Data):
         boundary_outlines : list[:class:`~compas.geometry.Polyline`]
             Boundary outlines of peer agents on *layer*.  The populator filters
             out ``None`` entries and this agent's own outline before calling.
-        layer : :class:`~compas_arch.elements.Layer`
+        layer : :class:`~timber_design_arch.elements.Layer`
             The layer the extension applies to.
         """
         pass

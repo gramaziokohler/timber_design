@@ -24,20 +24,20 @@ from compas.geometry import Vector
 from compas_timber.connections import LButtJoint
 from compas_timber.connections import TButtJoint
 from compas_timber.elements import Beam
-from compas_arch.elements import Layer
-from compas_arch.elements import LayerDefinition
-from compas_arch.elements import LayerStructure
-from compas_arch.elements import Panel
+from timber_design_arch.elements import Layer
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerStructure
+from timber_design_arch.elements import Panel
 from compas_timber.elements import Plate
-from compas_arch.model import ArchModel
+from timber_design_arch.model import ArchModel
 
 from timber_design_populator import stud_panel
 from timber_design_populator.connections_2d.beam2d import Beam2D
 from timber_design_rules import CategoryRule
 
 try:
-    from compas_arch.panel_features.opening import Opening
-    from compas_arch.panel_features.opening import OpeningType
+    from timber_design_arch.panel_features.opening import Opening
+    from timber_design_arch.panel_features.opening import OpeningType
 
     HAS_OPENING = True
 except ImportError:

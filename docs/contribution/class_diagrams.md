@@ -4,9 +4,9 @@ This section provides visual representations of the class hierarchies and relati
 
 [TOC]
 
-## compas_arch
+## timber_design_arch
 
-`compas_arch` extends COMPAS Timber; classes from `compas_timber` and `compas_model` that appear here
+`timber_design_arch` extends COMPAS Timber; classes from `compas_timber` and `compas_model` that appear here
 (`Element`, `PlateGeometry`, the plate joints) are documented in the
 [COMPAS Timber class diagrams](https://gramaziokohler.github.io/compas_timber/latest/contribution/class_diagrams/).
 
@@ -223,6 +223,8 @@ classDiagram
 
     class PanelPopulator {
         +panel : Panel
+        +panel_type : PanelType
+        +layer_structure : LayerStructure
         +agents : list[PopulatorAgent]
         +model : TimberModel
         +joint_rule_overrides : list[JointRule]
@@ -230,6 +232,7 @@ classDiagram
         +debug_info : DebugInfomation
         +layer_tree : dict[str, Layer]
         +update_panel_from_model(model)
+        +apply_layer_structure()
         +populate_elements()
         +join_elements()
         +process_joinery()
@@ -239,6 +242,17 @@ classDiagram
     class stud_panel {
         <<function>>
         stud_panel(panel, standard_beam_width, stud_spacing, ...) PanelPopulator
+    }
+
+    class PanelType {
+        +name : str
+        +layer_structure : LayerStructure
+        +agents : list[PopulatorAgent]
+        +default_detail_sets : dict
+        +reference : dict
+        +apply(panel)
+        +populator(panel) PanelPopulator
+        +derive(...) PanelType
     }
 
     class Panel {
@@ -259,7 +273,9 @@ classDiagram
         +center_height : float
     }
 
-    stud_panel ..> PanelPopulator : creates
+    stud_panel ..> PanelType : builds stud_wall
+    PanelPopulator --> PanelType : built as
+    PanelType ..> Panel : applies layer structure
     PanelPopulator --> Panel : populates
     PanelPopulator "1" *-- "1..*" PopulatorAgent : clones and drives
     PanelPopulator ..> ConnectionSolver2D : finds joint clusters
@@ -335,6 +351,14 @@ classDiagram
         INCLUSIVE, priority -10
         edge_stud, top_plate_beam, bottom_plate_beam
     }
+    class FasciaEdgeAgent {
+        flush_cuts
+        FasciaBeam on sloped edges
+    }
+    class BoardAgent {
+        NONE
+        category, direction, spacing, offset
+    }
     class StudAgent {
         NONE
         stud
@@ -378,7 +402,9 @@ classDiagram
 
     PopulatorAgent --> AgentBoundaryType
     PopulatorAgent <|-- EdgeAgent
-    PopulatorAgent <|-- StudAgent
+    EdgeAgent <|-- FasciaEdgeAgent
+    PopulatorAgent <|-- BoardAgent
+    BoardAgent <|-- StudAgent
     PopulatorAgent <|-- PlateAgent
     PopulatorAgent <|-- LayerBoundaryAgent
     PopulatorAgent <|-- VoidFramingDetailAgent
@@ -403,8 +429,8 @@ Notes:
   one, or nothing.  An agent never trims its own elements.
 - **Detail agents take explicit inputs.**  They never derive anything from the
   feature (it is only a tag); a detail set derives their frames, boundaries,
-  cuts, planes and positions.  `PanelPopulator(agents=...)` skips detail
-  agents and reports them.
+  cuts, planes and positions.  A `PanelType` refuses detail agents among its
+  panel-wide agents.
 - **Priority.**  Agents run in order of `priority` (class `PRIORITY` unless
   given), stable, so equal priorities keep their order; detail agents come
   after the panel-wide agents they tie with.  Layer extensions (-100) run
@@ -525,6 +551,8 @@ classDiagram
     }
 
     class Beam2D {
+        +footprint_frame : Frame
+        +footprint_width : float
         +edges : tuple[Line, Line]
         +edge_a : Line
         +edge_b : Line
@@ -549,9 +577,20 @@ classDiagram
         +from_points(points)$
     }
 
+    class FasciaBeam {
+        +footprint_frame : level section frame
+        +footprint_width : level section width
+    }
+
     Beam <|-- Beam2D
+    Beam2D <|-- FasciaBeam
     Beam2D ..> AABB2D : computes
 ```
+
+All 2D geometry (edges, outline, containment, AABB) is computed on the
+*footprint*: the beam's section in the panel plane.  For a flat beam that is its
+frame and width; `FasciaBeam`, rotated about its axis onto a sloped edge plane,
+uses its level section through the centerline instead.
 
 `to_beam()` swaps the instance's class to `Beam` in place, so joints and model
 references stay valid when `merge_with_model` hands the elements back.

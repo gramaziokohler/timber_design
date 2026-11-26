@@ -1,0 +1,49 @@
+# r: timber_design>=0.3.1
+"""Creates a LayerStructure definition for a panel cross-section."""
+
+# flake8: noqa
+import Grasshopper
+from Grasshopper.Kernel import GH_RuntimeMessageLevel as RML
+
+from timber_design_arch.elements import LayerDefinition
+from timber_design_arch.elements import LayerRole
+from timber_design_arch.elements import LayerStructure
+
+
+class PanelLayerDefinition(Grasshopper.Kernel.GH_ScriptInstance):
+    def RunScript(
+        self,
+        exterior_thickness: float,
+        core_thickness: float,
+        interior_thickness: float,
+        exterior_name: str,
+        core_name: str,
+        interior_name: str,
+        exterior_material: str,
+        core_material: str,
+        interior_material: str,
+    ):
+        ext = float(exterior_thickness) if exterior_thickness is not None else None
+        core = float(core_thickness) if core_thickness is not None else None
+        inter = float(interior_thickness) if interior_thickness is not None else None
+
+        # If neither face layer is provided → single-layer core panel
+        if ext is None and inter is None:
+            return LayerStructure(layer_defs=[LayerDefinition(name=core_name or "core", thickness=core, role=LayerRole.CORE, material=core_material)])
+
+        # All three layers are included; exactly one may be None to absorb remaining thickness.
+        nones = sum(1 for t in [ext, core, inter] if t is None)
+        if nones > 1:
+            ghenv.Component.AddRuntimeMessage(
+                RML.Warning,
+                "At most one thickness may be omitted. Specify at least 2 of the 3 layer thicknesses.",
+            )
+            return None
+
+        layer_defs = [
+            # the role comes from the slot, so the names are free to describe the build-up
+            LayerDefinition(name=exterior_name or "exterior", thickness=ext, role=LayerRole.EXTERIOR, material=exterior_material),
+            LayerDefinition(name=core_name or "core", thickness=core, role=LayerRole.CORE, material=core_material),
+            LayerDefinition(name=interior_name or "interior", thickness=inter, role=LayerRole.INTERIOR, material=interior_material),
+        ]
+        return LayerStructure(layer_defs=layer_defs)
